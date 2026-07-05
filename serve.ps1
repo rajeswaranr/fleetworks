@@ -1,4 +1,4 @@
-# TruckMitra - local web server (no Node/Python required)
+# FleetFix - local web server (no Node/Python required)
 # Usage:  powershell -ExecutionPolicy Bypass -File serve.ps1 [-Port 8080] [-Lan]
 #   -Lan  also serve to other devices on your network (needs Administrator once:
 #         netsh http add urlacl url=http://+:8080/ user=Everyone)
@@ -21,7 +21,7 @@ try {
 }
 
 Write-Host ""
-Write-Host "  TruckMitra is running!" -ForegroundColor Green
+Write-Host "  FleetFix is running!" -ForegroundColor Green
 Write-Host "  Open in your browser:  http://localhost:$Port/" -ForegroundColor Cyan
 if ($Lan) {
   Get-NetIPAddress -AddressFamily IPv4 -PrefixOrigin Dhcp,Manual -ErrorAction SilentlyContinue |

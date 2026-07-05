@@ -1,4 +1,4 @@
-/* ============ TruckMitra — main.js ============ */
+/* ============ FleetFix — main.js ============ */
 
 // ---------- Navbar ----------
 const navbar = document.getElementById("navbar");
@@ -84,15 +84,15 @@ document.querySelectorAll('input[name="phone"]').forEach((input) => {
 });
 
 function makeRef() {
-  return "TM-" + Date.now().toString(36).toUpperCase().slice(-6);
+  return "FF-" + Date.now().toString(36).toUpperCase().slice(-6);
 }
 
 function saveLead(data) {
   // Placeholder persistence — replace with a real API call to your backend,
   // e.g. fetch("/api/leads", { method: "POST", body: JSON.stringify(data) })
-  const leads = JSON.parse(localStorage.getItem("tm_leads") || "[]");
+  const leads = JSON.parse(localStorage.getItem("ff_leads") || "[]");
   leads.push({ ...data, createdAt: new Date().toISOString() });
-  localStorage.setItem("tm_leads", JSON.stringify(leads));
+  localStorage.setItem("ff_leads", JSON.stringify(leads));
 }
 
 // ---------- Modal booking form ----------

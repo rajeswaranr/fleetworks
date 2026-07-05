@@ -1,4 +1,4 @@
-/* ============ TruckMitra — partner.js (vendor onboarding) ============ */
+/* ============ FleetFix — partner.js (vendor onboarding) ============ */
 
 // ---------- Navbar ----------
 const navbar = document.getElementById("navbar");
@@ -108,11 +108,11 @@ vendorForm.elements.pincode.addEventListener("input", (e) => {
 
 // ---------- Submission ----------
 function makeVendorRef() {
-  return "TMV-" + Date.now().toString(36).toUpperCase().slice(-6);
+  return "FFV-" + Date.now().toString(36).toUpperCase().slice(-6);
 }
 
 function getVendors() {
-  return JSON.parse(localStorage.getItem("tm_vendors") || "[]");
+  return JSON.parse(localStorage.getItem("ff_vendors") || "[]");
 }
 
 vendorForm.addEventListener("submit", (e) => {
@@ -133,7 +133,7 @@ vendorForm.addEventListener("submit", (e) => {
   // e.g. fetch("/api/vendors", { method: "POST", body: JSON.stringify(data) })
   const vendors = getVendors();
   vendors.push(data);
-  localStorage.setItem("tm_vendors", JSON.stringify(vendors));
+  localStorage.setItem("ff_vendors", JSON.stringify(vendors));
 
   document.getElementById("vSuccessName").textContent = data.ownerName;
   document.getElementById("vSuccessRef").textContent = data.ref;
