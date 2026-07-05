@@ -1,0 +1,30 @@
+{
+  "name": "FleetFix - Heavy Vehicle Services",
+  "short_name": "FleetFix",
+  "description": "Book mechanical repairs, tyre services, battery replacement and 24x7 breakdown support for trucks, buses and commercial fleets.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#0f1e33",
+  "background_color": "#0f1e33",
+  "icons": [
+    { "src": "icons/icon-96.png", "sizes": "96x96", "type": "image/png" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Book a Service",
+      "url": "./index.html#services",
+      "icons": [{ "src": "icons/icon-96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Become a Partner",
+      "url": "./partner.html",
+      "icons": [{ "src": "icons/icon-96.png", "sizes": "96x96" }]
+    }
+  ]
+}
