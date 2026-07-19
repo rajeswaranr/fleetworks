@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FleetWorks Fleet Manager — Compliance, Fuel, Inspections, Issues &amp; AI</title>
+  <meta name="description" content="Complete fleet management for India: RTO compliance reminders (Insurance, PUC, Fitness, Permit), fuel and mileage tracking, digital inspections, AI-prioritised issues, preventive maintenance and parts inventory." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="icons/icon-96.png" />
+  <meta name="theme-color" content="#0f1e33" />
+</head>
+<body>
+
+  <!-- ======= TOP BAR ======= -->
+  <div class="topbar">
+    <div class="container topbar-inner">
+      <span>🛞 24x7 Breakdown Helpline: <a href="tel:+919740799722"><strong>+91 97407 99722</strong></a></span>
+      <span class="topbar-cities">🇮🇳 India's First AI/ML Vehicle Maintenance &amp; Management System</span>
+    </div>
+  </div>
+
+  <!-- ======= NAVBAR ======= -->
+  <header class="navbar" id="navbar">
+    <div class="container nav-inner">
+      <a href="index.html" class="logo">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 8h12v8H1z"/><path d="M13 10h4l3 3v3h-7"/><circle cx="5.5" cy="17.5" r="1.8"/><circle cx="17.5" cy="17.5" r="1.8"/></svg>
+        <span>Fleet<em>Works</em></span>
+      </a>
+      <nav class="nav-links" id="navLinks">
+        <a href="index.html#services">Services</a>
+        <a href="why.html">Why FleetWorks</a>
+        <a href="dashboard.html">AI Dashboard</a>
+        <a href="fleet.html" class="nav-partner">Fleet Manager</a>
+        <a href="partner.html">Become a Partner</a>
+      </nav>
+      <div class="nav-actions">
+        <a href="tel:+919740799722" class="btn btn-outline btn-sm">Call Us</a>
+        <button class="btn btn-primary btn-sm" id="demoBtn">Load Demo Fleet</button>
+        <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ======= HERO ======= -->
+  <section class="dash-hero">
+    <div class="container">
+      <span class="badge">🚛 Complete Fleet Management, Made for India</span>
+      <h1>Fleet <span class="accent">Manager</span></h1>
+      <p>Everything Fleetio does, Indianised: RTO compliance reminders, fuel &amp; mileage tracking, digital inspections, AI-prioritised issues, preventive maintenance and parts inventory — with the FleetWorks AI Copilot watching over all of it.</p>
+    </div>
+  </section>
+
+  <main class="container dash-main">
+
+    <!-- Empty state -->
+    <div id="emptyState" class="empty-state" hidden>
+      <div class="empty-icon">🚛</div>
+      <h2>No fleet data yet</h2>
+      <p>Load the demo fleet to explore compliance, fuel, inspections, issues and the AI Copilot — or add your vehicles in the AI Dashboard first.</p>
+      <button class="btn btn-primary" onclick="loadDemoFleet()">Load Demo Fleet</button>
+    </div>
+
+    <div id="fleetContent" hidden>
+
+      <!-- ======= TABS ======= -->
+      <div class="tab-bar" id="tabBar">
+        <button class="tab-btn active" data-tab="overview">🤖 AI Overview</button>
+        <button class="tab-btn" data-tab="vehicles">🚛 Vehicles &amp; RTO</button>
+        <button class="tab-btn" data-tab="fuel">⛽ Fuel</button>
+        <button class="tab-btn" data-tab="inspections">✅ Inspections</button>
+        <button class="tab-btn" data-tab="issues">⚠️ Issues</button>
+        <button class="tab-btn" data-tab="reminders">🗓️ Maintenance</button>
+        <button class="tab-btn" data-tab="parts">🔩 Parts Store</button>
+      </div>
+
+      <!-- ======= OVERVIEW ======= -->
+      <section class="tab-panel active" id="tab-overview">
+        <section class="stat-row" id="fleetStats"></section>
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2>🧠 Smart Assessments &amp; Priorities</h2>
+              <p class="muted">The AI scans your fleet continuously — cost spikes, possible duplicate billing, compliance lapses, mileage drops and overdue maintenance surface here, ranked by risk.</p>
+            </div>
+          </div>
+          <div id="insightsFeed" class="insights-feed"></div>
+        </div>
+      </section>
+
+      <!-- ======= VEHICLES & COMPLIANCE ======= -->
+      <section class="tab-panel" id="tab-vehicles">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2>Vehicles &amp; RTO Compliance</h2>
+              <p class="muted">Insurance · PUC · Fitness Certificate · National Permit · Road Tax — expiry tracking with alerts</p>
+            </div>
+          </div>
+          <div class="chart-scroll"><div id="vehicleComplianceTable"></div></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Update Compliance Dates</h2></div></div>
+          <form id="complianceForm" class="entry-form">
+            <div class="form-row">
+              <label>Vehicle
+                <select name="vehicleId" id="compVehicle" required></select>
+              </label>
+              <label>Document
+                <select name="doc" required>
+                  <option value="insurance">Insurance</option>
+                  <option value="puc">PUC Certificate</option>
+                  <option value="fitness">Fitness Certificate (FC)</option>
+                  <option value="permit">National Permit</option>
+                  <option value="roadtax">Road Tax</option>
+                </select>
+              </label>
+            </div>
+            <label>Valid Till
+              <input type="date" name="validTill" required />
+            </label>
+            <button type="submit" class="btn btn-primary">Save Expiry Date</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ======= FUEL ======= -->
+      <section class="tab-panel" id="tab-fuel">
+        <section class="stat-row" id="fuelStats"></section>
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2>Mileage Trend (km/l)</h2>
+              <p class="muted">Computed between consecutive fills from odometer readings</p>
+            </div>
+            <div class="chart-legend">
+              <label style="flex-direction:row;align-items:center;gap:8px;font-size:0.85rem">Vehicle
+                <select id="fuelVehicleFilter" style="width:auto;padding:7px 10px"></select>
+              </label>
+            </div>
+          </div>
+          <div class="chart-scroll"><div id="mileageChart" class="chart-area"></div></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Add Fuel Entry</h2></div></div>
+          <form id="fuelForm" class="entry-form">
+            <div class="form-row">
+              <label>Vehicle
+                <select name="vehicleId" id="fuelVehicle" required></select>
+              </label>
+              <label>Date
+                <input type="date" name="date" required />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Litres
+                <input type="number" name="litres" step="0.01" min="1" placeholder="e.g. 180" required />
+              </label>
+              <label>Total Amount (₹)
+                <input type="number" name="amount" min="1" placeholder="e.g. 16400" required />
+              </label>
+            </div>
+            <label>Odometer (km)
+              <input type="number" name="odo" min="0" placeholder="e.g. 152300" required />
+            </label>
+            <button type="submit" class="btn btn-primary">Add Fuel Log</button>
+          </form>
+          <details class="chart-table" style="margin-top:16px"><summary>Fuel history</summary><div id="fuelTable"></div></details>
+        </div>
+      </section>
+
+      <!-- ======= INSPECTIONS ======= -->
+      <section class="tab-panel" id="tab-inspections">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2>Digital Vehicle Inspection</h2>
+              <p class="muted">10-point daily check. Failed items automatically become Issues for the AI to prioritise.</p>
+            </div>
+          </div>
+          <form id="inspectionForm">
+            <label style="max-width:320px">Vehicle
+              <select id="inspVehicle" required></select>
+            </label>
+            <div id="inspChecklist" class="insp-checklist"></div>
+            <button type="submit" class="btn btn-primary" style="margin-top:14px">Submit Inspection</button>
+          </form>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Inspection History</h2></div></div>
+          <div class="chart-scroll"><div id="inspectionHistory"></div></div>
+        </div>
+      </section>
+
+      <!-- ======= ISSUES ======= -->
+      <section class="tab-panel" id="tab-issues">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2>Issues — AI Prioritised</h2>
+              <p class="muted">Ranked by severity, vehicle utilisation and age, so your team always knows what to fix first.</p>
+            </div>
+          </div>
+          <div id="issuesList" class="predictions"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Report an Issue</h2></div></div>
+          <form id="issueForm" class="entry-form">
+            <div class="form-row">
+              <label>Vehicle
+                <select name="vehicleId" id="issueVehicle" required></select>
+              </label>
+              <label>Severity
+                <select name="severity" required>
+                  <option>Low</option><option selected>Medium</option><option>High</option>
+                </select>
+              </label>
+            </div>
+            <label>What's wrong?
+              <input type="text" name="title" placeholder="e.g. Brake pedal feels spongy" required />
+            </label>
+            <button type="submit" class="btn btn-primary">Report Issue</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ======= REMINDERS ======= -->
+      <section class="tab-panel" id="tab-reminders">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2>Preventive Maintenance Schedules</h2>
+              <p class="muted">Time and km based service reminders per vehicle</p>
+            </div>
+          </div>
+          <div id="remindersList" class="predictions"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Add PM Schedule</h2></div></div>
+          <form id="reminderForm" class="entry-form">
+            <div class="form-row">
+              <label>Vehicle
+                <select name="vehicleId" id="remVehicle" required></select>
+              </label>
+              <label>Task
+                <select name="task" required>
+                  <option>Engine Oil &amp; Filters</option>
+                  <option>Wheel Alignment &amp; Balancing</option>
+                  <option>Greasing &amp; Lubrication</option>
+                  <option>Air Filter Cleaning</option>
+                  <option>Coolant Top-up / Flush</option>
+                  <option>Brake Inspection</option>
+                  <option>General Service (PMS)</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Repeat Every (months)
+                <input type="number" name="everyMonths" min="1" max="36" placeholder="e.g. 3" required />
+              </label>
+              <label>Last Done On
+                <input type="date" name="lastDate" required />
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary">Add Schedule</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ======= PARTS ======= -->
+      <section class="tab-panel" id="tab-parts">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2>Parts Inventory</h2>
+              <p class="muted">Track spares stock; low-stock items surface in AI Overview</p>
+            </div>
+          </div>
+          <div class="chart-scroll"><div id="partsTable"></div></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Add / Update Part</h2></div></div>
+          <form id="partForm" class="entry-form">
+            <label>Part Name
+              <input type="text" name="name" placeholder="e.g. Air Filter - Tata 1613" required />
+            </label>
+            <div class="form-row">
+              <label>Quantity in Stock
+                <input type="number" name="qty" min="0" required />
+              </label>
+              <label>Alert Below
+                <input type="number" name="minQty" min="0" required />
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary">Save Part</button>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <div id="vizTooltip" class="viz-tooltip" hidden></div>
+  </main>
+
+  <!-- ======= FOOTER ======= -->
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div>
+        <a href="index.html" class="logo footer-logo"><span>Fleet<em>Works</em></span></a>
+        <p><em>Where Every Fleet Learns.</em><br />India's First AI/ML-powered vehicle maintenance &amp; management system for trucks, buses and commercial fleets.</p>
+      </div>
+      <div>
+        <h4>Platform</h4>
+        <a href="index.html#services">Services</a>
+        <a href="why.html">Why FleetWorks</a>
+        <a href="dashboard.html">AI Dashboard</a>
+        <a href="fleet.html">Fleet Manager</a>
+        <a href="partner.html">Partner With Us</a>
+      </div>
+      <div>
+        <h4>Contact</h4>
+        <a href="tel:+919740799722">📞 +91 97407 99722</a>
+        <a href="mailto:care@fleetworks.in">✉️ care@fleetworks.in</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <div class="container">
+        <span>© 2026 FleetWorks Private Limited. All rights reserved.</span>
+        <span>Terms · Privacy</span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/fleet.js"></script>
+  <script src="js/copilot.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+  </script>
+</body>
+</html>

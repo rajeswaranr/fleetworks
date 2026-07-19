@@ -44,7 +44,8 @@ const STORE_KEY = "ff_fleet";
 function loadStore() {
   try {
     const d = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
-    return { vehicles: d.vehicles || [], expenses: d.expenses || [] };
+    // spread first: preserves Fleet Manager collections (fuelLogs, issues, ...)
+    return { ...d, vehicles: d.vehicles || [], expenses: d.expenses || [] };
   } catch { return { vehicles: [], expenses: [] }; }
 }
 function saveStore(d) { localStorage.setItem(STORE_KEY, JSON.stringify(d)); }
@@ -501,7 +502,7 @@ function loadDemo() {
     }
   });
 
-  db = { vehicles, expenses };
+  db = { ...db, vehicles, expenses, demo: true };
   saveStore(db);
   renderAll();
 }
@@ -589,7 +590,7 @@ function exportData() {
 function clearData() {
   if (!confirm("Delete all fleet data stored in this browser?")) return;
   db = { vehicles: [], expenses: [] };
-  saveStore(db);
+  localStorage.removeItem(STORE_KEY);
   renderAll();
 }
 
