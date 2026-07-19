@@ -1,6 +1,7 @@
 /* ============ FleetWorks — copilot.js ============
-   FleetWorks AI Copilot: a floating chat assistant that answers
+   Sarathi — the FleetWorks AI: a floating chat assistant that answers
    questions from the fleet data in localStorage ("ff_fleet").
+   (Sarathi = charioteer: the trusted guide who steers you right.)
    Runs fully client-side; understands English + common Hinglish terms. */
 
 (function () {
@@ -9,8 +10,8 @@
   function data() {
     try {
       const d = JSON.parse(localStorage.getItem("ff_fleet") || "{}");
-      return { vehicles: d.vehicles || [], expenses: d.expenses || [], fuelLogs: d.fuelLogs || [], issues: d.issues || [], reminders: d.reminders || [] };
-    } catch { return { vehicles: [], expenses: [], fuelLogs: [], issues: [], reminders: [] }; }
+      return { vehicles: d.vehicles || [], expenses: d.expenses || [], fuelLogs: d.fuelLogs || [], issues: d.issues || [], reminders: d.reminders || [], drivers: d.drivers || [], workOrders: d.workOrders || [] };
+    } catch { return { vehicles: [], expenses: [], fuelLogs: [], issues: [], reminders: [], drivers: [], workOrders: [] }; }
   }
   const inr = v => v >= 100000 ? "₹" + (v / 100000).toFixed(1) + "L" : v >= 1000 ? "₹" + (v / 1000).toFixed(1) + "K" : "₹" + Math.round(v);
   const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -98,6 +99,26 @@
         "<br>Part-level ML predictions (tyres, battery, clutch…) are on the AI Dashboard.";
     }
 
+    // Drivers / DL
+    if (has("driver", "dl ", " dl", "licence", "license", "chalak")) {
+      if (!db.drivers.length) return "No drivers added yet — add them in Fleet Manager → Drivers, and I'll track DL expiries for you.";
+      return "Your drivers:<br>" + db.drivers.map(d => {
+        const days = d.dlExpiry ? Math.round((new Date(d.dlExpiry) - new Date()) / 86400000) : null;
+        const dl = days === null ? "DL date not set" : days < 0 ? `<span style='color:#d03b3b'>DL EXPIRED ${-days} days ago</span>` : days <= 30 ? `<strong>DL expires in ${days} days</strong>` : "DL valid";
+        const veh = d.vehicleId ? (db.vehicles.find(v => v.id === d.vehicleId) || {}).name : null;
+        return `• <strong>${esc(d.name)}</strong>${veh ? " (" + esc(veh) + ")" : ""} — ${dl}`;
+      }).join("<br>");
+    }
+
+    // Job cards / work orders
+    if (has("job card", "work order", "workshop", "garage me", "under repair")) {
+      const open = db.workOrders.filter(w => w.status !== "Completed");
+      if (!open.length) return "No vehicles in the workshop right now — all job cards closed. ✅";
+      const vn = id => (db.vehicles.find(x => x.id === id) || {}).name || "?";
+      return `${open.length} open job card(s):<br>` + open.map(w =>
+        `• <strong>${esc(vn(w.vehicleId))}</strong> — ${esc(w.title)} at ${esc(w.vendor || "workshop")} (since ${new Date(w.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })})`).join("<br>");
+    }
+
     // Issues / priorities
     if (has("issue", "problem", "priorit", "urgent", "fix", "kharab")) {
       const open = db.issues.filter(i => i.status !== "Resolved");
@@ -111,28 +132,29 @@
 
     // Help / capabilities
     if (has("help", "what can", "kya kar")) {
-      return "I can answer from your fleet data — try:<br>• \"total spend this month\"<br>• \"which vehicle is most expensive\"<br>• \"mileage of TN-01-AB-1234\"<br>• \"which documents are expiring\"<br>• \"what maintenance is due next\"<br>• \"open issues by priority\"";
+      return "I can answer from your fleet data — try:<br>• \"total spend this month\"<br>• \"which vehicle is most expensive\"<br>• \"mileage of TN-01-AB-1234\"<br>• \"which documents are expiring\"<br>• \"driver licences\"<br>• \"open job cards\"<br>• \"what maintenance is due next\"<br>• \"open issues by priority\"";
     }
 
-    return "I didn't catch that. Try asking about <strong>spend</strong>, <strong>mileage</strong>, <strong>documents expiring</strong>, <strong>maintenance due</strong> or <strong>open issues</strong> — or type \"help\".";
+    return "I didn't catch that. Try asking about <strong>spend</strong>, <strong>mileage</strong>, <strong>documents expiring</strong>, <strong>drivers</strong>, <strong>job cards</strong>, <strong>maintenance due</strong> or <strong>open issues</strong> — or type \"help\".";
   }
 
   // ---------- UI ----------
   const html = `
-    <button id="cpFab" aria-label="FleetWorks AI Copilot">🤖<span>Ask AI</span></button>
+    <button id="cpFab" aria-label="Ask Sarathi, the FleetWorks AI">🛞<span>Ask Sarathi</span></button>
     <div id="cpPanel" hidden>
       <div class="cp-head">
-        <span>🤖 FleetWorks AI Copilot</span>
+        <span>🛞 Sarathi <small style="font-weight:500;opacity:0.75">· FleetWorks AI</small></span>
         <button id="cpClose" aria-label="Close">✕</button>
       </div>
       <div class="cp-body" id="cpBody">
-        <div class="cp-msg cp-bot">Namaste! 🙏 I'm your fleet's AI Copilot. Ask me about spend, mileage, RTO documents, maintenance due or open issues.</div>
+        <div class="cp-msg cp-bot">Namaste! 🙏 I'm <strong>Sarathi</strong>, your fleet's AI. Ask me about kharcha, mileage, RTO documents, driver DLs, job cards or maintenance — English ya Hinglish, dono chalega.</div>
         <div class="cp-chips" id="cpChips">
           <button data-q="Total spend this month">Spend this month</button>
           <button data-q="Which vehicle is most expensive per km?">Costliest vehicle</button>
           <button data-q="Which documents are expiring?">RTO documents</button>
+          <button data-q="Driver licences">Driver DLs</button>
+          <button data-q="Open job cards">Job cards</button>
           <button data-q="What maintenance is due next?">Due next</button>
-          <button data-q="Open issues by priority">Issue priorities</button>
         </div>
       </div>
       <form class="cp-input" id="cpForm">

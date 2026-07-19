@@ -48,9 +48,9 @@
   <!-- ======= HERO ======= -->
   <section class="dash-hero">
     <div class="container">
-      <span class="badge">🚛 Complete Fleet Management, Made for India</span>
+      <span class="badge">🚛 The Fleet Office, Built for Indian Transporters</span>
       <h1>Fleet <span class="accent">Manager</span></h1>
-      <p>Everything Fleetio does, Indianised: RTO compliance reminders, fuel &amp; mileage tracking, digital inspections, AI-prioritised issues, preventive maintenance and parts inventory — with the FleetWorks AI Copilot watching over all of it.</p>
+      <p>Your entire fleet office in one place — RTO compliance, diesel &amp; mileage, daily inspections, work orders, drivers and spares. <strong>Drishti</strong>, the FleetWorks AI, keeps round-the-clock nazar on all of it, and <strong>Sarathi</strong> answers your questions in plain language.</p>
     </div>
   </section>
 
@@ -68,13 +68,14 @@
 
       <!-- ======= TABS ======= -->
       <div class="tab-bar" id="tabBar">
-        <button class="tab-btn active" data-tab="overview">🤖 AI Overview</button>
+        <button class="tab-btn active" data-tab="overview">🧠 Drishti AI</button>
         <button class="tab-btn" data-tab="vehicles">🚛 Vehicles &amp; RTO</button>
-        <button class="tab-btn" data-tab="fuel">⛽ Fuel</button>
+        <button class="tab-btn" data-tab="drivers">👨‍✈️ Drivers</button>
+        <button class="tab-btn" data-tab="fuel">⛽ Diesel &amp; Mileage</button>
         <button class="tab-btn" data-tab="inspections">✅ Inspections</button>
-        <button class="tab-btn" data-tab="issues">⚠️ Issues</button>
+        <button class="tab-btn" data-tab="issues">🔧 Issues &amp; Job Cards</button>
         <button class="tab-btn" data-tab="reminders">🗓️ Maintenance</button>
-        <button class="tab-btn" data-tab="parts">🔩 Parts Store</button>
+        <button class="tab-btn" data-tab="parts">🔩 Spares Godown</button>
       </div>
 
       <!-- ======= OVERVIEW ======= -->
@@ -83,8 +84,8 @@
         <div class="chart-card">
           <div class="chart-head">
             <div>
-              <h2>🧠 Smart Assessments &amp; Priorities</h2>
-              <p class="muted">The AI scans your fleet continuously — cost spikes, possible duplicate billing, compliance lapses, mileage drops and overdue maintenance surface here, ranked by risk.</p>
+              <h2>🧠 Drishti — The AI That Keeps Nazar</h2>
+              <p class="muted">FleetWorks' own AI watchdog scans your fleet round the clock — inflated bills, double billing, RTO lapses, DL expiries, falling mileage, warranty-claimable repeat failures and overdue maintenance surface here, ranked by risk.</p>
             </div>
           </div>
           <div id="insightsFeed" class="insights-feed"></div>
@@ -97,7 +98,7 @@
           <div class="chart-head">
             <div>
               <h2>Vehicles &amp; RTO Compliance</h2>
-              <p class="muted">Insurance · PUC · Fitness Certificate · National Permit · Road Tax — expiry tracking with alerts</p>
+              <p class="muted">Insurance · PUC · Fitness Certificate · National Permit · Road Tax — expiry tracking with alerts. Click a vehicle for its full service history.</p>
             </div>
           </div>
           <div class="chart-scroll"><div id="vehicleComplianceTable"></div></div>
@@ -123,6 +124,44 @@
               <input type="date" name="validTill" required />
             </label>
             <button type="submit" class="btn btn-primary">Save Expiry Date</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ======= DRIVERS ======= -->
+      <section class="tab-panel" id="tab-drivers">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2>Drivers &amp; Licence Tracking</h2>
+              <p class="muted">Driving licence expiry alerts and vehicle assignments — Drishti flags DLs expiring within 30 days</p>
+            </div>
+          </div>
+          <div class="chart-scroll"><div id="driversTable"></div></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Add / Update Driver</h2></div></div>
+          <form id="driverForm" class="entry-form">
+            <div class="form-row">
+              <label>Driver Name
+                <input type="text" name="name" placeholder="e.g. Suresh Kumar" required />
+              </label>
+              <label>Mobile Number
+                <input type="tel" name="phone" placeholder="10-digit number" maxlength="10" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>DL Number
+                <input type="text" name="dlNo" placeholder="e.g. TN01 20230012345" required />
+              </label>
+              <label>DL Valid Till
+                <input type="date" name="dlExpiry" required />
+              </label>
+            </div>
+            <label>Assigned Vehicle
+              <select name="vehicleId" id="driverVehicle"><option value="">Not assigned</option></select>
+            </label>
+            <button type="submit" class="btn btn-primary">Save Driver</button>
           </form>
         </div>
       </section>
@@ -200,11 +239,20 @@
         <div class="chart-card">
           <div class="chart-head">
             <div>
-              <h2>Issues — AI Prioritised</h2>
-              <p class="muted">Ranked by severity, vehicle utilisation and age, so your team always knows what to fix first.</p>
+              <h2>Issues — Pehle Kya, Baad Mein Kya</h2>
+              <p class="muted">Drishti ranks every issue by severity, vehicle utilisation and age — so your team always knows what to fix first. Convert any issue to a job card in one tap.</p>
             </div>
           </div>
           <div id="issuesList" class="predictions"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2>Job Cards (Work Orders)</h2>
+              <p class="muted">Track work at the workshop — completing a job card automatically records the expense in your books.</p>
+            </div>
+          </div>
+          <div id="workOrdersList" class="predictions"></div>
         </div>
         <div class="chart-card">
           <div class="chart-head"><div><h2>Report an Issue</h2></div></div>
@@ -275,8 +323,8 @@
         <div class="chart-card">
           <div class="chart-head">
             <div>
-              <h2>Parts Inventory</h2>
-              <p class="muted">Track spares stock; low-stock items surface in AI Overview</p>
+              <h2>Spares Godown</h2>
+              <p class="muted">Track spares stock; low-stock items surface in the Drishti feed</p>
             </div>
           </div>
           <div class="chart-scroll"><div id="partsTable"></div></div>

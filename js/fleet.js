@@ -15,9 +15,10 @@ function loadStore() {
       vehicles: d.vehicles || [], expenses: d.expenses || [],
       fuelLogs: d.fuelLogs || [], inspections: d.inspections || [],
       issues: d.issues || [], reminders: d.reminders || [],
-      parts: d.parts || [], demo: !!d.demo
+      parts: d.parts || [], drivers: d.drivers || [],
+      workOrders: d.workOrders || [], demo: !!d.demo
     };
-  } catch { return { vehicles: [], expenses: [], fuelLogs: [], inspections: [], issues: [], reminders: [], parts: [], demo: false }; }
+  } catch { return { vehicles: [], expenses: [], fuelLogs: [], inspections: [], issues: [], reminders: [], parts: [], drivers: [], workOrders: [], demo: false }; }
 }
 function saveStore() { localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
 let db = loadStore();
@@ -125,7 +126,35 @@ function computeInsights() {
 
   // 7. Low parts stock
   db.parts.filter(p => p.qty <= p.minQty).forEach(p => {
-    out.push({ sev: 1, icon: "🔩", tag: "Inventory", title: `Low stock: ${p.name}`, detail: `${p.qty} left (alert level ${p.minQty}). Reorder to avoid workshop delays.` });
+    out.push({ sev: 1, icon: "🔩", tag: "Godown", title: `Low stock: ${p.name}`, detail: `${p.qty} left (alert level ${p.minQty}). Reorder to avoid workshop delays.` });
+  });
+
+  // 8. Driver licence expiry
+  db.drivers.forEach(dr => {
+    if (!dr.dlExpiry) return;
+    const d = daysUntil(dr.dlExpiry);
+    if (d < 0) out.push({ sev: 4, icon: "🪪", tag: "Driver DL", title: `${dr.name}: driving licence EXPIRED`, detail: `Expired ${-d} days ago. Driving without a valid DL risks challans and voids insurance claims.` });
+    else if (d <= 30) out.push({ sev: 3, icon: "🪪", tag: "Driver DL", title: `${dr.name}: DL expires in ${d} days`, detail: `Valid till ${fmtDate(dr.dlExpiry)}. Start the renewal at Parivahan Sarathi portal now.` });
+  });
+
+  // 9. Possible warranty claims (same part failing again within 12 months)
+  const warrantyCats = ["Battery", "Tyres", "Clutch", "Suspension"];
+  db.vehicles.forEach(v => {
+    warrantyCats.forEach(cat => {
+      const h = db.expenses.filter(e => e.vehicleId === v.id && e.category === cat).sort((a, b) => a.date.localeCompare(b.date));
+      for (let i = 1; i < h.length; i++) {
+        const gapM = (new Date(h[i].date) - new Date(h[i - 1].date)) / (30.44 * 86400000);
+        if (gapM < 12 && daysUntil(h[i].date) > -90) {
+          out.push({ sev: 2, icon: "🛡️", tag: "Warranty", title: `${v.name}: ${cat} replaced twice in ${Math.round(gapM)} months`, detail: `${fmtINR(h[i].amount)} on ${fmtDate(h[i].date)} may be claimable under the brand warranty from the ${fmtDate(h[i - 1].date)} purchase. Check the bill.` });
+        }
+      }
+    });
+  });
+
+  // 10. Job cards pending too long
+  db.workOrders.filter(w => w.status !== "Completed").forEach(w => {
+    const age = Math.round((now - new Date(w.createdAt)) / 86400000);
+    if (age > 5) out.push({ sev: 2, icon: "🔧", tag: "Job card", title: `${vName(w.vehicleId)}: job card open ${age} days`, detail: `"${w.title}" at ${w.vendor || "workshop"} since ${fmtDate(w.createdAt)}. Follow up — every idle day is lost revenue.` });
   });
 
   // 8. All-clear
@@ -195,11 +224,88 @@ function complianceCell(till) {
 function renderVehicles() {
   const rows = db.vehicles.map(v => {
     const c = v.compliance || {};
-    return `<tr><td><strong>${esc(v.name)}</strong><br /><span class="muted">${esc(v.type)} · ${v.kmPerMonth.toLocaleString("en-IN")} km/mo</span></td>
-      ${complianceCell(c.insurance)}${complianceCell(c.puc)}${complianceCell(c.fitness)}${complianceCell(c.permit)}${complianceCell(c.roadtax)}</tr>`;
+    const driver = db.drivers.find(d => d.vehicleId === v.id);
+    return `<tr class="veh-row" data-vid="${v.id}" style="cursor:pointer">
+      <td><strong>${esc(v.name)}</strong><br /><span class="muted">${esc(v.type)} · ${v.kmPerMonth.toLocaleString("en-IN")} km/mo${driver ? " · 👨‍✈️ " + esc(driver.name) : ""}</span></td>
+      ${complianceCell(c.insurance)}${complianceCell(c.puc)}${complianceCell(c.fitness)}${complianceCell(c.permit)}${complianceCell(c.roadtax)}</tr>
+      <tr class="veh-history" data-hist="${v.id}" hidden><td colspan="6" style="background:#f8fafc">${serviceHistoryHTML(v.id)}</td></tr>`;
   }).join("");
   document.getElementById("vehicleComplianceTable").innerHTML =
     `<table class="chart-table-el"><thead><tr><th>Vehicle</th><th>Insurance</th><th>PUC</th><th>Fitness</th><th>Permit</th><th>Road Tax</th></tr></thead><tbody>${rows}</tbody></table>`;
+  document.querySelectorAll(".veh-row").forEach(r => r.addEventListener("click", () => {
+    const hist = document.querySelector(`[data-hist="${r.dataset.vid}"]`);
+    hist.hidden = !hist.hidden;
+  }));
+}
+
+function serviceHistoryHTML(vid) {
+  const events = [
+    ...db.expenses.filter(e => e.vehicleId === vid).map(e => ({ date: e.date, txt: `${e.category} — ${fmtINR(e.amount)}`, icon: "🧾" })),
+    ...db.workOrders.filter(w => w.vehicleId === vid && w.status === "Completed").map(w => ({ date: w.completedAt, txt: `Job card: ${w.title} at ${w.vendor || "workshop"} — ${fmtINR(w.finalCost || 0)}`, icon: "🔧" })),
+    ...db.inspections.filter(i => i.vehicleId === vid).map(i => ({ date: i.date, txt: `Inspection — ${i.passed ? "passed" : i.results.filter(r => !r.ok).length + " fault(s)"}`, icon: i.passed ? "✅" : "❌" }))
+  ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12);
+  const total = db.expenses.filter(e => e.vehicleId === vid).reduce((s, e) => s + e.amount, 0);
+  return `<div style="padding:6px 4px"><strong style="font-size:0.85rem">Service history</strong> <span class="muted">· lifetime spend ${fmtINR(total)}</span><br />` +
+    (events.length ? events.map(ev => `<span style="display:block;font-size:0.82rem;margin-top:5px">${ev.icon} ${fmtDate(ev.date)} — ${esc(ev.txt)}</span>`).join("") : "<span class='muted'>No history yet.</span>") + "</div>";
+}
+
+// ---------- Render: drivers ----------
+function renderDrivers() {
+  document.getElementById("driversTable").innerHTML = db.drivers.length ?
+    `<table class="chart-table-el"><thead><tr><th>Driver</th><th>DL Number</th><th>DL Validity</th><th>Assigned Vehicle</th></tr></thead><tbody>` +
+    db.drivers.map(d => {
+      const days = d.dlExpiry ? daysUntil(d.dlExpiry) : null;
+      const pill = days === null ? '<span class="comp-pill" style="background:#eee;color:#666">Not set</span>' :
+        days < 0 ? '<span class="comp-pill" style="background:#fde2e2;color:#991b1b">Expired</span>' :
+        days <= 30 ? `<span class="comp-pill" style="background:#fdedd3;color:#92400e">${days}d left</span>` :
+        `<span class="comp-pill" style="background:#dcf5e3;color:#166534">${fmtDate(d.dlExpiry)}</span>`;
+      return `<tr><td><strong>${esc(d.name)}</strong>${d.phone ? "<br /><span class='muted'>📞 " + esc(d.phone) + "</span>" : ""}</td>
+        <td>${esc(d.dlNo)}</td><td>${pill}</td><td>${d.vehicleId ? esc(vName(d.vehicleId)) : "<span class='muted'>—</span>"}</td></tr>`;
+    }).join("") + "</tbody></table>"
+    : "<p class='muted'>No drivers added yet.</p>";
+}
+
+// ---------- Render: work orders (job cards) ----------
+function renderWorkOrders() {
+  const open = db.workOrders.filter(w => w.status !== "Completed");
+  const done = db.workOrders.filter(w => w.status === "Completed").slice(-5).reverse();
+  document.getElementById("workOrdersList").innerHTML = (open.length ? open.map(w => `
+    <div class="pred-row">
+      <div class="pred-main"><span>🔧 <strong>${esc(vName(w.vehicleId))}</strong> — ${esc(w.title)}</span>
+        <span class="pred-status" style="color:${PAL.serious}">In workshop</span></div>
+      <div class="pred-detail">
+        <span>${w.vendor ? esc(w.vendor) + " · " : ""}opened ${fmtDate(w.createdAt)}${w.estCost ? " · est. " + fmtINR(w.estCost) : ""}</span>
+        <button class="link-btn" onclick="completeWorkOrder('${w.id}')">Complete &amp; Bill ✓</button>
+      </div>
+    </div>`).join("") : "<p class='muted'>No open job cards.</p>") +
+    (done.length ? `<details class="chart-table"><summary>Completed job cards (${done.length})</summary>` +
+      done.map(w => `<p class="muted" style="margin:6px 0">✅ ${esc(vName(w.vehicleId))} — ${esc(w.title)} · ${fmtINR(w.finalCost || 0)} (${fmtDate(w.completedAt)})</p>`).join("") + "</details>" : "");
+}
+
+function createWorkOrder(issueId) {
+  const i = db.issues.find(x => x.id === issueId);
+  if (!i) return;
+  const vendor = prompt("Workshop / mechanic name for this job card:", "FleetWorks partner workshop");
+  if (vendor === null) return;
+  const est = prompt("Estimated cost (₹, optional):", "");
+  db.workOrders.push({ id: uid(), issueId, vehicleId: i.vehicleId, title: i.title, vendor: vendor.trim(), estCost: est ? +est : null, status: "Open", createdAt: new Date().toISOString().slice(0, 10) });
+  i.status = "In Progress";
+  saveStore(); renderIssues(); renderWorkOrders(); renderOverview();
+}
+
+function completeWorkOrder(id) {
+  const w = db.workOrders.find(x => x.id === id);
+  if (!w) return;
+  const cost = prompt("Final bill amount (₹):", w.estCost || "");
+  if (cost === null || !+cost) return;
+  const cat = prompt("Expense category (Tyres / Battery / Brakes / Clutch / Engine Oil & Filters / Suspension / Electrical / Body & Paint / Other):", "Other");
+  if (cat === null) return;
+  w.status = "Completed"; w.completedAt = new Date().toISOString().slice(0, 10); w.finalCost = +cost;
+  db.expenses.push({ vehicleId: w.vehicleId, date: w.completedAt, category: cat.trim() || "Other", amount: +cost });
+  const i = db.issues.find(x => x.id === w.issueId);
+  if (i) { i.status = "Resolved"; i.resolvedAt = w.completedAt; }
+  saveStore(); renderIssues(); renderWorkOrders(); renderVehicles(); renderOverview();
+  alert("Job card closed. The expense has been added to your books automatically — it will appear in the AI Dashboard and Tally export.");
 }
 
 // ---------- Render: fuel ----------
@@ -286,7 +392,8 @@ function renderIssues() {
         <span class="pred-status" style="color:${i.severity === "High" ? PAL.critical : i.severity === "Medium" ? PAL.serious : PAL.muted}">${esc(i.severity)}</span>
       </div>
       <div class="pred-detail">
-        <span>Reported ${fmtDate(i.createdAt)}${i.source ? " · via " + esc(i.source) : ""}</span>
+        <span>Reported ${fmtDate(i.createdAt)}${i.source ? " · via " + esc(i.source) : ""}${i.status === "In Progress" ? " · <em>job card open</em>" : ""}</span>
+        ${i.status !== "In Progress" ? `<button class="link-btn" onclick="createWorkOrder('${i.id}')">Open Job Card 🔧</button>` : ""}
         <button class="link-btn" onclick="resolveIssue('${i.id}')">Mark Resolved ✓</button>
       </div>
     </div>`).join("") : "<p class='muted'>No open issues. 🎉</p>") +
@@ -445,6 +552,22 @@ function loadDemoFleet() {
     { id: uid(), vehicleId: "v5", task: "Coolant Top-up / Flush", everyMonths: 6, lastDate: daysFromNow(-150) }
   ];
 
+  // Drivers (one DL expiring soon, one healthy set)
+  const drivers = [
+    { id: uid(), name: "Suresh Kumar", phone: "9840012345", dlNo: "TN01 20180012345", dlExpiry: daysFromNow(400), vehicleId: "v1" },
+    { id: uid(), name: "Manoj Yadav", phone: "9944056789", dlNo: "UP32 20150098765", dlExpiry: daysFromNow(21), vehicleId: "v2" },
+    { id: uid(), name: "Ravi Shankar", phone: "9500123456", dlNo: "TN22 20190045678", dlExpiry: daysFromNow(700), vehicleId: "v3" },
+    { id: uid(), name: "Peter D'Souza", phone: "9880234567", dlNo: "KA05 20170034567", dlExpiry: daysFromNow(-8), vehicleId: "v4" },
+    { id: uid(), name: "Abdul Rahman", phone: "9790345678", dlNo: "TN45 20200056789", dlExpiry: daysFromNow(250), vehicleId: "v5" }
+  ];
+
+  // Job cards: one open (linked to the coolant issue), one completed
+  const workOrders = [
+    { id: uid(), issueId: issues[2].id, vehicleId: "v2", title: "Coolant temperature climbing on ghats", vendor: "Annai Auto Works, Salem", estCost: 6500, status: "Open", createdAt: daysFromNow(-7) },
+    { id: uid(), issueId: null, vehicleId: "v1", title: "Silencer mounting weld", vendor: "Highway Motors, Chennai", estCost: 1500, status: "Completed", createdAt: daysFromNow(-40), completedAt: daysFromNow(-38), finalCost: 1800 }
+  ];
+  issues[2].status = "In Progress";
+
   // Parts
   const parts = [
     { id: uid(), name: "Engine Oil 15W-40 (barrel)", qty: 2, minQty: 1 },
@@ -454,7 +577,7 @@ function loadDemoFleet() {
     { id: uid(), name: "Wheel Nut (100 pcs)", qty: 40, minQty: 50 }
   ];
 
-  db = { vehicles, expenses, fuelLogs, inspections, issues, reminders, parts, demo: true };
+  db = { vehicles, expenses, fuelLogs, inspections, issues, reminders, parts, drivers, workOrders, demo: true };
   saveStore();
   renderAll();
 }
@@ -468,7 +591,20 @@ function fillVehicleSelects() {
     el.innerHTML = opts;
     if ([...el.options].some(o => o.value === keep)) el.value = keep;
   });
+  const dv = document.getElementById("driverVehicle");
+  const keepD = dv.value;
+  dv.innerHTML = '<option value="">Not assigned</option>' + opts;
+  if ([...dv.options].some(o => o.value === keepD)) dv.value = keepD;
 }
+
+document.getElementById("driverForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  const existing = db.drivers.find(d => d.dlNo.toLowerCase() === fd.dlNo.trim().toLowerCase());
+  if (existing) Object.assign(existing, { name: fd.name.trim(), phone: fd.phone, dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId });
+  else db.drivers.push({ id: uid(), name: fd.name.trim(), phone: fd.phone, dlNo: fd.dlNo.trim(), dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId });
+  saveStore(); e.target.reset(); renderDrivers(); renderVehicles(); renderOverview();
+});
 
 document.getElementById("complianceForm").addEventListener("submit", e => {
   e.preventDefault();
@@ -548,8 +684,8 @@ function renderAll() {
     loadDemoFleet(); return;
   }
   fillVehicleSelects();
-  renderOverview(); renderVehicles(); renderFuel();
+  renderOverview(); renderVehicles(); renderDrivers(); renderFuel();
   renderInspectionForm(); renderInspectionHistory();
-  renderIssues(); renderReminders(); renderParts();
+  renderIssues(); renderWorkOrders(); renderReminders(); renderParts();
 }
 renderAll();
