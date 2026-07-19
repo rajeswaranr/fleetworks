@@ -129,11 +129,21 @@ vendorForm.addEventListener("submit", (e) => {
   data.createdAt = new Date().toISOString();
   delete data.consent;
 
-  // Placeholder persistence — replace with a real API call to your backend,
-  // e.g. fetch("/api/vendors", { method: "POST", body: JSON.stringify(data) })
+  // Local copy (offline safety) + cloud insert via Supabase when configured.
   const vendors = getVendors();
   vendors.push(data);
   localStorage.setItem("ff_vendors", JSON.stringify(vendors));
+  if (window.fwInsert) {
+    window.fwInsert("vendor_applications", {
+      ref: data.ref, business_name: data.businessName, owner_name: data.ownerName,
+      business_type: data.businessType, phone: data.phone, email: data.email || null,
+      city: data.city, pincode: data.pincode, address: data.address,
+      services: data.services, vehicles: data.vehicles,
+      mechanics: data.mechanics, bays: data.bays, all_night: data.allNight,
+      doorstep: data.doorstep, experience: data.experience,
+      gstin: data.gstin || null, pan: data.pan, bank_ready: data.bankReady
+    });
+  }
 
   document.getElementById("vSuccessName").textContent = data.ownerName;
   document.getElementById("vSuccessRef").textContent = data.ref;
@@ -163,15 +173,26 @@ statusForm.addEventListener("submit", (e) => {
     return;
   }
 
-  const match = getVendors().filter((v) => v.phone === phone).pop();
-  if (match) {
+  const showFound = (name, ref, status, createdAt) => {
     statusResult.className = "status-result found";
     statusResult.innerHTML =
-      "<strong>" + match.businessName + "</strong><br />" +
-      "Ref: " + match.ref + " · Applied " + new Date(match.createdAt).toLocaleDateString("en-IN") +
-      '<br />Status: <span class="status-pill">' + match.status + "</span>";
-  } else {
+      "<strong>" + name + "</strong><br />" +
+      "Ref: " + ref + " · Applied " + new Date(createdAt).toLocaleDateString("en-IN") +
+      '<br />Status: <span class="status-pill">' + status + "</span>";
+  };
+  const showNotFound = () => {
     statusResult.className = "status-result error";
     statusResult.innerHTML = "No application found for this number. <a href='#register'>Register now →</a>";
-  }
+  };
+
+  const localMatch = getVendors().filter((v) => v.phone === phone).pop();
+  const cloudLookup = window.fwRpc ? window.fwRpc("check_application_status", { p_phone: phone }) : Promise.resolve(null);
+  statusResult.className = "status-result";
+  statusResult.textContent = "Checking…";
+  cloudLookup.then((rows) => {
+    const r = rows && rows[0];
+    if (r) showFound(r.business_name, r.ref, r.status, r.created_at);
+    else if (localMatch) showFound(localMatch.businessName, localMatch.ref, localMatch.status, localMatch.createdAt);
+    else showNotFound();
+  });
 });

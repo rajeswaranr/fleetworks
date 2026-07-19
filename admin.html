@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FleetWorks Admin — Leads &amp; Vendor Applications</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" type="image/png" href="icons/icon-96.png" />
+  <meta name="theme-color" content="#0f1e33" />
+</head>
+<body>
+  <header class="navbar" id="navbar">
+    <div class="container nav-inner">
+      <a href="index.html" class="logo">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 8h12v8H1z"/><path d="M13 10h4l3 3v3h-7"/><circle cx="5.5" cy="17.5" r="1.8"/><circle cx="17.5" cy="17.5" r="1.8"/></svg>
+        <span>Fleet<em>Works</em></span>
+      </a>
+      <span style="font-weight:700;color:var(--navy)">Admin Console</span>
+      <div class="nav-actions">
+        <button class="btn btn-outline btn-sm" id="logoutBtn" hidden>Log Out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container dash-main">
+    <!-- Login -->
+    <div id="loginView" class="onboard-card" style="max-width:420px;margin:60px auto">
+      <h2 style="color:var(--navy);margin-bottom:6px">Admin Login</h2>
+      <p class="muted" style="margin-bottom:18px">Sign in with your FleetWorks admin account.</p>
+      <form id="loginForm" class="entry-form">
+        <label>Email
+          <input type="email" name="email" required autocomplete="username" />
+        </label>
+        <label>Password
+          <input type="password" name="password" required autocomplete="current-password" />
+        </label>
+        <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+        <p class="field-error" id="loginError" hidden></p>
+      </form>
+    </div>
+
+    <!-- Console -->
+    <div id="consoleView" hidden>
+      <section class="stat-row" id="adminStats"></section>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2>📞 Customer Booking Leads</h2><p class="muted">Newest first — call within 15 minutes!</p></div>
+          <button class="btn btn-outline btn-sm" onclick="loadAll()">↻ Refresh</button>
+        </div>
+        <div class="chart-scroll"><div id="leadsTable"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2>🤝 Vendor Applications</h2><p class="muted">Workshop onboarding pipeline</p></div>
+        </div>
+        <div class="chart-scroll"><div id="vendorsTable"></div></div>
+      </div>
+    </div>
+  </main>
+
+  <script src="js/backend.js"></script>
+  <script>
+    "use strict";
+    const $ = id => document.getElementById(id);
+    let session = JSON.parse(sessionStorage.getItem("fw_admin_session") || "null");
+
+    const esc = s => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const fmtDT = d => new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+    function authHeaders() {
+      return {
+        "apikey": FW_BACKEND.anonKey,
+        "Authorization": "Bearer " + session.access_token
+      };
+    }
+
+    async function login(email, password) {
+      const r = await fetch(FW_BACKEND.url + "/auth/v1/token?grant_type=password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey },
+        body: JSON.stringify({ email, password })
+      });
+      if (!r.ok) throw new Error((await r.json()).error_description || "Login failed");
+      session = await r.json();
+      sessionStorage.setItem("fw_admin_session", JSON.stringify(session));
+    }
+
+    async function fetchTable(table, order) {
+      const r = await fetch(FW_BACKEND.url + "/rest/v1/" + table + "?select=*&order=" + order + ".desc&limit=200", { headers: authHeaders() });
+      if (r.status === 401) { logout(); throw new Error("Session expired — sign in again."); }
+      return r.json();
+    }
+
+    async function loadAll() {
+      const [leads, vendors] = await Promise.all([
+        fetchTable("leads", "created_at"),
+        fetchTable("vendor_applications", "created_at")
+      ]);
+      const today = new Date().toDateString();
+      const leadsToday = leads.filter(l => new Date(l.created_at).toDateString() === today).length;
+
+      $("adminStats").innerHTML = `
+        <div class="stat-tile"><span class="stat-label">Leads today</span><span class="stat-value">${leadsToday}</span><span class="stat-sub">call fast!</span></div>
+        <div class="stat-tile"><span class="stat-label">Total leads</span><span class="stat-value">${leads.length}</span><span class="stat-sub">last 200 shown</span></div>
+        <div class="stat-tile"><span class="stat-label">Vendor applications</span><span class="stat-value">${vendors.length}</span><span class="stat-sub">${vendors.filter(v => v.status === "Under Review").length} under review</span></div>
+        <div class="stat-tile"><span class="stat-label">Backend</span><span class="stat-value" style="color:#0ca30c">Live</span><span class="stat-sub">Supabase · Mumbai</span></div>`;
+
+      $("leadsTable").innerHTML = leads.length ?
+        `<table class="chart-table-el"><thead><tr><th>When</th><th>Name</th><th>Phone</th><th>City</th><th>Vehicle</th><th>Service</th><th>Issue</th><th>Ref</th></tr></thead><tbody>` +
+        leads.map(l => `<tr><td>${fmtDT(l.created_at)}</td><td>${esc(l.name)}</td>
+          <td><a href="tel:+91${esc(l.phone)}"><strong>${esc(l.phone)}</strong></a></td>
+          <td>${esc(l.city)}</td><td>${esc(l.vehicle)}</td><td>${esc(l.service)}</td>
+          <td>${esc(l.issue)}</td><td>${esc(l.ref)}</td></tr>`).join("") + "</tbody></table>"
+        : "<p class='muted'>No leads yet. They'll appear here the moment someone books on the website.</p>";
+
+      $("vendorsTable").innerHTML = vendors.length ?
+        `<table class="chart-table-el"><thead><tr><th>When</th><th>Business</th><th>Owner</th><th>Phone</th><th>City</th><th>Type</th><th>Services</th><th>Status</th></tr></thead><tbody>` +
+        vendors.map(v => `<tr><td>${fmtDT(v.created_at)}</td><td><strong>${esc(v.business_name)}</strong><br /><span class="muted">${esc(v.ref)}</span></td>
+          <td>${esc(v.owner_name)}</td><td><a href="tel:+91${esc(v.phone)}"><strong>${esc(v.phone)}</strong></a></td>
+          <td>${esc(v.city)} ${esc(v.pincode)}</td><td>${esc(v.business_type)}</td>
+          <td style="max-width:220px">${esc((v.services || []).join(", "))}</td>
+          <td><span class="status-pill">${esc(v.status)}</span></td></tr>`).join("") + "</tbody></table>"
+        : "<p class='muted'>No vendor applications yet.</p>";
+    }
+
+    function showConsole() {
+      $("loginView").hidden = true;
+      $("consoleView").hidden = false;
+      $("logoutBtn").hidden = false;
+      loadAll().catch(err => alert(err.message));
+    }
+    function logout() {
+      session = null;
+      sessionStorage.removeItem("fw_admin_session");
+      $("loginView").hidden = false;
+      $("consoleView").hidden = true;
+      $("logoutBtn").hidden = true;
+    }
+
+    $("loginForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const fd = Object.fromEntries(new FormData(e.target));
+      $("loginError").hidden = true;
+      if (!fwConfigured()) {
+        $("loginError").textContent = "Backend not configured yet — add the Supabase URL and key in js/backend.js.";
+        $("loginError").hidden = false;
+        return;
+      }
+      try { await login(fd.email, fd.password); showConsole(); }
+      catch (err) { $("loginError").textContent = err.message; $("loginError").hidden = false; }
+    });
+    $("logoutBtn").addEventListener("click", logout);
+
+    if (session) showConsole();
+  </script>
+</body>
+</html>

@@ -88,11 +88,17 @@ function makeRef() {
 }
 
 function saveLead(data) {
-  // Placeholder persistence — replace with a real API call to your backend,
-  // e.g. fetch("/api/leads", { method: "POST", body: JSON.stringify(data) })
+  // Local copy (offline safety) + cloud insert via Supabase when configured.
   const leads = JSON.parse(localStorage.getItem("ff_leads") || "[]");
   leads.push({ ...data, createdAt: new Date().toISOString() });
   localStorage.setItem("ff_leads", JSON.stringify(leads));
+  if (window.fwInsert) {
+    window.fwInsert("leads", {
+      ref: data.ref, name: data.name || null, phone: data.phone,
+      city: data.city || null, vehicle: data.vehicle || null,
+      service: data.service || null, issue: data.issue || null
+    });
+  }
 }
 
 // ---------- Modal booking form ----------
