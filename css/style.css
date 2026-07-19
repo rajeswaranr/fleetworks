@@ -100,6 +100,42 @@ h1, h2, h3 { line-height: 1.25; }
   border: 1px solid rgba(245, 166, 35, 0.4);
   font-size: 0.8rem; font-weight: 600; padding: 6px 14px; border-radius: 100px; margin-bottom: 18px;
 }
+
+/* Flashy "India's First AI/ML" badge */
+.badge-flash {
+  position: relative; overflow: hidden;
+  background: linear-gradient(110deg, #f5a623 0%, #ffd479 40%, #f5a623 70%, #e08900 100%);
+  color: var(--navy); border: none;
+  font-size: 0.95rem; font-weight: 800; letter-spacing: 0.3px;
+  padding: 10px 22px; text-transform: uppercase;
+  box-shadow: 0 0 18px rgba(245, 166, 35, 0.55), 0 0 44px rgba(245, 166, 35, 0.25);
+  animation: badgePulse 2.4s ease-in-out infinite;
+}
+.badge-flash::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 45%;
+  left: -60%; transform: skewX(-20deg);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.65), transparent);
+  animation: badgeShine 2.8s ease-in-out infinite;
+}
+@keyframes badgePulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(245, 166, 35, 0.45), 0 0 34px rgba(245, 166, 35, 0.2); transform: scale(1); }
+  50% { box-shadow: 0 0 26px rgba(245, 166, 35, 0.8), 0 0 64px rgba(245, 166, 35, 0.35); transform: scale(1.03); }
+}
+@keyframes badgeShine {
+  0% { left: -60%; }
+  55%, 100% { left: 120%; }
+}
+
+/* Relax tagline under the hero headline */
+.hero-relax {
+  font-size: 1.25rem; font-weight: 600; color: #fff; margin: 4px 0 14px;
+}
+.hero-relax .relax-accent {
+  color: var(--amber); font-style: italic;
+}
+
+/* AI mention glowing in top bars */
+.topbar-cities.ai-glow { color: var(--amber); font-weight: 700; opacity: 1; text-shadow: 0 0 12px rgba(245, 166, 35, 0.6); }
 .hero h1 { font-size: clamp(2rem, 4.5vw, 3.2rem); font-weight: 800; margin-bottom: 16px; }
 .hero .accent { color: var(--amber); }
 .hero p { color: #c7d2e0; font-size: 1.05rem; max-width: 540px; margin-bottom: 20px; }
