@@ -68,3 +68,10 @@ select e.owner_id, e.expense_date, e.expense_month, e.category, e.amount,
        v.vehicle, v.vehicle_type, v.km_per_month
 from v_expenses e
 left join v_vehicles v on v.owner_id = e.owner_id and v.vehicle_id = e.vehicle_id;
+
+-- ============ Security hardening ============
+-- Views bypass RLS by default, so they must NOT be reachable through the
+-- public REST API. BI tools (Superset/Preset) connect directly to Postgres
+-- as the postgres role and are unaffected by these revokes.
+revoke all on v_vehicles, v_expenses, v_fuel_logs, v_issues, v_drivers, v_expense_details from anon, authenticated;
+revoke all on fleet_vehicle_stats from anon, authenticated;
