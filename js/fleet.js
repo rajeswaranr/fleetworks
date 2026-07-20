@@ -20,7 +20,10 @@ function loadStore() {
     };
   } catch { return { vehicles: [], expenses: [], fuelLogs: [], inspections: [], issues: [], reminders: [], parts: [], drivers: [], workOrders: [], demo: false }; }
 }
-function saveStore() { localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
+function saveStore() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(db));
+  if (window.fwCloud) window.fwCloud.push(db);
+}
 let db = loadStore();
 
 // ---------- Utils ----------

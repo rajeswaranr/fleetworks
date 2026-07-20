@@ -48,7 +48,10 @@ function loadStore() {
     return { ...d, vehicles: d.vehicles || [], expenses: d.expenses || [] };
   } catch { return { vehicles: [], expenses: [] }; }
 }
-function saveStore(d) { localStorage.setItem(STORE_KEY, JSON.stringify(d)); }
+function saveStore(d) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(d));
+  if (window.fwCloud) window.fwCloud.push(d);
+}
 
 let db = loadStore();
 

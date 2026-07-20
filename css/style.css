@@ -552,6 +552,110 @@ input[type="file"] {
 .cp-input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); background: #fff; }
 .cp-input input { flex: 1; }
 
+/* ---------- Command Center (command.html) — Grafana-style dark ---------- */
+body.cmd { background: #0a111d; color: #ffffff; }
+.cmd-header {
+  position: sticky; top: 0; z-index: 100;
+  background: #0d1524; border-bottom: 1px solid #223047;
+}
+.cmd-header-inner {
+  max-width: 1480px; margin: 0 auto; padding: 12px 22px;
+  display: flex; align-items: center; gap: 22px; flex-wrap: wrap;
+}
+.cmd-title {
+  font-weight: 800; letter-spacing: 3px; font-size: 0.85rem; color: #c3c2b7;
+  display: flex; align-items: center; gap: 10px;
+}
+.live-dot {
+  width: 10px; height: 10px; border-radius: 50%; background: #0ca30c;
+  box-shadow: 0 0 10px rgba(12, 163, 12, 0.8); animation: livePulse 1.6s ease-in-out infinite;
+}
+@keyframes livePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+.cmd-controls { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cmd-controls select {
+  background: #121c2e; color: #fff; border: 1px solid #223047; border-radius: 8px;
+  padding: 8px 12px; font-family: inherit; font-size: 0.82rem; width: auto;
+}
+.cmd-controls button {
+  background: #121c2e; color: #c3c2b7; border: 1px solid #223047; border-radius: 8px;
+  padding: 8px 13px; cursor: pointer; font-size: 1rem;
+}
+.cmd-controls button:hover { color: #fff; border-color: #f5a623; }
+.cmd-link { color: #c3c2b7; text-decoration: none; font-size: 0.82rem; font-weight: 600; }
+.cmd-link:hover { color: #f5a623; }
+
+.cmd-main { max-width: 1480px; margin: 0 auto; padding: 22px; }
+.cmd-empty { text-align: center; padding: 90px 20px; }
+.cmd-empty h2 { margin: 12px 0 8px; }
+.cmd-empty p { color: #898781; margin-bottom: 22px; }
+.cmd-empty a:not(.btn) { color: #f5a623; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(7, 1fr); gap: 12px; margin-bottom: 14px; }
+.kpi {
+  background: #121c2e; border: 1px solid #223047; border-radius: 10px;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 3px;
+}
+.kpi-label { font-size: 0.62rem; font-weight: 700; letter-spacing: 1.2px; color: #898781; }
+.kpi-value { font-size: 1.65rem; font-weight: 700; color: #fff; line-height: 1.15; }
+.kpi-sub { font-size: 0.7rem; color: #898781; }
+
+.panel-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.panel { background: #121c2e; border: 1px solid #223047; border-radius: 10px; overflow: hidden; }
+.panel.span-2 { grid-column: span 2; }
+.panel.span-3 { grid-column: span 3; }
+.panel-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 12px 16px; border-bottom: 1px solid #1a2740;
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 1.4px; color: #898781;
+}
+.panel-legend { display: flex; gap: 12px; }
+.panel-legend .lg-item { font-size: 0.7rem; }
+.panel-body { padding: 14px 16px; }
+.cmd-muted { color: #898781; font-size: 0.82rem; }
+.cmd-note { font-size: 0.68rem; color: #898781; margin-top: 8px; }
+.cmd-foot { text-align: center; color: #3a4a63; font-size: 0.72rem; margin: 26px 0 60px; }
+
+/* horizontal bar rows */
+.hbar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+.hbar-label { width: 92px; font-size: 0.74rem; color: #c3c2b7; text-align: right; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hbar-track { flex: 1; height: 14px; background: #0d1524; border-radius: 4px; position: relative; }
+.hbar-fill { height: 100%; border-radius: 4px 3px 3px 4px; }
+.hbar-mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #c3c2b7; }
+.hbar-val { width: 62px; font-size: 0.74rem; font-weight: 700; color: #c3c2b7; font-variant-numeric: tabular-nums; }
+
+/* issue queue */
+.q-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #1a2740; }
+.q-row:last-child { border-bottom: none; }
+.q-rank { color: #fff; font-weight: 800; font-size: 0.66rem; padding: 2px 8px; border-radius: 100px; flex-shrink: 0; }
+.q-main { flex: 1; font-size: 0.8rem; color: #c3c2b7; }
+.q-main strong { color: #fff; margin-right: 6px; }
+.q-sev { font-size: 0.7rem; font-weight: 700; }
+
+/* timeline */
+.tl-wrap { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.tl-item {
+  background: #0d1524; border: 1px solid #1a2740; border-top: 3px solid; border-radius: 8px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 3px;
+}
+.tl-days { font-size: 0.68rem; font-weight: 800; letter-spacing: 0.5px; }
+.tl-label { font-size: 0.78rem; color: #fff; }
+.tl-type { font-size: 0.62rem; color: #898781; letter-spacing: 1px; }
+
+/* vehicle board */
+.cmd-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+.cmd-table th { text-align: left; font-size: 0.62rem; letter-spacing: 1px; color: #898781; padding: 8px 10px; border-bottom: 1px solid #223047; }
+.cmd-table td { padding: 10px; border-bottom: 1px solid #1a2740; font-size: 0.82rem; color: #c3c2b7; font-variant-numeric: tabular-nums; }
+.cmd-table td strong { color: #fff; }
+.cmd-table tr:last-child td { border-bottom: none; }
+.dots { letter-spacing: 2px; }
+.dstat { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+
+body.cmd .viz-tooltip { background: #223047; }
+body.cmd #cpFab { border-color: #f5a623; }
+
+@media (max-width: 1100px) { .kpi-row { grid-template-columns: repeat(4, 1fr); } .panel-grid { grid-template-columns: 1fr 1fr; } .panel.span-2, .panel.span-3 { grid-column: span 2; } }
+@media (max-width: 680px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } .panel-grid { grid-template-columns: 1fr; } .panel.span-2, .panel.span-3 { grid-column: span 1; } }
+
 /* Why FleetWorks comparison table */
 .compare-table {
   width: 100%; border-collapse: collapse; background: #fff;
