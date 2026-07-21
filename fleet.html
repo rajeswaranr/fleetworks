@@ -338,11 +338,70 @@
               <input type="text" name="name" placeholder="e.g. Air Filter - Tata 1613" required />
             </label>
             <div class="form-row">
+              <label>Part Number
+                <input type="text" name="partNumber" placeholder="e.g. TML-AF-1613X" />
+              </label>
+              <label>Make / Brand
+                <input type="text" name="make" placeholder="e.g. Tata Genuine, Bosch, Mahle" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Category
+                <select name="category">
+                  <option value="">Select category</option>
+                  <option>Engine</option>
+                  <option>Brakes</option>
+                  <option>Suspension</option>
+                  <option>Electrical</option>
+                  <option>Tyres</option>
+                  <option>Filters</option>
+                  <option>Transmission &amp; Clutch</option>
+                  <option>Cooling System</option>
+                  <option>Body &amp; Cabin</option>
+                  <option>Other</option>
+                </select>
+              </label>
+              <label>Sourcing
+                <select name="sourcing">
+                  <option value="">Select sourcing</option>
+                  <option>OEM (Original)</option>
+                  <option>Aftermarket</option>
+                  <option>Local Market</option>
+                  <option>Imported</option>
+                  <option>Refurbished</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Vendor / Supplier Name
+                <input type="text" name="vendor" placeholder="e.g. Sri Ganesh Auto Spares" />
+              </label>
+              <label>Vendor Contact
+                <input type="tel" name="vendorContact" placeholder="10-digit number" maxlength="10" inputmode="numeric" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Unit Cost (₹)
+                <input type="number" name="unitCost" min="0" placeholder="e.g. 1250" />
+              </label>
               <label>Quantity in Stock
                 <input type="number" name="qty" min="0" required />
               </label>
-              <label>Alert Below
+            </div>
+            <div class="form-row">
+              <label>Alert Below (Reorder Level)
                 <input type="number" name="minQty" min="0" required />
+              </label>
+              <label>Storage Location
+                <input type="text" name="location" placeholder="e.g. Rack A-3" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Purchase Date
+                <input type="date" name="purchaseDate" />
+              </label>
+              <label>Warranty Expiry Date
+                <input type="date" name="warrantyExpiry" />
               </label>
             </div>
             <button type="submit" class="btn btn-primary">Save Part</button>

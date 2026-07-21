@@ -132,6 +132,14 @@ function computeInsights() {
     out.push({ sev: 1, icon: "🔩", tag: "Godown", title: `Low stock: ${p.name}`, detail: `${p.qty} left (alert level ${p.minQty}). Reorder to avoid workshop delays.` });
   });
 
+  // 7b. Part warranty expiring
+  db.parts.forEach(p => {
+    if (!p.warrantyExpiry) return;
+    const d = daysUntil(p.warrantyExpiry);
+    if (d < 0) out.push({ sev: 2, icon: "🛡️", tag: "Warranty", title: `${p.name}: warranty expired`, detail: `Expired ${-d} days ago${p.vendor ? " · " + p.vendor : ""}. Any pending claims should be raised before replacement.` });
+    else if (d <= 30) out.push({ sev: 1, icon: "🛡️", tag: "Warranty", title: `${p.name}: warranty expires in ${d} days`, detail: `${p.vendor ? "Vendor: " + p.vendor + ". " : ""}Raise any known defects with the vendor before it lapses.` });
+  });
+
   // 8. Driver licence expiry
   db.drivers.forEach(dr => {
     if (!dr.dlExpiry) return;
@@ -429,12 +437,52 @@ function completeReminder(id) {
 }
 
 // ---------- Render: parts ----------
+function warrantyPill(dateStr) {
+  if (!dateStr) return '<span class="comp-pill" style="background:#eee;color:#666">Not set</span>';
+  const d = daysUntil(dateStr);
+  if (d < 0) return '<span class="comp-pill" style="background:#fde2e2;color:#991b1b">Expired</span>';
+  if (d <= 30) return `<span class="comp-pill" style="background:#fdedd3;color:#92400e">${d}d left</span>`;
+  return `<span class="comp-pill" style="background:#dcf5e3;color:#166534">Till ${fmtDate(dateStr)}</span>`;
+}
 function renderParts() {
-  document.getElementById("partsTable").innerHTML = db.parts.length ?
-    `<table class="chart-table-el"><thead><tr><th>Part</th><th>In Stock</th><th>Alert Below</th><th>Status</th></tr></thead><tbody>` +
-    db.parts.map(p => `<tr><td>${esc(p.name)}</td><td>${p.qty}</td><td>${p.minQty}</td>
-      <td>${p.qty <= p.minQty ? '<span class="comp-pill" style="background:#fde2e2;color:#991b1b">Reorder</span>' : '<span class="comp-pill" style="background:#dcf5e3;color:#166534">OK</span>'}</td></tr>`).join("") +
-    "</tbody></table>" : "<p class='muted'>No parts tracked yet.</p>";
+  const box = document.getElementById("partsTable");
+  if (!db.parts.length) { box.innerHTML = "<p class='muted'>No parts tracked yet.</p>"; return; }
+  const rows = db.parts.map(p => {
+    const stockPill = p.qty <= p.minQty
+      ? '<span class="comp-pill" style="background:#fde2e2;color:#991b1b">Reorder</span>'
+      : '<span class="comp-pill" style="background:#dcf5e3;color:#166534">OK</span>';
+    return `<tr class="veh-row" data-pid="${p.id}" style="cursor:pointer">
+        <td><strong>${esc(p.name)}</strong>${p.partNumber ? "<br /><span class='muted'>#" + esc(p.partNumber) + "</span>" : ""}</td>
+        <td>${esc(p.make || "—")}</td>
+        <td>${esc(p.category || "—")}</td>
+        <td>${esc(p.vendor || "—")}</td>
+        <td>${p.qty} <span class="muted">/ min ${p.minQty}</span></td>
+        <td>${p.unitCost != null ? fmtINR(p.unitCost) : "—"}</td>
+        <td>${stockPill}</td>
+        <td>${warrantyPill(p.warrantyExpiry)}</td>
+      </tr>
+      <tr class="veh-history" data-hist="${p.id}" hidden><td colspan="8" style="background:#f8fafc">${partDetailHTML(p)}</td></tr>`;
+  }).join("");
+  box.innerHTML = `<table class="chart-table-el"><thead><tr>
+      <th>Part</th><th>Make</th><th>Category</th><th>Vendor</th><th>Qty</th><th>Unit Cost</th><th>Stock</th><th>Warranty</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+  document.querySelectorAll("#partsTable .veh-row").forEach(r => r.addEventListener("click", () => {
+    const hist = document.querySelector(`[data-hist="${r.dataset.pid}"]`);
+    hist.hidden = !hist.hidden;
+  }));
+}
+
+function partDetailHTML(p) {
+  const rows = [
+    ["Sourcing", p.sourcing],
+    ["Vendor contact", p.vendorContact ? "📞 " + p.vendorContact : null],
+    ["Storage location", p.location],
+    ["Purchase date", p.purchaseDate ? fmtDate(p.purchaseDate) : null],
+    ["Warranty expiry", p.warrantyExpiry ? fmtDate(p.warrantyExpiry) : null]
+  ].filter(([, v]) => v);
+  return `<div style="padding:6px 4px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px 18px">` +
+    (rows.length ? rows.map(([label, v]) => `<span style="font-size:0.82rem"><strong>${esc(label)}:</strong> ${esc(v)}</span>`).join("")
+      : "<span class='muted'>No further details recorded.</span>") + "</div>";
 }
 
 // ---------- Tooltip ----------
@@ -573,11 +621,12 @@ function loadDemoFleet() {
 
   // Parts
   const parts = [
-    { id: uid(), name: "Engine Oil 15W-40 (barrel)", qty: 2, minQty: 1 },
-    { id: uid(), name: "Air Filter — Tata LPT", qty: 1, minQty: 2 },
-    { id: uid(), name: "Brake Liner Set — HCV", qty: 6, minQty: 4 },
-    { id: uid(), name: "Fuel Filter — BS6", qty: 3, minQty: 2 },
-    { id: uid(), name: "Wheel Nut (100 pcs)", qty: 40, minQty: 50 }
+    { id: uid(), name: "Engine Oil 15W-40 (barrel)", partNumber: "CAS-15W40-210L", make: "Castrol CRB", category: "Engine", sourcing: "OEM (Original)", vendor: "Sri Ganesh Auto Spares", vendorContact: "9840011223", unitCost: 18500, qty: 2, minQty: 1, location: "Rack A-1", purchaseDate: daysFromNow(-40), warrantyExpiry: null },
+    { id: uid(), name: "Air Filter — Tata LPT", partNumber: "TML-AF-1613X", make: "Tata Genuine", category: "Filters", sourcing: "OEM (Original)", vendor: "Tata Motors Authorised Dealer", vendorContact: "9884022334", unitCost: 950, qty: 1, minQty: 2, location: "Rack B-2", purchaseDate: daysFromNow(-15), warrantyExpiry: null },
+    { id: uid(), name: "Brake Liner Set — HCV", partNumber: "BL-HCV-450", make: "Bosch", category: "Brakes", sourcing: "Aftermarket", vendor: "Annai Auto Works, Salem", vendorContact: "9500123456", unitCost: 4200, qty: 6, minQty: 4, location: "Rack C-1", purchaseDate: daysFromNow(-90), warrantyExpiry: daysFromNow(20) },
+    { id: uid(), name: "Fuel Filter — BS6", partNumber: "FF-BS6-220", make: "Mahle", category: "Filters", sourcing: "OEM (Original)", vendor: "Sri Ganesh Auto Spares", vendorContact: "9840011223", unitCost: 780, qty: 3, minQty: 2, location: "Rack B-3", purchaseDate: daysFromNow(-25), warrantyExpiry: null },
+    { id: uid(), name: "Wheel Nut (100 pcs)", partNumber: "WN-M22-100", make: "Local Make", category: "Suspension", sourcing: "Local Market", vendor: "Chennai Steel Traders", vendorContact: "9600234567", unitCost: 3500, qty: 40, minQty: 50, location: "Rack D-1", purchaseDate: daysFromNow(-60), warrantyExpiry: null },
+    { id: uid(), name: "Alternator — 12V 90A", partNumber: "ALT-12V90-BL", make: "Bosch", category: "Electrical", sourcing: "Aftermarket", vendor: "Highway Motors, Chennai", vendorContact: "9840345678", unitCost: 6800, qty: 2, minQty: 1, location: "Rack E-2", purchaseDate: daysFromNow(-200), warrantyExpiry: daysFromNow(-5) }
   ];
 
   db = { vehicles, expenses, fuelLogs, inspections, issues, reminders, parts, drivers, workOrders, demo: true };
@@ -654,9 +703,26 @@ document.getElementById("reminderForm").addEventListener("submit", e => {
 document.getElementById("partForm").addEventListener("submit", e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
-  const existing = db.parts.find(p => p.name.toLowerCase() === fd.name.trim().toLowerCase());
-  if (existing) { existing.qty = +fd.qty; existing.minQty = +fd.minQty; }
-  else db.parts.push({ id: uid(), name: fd.name.trim(), qty: +fd.qty, minQty: +fd.minQty });
+  const partData = {
+    name: fd.name.trim(), partNumber: fd.partNumber.trim(), make: fd.make.trim(),
+    category: fd.category, sourcing: fd.sourcing,
+    vendor: fd.vendor.trim(), vendorContact: fd.vendorContact,
+    unitCost: fd.unitCost ? +fd.unitCost : null,
+    qty: +fd.qty, minQty: +fd.minQty, location: fd.location.trim(),
+    purchaseDate: fd.purchaseDate || null, warrantyExpiry: fd.warrantyExpiry || null
+  };
+  const existing = db.parts.find(p => p.name.toLowerCase() === partData.name.toLowerCase());
+  if (existing) {
+    // Restocking (qty/minQty/name) always applies; other fields only overwrite
+    // if actually filled in this time, so a quick re-add doesn't wipe vendor/
+    // warranty/etc. already on file.
+    Object.entries(partData).forEach(([k, v]) => {
+      if (k === "qty" || k === "minQty" || k === "name") existing[k] = v;
+      else if (v !== "" && v !== null) existing[k] = v;
+    });
+  } else {
+    db.parts.push({ id: uid(), ...partData });
+  }
   saveStore(); e.target.reset(); renderParts(); renderOverview();
 });
 
