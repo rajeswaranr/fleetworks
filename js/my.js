@@ -29,23 +29,34 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 // ---------- Auth views ----------
 let signupMode = false;
+function ownerDisplayName() {
+  const p = window.fwCloud && fwCloud.profile();
+  const user = window.fwCloud && fwCloud.user();
+  return (p && p.full_name) || (user ? user.split("@")[0] : "Owner");
+}
 function renderAuthState() {
   const user = window.fwCloud && fwCloud.user();
   document.getElementById("authView").hidden = !!user;
   document.getElementById("portalView").hidden = !user;
-  document.getElementById("authTopBtn").textContent = user ? user.split("@")[0] : "Sign In";
+  document.getElementById("authTopBtn").textContent = user ? ownerDisplayName() : "Sign In";
   if (user) {
-    document.getElementById("ownerName").textContent = user.split("@")[0];
+    document.getElementById("ownerName").textContent = ownerDisplayName();
     renderPortal();
   }
 }
 
+const signupFields = document.getElementById("signupOnlyFields");
 document.getElementById("authToggle").addEventListener("click", () => {
   signupMode = !signupMode;
+  signupFields.hidden = !signupMode;
+  signupFields.querySelectorAll("input").forEach(i => { i.required = signupMode; });
   document.getElementById("authTitle").textContent = signupMode ? "Create Owner Account" : "Owner Sign In";
   document.getElementById("authSubmit").textContent = signupMode ? "Create Free Account" : "Sign In";
   document.getElementById("authToggle").textContent = signupMode ? "Already have an account? Sign in" : "New owner? Create free account";
 });
+
+const mobileInput = document.querySelector('#signupOnlyFields input[name="mobile"]');
+mobileInput.addEventListener("input", () => { mobileInput.value = mobileInput.value.replace(/\D/g, "").slice(0, 10); });
 
 document.getElementById("authForm").addEventListener("submit", async e => {
   e.preventDefault();
@@ -54,7 +65,16 @@ document.getElementById("authForm").addEventListener("submit", async e => {
   err.hidden = true; note.hidden = true;
   try {
     if (signupMode) {
-      const res = await fwCloud.signup(fd.email, fd.password);
+      if (!/^[6-9]\d{9}$/.test(fd.mobile || "")) { err.textContent = "Enter a valid 10-digit mobile number."; err.hidden = false; return; }
+      if (!fd.fullName || !fd.fullName.trim()) { err.textContent = "Please enter your name."; err.hidden = false; return; }
+      if (!fd.transportName || !fd.transportName.trim()) { err.textContent = "Please enter your transport / company name."; err.hidden = false; return; }
+      const profile = {
+        full_name: fd.fullName.trim(),
+        transport_name: fd.transportName.trim(),
+        mobile: fd.mobile,
+        fleet_size: fd.fleetSize ? +fd.fleetSize : null
+      };
+      const res = await fwCloud.signup(fd.email, fd.password, profile);
       if (res === "ready") { await fwCloud.pull(); location.reload(); }
       else { note.textContent = "✅ Account created! Check your email inbox, click the confirmation link, then sign in here."; note.hidden = false; }
     } else {

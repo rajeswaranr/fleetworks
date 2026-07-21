@@ -57,6 +57,20 @@
         <h2 style="color:var(--navy);font-size:1.2rem;margin-bottom:4px" id="authTitle">Owner Sign In</h2>
         <p class="muted" style="margin-bottom:16px">Free account · takes 30 seconds</p>
         <form id="authForm" class="entry-form">
+          <div id="signupOnlyFields" hidden>
+            <label>Your Name
+              <input type="text" name="fullName" placeholder="e.g. Rajesh Kumar" autocomplete="name" />
+            </label>
+            <label>Transport / Company Name
+              <input type="text" name="transportName" placeholder="e.g. Sri Balaji Transports" autocomplete="organization" />
+            </label>
+            <label>Mobile Number
+              <input type="tel" name="mobile" placeholder="10-digit mobile number" maxlength="10" inputmode="numeric" autocomplete="tel" />
+            </label>
+            <label>Number of Vehicles in Your Fleet
+              <input type="number" name="fleetSize" placeholder="e.g. 5" min="1" max="9999" inputmode="numeric" />
+            </label>
+          </div>
           <label>Email
             <input type="email" name="email" placeholder="you@example.com" required autocomplete="username" />
           </label>

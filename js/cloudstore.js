@@ -58,11 +58,15 @@
   const fwCloud = {
     user() { const s = session(); return s && s.user ? s.user.email : null; },
 
-    async signup(email, password) {
+    /* Profile fields captured at signup (name, transport name, mobile,
+       fleet size) — stored as Supabase user_metadata, no extra table. */
+    profile() { const s = session(); return (s && s.user && s.user.user_metadata) || {}; },
+
+    async signup(email, password, profile) {
       const r = await fetch(cfg().url + "/auth/v1/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json", "apikey": cfg().anonKey },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, data: profile || {} })
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.msg || j.error_description || "Sign up failed");
