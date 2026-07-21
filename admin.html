@@ -109,7 +109,7 @@
         <div class="stat-tile"><span class="stat-label">Leads today</span><span class="stat-value">${leadsToday}</span><span class="stat-sub">call fast!</span></div>
         <div class="stat-tile"><span class="stat-label">Total leads</span><span class="stat-value">${leads.length}</span><span class="stat-sub">last 200 shown</span></div>
         <div class="stat-tile"><span class="stat-label">Vendor applications</span><span class="stat-value">${vendors.length}</span><span class="stat-sub">${vendors.filter(v => v.status === "Under Review").length} under review</span></div>
-        <div class="stat-tile"><span class="stat-label">Backend</span><span class="stat-value" style="color:#0ca30c">Live</span><span class="stat-sub">Supabase · Mumbai</span></div>`;
+        <div class="stat-tile"><span class="stat-label">Backend</span><span class="stat-value" style="color:#0ca30c">Live</span><span class="stat-sub">Supabase</span></div>`;
 
       $("leadsTable").innerHTML = leads.length ?
         `<table class="chart-table-el"><thead><tr><th>When</th><th>Name</th><th>Phone</th><th>City</th><th>Vehicle</th><th>Service</th><th>Issue</th><th>Ref</th></tr></thead><tbody>` +
