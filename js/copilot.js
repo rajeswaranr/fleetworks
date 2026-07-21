@@ -142,8 +142,8 @@
   const html = `
     <button id="cpFab" aria-label="Ask Sarathi, the FleetWorks AI">🛞<span>Ask Sarathi</span></button>
     <div id="cpPanel" hidden>
-      <div class="cp-head">
-        <span>🛞 Sarathi <small style="font-weight:500;opacity:0.75">· FleetWorks AI</small></span>
+      <div class="cp-head" id="cpHead" title="Drag to move">
+        <span class="cp-head-title"><span class="cp-drag-grip">⠿</span>🛞 Sarathi <small style="font-weight:500;opacity:0.75;margin-left:4px">· AI</small></span>
         <button id="cpClose" aria-label="Close">✕</button>
       </div>
       <div class="cp-body" id="cpBody">
@@ -182,7 +182,63 @@
     setTimeout(() => addMsg(answer(q), "bot"), 250);
   }
 
-  document.getElementById("cpFab").addEventListener("click", () => { panel.hidden = !panel.hidden; if (!panel.hidden) document.getElementById("cpText").focus(); });
+  // ---------- Drag to move ----------
+  const POS_KEY = "fw_sarathi_pos";
+  const head = document.getElementById("cpHead");
+  let dragging = false, moved = false, startX, startY, startLeft, startTop;
+
+  function clamp(left, top) {
+    const w = panel.offsetWidth, h = panel.offsetHeight;
+    const maxLeft = Math.max(6, window.innerWidth - w - 6);
+    const maxTop = Math.max(6, window.innerHeight - h - 6);
+    return { left: Math.min(Math.max(6, left), maxLeft), top: Math.min(Math.max(6, top), maxTop) };
+  }
+  function setPos(left, top) {
+    const p = clamp(left, top);
+    panel.style.left = p.left + "px";
+    panel.style.top = p.top + "px";
+    panel.style.right = "auto";
+    panel.style.bottom = "auto";
+  }
+  function restorePos() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(POS_KEY) || "null");
+      if (saved) setPos(saved.left, saved.top);
+    } catch { /* keep default corner position */ }
+  }
+
+  head.addEventListener("pointerdown", ev => {
+    if (ev.target.closest("button")) return;
+    dragging = true; moved = false;
+    head.setPointerCapture(ev.pointerId);
+    const rect = panel.getBoundingClientRect();
+    startX = ev.clientX; startY = ev.clientY;
+    startLeft = rect.left; startTop = rect.top;
+  });
+  head.addEventListener("pointermove", ev => {
+    if (!dragging) return;
+    const dx = ev.clientX - startX, dy = ev.clientY - startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
+    setPos(startLeft + dx, startTop + dy);
+  });
+  function endDrag(ev) {
+    if (!dragging) return;
+    dragging = false;
+    if (moved) {
+      const rect = panel.getBoundingClientRect();
+      localStorage.setItem(POS_KEY, JSON.stringify({ left: rect.left, top: rect.top }));
+    }
+  }
+  head.addEventListener("pointerup", endDrag);
+  head.addEventListener("pointercancel", endDrag);
+  window.addEventListener("resize", () => {
+    if (panel.style.left) { const r = panel.getBoundingClientRect(); setPos(r.left, r.top); }
+  });
+
+  document.getElementById("cpFab").addEventListener("click", () => {
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) { restorePos(); document.getElementById("cpText").focus(); }
+  });
   document.getElementById("cpClose").addEventListener("click", () => panel.hidden = true);
   document.getElementById("cpForm").addEventListener("submit", e => {
     e.preventDefault();
