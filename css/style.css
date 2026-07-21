@@ -552,6 +552,16 @@ input[type="file"] {
 .cp-input { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); background: #fff; }
 .cp-input input { flex: 1; }
 
+/* ---------- Owner Portal (my.html) ---------- */
+.veh-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.vchip {
+  font-family: inherit; font-size: 0.84rem; font-weight: 600; cursor: pointer;
+  background: var(--bg-alt); border: 1.5px solid var(--line); color: var(--ink);
+  padding: 8px 16px; border-radius: 100px; transition: all 0.15s;
+}
+.vchip:hover { border-color: var(--amber); }
+.vchip.sel { background: var(--navy); border-color: var(--navy); color: #fff; }
+
 /* ---------- Command Center (command.html) — Grafana-style dark ---------- */
 body.cmd { background: #0a111d; color: #ffffff; }
 .cmd-header {

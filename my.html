@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My FleetWorks — Owner Portal</title>
+  <meta name="description" content="FleetWorks owner portal: sign in and add diesel fills, expenses and issues for your vehicles in seconds. Your data syncs to the cloud and powers your AI dashboards." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="icons/icon-96.png" />
+  <meta name="theme-color" content="#0f1e33" />
+</head>
+<body>
+
+  <!-- ======= TOP BAR ======= -->
+  <div class="topbar">
+    <div class="container topbar-inner">
+      <span>🛞 24x7 Breakdown Helpline: <a href="tel:+919740799722"><strong>+91 97407 99722</strong></a></span>
+      <span class="topbar-cities ai-glow">🇮🇳 India's First AI/ML Vehicle Maintenance &amp; Management System</span>
+    </div>
+  </div>
+
+  <!-- ======= NAVBAR ======= -->
+  <header class="navbar" id="navbar">
+    <div class="container nav-inner">
+      <a href="index.html" class="logo">
+        <img src="assets/logo-mark.svg" width="40" height="34" alt="" style="display:block" />
+        <span>Fleet<em>Works</em></span>
+      </a>
+      <nav class="nav-links" id="navLinks">
+        <a href="my.html" class="nav-partner">My FleetWorks</a>
+        <a href="dashboard.html">AI Dashboard</a>
+        <a href="fleet.html">Fleet Manager</a>
+        <a href="command.html">Command Center</a>
+      </nav>
+      <div class="nav-actions">
+        <a href="tel:+919740799722" class="btn btn-outline btn-sm">Call Us</a>
+        <button class="btn btn-primary btn-sm" id="authTopBtn">Sign In</button>
+        <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container dash-main" style="max-width:860px">
+
+    <!-- ======= SIGNED OUT ======= -->
+    <div id="authView" hidden>
+      <div class="dash-hero" style="border-radius:var(--radius);padding:36px 30px;margin-bottom:24px">
+        <span class="badge">🚛 For Transport Owners</span>
+        <h1 style="font-size:clamp(1.5rem,3vw,2.2rem)">My <span class="accent">FleetWorks</span></h1>
+        <p>One account for your whole fleet. Add diesel, kharcha and problems in seconds — FleetWorks AI turns them into savings, predictions and Tally-ready accounts. Works on phone and computer, data always backed up.</p>
+      </div>
+      <div class="onboard-card" style="max-width:440px;margin:0 auto">
+        <h2 style="color:var(--navy);font-size:1.2rem;margin-bottom:4px" id="authTitle">Owner Sign In</h2>
+        <p class="muted" style="margin-bottom:16px">Free account · takes 30 seconds</p>
+        <form id="authForm" class="entry-form">
+          <label>Email
+            <input type="email" name="email" placeholder="you@example.com" required autocomplete="username" />
+          </label>
+          <label>Password
+            <input type="password" name="password" placeholder="Minimum 6 characters" required autocomplete="current-password" />
+          </label>
+          <button type="submit" class="btn btn-primary btn-block" id="authSubmit">Sign In</button>
+          <button type="button" class="btn btn-outline btn-block" id="authToggle">New owner? Create free account</button>
+          <p class="field-error" id="authErr" hidden></p>
+          <p class="muted" id="authNote" style="font-size:0.78rem" hidden></p>
+        </form>
+      </div>
+    </div>
+
+    <!-- ======= SIGNED IN ======= -->
+    <div id="portalView" hidden>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px">
+        <div>
+          <h1 style="color:var(--navy);font-size:1.5rem">Namaste, <span id="ownerName">Owner</span> 🙏</h1>
+          <p class="muted" style="font-size:0.85rem">Your entries sync to the cloud automatically. <span id="syncState"></span></p>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <a href="dashboard.html" class="btn btn-outline btn-sm">📊 My Dashboard</a>
+          <a href="command.html" class="btn btn-outline btn-sm">🛰️ Command Center</a>
+        </div>
+      </div>
+
+      <section class="stat-row" id="ownerStats" style="margin-bottom:18px"></section>
+
+      <!-- Entry type tabs -->
+      <div class="tab-bar" id="entryTabs">
+        <button class="tab-btn active" data-tab="fuel">⛽ Diesel</button>
+        <button class="tab-btn" data-tab="expense">🧾 Kharcha</button>
+        <button class="tab-btn" data-tab="issue">⚠️ Problem</button>
+        <button class="tab-btn" data-tab="vehicle">🚛 Vehicle</button>
+      </div>
+
+      <!-- Diesel -->
+      <section class="tab-panel active" id="tab-fuel">
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Add Diesel Fill</h2><p class="muted">Litres + odometer = FleetWorks computes your mileage automatically</p></div></div>
+          <div class="veh-chips" id="fuelChips"></div>
+          <form id="fuelForm" class="entry-form">
+            <div class="form-row">
+              <label>Litres
+                <input type="number" name="litres" step="0.01" min="1" placeholder="e.g. 180" required inputmode="decimal" />
+              </label>
+              <label>Total Amount (₹)
+                <input type="number" name="amount" min="1" placeholder="e.g. 16400" required inputmode="numeric" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Odometer (km)
+                <input type="number" name="odo" min="0" placeholder="meter reading" required inputmode="numeric" />
+              </label>
+              <label>Date
+                <input type="date" name="date" required />
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Save Diesel Entry ⛽</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Expense -->
+      <section class="tab-panel" id="tab-expense">
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Add Kharcha (Expense)</h2><p class="muted">Every entry strengthens your AI predictions and Tally export</p></div></div>
+          <div class="veh-chips" id="expChips"></div>
+          <form id="expForm" class="entry-form">
+            <div class="form-row">
+              <label>What was it for?
+                <select name="category" required>
+                  <option value="">Select</option>
+                  <option>Tyres</option><option>Battery</option><option>Brakes</option>
+                  <option>Clutch</option><option>Engine Oil &amp; Filters</option><option>Suspension</option>
+                  <option>Electrical</option><option>Body &amp; Paint</option><option>Other</option>
+                </select>
+              </label>
+              <label>Amount (₹)
+                <input type="number" name="amount" min="1" placeholder="e.g. 12500" required inputmode="numeric" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Date
+                <input type="date" name="date" required />
+              </label>
+              <label>Odometer (km, optional)
+                <input type="number" name="odo" min="0" placeholder="meter reading" inputmode="numeric" />
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Save Expense 🧾</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Issue -->
+      <section class="tab-panel" id="tab-issue">
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Report a Problem</h2><p class="muted">Drishti AI will prioritise it; convert to a job card in Fleet Manager</p></div></div>
+          <div class="veh-chips" id="issChips"></div>
+          <form id="issForm" class="entry-form">
+            <label>What's wrong?
+              <input type="text" name="title" placeholder="e.g. Brake pedal spongy, engine overheating..." required />
+            </label>
+            <label>How serious?
+              <select name="severity" required>
+                <option>Low</option><option selected>Medium</option><option>High</option>
+              </select>
+            </label>
+            <button type="submit" class="btn btn-primary btn-block">Report Problem ⚠️</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Vehicle -->
+      <section class="tab-panel" id="tab-vehicle">
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Add a Vehicle</h2></div></div>
+          <form id="vehForm" class="entry-form">
+            <label>Vehicle Number
+              <input type="text" name="name" placeholder="e.g. TN-01-AB-1234" required style="text-transform:uppercase" />
+            </label>
+            <div class="form-row">
+              <label>Type
+                <select name="type" required>
+                  <option value="">Select</option>
+                  <option>Truck (HCV)</option><option>LCV</option><option>Bus</option>
+                  <option>Tipper</option><option>Trailer</option><option>Tanker</option>
+                </select>
+              </label>
+              <label>Monthly Running (km)
+                <input type="number" name="kmPerMonth" min="100" placeholder="e.g. 8000" required inputmode="numeric" />
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Add Vehicle 🚛</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Recent entries -->
+      <div class="chart-card">
+        <div class="chart-head"><div><h2>Recent Entries</h2></div></div>
+        <div id="recentList" class="predictions"></div>
+      </div>
+
+      <p class="muted" style="text-align:center;font-size:0.8rem;margin-top:8px">
+        <a href="fleet.html" style="color:var(--amber-dark)">Open full Fleet Manager</a> for RTO compliance, drivers, inspections and job cards ·
+        <button class="link-btn" id="logoutBtn" style="color:#b91c1c">Sign out</button>
+      </p>
+    </div>
+
+  </main>
+
+  <!-- ======= FOOTER ======= -->
+  <footer class="footer" style="margin-top:40px">
+    <div class="footer-bottom">
+      <div class="container">
+        <span>© 2026 FleetWorks Private Limited. All rights reserved.</span>
+        <span><em>Where Every Fleet Learns.</em></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/backend.js"></script>
+  <script src="js/cloudstore.js"></script>
+  <script src="js/my.js"></script>
+  <script src="js/copilot.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+  </script>
+</body>
+</html>
