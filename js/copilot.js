@@ -144,7 +144,10 @@
     <div id="cpPanel" hidden>
       <div class="cp-head" id="cpHead" title="Drag to move">
         <span class="cp-head-title"><span class="cp-drag-grip">⠿</span>🛞 Sarathi <small style="font-weight:500;opacity:0.75;margin-left:4px">· AI</small></span>
-        <button id="cpClose" aria-label="Close">✕</button>
+        <span class="cp-head-actions">
+          <button id="cpMin" aria-label="Minimize" title="Minimize">–</button>
+          <button id="cpClose" aria-label="Close" title="Close">✕</button>
+        </span>
       </div>
       <div class="cp-body" id="cpBody">
         <div class="cp-msg cp-bot">Namaste! 🙏 I'm <strong>Sarathi</strong>, your fleet's AI. Ask me about kharcha, mileage, RTO documents, driver DLs, job cards or maintenance — English ya Hinglish, dono chalega.</div>
@@ -235,9 +238,19 @@
     if (panel.style.left) { const r = panel.getBoundingClientRect(); setPos(r.left, r.top); }
   });
 
+  // ---------- Minimize (collapse to header bar, distinct from close) ----------
+  const minBtn = document.getElementById("cpMin");
+  function setCollapsed(on) {
+    panel.classList.toggle("cp-collapsed", on);
+    minBtn.textContent = on ? "▢" : "–";
+    minBtn.title = on ? "Expand" : "Minimize";
+    minBtn.setAttribute("aria-label", on ? "Expand" : "Minimize");
+  }
+  minBtn.addEventListener("click", () => setCollapsed(!panel.classList.contains("cp-collapsed")));
+
   document.getElementById("cpFab").addEventListener("click", () => {
     panel.hidden = !panel.hidden;
-    if (!panel.hidden) { restorePos(); document.getElementById("cpText").focus(); }
+    if (!panel.hidden) { restorePos(); setCollapsed(false); document.getElementById("cpText").focus(); }
   });
   document.getElementById("cpClose").addEventListener("click", () => panel.hidden = true);
   document.getElementById("cpForm").addEventListener("submit", e => {
