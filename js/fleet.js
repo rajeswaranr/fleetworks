@@ -18,9 +18,10 @@ function loadStore() {
       parts: d.parts || [], drivers: d.drivers || [],
       workOrders: d.workOrders || [], documents: d.documents || [],
       tyreReadings: d.tyreReadings || [], settings: d.settings || {},
+      trips: d.trips || [], driverLedger: d.driverLedger || [],
       demo: !!d.demo
     };
-  } catch { return { vehicles: [], expenses: [], fuelLogs: [], inspections: [], issues: [], reminders: [], parts: [], drivers: [], workOrders: [], documents: [], tyreReadings: [], settings: {}, demo: false }; }
+  } catch { return { vehicles: [], expenses: [], fuelLogs: [], inspections: [], issues: [], reminders: [], parts: [], drivers: [], workOrders: [], documents: [], tyreReadings: [], settings: {}, trips: [], driverLedger: [], demo: false }; }
 }
 function saveStore() {
   localStorage.setItem(STORE_KEY, JSON.stringify(db));
@@ -426,6 +427,69 @@ function renderOverview() {
         <div class="insight-detail">${esc(i.detail)}</div>
       </div>
     </div>`; }).join("");
+}
+
+// ---------- Render: trips & revenue ----------
+function renderTrips() {
+  const tbl = document.getElementById("tripsTable"), pt = document.getElementById("profitTable");
+  if (!tbl || !pt) return;
+  const trips = [...(db.trips || [])].sort((a, b) => b.date.localeCompare(a.date));
+  tbl.innerHTML = trips.length ?
+    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Route</th><th>Freight</th></tr></thead><tbody>` +
+    trips.slice(0, 50).map(t => `<tr><td>${fmtDate(t.date)}</td><td><strong>${esc(vName(t.vehicleId))}</strong></td><td>${esc(t.from)} &rarr; ${esc(t.to)}</td><td><strong>${fmtINR(t.freight)}</strong></td></tr>`).join("") + "</tbody></table>"
+    : "<p class='muted'>No trips yet — log your first load above and profit-per-vehicle lights up.</p>";
+  const rows = db.vehicles.map(v => {
+    const vt = (db.trips || []).filter(t => t.vehicleId === v.id);
+    if (!vt.length) return null;
+    const from = vt.map(t => t.date).sort()[0]; // compare cost over the same window as logged trips
+    const rev = vt.reduce((s, t) => s + t.freight, 0);
+    const cost = db.expenses.filter(e => e.vehicleId === v.id && e.date >= from).reduce((s, e) => s + e.amount, 0) +
+      (db.fuelLogs || []).filter(f => f.vehicleId === v.id && f.date >= from).reduce((s, f) => s + f.amount, 0);
+    return { v, rev, cost, profit: rev - cost };
+  }).filter(Boolean).sort((a, b) => b.profit - a.profit);
+  pt.innerHTML = rows.length ?
+    `<table class="chart-table-el"><thead><tr><th>Vehicle</th><th>Freight earned</th><th>All-in cost</th><th>Profit</th><th>Margin</th></tr></thead><tbody>` +
+    rows.map(r => {
+      const m = r.rev ? Math.round(r.profit / r.rev * 100) : null;
+      const good = r.profit >= 0;
+      return `<tr><td><strong>${esc(r.v.name)}</strong></td><td>${fmtINR(r.rev)}</td><td>${fmtINR(r.cost)}</td>
+        <td style="color:${good ? "#006300" : PAL.critical}"><strong>${good ? "" : "−"}${fmtINR(Math.abs(r.profit))}</strong></td>
+        <td>${m === null ? "—" : `<span class="fw-badge ${m >= 25 ? "ok" : m >= 0 ? "soon" : "overdue"}">${m}%</span>`}</td></tr>`;
+    }).join("") + "</tbody></table>"
+    : "<p class='muted'>Nothing to compare yet.</p>";
+}
+
+// ---------- Render: driver khata ----------
+const KHATA_LABEL = { advance: "Advance given", expense: "Trip expense", settlement: "Cash returned" };
+function renderKhata() {
+  const bal = document.getElementById("khataBalances"), tbl = document.getElementById("khataTable");
+  if (!bal || !tbl) return;
+  const sel = document.getElementById("khataDriver");
+  if (sel) {
+    const keep = sel.value;
+    sel.innerHTML = db.drivers.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join("");
+    if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+  }
+  const ledger = db.driverLedger || [];
+  bal.innerHTML = db.drivers.length ?
+    `<table class="chart-table-el"><thead><tr><th>Driver</th><th>Advances</th><th>Expenses</th><th>Returned</th><th>With driver</th></tr></thead><tbody>` +
+    db.drivers.map(d => {
+      const sum = type => ledger.filter(l => l.driverId === d.id && l.type === type).reduce((s, l) => s + l.amount, 0);
+      const adv = sum("advance"), exp = sum("expense"), set = sum("settlement");
+      const b = adv - exp - set;
+      return `<tr><td><strong>${esc(d.name)}</strong>${d.vehicleId ? "<br /><span class='muted'>" + esc(vName(d.vehicleId)) + "</span>" : ""}</td>
+        <td>${fmtINR(adv)}</td><td>${fmtINR(exp)}</td><td>${fmtINR(set)}</td>
+        <td><span class="fw-badge ${b > 0 ? "soon" : "ok"}">${b < 0 ? "−" : ""}${fmtINR(Math.abs(b))}</span></td></tr>`;
+    }).join("") + "</tbody></table>"
+    : "<p class='muted'>Add drivers first — the khata tracks advances against each driver.</p>";
+  const rows = [...ledger].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 60);
+  tbl.innerHTML = rows.length ?
+    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Driver</th><th>Type</th><th>Amount</th><th>Note</th></tr></thead><tbody>` +
+    rows.map(l => {
+      const d = db.drivers.find(x => x.id === l.driverId);
+      return `<tr><td>${fmtDate(l.date)}</td><td><strong>${d ? esc(d.name) : "—"}</strong></td><td>${KHATA_LABEL[l.type] || l.type}</td><td>${fmtINR(l.amount)}</td><td>${esc(l.note || "")}</td></tr>`;
+    }).join("") + "</tbody></table>"
+    : "<p class='muted'>No khata entries yet.</p>";
 }
 
 // ---------- Vehicle Health Score (0–100) ----------
@@ -1088,7 +1152,35 @@ function loadDemoFleet() {
 
   const settings = { businessName: "SR Transports", gstin: "", city: "Coimbatore", warnDays: 30, minTread: 1.6, mileageDropPct: 15 };
 
-  db = { vehicles, expenses, fuelLogs, inspections, issues, reminders, parts, drivers, workOrders, documents, tyreReadings, settings, demo: true };
+  // Every third workshop bill came with a proper GST invoice
+  expenses.forEach((e, i) => { if (i % 3 === 0) e.gstin = "33ABCDE1234F1Z5"; });
+
+  // Trips & freight revenue, last 6 months
+  const trips = [];
+  const freightBase = { "Truck (HCV)": [52000, 90000], "Tipper": [30000, 55000], "Bus": [60000, 95000], "LCV": [12000, 26000], "Trailer": [55000, 95000], "Tanker": [50000, 85000] };
+  const routes = [["Coimbatore", "Chennai"], ["Salem", "Bengaluru"], ["Coimbatore", "Kochi"], ["Erode", "Hyderabad"], ["Tiruppur", "Mumbai"]];
+  vehicles.forEach(v => {
+    const [lo, hi] = freightBase[v.type] || [30000, 60000];
+    for (let m = 5; m >= 0; m--) {
+      const n = 1 + Math.floor(rnd() * 2);
+      for (let t = 0; t < n; t++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - m, 2 + Math.floor(rnd() * 24));
+        if (d > now) continue;
+        const r = routes[Math.floor(rnd() * routes.length)];
+        trips.push({ id: uid(), vehicleId: v.id, date: iso(d), from: r[0], to: r[1], freight: Math.round((lo + rnd() * (hi - lo)) / 500) * 500, km: null });
+      }
+    }
+  });
+
+  // Driver khata: advances out, en-route expenses, some cash returned
+  const driverLedger = [];
+  drivers.forEach((d, i) => {
+    driverLedger.push({ id: uid(), driverId: d.id, date: daysFromNow(-25 - i * 3), type: "advance", amount: 15000 + i * 2000, note: "Trip advance" });
+    driverLedger.push({ id: uid(), driverId: d.id, date: daysFromNow(-20 - i * 3), type: "expense", amount: 6000 + Math.floor(rnd() * 4000), note: "Diesel + food en route" });
+    if (i % 2 === 0) driverLedger.push({ id: uid(), driverId: d.id, date: daysFromNow(-10 - i), type: "settlement", amount: 4000 + Math.floor(rnd() * 3000), note: "Cash returned" });
+  });
+
+  db = { vehicles, expenses, fuelLogs, inspections, issues, reminders, parts, drivers, workOrders, documents, tyreReadings, settings, trips, driverLedger, demo: true };
   saveStore();
   renderAll();
 }
@@ -1097,7 +1189,7 @@ function loadDemoFleet() {
 function fillVehicleSelects() {
   const opts = db.vehicles.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
   ["compVehicle", "fuelVehicle", "inspVehicle", "issueVehicle", "remVehicle", "fuelVehicleFilter",
-   "tyreVehicleFilter", "tyreFormVehicle"].forEach(id => {
+   "tyreVehicleFilter", "tyreFormVehicle", "tripVehicle", "billVehicle"].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const keep = el.value;
@@ -1443,6 +1535,88 @@ function buildDynamicPanels() {
   mk("anomaly", panelCard("Anomaly Detection", "Bills that look too big against your own history for that part", "anomTable"));
   mk("forecasting", `<div class="chart-card"><div class="chart-head"><div><h2>Expense Forecasting</h2><p class="muted">Least-squares ML regression on your monthly spend, damped against noisy months — next 3 months projected</p></div><div class="chart-legend" id="fcastLegend"></div></div><div class="chart-scroll"><div id="fcastChart" class="chart-area"></div></div><details class="chart-table"><summary>View as table</summary><div id="fcastTable"></div></details></div>`);
   mk("recommend", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="brain" data-icon-size="22"></i></span> Recommendations</h2><p class="muted">What FleetWorks AI would do this week, in priority order</p></div></div><div id="recoList" class="predictions"></div></div>`);
+  mk("trips", `<div class="chart-card">
+    <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="mapPin" data-icon-size="22"></i></span> Trips &amp; Loads</h2><p class="muted">Log every trip's freight — FleetWorks turns cost-per-km into profit-per-km</p></div></div>
+    <form id="tripForm" class="entry-form">
+      <div class="form-row">
+        <label>Vehicle<select name="vehicleId" id="tripVehicle" required></select></label>
+        <label>Date<input type="date" name="date" required /></label>
+      </div>
+      <div class="form-row">
+        <label>From<input type="text" name="from" placeholder="e.g. Coimbatore" required /></label>
+        <label>To<input type="text" name="to" placeholder="e.g. Chennai" required /></label>
+      </div>
+      <div class="form-row">
+        <label>Freight received (&#8377;)<input type="number" name="freight" min="0" required inputmode="numeric" /></label>
+        <label>Trip distance (km, optional)<input type="number" name="km" min="0" inputmode="numeric" /></label>
+      </div>
+      <button type="submit" class="btn btn-primary"><i data-icon="plus" data-icon-size="16"></i> Save Trip</button>
+    </form>
+  </div>
+  <div class="chart-card"><div class="chart-head"><div><h2>Profit per Vehicle</h2><p class="muted">Freight earned vs all-in cost (maintenance + diesel) since each vehicle's first logged trip</p></div></div><div class="chart-scroll"><div id="profitTable"></div></div></div>
+  <div class="chart-card"><div class="chart-head"><div><h2>Trip Log</h2></div></div><div class="chart-scroll"><div id="tripsTable"></div></div></div>`);
+  mk("khata", `<div class="chart-card">
+    <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="driver" data-icon-size="22"></i></span> Driver Khata</h2><p class="muted">The advance-and-settlement notebook, digital — who holds how much of your cash right now</p></div></div>
+    <form id="khataForm" class="entry-form">
+      <div class="form-row">
+        <label>Driver<select name="driverId" id="khataDriver" required></select></label>
+        <label>Entry type
+          <select name="type" required>
+            <option value="advance">Advance given to driver</option>
+            <option value="expense">Trip expense (from advance)</option>
+            <option value="settlement">Cash returned / settled</option>
+          </select>
+        </label>
+      </div>
+      <div class="form-row">
+        <label>Amount (&#8377;)<input type="number" name="amount" min="1" required inputmode="numeric" /></label>
+        <label>Date<input type="date" name="date" required /></label>
+      </div>
+      <label>Note (optional)<input type="text" name="note" placeholder="e.g. Chennai trip advance" /></label>
+      <button type="submit" class="btn btn-primary"><i data-icon="plus" data-icon-size="16"></i> Add Khata Entry</button>
+    </form>
+  </div>
+  <div class="chart-card"><div class="chart-head"><div><h2>Balances</h2><p class="muted">Positive balance = cash with the driver, still to be accounted</p></div></div><div class="chart-scroll"><div id="khataBalances"></div></div></div>
+  <div class="chart-card"><div class="chart-head"><div><h2>Ledger</h2></div></div><div class="chart-scroll"><div id="khataTable"></div></div></div>`);
+  mk("gstbills", `<div class="chart-card">
+    <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="receipt" data-icon-size="22"></i></span> Bill Capture &amp; GST</h2><p class="muted">Snap the workshop bill — FleetWorks reads the amount, date and GSTIN on your phone, and tracks your input-tax credit</p></div></div>
+    <div class="settings-actions">
+      <button type="button" class="btn btn-primary" id="billScanBtn"><i data-icon="receipt" data-icon-size="16"></i> Scan a Bill (photo)</button>
+      <button type="button" class="btn btn-outline" id="billManualBtn">Enter Manually</button>
+      <input type="file" id="billFile" accept="image/*" hidden />
+      <span class="muted" id="billScanStatus"></span>
+    </div>
+    <form id="billForm" class="entry-form" hidden>
+      <div class="form-row">
+        <label>Vehicle<select name="vehicleId" id="billVehicle" required></select></label>
+        <label>Date<input type="date" name="date" required /></label>
+      </div>
+      <div class="form-row">
+        <label>Category
+          <select name="category" required>
+            <option value="">Select</option>
+            <option>Tyres</option><option>Battery</option><option>Brakes</option>
+            <option>Clutch</option><option>Engine Oil &amp; Filters</option><option>Suspension</option>
+            <option>Electrical</option><option>Body &amp; Paint</option><option>Other</option>
+          </select>
+        </label>
+        <label>Amount (&#8377;)<input type="number" name="amount" min="1" required inputmode="numeric" /></label>
+      </div>
+      <div class="form-row">
+        <label>Vendor GSTIN (blank = non-GST bill)<input type="text" name="gstin" maxlength="15" style="text-transform:uppercase" /></label>
+        <label>Bill No (optional)<input type="text" name="billNo" /></label>
+      </div>
+      <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Save Bill as Expense</button>
+    </form>
+    <p class="disclaimer">First scan downloads the free on-device reader (~15 MB, one time). Bill photos never leave your phone — OCR runs entirely in your browser.</p>
+  </div>
+  <section class="stat-row" id="gstTiles"></section>
+  <div class="chart-card"><div class="chart-head"><div><h2>GST vs Non-GST Bills</h2><p class="muted">Bills with a GSTIN earn input-tax credit; the rest is leakage worth chasing</p></div></div><div class="chart-scroll"><div id="gstBillsTable"></div></div></div>`);
+  mk("benchmark", `<div class="chart-card">
+    <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="chartBar" data-icon-size="22"></i></span> Peer Benchmarking</h2><p class="muted">Your fleet vs Indian CV industry reference numbers — cost per km, mileage and part prices</p></div></div>
+    <div id="benchTables"></div>
+    <p class="disclaimer">Benchmarks are indicative India CV market references. As more fleets join FleetWorks, these become live anonymised peer comparisons for your region and vehicle class.</p>
+  </div>`);
   mk("whatif", `<div class="chart-card">
     <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="eye" data-icon-size="22"></i></span> What-if Analysis</h2><p class="muted">Move the sliders — FleetIQ reprojects your monthly cost instantly from your own last-12-month numbers</p></div></div>
     <div class="whatif-grid">
@@ -1458,7 +1632,6 @@ function buildDynamicPanels() {
     ["invoices", "Invoices", "Customer and vendor invoices arrive with the billing module.", "document"],
     ["toll", "Toll & FASTag", "FASTag toll books per vehicle and route arrive with the telematics integration.", "mapPin"],
     ["def", "DEF / AdBlue", "DEF consumption and cost-per-km tracking for BS6 vehicles is on the way.", "spray"],
-    ["gstbills", "Bills — GST / Non-GST", "GST vs non-GST bill split arrives with invoice capture — your Tally export already carries per-category ledgers.", "receipt"],
     ["recalls", "Recalls", "Manufacturer recall tracking for your vehicle makes is on the way.", "bell"],
     ["charging", "EV Charging", "Charging sessions, kWh and cost per km arrive with the EV module.", "charge"],
     ["places", "Places", "Saved depots, customer sites and geofences arrive with the GPS integration.", "mapPin"],
@@ -1645,6 +1818,8 @@ function renderAll() {
   renderVendors(); renderIntegrations(); renderReports();
   if (window.renderAnalyticsAll) renderAnalyticsAll();
   if (window.renderAccountPortal) renderAccountPortal();
+  renderTrips();
+  renderKhata();
   renderHealth();
   renderActionInbox();
   const org = document.getElementById("topOrg");
@@ -1653,6 +1828,21 @@ function renderAll() {
 }
 buildDynamicPanels();
 initListToolbars();
+
+// Trips & khata entry forms (panels are built dynamically above)
+document.getElementById("tripForm")?.addEventListener("submit", e => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  db.trips.push({ id: uid(), vehicleId: fd.vehicleId, date: fd.date, from: fd.from.trim(), to: fd.to.trim(), freight: +fd.freight, km: fd.km ? +fd.km : null });
+  saveStore(); e.target.reset(); renderAll();
+});
+document.getElementById("khataForm")?.addEventListener("submit", e => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  db.driverLedger.push({ id: uid(), driverId: fd.driverId, date: fd.date, type: fd.type, amount: +fd.amount, note: (fd.note || "").trim() });
+  saveStore(); e.target.reset(); renderAll();
+});
+
 renderAll();
 
 // Home hub cards open their workspace and land on its dashboard

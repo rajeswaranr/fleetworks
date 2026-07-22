@@ -218,6 +218,8 @@ function renderStats() {
   const nowK = todayKey();
   const thisMonth = db.expenses.filter(e => monthKey(e.date) === nowK).reduce((s, e) => s + e.amount, 0);
   const fuelMonth = (db.fuelLogs || []).filter(f => monthKey(f.date) === nowK).reduce((s, f) => s + f.amount, 0);
+  const revMonth = (db.trips || []).filter(t => monthKey(t.date) === nowK).reduce((s, t) => s + t.freight, 0);
+  const profMonth = revMonth - thisMonth - fuelMonth;
   const vs = vehicleStats();
   const fleetCpk = mean(vs.filter(v => v.costPerKm > 0).map(v => v.costPerKm));
   const indCpk = mean(vs.map(v => v.industry));
@@ -228,7 +230,9 @@ function renderStats() {
     <div class="stat-tile"><span class="stat-label">Diesel this month</span><span class="stat-value">${fmtINR(fuelMonth)}</span><span class="stat-sub">from fuel logs</span></div>
     <div class="stat-tile"><span class="stat-label">Fleet cost per km</span><span class="stat-value">₹${fleetCpk.toFixed(2)}</span>
       <span class="stat-sub" style="color:${deltaGood ? "#006300" : DASH_PAL.critical}">${deltaGood ? "▼" : "▲"} ${Math.abs(deltaPct).toFixed(0)}% vs industry ₹${indCpk.toFixed(2)}</span></div>
-    <div class="stat-tile"><span class="stat-label">Records in books</span><span class="stat-value">${db.expenses.length + (db.fuelLogs || []).length}</span><span class="stat-sub">${db.vehicles.length} vehicles tracked</span></div>`;
+    <div class="stat-tile"><span class="stat-label">Freight this month</span><span class="stat-value">${fmtINR(revMonth)}</span><span class="stat-sub">from logged trips</span></div>
+    <div class="stat-tile"><span class="stat-label">Profit this month</span><span class="stat-value" style="color:${profMonth >= 0 ? "#006300" : DASH_PAL.critical}">${profMonth < 0 ? "−" : ""}${fmtINR(Math.abs(profMonth))}</span><span class="stat-sub">freight − diesel − maintenance</span></div>
+    <div class="stat-tile"><span class="stat-label">GST credit, this quarter</span><span class="stat-value" style="color:#006300">${fmtINR(itcQuarter())}</span><span class="stat-sub">ITC from captured GST bills</span></div>`;
 }
 
 // FleetIQ — what the AI sees ahead, and what acting on it is worth
@@ -586,6 +590,165 @@ function renderRecommendations() {
     : "<p class='muted'>All clear. Recommendations appear as predictions come due, anomalies surface or vehicles drift from the fleet average.</p>";
 }
 
+// ---------- GST input-tax credit tracker ----------
+// Assumes bills are GST-inclusive at 18% (standard for CV parts & service):
+// ITC = amount × 18/118. Indian FY starts 1 April.
+const itcOf = e => e.gstin ? e.amount * 0.18 / 1.18 : 0;
+function fyStart() {
+  const d = new Date();
+  return (d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1) + "-04-01";
+}
+function fyQuarterStart() {
+  const d = new Date();
+  const q = Math.floor(((d.getMonth() + 9) % 12) / 3);            // 0=Apr-Jun … 3=Jan-Mar
+  const startMonth = [3, 6, 9, 0][q];
+  const year = startMonth === 0 ? d.getFullYear() : (d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1);
+  return year + "-" + String(startMonth + 1).padStart(2, "0") + "-01";
+}
+function itcQuarter() {
+  const from = fyQuarterStart();
+  return db.expenses.filter(e => e.date >= from).reduce((s, e) => s + itcOf(e), 0);
+}
+
+function renderGST() {
+  const tiles = document.getElementById("gstTiles"), tbl = document.getElementById("gstBillsTable");
+  if (!tiles || !tbl) return;
+  const fy = fyStart();
+  const fyExp = db.expenses.filter(e => e.date >= fy);
+  const gstBills = fyExp.filter(e => e.gstin);
+  const nonGstSpend = fyExp.filter(e => !e.gstin).reduce((s, e) => s + e.amount, 0);
+  const itcFY = fyExp.reduce((s, e) => s + itcOf(e), 0);
+  tiles.innerHTML = `
+    <div class="stat-tile"><span class="stat-label">ITC this quarter</span><span class="stat-value" style="color:#006300">${fmtINR(itcQuarter())}</span><span class="stat-sub">claimable in GSTR-3B</span></div>
+    <div class="stat-tile"><span class="stat-label">ITC this FY</span><span class="stat-value" style="color:#006300">${fmtINR(itcFY)}</span><span class="stat-sub">since ${monthLabel(fy.slice(0, 7))}</span></div>
+    <div class="stat-tile"><span class="stat-label">GST bills captured</span><span class="stat-value">${gstBills.length}</span><span class="stat-sub">of ${fyExp.length} bills this FY</span></div>
+    <div class="stat-tile"><span class="stat-label">Non-GST spend</span><span class="stat-value" style="color:${nonGstSpend ? DASH_PAL.serious : DASH_PAL.good}">${fmtINR(nonGstSpend)}</span><span class="stat-sub">≈${fmtINR(nonGstSpend * 0.18 / 1.18)} credit lost — ask for GST bills</span></div>`;
+  const rows = [...db.expenses].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 40);
+  tbl.innerHTML = rows.length ?
+    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Category</th><th>Amount</th><th>GST</th><th>ITC</th></tr></thead><tbody>` +
+    rows.map(e => `<tr><td>${fmtDate(e.date)}</td><td><strong>${esc(vName(e.vehicleId))}</strong></td><td>${esc(e.category)}</td><td>${fmtINRfull(e.amount)}</td>
+      <td>${e.gstin ? `<span class="fw-badge ok">${esc(e.gstin)}</span>` : '<span class="fw-badge soon">No GST bill</span>'}</td>
+      <td>${e.gstin ? fmtINRfull(itcOf(e)) : "—"}</td></tr>`).join("") + "</tbody></table>"
+    : "<p class='muted'>No bills yet — scan or enter your first bill above.</p>";
+}
+
+// ---------- OCR bill capture (Tesseract.js, loaded on demand) ----------
+let tessLoading = null;
+function loadTesseract() {
+  if (window.Tesseract) return Promise.resolve();
+  if (!tessLoading) tessLoading = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+    s.onload = res;
+    s.onerror = () => { tessLoading = null; rej(new Error("Could not load the bill reader — check internet and retry.")); };
+    document.head.appendChild(s);
+  });
+  return tessLoading;
+}
+function initBillScan() {
+  const btn = document.getElementById("billScanBtn"), file = document.getElementById("billFile");
+  const form = document.getElementById("billForm"), st = document.getElementById("billScanStatus");
+  if (!btn || btn.dataset.bound) return;
+  btn.dataset.bound = "1";
+  btn.addEventListener("click", () => file.click());
+  document.getElementById("billManualBtn").addEventListener("click", () => {
+    form.hidden = false;
+    if (!form.date.value) form.date.value = new Date().toISOString().slice(0, 10);
+  });
+  file.addEventListener("change", async () => {
+    const f = file.files[0];
+    if (!f) return;
+    try {
+      st.textContent = "Loading reader…";
+      await loadTesseract();
+      st.textContent = "Reading bill… (first scan is slow)";
+      const { data } = await Tesseract.recognize(f, "eng");
+      const text = data.text || "";
+      form.hidden = false;
+      const gstin = (text.match(/\b\d{2}[A-Z]{5}\d{4}[A-Z][0-9A-Z]Z[0-9A-Z]\b/i) || [])[0] || "";
+      form.gstin.value = gstin.toUpperCase();
+      const nums = [...text.matchAll(/(\d[\d,]{2,9}(?:\.\d{1,2})?)/g)]
+        .map(m => +m[1].replace(/,/g, "")).filter(n => n >= 100 && n <= 2000000);
+      if (nums.length) form.amount.value = Math.round(Math.max(...nums));
+      const dm = text.match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/);
+      if (dm) {
+        const yy = dm[3].length === 2 ? "20" + dm[3] : dm[3];
+        const dt = new Date(+yy, +dm[2] - 1, +dm[1]);
+        if (!isNaN(dt) && dt <= new Date()) form.date.value = dt.toISOString().slice(0, 10);
+      }
+      if (!form.date.value) form.date.value = new Date().toISOString().slice(0, 10);
+      st.textContent = gstin ? "Read ✓ — GSTIN found. Check the fields, pick vehicle & category, save."
+        : "Read ✓ — no GSTIN spotted (non-GST bill?). Check the fields and save.";
+    } catch (ex) {
+      form.hidden = false;
+      if (!form.date.value) form.date.value = new Date().toISOString().slice(0, 10);
+      st.textContent = (ex && ex.message) || "Couldn't read that photo — enter the bill below.";
+    }
+    file.value = "";
+  });
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(e.target));
+    db.expenses.push({
+      vehicleId: fd.vehicleId, date: fd.date, category: fd.category, amount: +fd.amount,
+      gstin: (fd.gstin || "").trim().toUpperCase() || undefined,
+      billNo: (fd.billNo || "").trim() || undefined
+    });
+    saveStore(); e.target.reset(); e.target.hidden = true;
+    st.textContent = "Saved ✓ — it's in your books, Tally export and ITC tracker.";
+    renderAll();
+  });
+}
+
+// ---------- Peer benchmarking (vs India CV reference data) ----------
+function renderBenchmark() {
+  const el = document.getElementById("benchTables");
+  if (!el) return;
+  const vs = vehicleStats().filter(v => v.costPerKm > 0);
+  if (!vs.length) { el.innerHTML = "<p class='muted'>Add expenses and fuel logs — FleetIQ will benchmark you against typical Indian CV fleets.</p>"; return; }
+  const verdict = (mine, ref, lowerBetter = true) => {
+    if (!ref) return "—";
+    const dev = (mine - ref) / ref * 100;
+    const good = lowerBetter ? dev <= 0 : dev >= 0;
+    return `<span class="fw-badge ${good ? "ok" : Math.abs(dev) > 20 ? "overdue" : "soon"}">${good ? (lowerBetter ? "" : "+") : "+"}${dev.toFixed(0)}% vs peers</span>`;
+  };
+  // cost/km by class
+  const byType = {};
+  vs.forEach(v => (byType[v.type] = byType[v.type] || []).push(v.costPerKm));
+  let html = `<h3 class="bench-h">Maintenance cost per km</h3>
+    <div class="chart-scroll"><table class="chart-table-el"><thead><tr><th>Vehicle class</th><th>Your fleet</th><th>Typical fleet</th><th>Verdict</th></tr></thead><tbody>` +
+    Object.entries(byType).map(([t, arr]) => {
+      const mine = mean(arr), ref = INDUSTRY.costPerKm[t];
+      return `<tr><td><strong>${esc(t)}</strong></td><td>₹${mine.toFixed(2)}/km</td><td>${ref ? "₹" + ref.toFixed(2) + "/km" : "—"}</td><td>${verdict(mine, ref)}</td></tr>`;
+    }).join("") + "</tbody></table></div>";
+  // mileage by class
+  const kmplByType = {};
+  db.vehicles.forEach(v => {
+    const fills = (db.fuelLogs || []).filter(f => f.vehicleId === v.id && f.odo > 0).sort((a, b) => a.odo - b.odo);
+    if (fills.length < 2) return;
+    const dist = fills[fills.length - 1].odo - fills[0].odo;
+    const litres = fills.slice(1).reduce((s, f) => s + f.litres, 0);
+    if (dist > 0 && litres > 0) (kmplByType[v.type] = kmplByType[v.type] || []).push(dist / litres);
+  });
+  if (Object.keys(kmplByType).length) {
+    html += `<h3 class="bench-h">Diesel mileage (km/L)</h3>
+      <div class="chart-scroll"><table class="chart-table-el"><thead><tr><th>Vehicle class</th><th>Your fleet</th><th>Typical fleet</th><th>Verdict</th></tr></thead><tbody>` +
+      Object.entries(kmplByType).map(([t, arr]) => {
+        const mine = mean(arr), ref = EXPECTED_KMPL[t];
+        return `<tr><td><strong>${esc(t)}</strong></td><td>${mine.toFixed(1)} km/L</td><td>${ref ? ref.toFixed(1) + " km/L" : "—"}</td><td>${verdict(mine, ref, false)}</td></tr>`;
+      }).join("") + "</tbody></table></div>";
+  }
+  // part cost per job
+  const ps = partStats(db.expenses).filter(p => p.industryCost);
+  if (ps.length) {
+    html += `<h3 class="bench-h">Part cost per job</h3>
+      <div class="chart-scroll"><table class="chart-table-el"><thead><tr><th>Part</th><th>Your avg/job</th><th>Typical price</th><th>Verdict</th></tr></thead><tbody>` +
+      ps.map(p => `<tr><td><strong>${esc(p.category)}</strong></td><td>${fmtINRfull(p.avg)}</td><td>${fmtINRfull(p.industryCost)}</td><td>${verdict(p.avg, p.industryCost)}</td></tr>`).join("") +
+      "</tbody></table></div>";
+  }
+  el.innerHTML = html;
+}
+
 // ---------- Diesel Watch (pilferage / mileage-drop detection) ----------
 // Baseline = the vehicle's own median km/L across fill-to-fill gaps.
 // Flag any fill running well below it with a meaningful litre gap.
@@ -687,6 +850,8 @@ function renderAnalyticsAll() {
   renderRecommendations();
   renderFuelWatch();
   renderWhatIf();
+  renderGST();
+  renderBenchmark();
 }
 
 document.getElementById("vehicleFilter").addEventListener("change", renderCharts);
@@ -694,5 +859,6 @@ document.getElementById("periodFilter").addEventListener("change", renderCharts)
 
 renderAnalyticsAll();
 initWhatIf();
+initBillScan();
 // re-score health & inbox now that vehicleStats/predictParts/fuelTheftFlags exist
 if (typeof renderHealth === "function") { renderHealth(); renderActionInbox(); }

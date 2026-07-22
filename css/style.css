@@ -1252,3 +1252,7 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .whatif-grid .wi-val { color: var(--amber-dark); font-weight: 800; }
 .whatif-grid input[type="range"] { width: 100%; accent-color: var(--amber); }
 @media (max-width: 760px) { .whatif-grid { grid-template-columns: 1fr; } }
+
+/* Benchmark section headings */
+.bench-h { color: var(--navy); font-size: 0.98rem; margin: 18px 4px 8px; }
+.bench-h:first-child { margin-top: 4px; }
