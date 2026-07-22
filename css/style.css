@@ -763,3 +763,77 @@ body.cmd #cpFab { border-color: #f5a623; }
   .step-actions { flex-direction: column-reverse; gap: 10px; }
   .step-actions .btn { width: 100%; }
 }
+
+/* ============================================================
+   FleetWorks Design System (FDS) — icons, chips, badges
+   Added with the Fleetio-inspired GUI upgrade. Emoji icons are
+   being replaced by the stroke-SVG set in js/icons.js; these
+   helpers give them consistent sizing, alignment and colour.
+   ============================================================ */
+
+/* ---- icon primitives ---- */
+.fw-ic { display: inline-block; vertical-align: middle; flex: none; }
+i[data-icon] { display: inline-flex; align-items: center; justify-content: center; line-height: 0; }
+
+/* semantic colour tokens (decoupled from the glyph, Fleetio-style) */
+.ic-info    { color: #2563eb; }
+.ic-success { color: var(--green); }
+.ic-warning { color: var(--amber-dark); }
+.ic-danger  { color: #dc2626; }
+.ic-muted   { color: var(--muted); }
+.ic-brand   { color: var(--navy); }
+
+/* soft circular icon tile, used in stat cards / list rows */
+.ic-tile {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 42px; height: 42px; border-radius: 12px; flex: none;
+  background: var(--bg-alt); color: var(--navy);
+}
+.ic-tile.info    { background: #eff4ff; color: #2563eb; }
+.ic-tile.success { background: #eafaf0; color: var(--green); }
+.ic-tile.warning { background: #fff5e6; color: var(--amber-dark); }
+.ic-tile.danger  { background: #fdecec; color: #dc2626; }
+.ic-tile.brand   { background: #eaf0fb; color: var(--navy); }
+
+/* ---- status chip: coloured dot + label (dense scanning) ---- */
+.fw-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 0.78rem; font-weight: 600; color: var(--ink);
+  padding: 3px 10px 3px 8px; border-radius: 100px;
+  background: var(--bg-alt); border: 1px solid var(--line); white-space: nowrap;
+}
+.fw-chip .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--muted); }
+.fw-chip.is-open    { background: #e9fbfa; border-color: #bdeeeb; color: #0c7c78; }
+.fw-chip.is-open    .dot { background: #15b8b1; }
+.fw-chip.is-pending { background: #fff5e6; border-color: #f7dcab; color: #a56a09; }
+.fw-chip.is-pending .dot { background: #e69120; }
+.fw-chip.is-done    { background: #eafaf0; border-color: #c1ecd1; color: #148a4e; }
+.fw-chip.is-done    .dot { background: #1dab6c; }
+.fw-chip.is-void    { background: #f1f5f9; border-color: var(--line); color: var(--muted); }
+.fw-chip.is-void    .dot { background: #94a3b8; }
+
+/* ---- urgency badge: 3-tier compliance (overdue/due-soon/upcoming) ---- */
+.fw-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 0.74rem; font-weight: 700; letter-spacing: 0.01em;
+  padding: 4px 10px; border-radius: 8px; white-space: nowrap;
+}
+.fw-badge .fw-ic { width: 14px; height: 14px; }
+.fw-badge.overdue  { background: #fdecec; color: #c62828; }
+.fw-badge.soon     { background: #fff4e0; color: #b26a00; }
+.fw-badge.upcoming { background: #eef2f7; color: #475569; }
+.fw-badge.ok       { background: #eafaf0; color: #148a4e; }
+.fw-badge.critical { background: #b91c1c; color: #fff; }
+.fw-badge.high     { background: #fdecec; color: #c62828; }
+.fw-badge.medium   { background: #fff4e0; color: #b26a00; }
+.fw-badge.low      { background: #eef2f7; color: #475569; }
+
+/* ---- tab-bar icons: align emoji-free SVGs inside existing tab buttons ---- */
+.tab-btn { display: inline-flex; align-items: center; gap: 7px; }
+.tab-btn .fw-ic { width: 17px; height: 17px; }
+.stat-card .ic-tile { margin-bottom: 10px; }
+
+/* section heading with a leading icon tile */
+.head-ic { display: inline-flex; align-items: center; gap: 10px; }
+.head-ic h2 { display: inline; }
+

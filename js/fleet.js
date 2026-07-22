@@ -208,36 +208,41 @@ function renderOverview() {
   const critical = insights.filter(i => i.sev >= 3).length;
 
   document.getElementById("fleetStats").innerHTML = `
-    <div class="stat-tile"><span class="stat-label">AI alerts needing action</span><span class="stat-value" style="color:${critical ? PAL.critical : PAL.good}">${critical}</span><span class="stat-sub">${insights.length} total insights</span></div>
-    <div class="stat-tile"><span class="stat-label">Open issues</span><span class="stat-value">${openIssues}</span><span class="stat-sub">AI prioritised</span></div>
-    <div class="stat-tile"><span class="stat-label">Docs expiring ≤ 30 days</span><span class="stat-value">${expiring}</span><span class="stat-sub">Insurance · PUC · FC · Permit · Tax</span></div>
-    <div class="stat-tile"><span class="stat-label">Fuel spend (logged)</span><span class="stat-value">${fmtINR(fuelSpend)}</span><span class="stat-sub">${db.fuelLogs.length} fills</span></div>`;
+    <div class="stat-tile"><span class="ic-tile ${critical ? "danger" : "success"}">${FWIcon("alert", { size: 22 })}</span><span class="stat-label">AI alerts needing action</span><span class="stat-value" style="color:${critical ? PAL.critical : PAL.good}">${critical}</span><span class="stat-sub">${insights.length} total insights</span></div>
+    <div class="stat-tile"><span class="ic-tile warning">${FWIcon("wrench", { size: 22 })}</span><span class="stat-label">Open issues</span><span class="stat-value">${openIssues}</span><span class="stat-sub">AI prioritised</span></div>
+    <div class="stat-tile"><span class="ic-tile info">${FWIcon("shieldCheck", { size: 22 })}</span><span class="stat-label">Docs expiring ≤ 30 days</span><span class="stat-value">${expiring}</span><span class="stat-sub">Insurance · PUC · FC · Permit · Tax</span></div>
+    <div class="stat-tile"><span class="ic-tile brand">${FWIcon("fuel", { size: 22 })}</span><span class="stat-label">Fuel spend (logged)</span><span class="stat-value">${fmtINR(fuelSpend)}</span><span class="stat-sub">${db.fuelLogs.length} fills</span></div>`;
 
   const sevColor = s => s >= 4 ? PAL.critical : s === 3 ? PAL.serious : s === 2 ? PAL.warn : s === 1 ? PAL.s1 : PAL.good;
-  document.getElementById("insightsFeed").innerHTML = insights.map(i => `
+  // severity -> [icon name, tile colour class] : one professional SVG per row
+  const sevIcon = s => s >= 4 ? ["alert", "danger"] : s === 3 ? ["shieldAlert", "warning"] :
+    s === 2 ? ["eye", "info"] : s === 1 ? ["bell", "brand"] : ["shieldCheck", "success"];
+  document.getElementById("insightsFeed").innerHTML = insights.map(i => {
+    const [ic, tone] = sevIcon(i.sev);
+    return `
     <div class="insight-row" style="border-left-color:${sevColor(i.sev)}">
-      <span class="insight-icon">${i.icon}</span>
+      <span class="ic-tile ${tone}">${FWIcon(ic, { size: 20 })}</span>
       <div>
         <div class="insight-title">${esc(i.title)} <span class="insight-tag">${esc(i.tag)}</span></div>
         <div class="insight-detail">${esc(i.detail)}</div>
       </div>
-    </div>`).join("");
+    </div>`; }).join("");
 }
 
 // ---------- Render: vehicles & compliance ----------
 function complianceCell(till) {
-  if (!till) return `<td class="comp-cell"><span class="comp-pill" style="background:#eee;color:#666">Not set</span></td>`;
+  if (!till) return `<td class="comp-cell"><span class="fw-badge upcoming">Not set</span></td>`;
   const d = daysUntil(till);
-  const [bg, fg, label] = d < 0 ? ["#fde2e2", "#991b1b", "Expired"] :
-    d <= 30 ? ["#fdedd3", "#92400e", d + "d left"] : ["#dcf5e3", "#166534", fmtDate(till)];
-  return `<td class="comp-cell"><span class="comp-pill" style="background:${bg};color:${fg}" title="${fmtDate(till)}">${label}</span></td>`;
+  const [cls, ic, label] = d < 0 ? ["overdue", "alert", "Expired"] :
+    d <= 30 ? ["soon", "clock", d + "d left"] : ["ok", "shieldCheck", fmtDate(till)];
+  return `<td class="comp-cell"><span class="fw-badge ${cls}" title="${fmtDate(till)}">${FWIcon(ic, { size: 13 })}${label}</span></td>`;
 }
 function renderVehicles() {
   const rows = db.vehicles.map(v => {
     const c = v.compliance || {};
     const driver = db.drivers.find(d => d.vehicleId === v.id);
     return `<tr class="veh-row" data-vid="${v.id}" style="cursor:pointer">
-      <td><strong>${esc(v.name)}</strong><br /><span class="muted">${esc(v.type)} · ${v.kmPerMonth.toLocaleString("en-IN")} km/mo${driver ? " · 👨‍✈️ " + esc(driver.name) : ""}</span></td>
+      <td><strong>${esc(v.name)}</strong><br /><span class="muted">${esc(v.type)} · ${v.kmPerMonth.toLocaleString("en-IN")} km/mo${driver ? " · " + FWIcon("driver", { size: 13, cls: "ic-muted" }) + " " + esc(driver.name) : ""}</span></td>
       ${complianceCell(c.insurance)}${complianceCell(c.puc)}${complianceCell(c.fitness)}${complianceCell(c.permit)}${complianceCell(c.roadtax)}</tr>
       <tr class="veh-history" data-hist="${v.id}" hidden><td colspan="6" style="background:#f8fafc">${serviceHistoryHTML(v.id)}</td></tr>`;
   }).join("");
@@ -251,9 +256,9 @@ function renderVehicles() {
 
 function serviceHistoryHTML(vid) {
   const events = [
-    ...db.expenses.filter(e => e.vehicleId === vid).map(e => ({ date: e.date, txt: `${e.category} — ${fmtINR(e.amount)}`, icon: "🧾" })),
-    ...db.workOrders.filter(w => w.vehicleId === vid && w.status === "Completed").map(w => ({ date: w.completedAt, txt: `Job card: ${w.title} at ${w.vendor || "workshop"} — ${fmtINR(w.finalCost || 0)}`, icon: "🔧" })),
-    ...db.inspections.filter(i => i.vehicleId === vid).map(i => ({ date: i.date, txt: `Inspection — ${i.passed ? "passed" : i.results.filter(r => !r.ok).length + " fault(s)"}`, icon: i.passed ? "✅" : "❌" }))
+    ...db.expenses.filter(e => e.vehicleId === vid).map(e => ({ date: e.date, txt: `${e.category} — ${fmtINR(e.amount)}`, icon: FWIcon("receipt", { size: 14, cls: "ic-muted" }) })),
+    ...db.workOrders.filter(w => w.vehicleId === vid && w.status === "Completed").map(w => ({ date: w.completedAt, txt: `Job card: ${w.title} at ${w.vendor || "workshop"} — ${fmtINR(w.finalCost || 0)}`, icon: FWIcon("wrench", { size: 14, cls: "ic-warning" }) })),
+    ...db.inspections.filter(i => i.vehicleId === vid).map(i => ({ date: i.date, txt: `Inspection — ${i.passed ? "passed" : i.results.filter(r => !r.ok).length + " fault(s)"}`, icon: FWIcon(i.passed ? "checkCircle" : "xCircle", { size: 14, cls: i.passed ? "ic-success" : "ic-danger" }) }))
   ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12);
   const total = db.expenses.filter(e => e.vehicleId === vid).reduce((s, e) => s + e.amount, 0);
   return `<div style="padding:6px 4px"><strong style="font-size:0.85rem">Service history</strong> <span class="muted">· lifetime spend ${fmtINR(total)}</span><br />` +
@@ -266,11 +271,11 @@ function renderDrivers() {
     `<table class="chart-table-el"><thead><tr><th>Driver</th><th>DL Number</th><th>DL Validity</th><th>Assigned Vehicle</th></tr></thead><tbody>` +
     db.drivers.map(d => {
       const days = d.dlExpiry ? daysUntil(d.dlExpiry) : null;
-      const pill = days === null ? '<span class="comp-pill" style="background:#eee;color:#666">Not set</span>' :
-        days < 0 ? '<span class="comp-pill" style="background:#fde2e2;color:#991b1b">Expired</span>' :
-        days <= 30 ? `<span class="comp-pill" style="background:#fdedd3;color:#92400e">${days}d left</span>` :
-        `<span class="comp-pill" style="background:#dcf5e3;color:#166534">${fmtDate(d.dlExpiry)}</span>`;
-      return `<tr><td><strong>${esc(d.name)}</strong>${d.phone ? "<br /><span class='muted'>📞 " + esc(d.phone) + "</span>" : ""}</td>
+      const pill = days === null ? '<span class="fw-badge upcoming">Not set</span>' :
+        days < 0 ? '<span class="fw-badge overdue">' + FWIcon("alert", { size: 13 }) + 'Expired</span>' :
+        days <= 30 ? `<span class="fw-badge soon">${FWIcon("clock", { size: 13 })}${days}d left</span>` :
+        `<span class="fw-badge ok">${FWIcon("shieldCheck", { size: 13 })}${fmtDate(d.dlExpiry)}</span>`;
+      return `<tr><td><strong>${esc(d.name)}</strong>${d.phone ? "<br /><span class='muted'>" + FWIcon("phone", { size: 13, cls: "ic-muted" }) + " " + esc(d.phone) + "</span>" : ""}</td>
         <td>${esc(d.dlNo)}</td><td>${pill}</td><td>${d.vehicleId ? esc(vName(d.vehicleId)) : "<span class='muted'>—</span>"}</td></tr>`;
     }).join("") + "</tbody></table>"
     : "<p class='muted'>No drivers added yet.</p>";
@@ -282,15 +287,14 @@ function renderWorkOrders() {
   const done = db.workOrders.filter(w => w.status === "Completed").slice(-5).reverse();
   document.getElementById("workOrdersList").innerHTML = (open.length ? open.map(w => `
     <div class="pred-row">
-      <div class="pred-main"><span>🔧 <strong>${esc(vName(w.vehicleId))}</strong> — ${esc(w.title)}</span>
-        <span class="pred-status" style="color:${PAL.serious}">In workshop</span></div>
+      <div class="pred-main"><span class="fw-chip is-pending"><span class="dot"></span>In workshop</span> <strong>${esc(vName(w.vehicleId))}</strong> — ${esc(w.title)}</div>
       <div class="pred-detail">
         <span>${w.vendor ? esc(w.vendor) + " · " : ""}opened ${fmtDate(w.createdAt)}${w.estCost ? " · est. " + fmtINR(w.estCost) : ""}</span>
-        <button class="link-btn" onclick="completeWorkOrder('${w.id}')">Complete &amp; Bill ✓</button>
+        <button class="link-btn" onclick="completeWorkOrder('${w.id}')">${FWIcon("check", { size: 14 })} Complete &amp; Bill</button>
       </div>
     </div>`).join("") : "<p class='muted'>No open job cards.</p>") +
     (done.length ? `<details class="chart-table"><summary>Completed job cards (${done.length})</summary>` +
-      done.map(w => `<p class="muted" style="margin:6px 0">✅ ${esc(vName(w.vehicleId))} — ${esc(w.title)} · ${fmtINR(w.finalCost || 0)} (${fmtDate(w.completedAt)})</p>`).join("") + "</details>" : "");
+      done.map(w => `<p class="muted" style="margin:6px 0">${FWIcon("checkCircle", { size: 14, cls: "ic-success" })} ${esc(vName(w.vehicleId))} — ${esc(w.title)} · ${fmtINR(w.finalCost || 0)} (${fmtDate(w.completedAt)})</p>`).join("") + "</details>" : "");
 }
 
 function createWorkOrder(issueId) {
@@ -376,8 +380,8 @@ function renderInspectionForm() {
     <div class="insp-item">
       <span>${esc(item)}</span>
       <div class="insp-toggle">
-        <label class="chip"><input type="radio" name="item${i}" value="ok" checked /><span>✅ OK</span></label>
-        <label class="chip"><input type="radio" name="item${i}" value="fail" /><span>❌ Fault</span></label>
+        <label class="chip"><input type="radio" name="item${i}" value="ok" checked /><span>${FWIcon("check", { size: 14, cls: "ic-success" })} OK</span></label>
+        <label class="chip"><input type="radio" name="item${i}" value="fail" /><span>${FWIcon("close", { size: 14, cls: "ic-danger" })} Fault</span></label>
       </div>
     </div>`).join("");
 }
@@ -386,7 +390,7 @@ function renderInspectionHistory() {
   document.getElementById("inspectionHistory").innerHTML = hist.length ?
     `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Result</th><th>Faults</th></tr></thead><tbody>` +
     hist.map(i => `<tr><td>${fmtDate(i.date)}</td><td>${esc(vName(i.vehicleId))}</td>
-      <td>${i.passed ? '<span class="comp-pill" style="background:#dcf5e3;color:#166534">Passed</span>' : '<span class="comp-pill" style="background:#fde2e2;color:#991b1b">' + i.results.filter(r => !r.ok).length + " fault(s)</span>"}</td>
+      <td>${i.passed ? '<span class="fw-badge ok">' + FWIcon("checkCircle", { size: 13 }) + 'Passed</span>' : '<span class="fw-badge overdue">' + FWIcon("alert", { size: 13 }) + i.results.filter(r => !r.ok).length + " fault(s)</span>"}</td>
       <td>${esc(i.results.filter(r => !r.ok).map(r => r.item).join(", ") || "—")}</td></tr>`).join("") + "</tbody></table>"
     : "<p class='muted'>No inspections yet. Run your first 10-point check above.</p>";
 }
@@ -400,16 +404,16 @@ function renderIssues() {
     <div class="pred-row">
       <div class="pred-main">
         <span><span class="rank-pill" style="background:${rankColor[i.rank]}">${i.rank}</span> <strong>${esc(vName(i.vehicleId))}</strong> — ${esc(i.title)}</span>
-        <span class="pred-status" style="color:${i.severity === "High" ? PAL.critical : i.severity === "Medium" ? PAL.serious : PAL.muted}">${esc(i.severity)}</span>
+        <span class="fw-badge ${i.severity === "High" ? "high" : i.severity === "Medium" ? "medium" : "low"}">${esc(i.severity)}</span>
       </div>
       <div class="pred-detail">
         <span>Reported ${fmtDate(i.createdAt)}${i.source ? " · via " + esc(i.source) : ""}${i.status === "In Progress" ? " · <em>job card open</em>" : ""}</span>
-        ${i.status !== "In Progress" ? `<button class="link-btn" onclick="createWorkOrder('${i.id}')">Open Job Card 🔧</button>` : ""}
-        <button class="link-btn" onclick="resolveIssue('${i.id}')">Mark Resolved ✓</button>
+        ${i.status !== "In Progress" ? `<button class="link-btn" onclick="createWorkOrder('${i.id}')">${FWIcon("wrench", { size: 14 })} Open Job Card</button>` : ""}
+        <button class="link-btn" onclick="resolveIssue('${i.id}')">${FWIcon("check", { size: 14 })} Mark Resolved</button>
       </div>
-    </div>`).join("") : "<p class='muted'>No open issues. 🎉</p>") +
+    </div>`).join("") : "<p class='muted'>No open issues.</p>") +
     (resolved.length ? `<details class="chart-table"><summary>Recently resolved (${resolved.length})</summary>` +
-      resolved.map(i => `<p class="muted" style="margin:6px 0">✅ ${esc(vName(i.vehicleId))} — ${esc(i.title)} (${fmtDate(i.resolvedAt)})</p>`).join("") + "</details>" : "");
+      resolved.map(i => `<p class="muted" style="margin:6px 0">${FWIcon("checkCircle", { size: 14, cls: "ic-success" })} ${esc(vName(i.vehicleId))} — ${esc(i.title)} (${fmtDate(i.resolvedAt)})</p>`).join("") + "</details>" : "");
 }
 function resolveIssue(id) {
   const i = db.issues.find(x => x.id === id);
@@ -421,13 +425,14 @@ function renderReminders() {
   const list = reminderStatus();
   document.getElementById("remindersList").innerHTML = list.length ? list.map(r => {
     const d = daysUntil(r.nextDate);
-    const color = r.overdue ? PAL.critical : r.dueSoon ? PAL.serious : PAL.good;
+    const cls = r.overdue ? "overdue" : r.dueSoon ? "soon" : "ok";
+    const bic = r.overdue ? "alert" : r.dueSoon ? "clock" : "checkCircle";
     const label = r.overdue ? `Overdue by ${-d} days` : d === 0 ? "Due today" : `Due in ${d} days`;
     return `<div class="pred-row">
       <div class="pred-main"><span><strong>${esc(vName(r.vehicleId))}</strong> — ${esc(r.task)}</span>
-        <span class="pred-status" style="color:${color}">${label}</span></div>
+        <span class="fw-badge ${cls}">${FWIcon(bic, { size: 13 })}${label}</span></div>
       <div class="pred-detail"><span>Every ${r.everyMonths} months · last done ${fmtDate(r.lastDate)} · next ${fmtDate(r.nextDate)}</span>
-        <button class="link-btn" onclick="completeReminder('${r.id}')">Done Today ✓</button></div>
+        <button class="link-btn" onclick="completeReminder('${r.id}')">${FWIcon("check", { size: 14 })} Done Today</button></div>
     </div>`;
   }).join("") : "<p class='muted'>No PM schedules yet — add one below.</p>";
 }
@@ -438,11 +443,11 @@ function completeReminder(id) {
 
 // ---------- Render: parts ----------
 function warrantyPill(dateStr) {
-  if (!dateStr) return '<span class="comp-pill" style="background:#eee;color:#666">Not set</span>';
+  if (!dateStr) return '<span class="fw-badge upcoming">Not set</span>';
   const d = daysUntil(dateStr);
-  if (d < 0) return '<span class="comp-pill" style="background:#fde2e2;color:#991b1b">Expired</span>';
-  if (d <= 30) return `<span class="comp-pill" style="background:#fdedd3;color:#92400e">${d}d left</span>`;
-  return `<span class="comp-pill" style="background:#dcf5e3;color:#166534">Till ${fmtDate(dateStr)}</span>`;
+  if (d < 0) return '<span class="fw-badge overdue">' + FWIcon("alert", { size: 13 }) + 'Expired</span>';
+  if (d <= 30) return `<span class="fw-badge soon">${FWIcon("clock", { size: 13 })}${d}d left</span>`;
+  return `<span class="fw-badge ok">${FWIcon("shieldCheck", { size: 13 })}Till ${fmtDate(dateStr)}</span>`;
 }
 function renderParts() {
   const box = document.getElementById("partsTable");
@@ -475,7 +480,7 @@ function renderParts() {
 function partDetailHTML(p) {
   const rows = [
     ["Sourcing", p.sourcing],
-    ["Vendor contact", p.vendorContact ? "📞 " + p.vendorContact : null],
+    ["Vendor contact", p.vendorContact || null],
     ["Storage location", p.location],
     ["Purchase date", p.purchaseDate ? fmtDate(p.purchaseDate) : null],
     ["Warranty expiry", p.warrantyExpiry ? fmtDate(p.warrantyExpiry) : null]

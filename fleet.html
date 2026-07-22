@@ -50,7 +50,7 @@
   <!-- ======= HERO ======= -->
   <section class="dash-hero">
     <div class="container">
-      <span class="badge">🚛 The Fleet Office, Built for Indian Transporters</span>
+      <span class="badge"><i data-icon="truck" data-icon-size="15"></i> The Fleet Office, Built for Indian Transporters</span>
       <h1>Fleet <span class="accent">Manager</span></h1>
       <p>Your entire fleet office in one place — RTO compliance, diesel &amp; mileage, daily inspections, work orders, drivers and spares. <strong>Drishti</strong>, the FleetWorks AI, keeps round-the-clock watch on all of it, and <strong>Sarathi</strong> answers your questions in plain language.</p>
     </div>
@@ -60,7 +60,7 @@
 
     <!-- Empty state -->
     <div id="emptyState" class="empty-state" hidden>
-      <div class="empty-icon">🚛</div>
+      <div class="empty-icon"><i data-icon="truck" data-icon-size="46"></i></div>
       <h2>No fleet data yet</h2>
       <p>Load the demo fleet to explore compliance, fuel, inspections, issues and the AI Copilot — or add your vehicles in the AI Dashboard first.</p>
       <button class="btn btn-primary" onclick="loadDemoFleet()">Load Demo Fleet</button>
@@ -70,14 +70,14 @@
 
       <!-- ======= TABS ======= -->
       <div class="tab-bar" id="tabBar">
-        <button class="tab-btn active" data-tab="overview">🧠 Drishti AI</button>
-        <button class="tab-btn" data-tab="vehicles">🚛 Vehicles &amp; RTO</button>
-        <button class="tab-btn" data-tab="drivers">👨‍✈️ Drivers</button>
-        <button class="tab-btn" data-tab="fuel">⛽ Diesel &amp; Mileage</button>
-        <button class="tab-btn" data-tab="inspections">✅ Inspections</button>
-        <button class="tab-btn" data-tab="issues">🔧 Issues &amp; Job Cards</button>
-        <button class="tab-btn" data-tab="reminders">🗓️ Maintenance</button>
-        <button class="tab-btn" data-tab="parts">🔩 Spares Godown</button>
+        <button class="tab-btn active" data-tab="overview"><i data-icon="brain"></i> Drishti AI</button>
+        <button class="tab-btn" data-tab="vehicles"><i data-icon="truck"></i> Vehicles &amp; RTO</button>
+        <button class="tab-btn" data-tab="drivers"><i data-icon="driver"></i> Drivers</button>
+        <button class="tab-btn" data-tab="fuel"><i data-icon="fuel"></i> Diesel &amp; Mileage</button>
+        <button class="tab-btn" data-tab="inspections"><i data-icon="clipboardCheck"></i> Inspections</button>
+        <button class="tab-btn" data-tab="issues"><i data-icon="wrench"></i> Issues &amp; Job Cards</button>
+        <button class="tab-btn" data-tab="reminders"><i data-icon="calendarClock"></i> Maintenance</button>
+        <button class="tab-btn" data-tab="parts"><i data-icon="boxes"></i> Spares Godown</button>
       </div>
 
       <!-- ======= OVERVIEW ======= -->
@@ -86,7 +86,7 @@
         <div class="chart-card">
           <div class="chart-head">
             <div>
-              <h2>🧠 Drishti — The AI That Keeps Watch</h2>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="brain" data-icon-size="22"></i></span> Drishti — The AI That Keeps Watch</h2>
               <p class="muted">FleetWorks' own AI watchdog scans your fleet round the clock — inflated bills, double billing, RTO lapses, DL expiries, falling mileage, warranty-claimable repeat failures and overdue maintenance surface here, ranked by risk.</p>
             </div>
           </div>
@@ -443,6 +443,7 @@
     </div>
   </footer>
 
+  <script src="js/icons.js"></script>
   <script src="js/backend.js"></script>
   <script src="js/fleet.js"></script>
   <script src="js/copilot.js"></script>
