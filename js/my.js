@@ -65,14 +65,21 @@ document.getElementById("authForm").addEventListener("submit", async e => {
   err.hidden = true; note.hidden = true;
   try {
     if (signupMode) {
-      if (!/^[6-9]\d{9}$/.test(fd.mobile || "")) { err.textContent = "Enter a valid 10-digit mobile number."; err.hidden = false; return; }
       if (!fd.fullName || !fd.fullName.trim()) { err.textContent = "Please enter your name."; err.hidden = false; return; }
       if (!fd.transportName || !fd.transportName.trim()) { err.textContent = "Please enter your transport / company name."; err.hidden = false; return; }
+      const gstPan = (fd.gstPan || "").trim().toUpperCase();
+      const isGst = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/.test(gstPan);
+      const isPan = /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(gstPan);
+      if (!isGst && !isPan) { err.textContent = "Enter a valid 15-digit GSTIN or 10-character PAN to start your trial."; err.hidden = false; return; }
+      if (!/^[6-9]\d{9}$/.test(fd.mobile || "")) { err.textContent = "Enter a valid 10-digit mobile number."; err.hidden = false; return; }
       const profile = {
         full_name: fd.fullName.trim(),
         transport_name: fd.transportName.trim(),
+        gst_pan: gstPan,
+        gst_pan_type: isGst ? "GSTIN" : "PAN",
         mobile: fd.mobile,
-        fleet_size: fd.fleetSize ? +fd.fleetSize : null
+        fleet_size: fd.fleetSize ? +fd.fleetSize : null,
+        trial_started: new Date().toISOString().slice(0, 10)
       };
       const res = await fwCloud.signup(fd.email, fd.password, profile);
       if (res === "ready") { await fwCloud.pull(); location.reload(); }
@@ -105,7 +112,7 @@ function renderChips() {
 }
 
 function needVehicle() {
-  if (!selVehicle) { alert("Pehle vehicle select karo — tap a vehicle chip above the form."); return true; }
+  if (!selVehicle) { alert("Select a vehicle first — tap a vehicle chip above the form."); return true; }
   return false;
 }
 

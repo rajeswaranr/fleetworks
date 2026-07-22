@@ -219,6 +219,9 @@ input.invalid, select.invalid { border-color: #dc2626; box-shadow: 0 0 0 3px rgb
 .pillar-card h3 { font-size: 1.18rem; font-weight: 700; color: var(--navy); }
 .pillar-card p { font-size: 0.9rem; color: var(--muted); flex-grow: 1; line-height: 1.6; }
 
+/* small helper text under a form field */
+.field-hint { display: block; font-size: 0.72rem; color: var(--muted); font-weight: 500; margin-top: 4px; }
+
 /* front-page icon helpers */
 .ic-amber { color: var(--amber); }
 .hero-points li { display: flex; align-items: center; gap: 9px; }

@@ -1,5 +1,5 @@
 /* FleetWorks service worker — network-first with offline fallback cache */
-const CACHE = "fleetworks-v14";
+const CACHE = "fleetworks-v15";
 const CORE = [
   "./",
   "./index.html",
