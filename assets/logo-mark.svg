@@ -1,28 +1,28 @@
-<svg viewBox="60 70 400 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="FleetWorks">
+<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="FleetWorks">
   <defs>
-    <linearGradient id="amberM" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#f8b545"/>
-      <stop offset="1" stop-color="#e69910"/>
+    <linearGradient id="fwTile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1d3358"/>
+      <stop offset="0.55" stop-color="#132444"/>
+      <stop offset="1" stop-color="#0b1626"/>
+    </linearGradient>
+    <linearGradient id="fwAmber" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffc964"/>
+      <stop offset="1" stop-color="#e6920f"/>
+    </linearGradient>
+    <linearGradient id="fwSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <g fill="none" stroke="#39588b" stroke-width="6" stroke-linecap="round">
-    <path d="M352 228 C 360 186 380 162 408 148"/>
-    <path d="M340 222 C 332 178 310 152 282 132"/>
-    <path d="M292 128 C 316 108 340 100 362 98"/>
-  </g>
-  <circle cx="414" cy="144" r="15" fill="#f5a623"/>
-  <circle cx="278" cy="128" r="12" fill="#0f1e33"/>
-  <circle cx="368" cy="97" r="9" fill="#f5a623"/>
-  <rect x="82" y="196" width="214" height="128" rx="18" fill="url(#amberM)"/>
-  <line x1="118" y1="216" x2="118" y2="304" stroke="#c47f08" stroke-width="6" stroke-linecap="round" opacity="0.55"/>
-  <line x1="260" y1="216" x2="260" y2="304" stroke="#c47f08" stroke-width="6" stroke-linecap="round" opacity="0.55"/>
-  <path d="M312 240 h58 a18 18 0 0 1 14 7 l32 40 a18 18 0 0 1 4 11 v14 a12 12 0 0 1 -12 12 h-96 z" fill="url(#amberM)"/>
-  <path d="M326 252 h40 a10 10 0 0 1 8 4 l22 28 h-70 z" fill="#0f1e33"/>
-  <rect x="404" y="296" width="14" height="16" rx="5" fill="#0f1e33" opacity="0.35"/>
-  <line x1="72" y1="392" x2="440" y2="392" stroke="#31518a" stroke-width="9" stroke-linecap="round" opacity="0.85"/>
-  <g>
-    <circle cx="146" cy="352" r="35" fill="#0f1e33"/><circle cx="146" cy="352" r="14" fill="#ffffff"/>
-    <circle cx="232" cy="352" r="35" fill="#0f1e33"/><circle cx="232" cy="352" r="14" fill="#ffffff"/>
-    <circle cx="372" cy="352" r="35" fill="#0f1e33"/><circle cx="372" cy="352" r="14" fill="#ffffff"/>
-  </g>
+  <!-- squircle tile -->
+  <rect x="3" y="3" width="90" height="90" rx="26" fill="url(#fwTile)"/>
+  <rect x="3" y="3" width="90" height="52" rx="26" fill="url(#fwSheen)"/>
+  <rect x="3.75" y="3.75" width="88.5" height="88.5" rx="25.25" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="1.5"/>
+  <!-- three horizontal bars: motion / load -->
+  <path d="M24 37 H45 M24 48 H45 M24 59 H45" stroke="#eaf1fb" stroke-opacity="0.92" stroke-width="6" stroke-linecap="round"/>
+  <!-- two forward arrows: momentum -->
+  <path d="M52 37 L61 48 L52 59" fill="none" stroke="url(#fwAmber)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M63 37 L72 48 L63 59" fill="none" stroke="url(#fwAmber)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- AI spark -->
+  <path d="M72 18 l1.7 4.6 4.6 1.7 -4.6 1.7 -1.7 4.6 -1.7 -4.6 -4.6 -1.7 4.6 -1.7 z" fill="url(#fwAmber)"/>
 </svg>
