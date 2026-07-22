@@ -75,7 +75,17 @@
     link: '<path d="M9 15 15 9"/><path d="M11 6.5 13 4.5a3.5 3.5 0 0 1 5 5l-2 2M13 17.5l-2 2a3.5 3.5 0 0 1-5-5l2-2"/>',
     engine: '<path d="M5 9h2V7h4l2 2h3v-2h2v2h2v4h-2v2h-2v2H9l-2-2H5v-2H3V9h2Z"/>',
     battery: '<rect x="3" y="8" width="16" height="9" rx="2"/><path d="M19 11h2v3h-2"/><path d="M7 11v3M11 11v3"/>',
-    export: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M5 15v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4"/>'
+    export: '<path d="M12 15V4M8 8l4-4 4 4"/><path d="M5 15v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4"/>',
+
+    /* ---- service trades (front-page aggregator) ---- */
+    zap: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/>',
+    tow: '<path d="M2 16v-4a1 1 0 0 1 1-1h6l2.5 3H16"/><path d="M13 11V7l5 2.5V16"/><circle cx="6.5" cy="18" r="1.8"/><circle cx="16.5" cy="18" r="1.8"/><path d="M2 8l5 2"/>',
+    spray: '<rect x="7" y="9" width="8" height="12" rx="1.6"/><path d="M9 9V6h4v3"/><path d="M11 3.5h.01M14 3h.01M16.5 3.5h.01M14 6h.01M16.5 6h.01M19 6h.01"/>',
+    droplet: '<path d="M12 3s6 6 6 10.5A6 6 0 0 1 6 13.5C6 9 12 3 12 3Z"/><path d="M9.5 14a2.5 2.5 0 0 0 2.5 2.5"/>',
+    sparkle: '<path d="M12 3l1.9 5L19 9.9l-5.1 1.9L12 17l-1.9-5.2L5 9.9l5.1-1L12 3Z"/><path d="M18.5 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2Z"/>',
+    carFront: '<path d="M5 11l1.4-4.2A2 2 0 0 1 8.3 5.4h7.4a2 2 0 0 1 1.9 1.4L19 11"/><path d="M4 11h16v5a1 1 0 0 1-1 1h-1a1 1 0 0 1-1-1v-1H7v1a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-5Z"/><path d="M6.5 14h.01M17.5 14h.01"/>',
+    network: '<circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/><circle cx="12" cy="18.5" r="2"/><path d="M5 8v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M12 12v4.5"/>',
+    sos: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5M12 15.5v.5"/>'
   };
 
   /* aliases -> keep old callsites/semantics working */

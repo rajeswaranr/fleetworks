@@ -55,15 +55,14 @@
   <section class="hero">
     <div class="container hero-inner">
       <div class="hero-text">
-        <span class="badge badge-flash">🇮🇳 India's First AI/ML Vehicle Maintenance &amp; Management System ⚡</span>
-        <h1>Where Every Fleet <span class="accent">Learns.</span></h1>
-        <p class="hero-relax">Let us manage your vehicles — <span class="relax-accent">you stay relaxed.</span> 🛋️</p>
-        <p>Book verified heavy-vehicle workshops for mechanical work, tyres, batteries and 24x7 breakdown — while our AI tracks every rupee, benchmarks you against the industry, and predicts repairs before parts fail.</p>
+        <span class="badge badge-flash"><i data-icon="zap" data-icon-size="14"></i> India's Unified Fleet Care Platform</span>
+        <h1>Every repair, every reminder — <span class="accent">one platform.</span></h1>
+        <p>Book verified workshops across <strong>9+ trades</strong> — mechanical, electrical, tyre, battery, body &amp; FC, towing, painting, washing, refurbishing — while FleetWorks keeps you RTO-compliant, tracks every rupee, and predicts repairs with AI. The whole fleet office, unified.</p>
         <ul class="hero-points">
-          <li>✅ 500+ Verified Workshops</li>
-          <li>✅ Upfront Transparent Pricing</li>
-          <li>✅ 6-Month Service Warranty</li>
-          <li>✅ 90-Min Breakdown Response</li>
+          <li><i data-icon="network" data-icon-size="17" class="ic-amber"></i> One tap to 9+ verified trades</li>
+          <li><i data-icon="shieldCheck" data-icon-size="17" class="ic-amber"></i> RTO compliance &amp; expense tracking</li>
+          <li><i data-icon="brain" data-icon-size="17" class="ic-amber"></i> Drishti AI + Sarathi assistant</li>
+          <li><i data-icon="sos" data-icon-size="17" class="ic-amber"></i> 24×7 breakdown across highways</li>
         </ul>
         <div class="hero-stats">
           <div><strong>50,000+</strong><span>Vehicles Serviced</span></div>
@@ -94,12 +93,14 @@
             <select name="service" id="quickService" required>
               <option value="">Select a service</option>
               <option>Mechanical Repair</option>
+              <option>Electrical &amp; Wiring</option>
               <option>Tyre Service / Replacement</option>
               <option>Battery Service / Replacement</option>
-              <option>Brake &amp; Clutch</option>
-              <option>Suspension &amp; Axle</option>
-              <option>Electrical &amp; Wiring</option>
-              <option>Denting, Painting &amp; Body Work</option>
+              <option>FC &amp; Body Shop</option>
+              <option>Towing &amp; Recovery</option>
+              <option>Painting &amp; Branding</option>
+              <option>Washing &amp; Detailing</option>
+              <option>Refurbishing</option>
               <option>Preventive Maintenance / PMS</option>
               <option>24x7 Breakdown Assistance</option>
             </select>
@@ -122,74 +123,125 @@
     </div>
   </section>
 
-  <!-- ======= SERVICES ======= -->
-  <section class="section" id="services">
+  <!-- ======= PILLARS (unified solution) ======= -->
+  <section class="section" id="platform">
     <div class="container">
       <div class="section-head">
-        <h2>Our Services</h2>
-        <p>Everything your fleet needs — from scheduled maintenance to midnight breakdowns.</p>
+        <h2>One platform. Three ways we keep you moving.</h2>
+        <p>FleetWorks unifies the whole fleet office — the service network, the maintenance software and the AI — so nothing falls through the cracks.</p>
+      </div>
+      <div class="pillars">
+        <article class="pillar-card">
+          <span class="pillar-ic"><i data-icon="network" data-icon-size="26"></i></span>
+          <h3>On-Demand Service Network</h3>
+          <p>One tap connects you to verified workshops across 9+ trades — mechanical, electrical, tyre, battery, body &amp; FC, towing, painting, washing and refurbishing — with upfront pricing and a service warranty.</p>
+          <a href="#services" class="link-btn">Explore services →</a>
+        </article>
+        <article class="pillar-card featured">
+          <span class="pillar-ic"><i data-icon="gauge" data-icon-size="26"></i></span>
+          <h3>Fleet Maintenance Software</h3>
+          <p>Your entire fleet office in one place — RTO compliance, diesel &amp; mileage, digital inspections, job cards, spares godown, tyre health and a document vault. Built for Indian transporters.</p>
+          <a href="fleet.html" class="link-btn">Open Fleet Manager →</a>
+        </article>
+        <article class="pillar-card">
+          <span class="pillar-ic"><i data-icon="brain" data-icon-size="26"></i></span>
+          <h3>AI That Never Sleeps</h3>
+          <p><strong>Drishti</strong> watches your fleet round the clock — inflated bills, RTO lapses, falling mileage, worn tyres — while <strong>Sarathi</strong> answers your questions in plain language.</p>
+          <a href="dashboard.html" class="link-btn">See the AI →</a>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======= SERVICES ======= -->
+  <section class="section alt" id="services">
+    <div class="container">
+      <div class="section-head">
+        <h2>India's fleet-service aggregator</h2>
+        <p>Every trade your commercial vehicle needs, one verified network — from a puncture on the highway to a full body rebuild.</p>
       </div>
       <div class="services-grid">
         <article class="service-card" data-service="Mechanical Repair">
-          <div class="service-icon">🔧</div>
-          <h3>Mechanical Repairs</h3>
-          <p>Engine overhaul, gearbox, differential, clutch plate, turbocharger and fuel-pump repairs by heavy-vehicle specialists.</p>
+          <div class="service-icon"><i data-icon="wrench" data-icon-size="26"></i></div>
+          <h3>Mechanical</h3>
+          <p>Engine overhaul, gearbox, differential, clutch, brakes, suspension, turbocharger and fuel-pump work by HCV specialists.</p>
           <span class="price-tag">Starting ₹1,499</span>
           <button class="link-btn">Book Now →</button>
         </article>
+        <article class="service-card" data-service="Electrical &amp; Wiring">
+          <div class="service-icon"><i data-icon="zap" data-icon-size="26"></i></div>
+          <h3>Electrical</h3>
+          <p>Self-starter, alternator, full wiring harness, lights, sensors and dashboard electrical diagnostics.</p>
+          <span class="price-tag">Starting ₹599</span>
+          <button class="link-btn">Book Now →</button>
+        </article>
         <article class="service-card" data-service="Tyre Service / Replacement">
-          <div class="service-icon">🛞</div>
-          <h3>Tyre Services</h3>
-          <p>New tyres (MRF, Apollo, JK, CEAT), retreading, wheel alignment, balancing and on-road puncture assistance.</p>
+          <div class="service-icon"><i data-icon="tire" data-icon-size="26"></i></div>
+          <h3>Tyre</h3>
+          <p>New tyres (MRF, Apollo, JK, CEAT), retreading, alignment, balancing and on-road puncture assistance.</p>
           <span class="price-tag">Starting ₹499</span>
           <button class="link-btn">Book Now →</button>
         </article>
         <article class="service-card" data-service="Battery Service / Replacement">
-          <div class="service-icon">🔋</div>
-          <h3>Battery Services</h3>
-          <p>Doorstep battery testing, jump-start, charging and replacement — Exide, Amaron &amp; Tata Green with warranty.</p>
+          <div class="service-icon"><i data-icon="battery" data-icon-size="26"></i></div>
+          <h3>Battery</h3>
+          <p>Doorstep testing, jump-start, charging and replacement — Exide, Amaron &amp; Tata Green with warranty.</p>
           <span class="price-tag">Starting ₹399</span>
           <button class="link-btn">Book Now →</button>
         </article>
-        <article class="service-card" data-service="Brake & Clutch">
-          <div class="service-icon">🛑</div>
-          <h3>Brake &amp; Clutch</h3>
-          <p>Air-brake servicing, brake liner &amp; drum replacement, clutch overhaul and pedal-free-play adjustment.</p>
-          <span class="price-tag">Starting ₹999</span>
+        <article class="service-card" data-service="FC &amp; Body Shop">
+          <div class="service-icon"><i data-icon="carFront" data-icon-size="26"></i></div>
+          <h3>FC &amp; Body Shop</h3>
+          <p>Fitness-certificate prep, cabin &amp; load-body repair, denting, welding and load-body fabrication.</p>
+          <span class="price-tag">Custom Quote</span>
           <button class="link-btn">Book Now →</button>
         </article>
-        <article class="service-card" data-service="Suspension & Axle">
-          <div class="service-icon">🪛</div>
-          <h3>Suspension &amp; Axle</h3>
-          <p>Leaf-spring replacement, U-bolt tightening, axle repair, kingpin and bush replacement for a stable ride.</p>
-          <span class="price-tag">Starting ₹1,299</span>
+        <article class="service-card" data-service="Towing &amp; Recovery">
+          <div class="service-icon"><i data-icon="tow" data-icon-size="26"></i></div>
+          <h3>Towing &amp; Recovery</h3>
+          <p>Flatbed and heavy-vehicle towing, on-road recovery and cross-city transport when a vehicle can't move.</p>
+          <span class="price-tag">Starting ₹2,999</span>
           <button class="link-btn">Book Now →</button>
         </article>
-        <article class="service-card" data-service="Electrical & Wiring">
-          <div class="service-icon">⚡</div>
-          <h3>Electrical &amp; Wiring</h3>
-          <p>Self-starter, alternator, complete wiring harness, lights and dashboard electrical diagnostics.</p>
-          <span class="price-tag">Starting ₹599</span>
+        <article class="service-card" data-service="Painting &amp; Branding">
+          <div class="service-icon"><i data-icon="spray" data-icon-size="26"></i></div>
+          <h3>Painting &amp; Branding</h3>
+          <p>Full-body painting, anti-rust coating, fleet livery and branding — showroom finish for your whole fleet.</p>
+          <span class="price-tag">Custom Quote</span>
           <button class="link-btn">Book Now →</button>
         </article>
-        <article class="service-card" data-service="Denting, Painting & Body Work">
-          <div class="service-icon">🎨</div>
-          <h3>Body, Denting &amp; Painting</h3>
-          <p>Cabin repair, load-body fabrication, full-body painting and branding/livery for fleets.</p>
+        <article class="service-card" data-service="Washing &amp; Detailing">
+          <div class="service-icon"><i data-icon="droplet" data-icon-size="26"></i></div>
+          <h3>Washing &amp; Detailing</h3>
+          <p>Pressure wash, underbody &amp; engine-bay cleaning, cabin detailing and periodic fleet-wash contracts.</p>
+          <span class="price-tag">Starting ₹299</span>
+          <button class="link-btn">Book Now →</button>
+        </article>
+        <article class="service-card" data-service="Refurbishing">
+          <div class="service-icon"><i data-icon="sparkle" data-icon-size="26"></i></div>
+          <h3>Refurbishing</h3>
+          <p>End-to-end restoration to boost resale value — mechanical, body, interiors and paint, inspection-ready.</p>
           <span class="price-tag">Custom Quote</span>
           <button class="link-btn">Book Now →</button>
         </article>
         <article class="service-card" data-service="Preventive Maintenance / PMS">
-          <div class="service-icon">🗓️</div>
+          <div class="service-icon"><i data-icon="calendarClock" data-icon-size="26"></i></div>
           <h3>Preventive Maintenance</h3>
-          <p>Scheduled PMS packages — oil &amp; filters, greasing, coolant, 40-point inspection with digital report.</p>
+          <p>Scheduled PMS — oil &amp; filters, greasing, coolant and a 40-point inspection with a digital report.</p>
           <span class="price-tag">Starting ₹2,999</span>
           <button class="link-btn">Book Now →</button>
         </article>
+        <article class="service-card" data-service="Digital Fleet Maintenance">
+          <div class="service-icon"><i data-icon="gauge" data-icon-size="26"></i></div>
+          <h3>Fleet Software</h3>
+          <p>Compliance, fuel, inspections, job cards, spares and tyre health — the digital fleet office, included.</p>
+          <span class="price-tag">Free to start</span>
+          <a href="fleet.html" class="link-btn">Open →</a>
+        </article>
         <article class="service-card highlight" data-service="24x7 Breakdown Assistance">
-          <div class="service-icon">🚨</div>
-          <h3>24x7 Breakdown</h3>
-          <p>Stranded on the highway? On-road repair, towing and fuel-delivery support across 25+ cities and major highways.</p>
+          <div class="service-icon amber"><i data-icon="sos" data-icon-size="26"></i></div>
+          <h3>24×7 Breakdown</h3>
+          <p>Stranded on the highway? On-road repair, towing and fuel delivery across 25+ cities and major corridors.</p>
           <span class="price-tag">Response &lt; 90 min</span>
           <button class="link-btn">Get Help Now →</button>
         </article>
@@ -197,21 +249,21 @@
 
       <div class="ai-strip" id="ai-features">
         <div>
-          <h3>🤖 The AI/ML Layer Every Fleet Needs</h3>
-          <p>FleetWorks is more than repairs — it's India's first AI/ML vehicle maintenance and management system. Track expenses monthly-wise, vehicle-wise and part-wise, benchmarked against your own fleet and industry averages. Our ML models learn your service history and part lifespans to predict what you'll spend before the part fails.</p>
+          <h3 class="ai-strip-head"><i data-icon="brain" data-icon-size="24"></i> The AI/ML layer every fleet needs</h3>
+          <p>FleetWorks is more than repairs — it's India's first AI/ML vehicle maintenance and management system. Track expenses monthly-, vehicle- and part-wise, benchmarked against your own fleet and industry averages. Our models learn your service history and part lifespans to predict what you'll spend before the part fails.</p>
           <div class="ai-chip-row">
-            <span class="ai-chip">📊 Expense Analytics</span>
-            <span class="ai-chip">⚖️ Industry Benchmarking</span>
-            <span class="ai-chip">🔮 Predictive Maintenance</span>
-            <span class="ai-chip">📈 Expense Forecasting</span>
-            <span class="ai-chip">🧾 Tally Export for GST</span>
-            <span class="ai-chip">📋 RTO Compliance Alerts</span>
-            <span class="ai-chip">🪪 Driver DL Tracking</span>
-            <span class="ai-chip">⛽ Diesel &amp; Mileage Tracking</span>
-            <span class="ai-chip">✅ Digital Inspections</span>
-            <span class="ai-chip">🔧 Job Cards &amp; Work Orders</span>
-            <span class="ai-chip">🧠 Drishti — AI Fleet Watch</span>
-            <span class="ai-chip">🛞 Sarathi — Ask Your Fleet</span>
+            <span class="ai-chip">Expense Analytics</span>
+            <span class="ai-chip">Industry Benchmarking</span>
+            <span class="ai-chip">Predictive Maintenance</span>
+            <span class="ai-chip">Expense Forecasting</span>
+            <span class="ai-chip">Tally Export for GST</span>
+            <span class="ai-chip">RTO Compliance Alerts</span>
+            <span class="ai-chip">Driver DL Tracking</span>
+            <span class="ai-chip">Diesel &amp; Mileage</span>
+            <span class="ai-chip">Digital Inspections</span>
+            <span class="ai-chip">Job Cards</span>
+            <span class="ai-chip">Drishti — AI Fleet Watch</span>
+            <span class="ai-chip">Sarathi — Ask Your Fleet</span>
           </div>
         </div>
         <div style="text-align:center">
@@ -505,13 +557,16 @@
               <select name="service" id="modalService" required>
                 <option value="">Select service</option>
                 <option>Mechanical Repair</option>
+                <option>Electrical &amp; Wiring</option>
                 <option>Tyre Service / Replacement</option>
                 <option>Battery Service / Replacement</option>
-                <option>Brake &amp; Clutch</option>
-                <option>Suspension &amp; Axle</option>
-                <option>Electrical &amp; Wiring</option>
-                <option>Denting, Painting &amp; Body Work</option>
+                <option>FC &amp; Body Shop</option>
+                <option>Towing &amp; Recovery</option>
+                <option>Painting &amp; Branding</option>
+                <option>Washing &amp; Detailing</option>
+                <option>Refurbishing</option>
                 <option>Preventive Maintenance / PMS</option>
+                <option>Digital Fleet Maintenance</option>
                 <option>24x7 Breakdown Assistance</option>
                 <option>Fleet — Starter Plan</option>
                 <option>Fleet — Pro Plan</option>
@@ -536,6 +591,7 @@
     </div>
   </div>
 
+  <script src="js/icons.js"></script>
   <script src="js/backend.js"></script>
   <script src="js/main.js"></script>
   <script>
