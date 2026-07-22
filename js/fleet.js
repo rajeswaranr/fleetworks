@@ -492,6 +492,9 @@ function renderActionInbox() {
   if (typeof predictParts === "function")
     predictParts().filter(p => p.lifeUsed >= 1).slice(0, 3).forEach(p =>
       items.push({ p: 1, ic: "trendUp", tone: "warning", t: `${p.category} on ${p.vehicle.name} past predicted life — ~${fmtINR(p.estCost)} planned`, a: "Book", tab: "analytics" }));
+  if (typeof fuelTheftFlags === "function")
+    fuelTheftFlags().slice(0, 3).forEach(f =>
+      items.push({ p: 0, ic: "fuel", tone: "danger", t: `${f.vehicle}: ≈${Math.round(f.missing)} L diesel unaccounted on ${fmtDate(f.date)} (~${fmtINR(f.cost)})`, a: "Check", tab: "fin" }));
   items.sort((a, b) => a.p - b.p);
   el.innerHTML = items.length ?
     items.slice(0, 10).map(i => `<div class="pred-row inbox-row" data-goto="${i.tab}"><div class="pred-main" style="display:flex;align-items:center;gap:10px;font-size:0.88rem"><span class="ic-tile ${i.tone}" style="width:30px;height:30px;flex:none">${FWIcon(i.ic, { size: 15 })}</span><span style="flex:1;min-width:0;text-align:left">${esc(i.t)}</span><span class="link-btn" style="flex:none">${i.a} &rarr;</span></div></div>`).join("") +
@@ -1440,9 +1443,18 @@ function buildDynamicPanels() {
   mk("anomaly", panelCard("Anomaly Detection", "Bills that look too big against your own history for that part", "anomTable"));
   mk("forecasting", `<div class="chart-card"><div class="chart-head"><div><h2>Expense Forecasting</h2><p class="muted">Least-squares ML regression on your monthly spend, damped against noisy months — next 3 months projected</p></div><div class="chart-legend" id="fcastLegend"></div></div><div class="chart-scroll"><div id="fcastChart" class="chart-area"></div></div><details class="chart-table"><summary>View as table</summary><div id="fcastTable"></div></details></div>`);
   mk("recommend", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="brain" data-icon-size="22"></i></span> Recommendations</h2><p class="muted">What FleetWorks AI would do this week, in priority order</p></div></div><div id="recoList" class="predictions"></div></div>`);
+  mk("whatif", `<div class="chart-card">
+    <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="eye" data-icon-size="22"></i></span> What-if Analysis</h2><p class="muted">Move the sliders — FleetIQ reprojects your monthly cost instantly from your own last-12-month numbers</p></div></div>
+    <div class="whatif-grid">
+      <label>Diesel price <span class="wi-val" id="wiFuelV">+0%</span><input type="range" id="wiFuel" min="-20" max="30" value="0" /></label>
+      <label>Monthly running <span class="wi-val" id="wiKmV">+0%</span><input type="range" id="wiKm" min="-30" max="30" value="0" /></label>
+      <label>Extra vehicles <span class="wi-val" id="wiVehV">+0</span><input type="range" id="wiVeh" min="0" max="5" value="0" /></label>
+    </div>
+    <section class="stat-row" id="wiOut"></section>
+    <p class="disclaimer">Assumes maintenance scales ~60% with distance and added vehicles behave like your current average. Indicative planning aid, not a quotation.</p>
+  </div>`);
   [
     ["faults", "Faults", "Engine fault codes surface here automatically with the OBD / telematics integration.", "alert"],
-    ["whatif", "What-if Analysis", "Simulate before you commit — add a vehicle, change a route, switch tyre brands, and see the projected cost impact. Coming with the planning module.", "brain"],
     ["invoices", "Invoices", "Customer and vendor invoices arrive with the billing module.", "document"],
     ["toll", "Toll & FASTag", "FASTag toll books per vehicle and route arrive with the telematics integration.", "mapPin"],
     ["def", "DEF / AdBlue", "DEF consumption and cost-per-km tracking for BS6 vehicles is on the way.", "spray"],
@@ -1649,3 +1661,56 @@ document.querySelectorAll(".hub-card").forEach(c => c.addEventListener("click", 
   document.querySelector(`#tabBar .tab-btn[data-tab="${target}"]`)?.click();
 }));
 setWorkspace("home");
+
+// ---------- Breakdown SOS ----------
+// One tap on the road: logs a High issue + open job card, then opens
+// WhatsApp to the FleetWorks helpline with vehicle, issue and location.
+function openSOS() {
+  if (document.getElementById("sosModal")) return;
+  const wrap = document.createElement("div");
+  wrap.id = "sosModal";
+  wrap.innerHTML = `<div class="sos-box">
+    <h3>${FWIcon("alert", { size: 20 })} Breakdown SOS</h3>
+    <p class="muted">We'll log it instantly and alert the FleetWorks 24×7 helpline — nearest partner workshop gets arranged.</p>
+    <label>Vehicle
+      <select id="sosVeh">${db.vehicles.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("") || "<option value=''>No vehicles yet</option>"}</select>
+    </label>
+    <label>What happened?
+      <input id="sosWhat" type="text" placeholder="e.g. Engine overheated near Salem toll" />
+    </label>
+    <div class="sos-actions">
+      <a class="btn btn-outline" href="tel:+919740799722">${FWIcon("phone", { size: 15 })} Call Helpline</a>
+      <button type="button" class="btn btn-primary" id="sosSend">${FWIcon("alert", { size: 15 })} Send SOS on WhatsApp</button>
+    </div>
+    <button type="button" class="link-btn sos-close" id="sosClose">Close</button>
+  </div>`;
+  document.body.appendChild(wrap);
+  wrap.addEventListener("click", e => { if (e.target === wrap) wrap.remove(); });
+  document.getElementById("sosClose").addEventListener("click", () => wrap.remove());
+  document.getElementById("sosSend").addEventListener("click", () => {
+    const vid = document.getElementById("sosVeh").value;
+    const what = document.getElementById("sosWhat").value.trim() || "Breakdown on road";
+    const today = new Date().toISOString().slice(0, 10);
+    if (vid) {
+      const issueId = uid();
+      db.issues.push({ id: issueId, vehicleId: vid, title: "Breakdown: " + what, severity: "High", status: "In Progress", createdAt: today, source: "Breakdown SOS" });
+      db.workOrders.push({ id: uid(), issueId, vehicleId: vid, title: "Breakdown: " + what, vendor: "FleetWorks partner network", estCost: null, status: "Open", createdAt: today });
+      saveStore(); renderAll();
+    }
+    const msg = "BREAKDOWN SOS\nVehicle: " + (vid ? vName(vid) : "—") + "\nIssue: " + what +
+      "\nFleet: " + ((db.settings && db.settings.businessName) || "FleetWorks owner") +
+      "\nPlease arrange the nearest partner workshop.";
+    const go = loc => window.open("https://wa.me/919740799722?text=" +
+      encodeURIComponent(msg + (loc ? "\nLocation: https://maps.google.com/?q=" + loc : "")), "_blank");
+    if (navigator.geolocation) {
+      let done = false;
+      const t = setTimeout(() => { if (!done) { done = true; go(null); } }, 2500);
+      navigator.geolocation.getCurrentPosition(
+        p => { if (!done) { done = true; clearTimeout(t); go(p.coords.latitude + "," + p.coords.longitude); } },
+        () => { if (!done) { done = true; clearTimeout(t); go(null); } },
+        { timeout: 2000 });
+    } else go(null);
+    wrap.remove();
+  });
+}
+document.getElementById("sosBtn")?.addEventListener("click", openSOS);

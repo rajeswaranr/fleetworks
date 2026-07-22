@@ -245,6 +245,7 @@
         </div>
         <div class="app-top-actions">
           <span class="top-org" id="topOrg"></span>
+          <button class="btn btn-sm sos-btn" id="sosBtn"><i data-icon="alert" data-icon-size="14"></i> SOS</button>
           <button class="btn btn-primary btn-sm" id="demoBtn">Load Demo Fleet</button>
         </div>
       </header>
@@ -325,6 +326,16 @@
       <section class="tab-panel" id="tab-fin">
         <section class="stat-row" id="finStatRow" aria-label="Money at a glance"></section>
         <section class="dash-grid" id="finGrid"></section>
+
+        <section class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile danger"><i data-icon="fuel" data-icon-size="20"></i></span> Diesel Watch</h2>
+              <p class="muted">Fills where mileage fell well below the vehicle's own normal — possible pilferage, or a fault worth checking</p>
+            </div>
+          </div>
+          <div id="fuelWatch" class="predictions"></div>
+        </section>
 
         <div class="dash-filters">
           <label>Vehicle

@@ -586,6 +586,85 @@ function renderRecommendations() {
     : "<p class='muted'>All clear. Recommendations appear as predictions come due, anomalies surface or vehicles drift from the fleet average.</p>";
 }
 
+// ---------- Diesel Watch (pilferage / mileage-drop detection) ----------
+// Baseline = the vehicle's own median km/L across fill-to-fill gaps.
+// Flag any fill running well below it with a meaningful litre gap.
+function fuelTheftFlags() {
+  const flags = [];
+  db.vehicles.forEach(v => {
+    const fills = (db.fuelLogs || []).filter(f => f.vehicleId === v.id && f.odo > 0 && f.litres > 0)
+      .sort((a, b) => a.odo - b.odo);
+    if (fills.length < 4) return;
+    const gaps = [];
+    for (let i = 1; i < fills.length; i++) {
+      const dist = fills[i].odo - fills[i - 1].odo;
+      if (dist > 0) gaps.push({ fill: fills[i], kmpl: dist / fills[i].litres, dist });
+    }
+    if (gaps.length < 3) return;
+    const base = median(gaps.map(x => x.kmpl));
+    gaps.forEach(x => {
+      if (!base || x.kmpl >= base * 0.78) return;
+      const missing = x.fill.litres - x.dist / base;
+      if (missing < 8) return;
+      flags.push({
+        vehicle: v.name, date: x.fill.date, litres: x.fill.litres,
+        kmpl: x.kmpl, base, missing,
+        cost: missing * (x.fill.amount / x.fill.litres)
+      });
+    });
+  });
+  return flags.sort((a, b) => b.missing - a.missing);
+}
+
+function renderFuelWatch() {
+  const el = document.getElementById("fuelWatch");
+  if (!el) return;
+  const flags = fuelTheftFlags();
+  el.innerHTML = flags.length ?
+    flags.slice(0, 8).map(f => `
+      <div class="pred-row" style="padding:12px 16px"><div class="pred-main" style="display:flex;align-items:center;gap:10px;font-size:0.88rem">
+        <span class="ic-tile danger" style="width:32px;height:32px;flex:none">${FWIcon("fuel", { size: 16 })}</span>
+        <span style="flex:1;min-width:0"><strong>${esc(f.vehicle)}</strong> — ${fmtDate(f.date)}: ran ${f.kmpl.toFixed(1)} km/L vs its normal ${f.base.toFixed(1)} — <strong style="color:${DASH_PAL.critical}">≈${Math.round(f.missing)} L unaccounted (${fmtINR(f.cost)})</strong></span>
+        <span class="muted" style="flex:none;font-size:0.78rem">check fill</span>
+      </div></div>`).join("")
+    : `<p class="muted" style="padding:14px 16px">Mileage steady on every fill — no suspicious diesel gaps. Needs odometer + litres on at least 4 fills per vehicle.</p>`;
+}
+
+// ---------- What-if simulator ----------
+function whatifBase() {
+  const cutoff = addMonths(todayKey(), -11);
+  return {
+    maint: db.expenses.filter(e => monthKey(e.date) >= cutoff).reduce((s, e) => s + e.amount, 0) / 12,
+    fuel: (db.fuelLogs || []).filter(f => monthKey(f.date) >= cutoff).reduce((s, f) => s + f.amount, 0) / 12,
+    n: db.vehicles.length || 1
+  };
+}
+function renderWhatIf() {
+  const out = document.getElementById("wiOut");
+  if (!out) return;
+  const fp = +document.getElementById("wiFuel").value / 100;
+  const kp = +document.getElementById("wiKm").value / 100;
+  const av = +document.getElementById("wiVeh").value;
+  document.getElementById("wiFuelV").textContent = (fp >= 0 ? "+" : "") + Math.round(fp * 100) + "%";
+  document.getElementById("wiKmV").textContent = (kp >= 0 ? "+" : "") + Math.round(kp * 100) + "%";
+  document.getElementById("wiVehV").textContent = "+" + av;
+  const b = whatifBase();
+  const scale = 1 + av / b.n;
+  const proj = b.fuel * (1 + fp) * (1 + kp) * scale + b.maint * (1 + kp * 0.6) * scale;
+  const now = b.fuel + b.maint;
+  const d = proj - now;
+  const up = d >= 0;
+  out.innerHTML = `
+    <div class="stat-tile"><span class="stat-label">Today / month</span><span class="stat-value">${fmtINR(now)}</span><span class="stat-sub">diesel + maintenance, 12-mo avg</span></div>
+    <div class="stat-tile"><span class="stat-label">Projected / month</span><span class="stat-value">${fmtINR(proj)}</span><span class="stat-sub">with your sliders applied</span></div>
+    <div class="stat-tile"><span class="stat-label">Monthly change</span><span class="stat-value" style="color:${up ? DASH_PAL.critical : "#006300"}">${up ? "+" : "−"}${fmtINR(Math.abs(d))}</span><span class="stat-sub">${up ? "extra outflow" : "saved"}</span></div>
+    <div class="stat-tile"><span class="stat-label">Yearly impact</span><span class="stat-value" style="color:${up ? DASH_PAL.critical : "#006300"}">${up ? "+" : "−"}${fmtINR(Math.abs(d) * 12)}</span><span class="stat-sub">annualised</span></div>`;
+}
+function initWhatIf() {
+  ["wiFuel", "wiKm", "wiVeh"].forEach(id => document.getElementById(id)?.addEventListener("input", renderWhatIf));
+  renderWhatIf();
+}
+
 // ---------- Filters & orchestration ----------
 function renderCharts() { renderMonthly(); renderAnalyticsVehicles(); renderAnalyticsParts(); }
 
@@ -606,11 +685,14 @@ function renderAnalyticsAll() {
   renderDeviation();
   renderAnomaly();
   renderRecommendations();
+  renderFuelWatch();
+  renderWhatIf();
 }
 
 document.getElementById("vehicleFilter").addEventListener("change", renderCharts);
 document.getElementById("periodFilter").addEventListener("change", renderCharts);
 
 renderAnalyticsAll();
-// re-score health & inbox now that vehicleStats/predictParts exist
+initWhatIf();
+// re-score health & inbox now that vehicleStats/predictParts/fuelTheftFlags exist
 if (typeof renderHealth === "function") { renderHealth(); renderActionInbox(); }

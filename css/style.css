@@ -1220,3 +1220,35 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .drv-check-row input { width: 19px; height: 19px; accent-color: #0ca30c; flex: none; }
 .drv-check-row:has(input:not(:checked)) { background: #fdeaea; }
 .drv-status { text-align: center; font-weight: 700; margin: 14px 0; font-size: 0.9rem; }
+
+/* ---------- Breakdown SOS ---------- */
+.sos-btn {
+  background: #d03b3b; color: #fff; border: none; font-weight: 800;
+  letter-spacing: 0.03em; display: inline-flex; align-items: center; gap: 6px;
+}
+.sos-btn:hover { background: #b52f2f; color: #fff; }
+#sosModal {
+  position: fixed; inset: 0; background: rgba(11, 22, 38, 0.65); z-index: 320;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.sos-box {
+  background: #fff; border-radius: 16px; padding: 26px 26px 18px; width: 100%; max-width: 420px;
+  border-top: 5px solid #d03b3b;
+}
+.sos-box h3 { color: #d03b3b; display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.sos-box p { margin-bottom: 14px; font-size: 0.85rem; }
+.sos-box label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--navy); margin-bottom: 12px; }
+.sos-box select, .sos-box input {
+  width: 100%; margin-top: 5px; padding: 10px 12px; border: 1.5px solid #e2e8f0;
+  border-radius: 10px; font-family: inherit; font-size: 0.92rem;
+}
+.sos-actions { display: flex; gap: 10px; margin: 6px 0 10px; }
+.sos-actions .btn { flex: 1; justify-content: center; }
+.sos-close { display: block; margin: 4px auto 0; color: #8a94a6; }
+
+/* ---------- What-if sliders ---------- */
+.whatif-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; padding: 6px 4px 16px; }
+.whatif-grid label { font-size: 0.84rem; font-weight: 600; color: var(--navy); display: flex; flex-direction: column; gap: 8px; }
+.whatif-grid .wi-val { color: var(--amber-dark); font-weight: 800; }
+.whatif-grid input[type="range"] { width: 100%; accent-color: var(--amber); }
+@media (max-width: 760px) { .whatif-grid { grid-template-columns: 1fr; } }
