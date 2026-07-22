@@ -118,17 +118,19 @@ bookingForm.addEventListener("submit", (e) => {
   bookingForm.reset();
 });
 
-// ---------- Hero quick form ----------
+// ---------- Hero quick form (optional — present on some layouts) ----------
 const quickForm = document.getElementById("quickForm");
-quickForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  if (!validateForm(quickForm)) return;
+if (quickForm) {
+  quickForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!validateForm(quickForm)) return;
 
-  const data = Object.fromEntries(new FormData(quickForm));
-  // Hand off to the full booking modal with the service pre-selected
-  openBooking(data.service);
-  const modalForm = document.getElementById("bookingForm");
-  modalForm.elements.phone.value = data.phone;
-  modalForm.elements.city.value = data.city;
-  modalForm.elements.vehicle.value = data.vehicle;
-});
+    const data = Object.fromEntries(new FormData(quickForm));
+    // Hand off to the full booking modal with the service pre-selected
+    openBooking(data.service);
+    const modalForm = document.getElementById("bookingForm");
+    modalForm.elements.phone.value = data.phone;
+    modalForm.elements.city.value = data.city;
+    modalForm.elements.vehicle.value = data.vehicle;
+  });
+}

@@ -280,6 +280,29 @@ input.invalid, select.invalid { border-color: #dc2626; box-shadow: 0 0 0 3px rgb
 .owner-cta-card .form-note { color: #94a3b8; text-align: center; margin-top: 2px; }
 
 .success-icon { color: var(--green); text-align: center; margin-bottom: 6px; }
+
+/* ---------- Hero: live pan-India network map ---------- */
+.hero-map {
+  position: relative; border-radius: 20px; overflow: hidden;
+  background: radial-gradient(120% 90% at 70% 0%, #16294a 0%, #0f1e33 55%, #0b1626 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+}
+.hero-map svg { display: block; width: 100%; height: auto; }
+.hm-cap { position: absolute; left: 18px; top: 16px; z-index: 2; }
+.hm-live {
+  display: inline-flex; align-items: center; gap: 7px; font-size: 0.72rem; font-weight: 700;
+  color: #eaf1fb; background: rgba(245, 166, 35, 0.14);
+  border: 1px solid rgba(245, 166, 35, 0.4); padding: 4px 11px; border-radius: 100px;
+}
+.hm-live .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber);
+  box-shadow: 0 0 8px var(--amber); animation: hmBlink 1.6s infinite; }
+.hm-sub { margin: 8px 0 0; color: #93a7c4; font-size: 0.72rem; font-weight: 500; }
+.hm-stat { position: absolute; right: 18px; bottom: 16px; z-index: 2; text-align: right; }
+.hm-stat b { display: block; color: var(--amber); font-weight: 800; font-size: 1.15rem; line-height: 1.1; }
+.hm-stat span { color: #93a7c4; font-size: 0.66rem; letter-spacing: 0.04em; }
+@keyframes hmBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .hm-live .dot { animation: none; } }
 .link-btn {
   background: none; border: none; cursor: pointer; font-family: inherit;
   color: var(--navy); font-weight: 700; font-size: 0.88rem; text-align: left; padding: 0;
