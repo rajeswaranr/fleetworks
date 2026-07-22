@@ -26,35 +26,101 @@
         <button class="side-close" id="sideClose" aria-label="Close menu">&times;</button>
       </div>
       <nav class="side-nav" id="tabBar">
-        <div class="side-group">
-          <span class="side-label">Overview</span>
-          <button class="side-item tab-btn active" data-tab="overview"><i data-icon="brain"></i><span>Foresight AI</span></button>
+        <button class="side-item tab-btn active" data-tab="overview"><i data-icon="gauge"></i><span>Dashboard</span></button>
+        <button class="side-item tab-btn" data-tab="map"><i data-icon="mapPin"></i><span>Fleet Map</span></button>
+
+        <div class="side-group has-children open">
+          <button type="button" class="side-parent"><i data-icon="truck"></i><span>Vehicles</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
+          <div class="side-children">
+            <button class="side-item tab-btn" data-tab="vehicles"><span>Vehicle List &amp; RTO</span></button>
+            <button class="side-item tab-btn" data-tab="assignments"><span>Assignments</span></button>
+            <button class="side-item tab-btn" data-tab="meters"><span>Meter History</span></button>
+            <button class="side-item tab-btn" data-tab="tyres"><span>Tyre Readings</span></button>
+            <button class="side-item tab-btn" data-tab="expensehistory"><span>Expense History</span></button>
+            <button class="side-item tab-btn" data-tab="replacement"><span>Replacement Analysis</span></button>
+          </div>
         </div>
-        <div class="side-group">
-          <span class="side-label">Fleet</span>
-          <button class="side-item tab-btn" data-tab="vehicles"><i data-icon="truck"></i><span>Vehicles &amp; RTO</span></button>
-          <button class="side-item tab-btn" data-tab="drivers"><i data-icon="driver"></i><span>Drivers</span></button>
-          <button class="side-item tab-btn" data-tab="documents"><i data-icon="document"></i><span>Documents</span></button>
-          <button class="side-item tab-btn" data-tab="tyres"><i data-icon="tire"></i><span>Tyre Health</span></button>
+
+        <div class="side-group has-children open">
+          <button type="button" class="side-parent"><i data-icon="clipboardCheck"></i><span>Inspections</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
+          <div class="side-children">
+            <button class="side-item tab-btn" data-tab="inspections"><span>New &amp; History</span></button>
+            <button class="side-item tab-btn" data-tab="itemfailures"><span>Item Failures</span></button>
+            <button class="side-item tab-btn" data-tab="inspschedules"><span>Schedules</span></button>
+            <button class="side-item tab-btn" data-tab="forms"><span>Forms</span></button>
+          </div>
         </div>
-        <div class="side-group">
-          <span class="side-label">Operations</span>
-          <button class="side-item tab-btn" data-tab="fuel"><i data-icon="fuel"></i><span>Diesel &amp; Mileage</span></button>
-          <button class="side-item tab-btn" data-tab="inspections"><i data-icon="clipboardCheck"></i><span>Inspections</span></button>
-          <button class="side-item tab-btn" data-tab="issues"><i data-icon="wrench"></i><span>Issues &amp; Job Cards</span></button>
-          <button class="side-item tab-btn" data-tab="reminders"><i data-icon="calendarClock"></i><span>Maintenance</span></button>
-          <button class="side-item tab-btn" data-tab="parts"><i data-icon="boxes"></i><span>Spares Godown</span></button>
+
+        <div class="side-group has-children open">
+          <button type="button" class="side-parent"><i data-icon="wrench"></i><span>Issues</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
+          <div class="side-children">
+            <button class="side-item tab-btn" data-tab="issues"><span>Issues</span></button>
+            <button class="side-item tab-btn" data-tab="faults"><span>Faults</span></button>
+            <button class="side-item tab-btn" data-tab="recalls"><span>Recalls</span></button>
+          </div>
         </div>
-        <div class="side-group">
-          <span class="side-label">Compliance</span>
-          <button class="side-item tab-btn" data-tab="radar"><i data-icon="shieldCheck"></i><span>Compliance Radar</span></button>
+
+        <div class="side-group has-children open">
+          <button type="button" class="side-parent"><i data-icon="bell"></i><span>Reminders</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
+          <div class="side-children">
+            <button class="side-item tab-btn" data-tab="reminders"><span>Service Reminders</span></button>
+            <button class="side-item tab-btn" data-tab="radar" data-radar="vehicle"><span>Vehicle Renewals</span></button>
+            <button class="side-item tab-btn" data-tab="radar" data-radar="driver"><span>Driver Renewals</span></button>
+          </div>
         </div>
-        <div class="side-group">
-          <span class="side-label">Account</span>
-          <button class="side-item tab-btn" data-tab="settings"><i data-icon="settings"></i><span>Settings</span></button>
+
+        <div class="side-group has-children open">
+          <button type="button" class="side-parent"><i data-icon="tools"></i><span>Service</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
+          <div class="side-children">
+            <button class="side-item tab-btn" data-tab="servicehistory"><span>Service History</span></button>
+            <button class="side-item tab-btn" data-tab="workorders"><span>Work Orders</span></button>
+            <button class="side-item tab-btn" data-tab="servicetasks"><span>Service Tasks</span></button>
+            <button class="side-item tab-btn" data-tab="programs"><span>Service Programs</span></button>
+          </div>
         </div>
+
+        <button class="side-item tab-btn" data-tab="drivers"><i data-icon="driver"></i><span>Drivers &amp; Contacts</span></button>
+        <button class="side-item tab-btn" data-tab="vendors"><i data-icon="building"></i><span>Vendors</span></button>
+
+        <div class="side-group has-children open">
+          <button type="button" class="side-parent"><i data-icon="boxes"></i><span>Parts &amp; Inventory</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
+          <div class="side-children">
+            <button class="side-item tab-btn" data-tab="parts"><span>Spares Godown</span></button>
+            <button class="side-item tab-btn" data-tab="purchaseorders"><span>Purchase Orders</span></button>
+          </div>
+        </div>
+
+        <div class="side-group has-children open">
+          <button type="button" class="side-parent"><i data-icon="fuel"></i><span>Fuel &amp; Energy</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
+          <div class="side-children">
+            <button class="side-item tab-btn" data-tab="fuel"><span>Diesel &amp; Mileage</span></button>
+            <button class="side-item tab-btn" data-tab="charging"><span>EV Charging</span></button>
+          </div>
+        </div>
+
+        <button class="side-item tab-btn" data-tab="places"><i data-icon="mapPin"></i><span>Places</span></button>
+        <button class="side-item tab-btn" data-tab="documents"><i data-icon="document"></i><span>Documents</span></button>
+        <button class="side-item tab-btn" data-tab="radar" data-radar="warranty"><i data-icon="shieldCheck"></i><span>Warranties</span></button>
+        <button class="side-item tab-btn" data-tab="radar" data-radar="all"><i data-icon="shieldAlert"></i><span>Compliance Radar</span></button>
+        <button class="side-item tab-btn" data-tab="integrations"><i data-icon="link"></i><span>Integrations</span></button>
+
+        <div class="side-group has-children open">
+          <button type="button" class="side-parent"><i data-icon="chartBar"></i><span>Reports</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
+          <div class="side-children">
+            <a class="side-item" href="dashboard.html"><span>AI Analytics</span></a>
+            <button class="side-item tab-btn" data-tab="reports"><span>Standard Reports</span></button>
+          </div>
+        </div>
+
+        <div class="side-sep"></div>
+        <button class="side-item tab-btn" data-tab="settings"><i data-icon="settings"></i><span>Settings</span></button>
+        <a class="side-item" href="tel:+919740799722"><i data-icon="phone"></i><span>Help &amp; Support</span></a>
       </nav>
       <div class="side-foot">
+        <div class="side-plan">
+          <span class="side-plan-t">15-Day Free Trial</span>
+          <a class="btn btn-primary btn-sm btn-block" href="my.html">Create Account</a>
+        </div>
         <a href="index.html" class="side-foot-link">&larr; Back to site</a>
       </div>
     </aside>
@@ -257,15 +323,6 @@
           <div id="issuesList" class="predictions"></div>
         </div>
         <div class="chart-card">
-          <div class="chart-head">
-            <div>
-              <h2>Job Cards (Work Orders)</h2>
-              <p class="muted">Track work at the workshop — completing a job card automatically records the expense in your books.</p>
-            </div>
-          </div>
-          <div id="workOrdersList" class="predictions"></div>
-        </div>
-        <div class="chart-card">
           <div class="chart-head"><div><h2>Report an Issue</h2></div></div>
           <form id="issueForm" class="entry-form">
             <div class="form-row">
@@ -283,6 +340,19 @@
             </label>
             <button type="submit" class="btn btn-primary">Report Issue</button>
           </form>
+        </div>
+      </section>
+
+      <!-- ======= WORK ORDERS ======= -->
+      <section class="tab-panel" id="tab-workorders">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2>Job Cards (Work Orders)</h2>
+              <p class="muted">Track work at the workshop — completing a job card automatically records the expense in your books.</p>
+            </div>
+          </div>
+          <div id="workOrdersList" class="predictions"></div>
         </div>
       </section>
 

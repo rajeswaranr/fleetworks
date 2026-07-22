@@ -1131,8 +1131,13 @@ document.getElementById("radarFilters").addEventListener("click", e => {
 // still resolve to the .tab-btn that carries data-tab. Updates the page title
 // and closes the mobile drawer.
 document.getElementById("tabBar").addEventListener("click", e => {
+  // group expand/collapse
+  const parent = e.target.closest(".side-parent");
+  if (parent) { parent.closest(".side-group")?.classList.toggle("open"); return; }
   const btn = e.target.closest(".tab-btn");
   if (!btn || !btn.dataset.tab) return;
+  // Radar presets (Vehicle/Driver Renewals, Warranties) pre-filter the Radar
+  if (btn.dataset.radar !== undefined) { radarFilter = btn.dataset.radar || "all"; renderRadar(); }
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b === btn));
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "tab-" + btn.dataset.tab));
   const title = document.getElementById("pageTitle");
@@ -1176,7 +1181,14 @@ const TAB_META = {
   parts:     { count: () => db.parts.length,      label: "parts",         add: "Add / Update Part" },
   radar:     { count: () => radarItems().length,  label: "renewals tracked" },
   documents: { count: () => db.documents.length,  label: "documents",     add: "Add Document" },
-  tyres:     { count: () => db.tyreReadings.length, label: "readings",    add: "Log Reading" }
+  tyres:     { count: () => db.tyreReadings.length, label: "readings",    add: "Log Reading" },
+  workorders: { count: () => db.workOrders.filter(w => w.status !== "Completed").length, label: "open job cards" },
+  assignments: { count: () => db.vehicles.length, label: "vehicles" },
+  meters:    { count: () => db.fuelLogs.length,   label: "meter readings" },
+  expensehistory: { count: () => db.expenses.length, label: "expense entries" },
+  itemfailures: { count: () => db.inspections.reduce((s, i) => s + i.results.filter(r => !r.ok).length, 0), label: "failed items" },
+  servicehistory: { count: () => db.expenses.length + db.workOrders.filter(w => w.status === "Completed").length, label: "service records" },
+  vendors:   { count: () => { const s = new Set(); db.parts.forEach(p => p.vendor && s.add(p.vendor)); db.workOrders.forEach(w => w.vendor && s.add(w.vendor)); return s.size; }, label: "vendors" }
 };
 
 function initListToolbars() {
@@ -1218,11 +1230,214 @@ function exportRadarCsv() {
     i.cat, i.entity, i.type, i.date, i.days,
     i.days < 0 ? "Overdue" : i.days <= warnDays() ? "Due Soon" : "Upcoming"
   ]));
+  downloadCsv(rows, "fleetworks-compliance-radar.csv");
+}
+function downloadCsv(rows, name) {
   const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-  a.download = "fleetworks-compliance-radar.csv";
+  a.download = name;
   a.click(); URL.revokeObjectURL(a.href);
+}
+function exportExpensesCsv() {
+  const rows = [["Date", "Vehicle", "Category", "Amount (INR)"]];
+  [...db.expenses].sort((a, b) => b.date.localeCompare(a.date))
+    .forEach(e => rows.push([e.date, vName(e.vehicleId), e.category, e.amount]));
+  db.fuelLogs.forEach(f => rows.push([f.date, vName(f.vehicleId), "Diesel", f.amount]));
+  downloadCsv(rows, "fleetworks-expenses.csv");
+}
+
+// ---------- Dynamic panels (full navigation tree) ----------
+function soonCard(title, desc, icon) {
+  return `<div class="chart-card"><div class="empty-state" style="padding:44px 20px">
+    <div class="empty-icon">${FWIcon(icon, { size: 40 })}</div>
+    <h2>${title}</h2>
+    <p style="max-width:48ch;margin:0 auto">${desc}</p>
+    <span class="fw-badge upcoming" style="margin-top:12px">Coming soon</span>
+  </div></div>`;
+}
+function panelCard(title, sub, bodyId) {
+  return `<div class="chart-card"><div class="chart-head"><div><h2>${title}</h2><p class="muted">${sub}</p></div></div>
+    <div class="chart-scroll"><div id="${bodyId}"></div></div></div>`;
+}
+function buildDynamicPanels() {
+  const host = document.getElementById("fleetContent");
+  const mk = (id, inner) => {
+    if (document.getElementById("tab-" + id)) return;
+    const s = document.createElement("section");
+    s.className = "tab-panel"; s.id = "tab-" + id; s.innerHTML = inner;
+    host.appendChild(s);
+  };
+  mk("map", soonCard("Fleet Map", "Live vehicle locations on a map arrive with the GPS / telematics integration.", "mapPin"));
+  mk("assignments", panelCard("Vehicle Assignments", "Which driver operates which vehicle right now", "assignTable"));
+  mk("meters", panelCard("Meter History", "Odometer readings captured with every fuel fill, newest first", "meterTable"));
+  mk("expensehistory", panelCard("Expense History", "Every expense entry across the fleet, newest first", "expHistTable"));
+  mk("replacement", panelCard("Replacement Analysis", "Lifetime running cost per vehicle — spot the vehicles costing more than they earn", "replTable"));
+  mk("itemfailures", panelCard("Inspection Item Failures", "Checklist items that failed, across all inspections", "failTable"));
+  mk("forms", panelCard("Inspection Forms", "The daily 10-point check every driver runs before rolling out", "formsList"));
+  mk("servicehistory", panelCard("Service History", "Every completed job card and recorded expense, newest first", "svcHistTable"));
+  mk("servicetasks", panelCard("Service Task Library", "Standard maintenance tasks and how your fleet uses them", "taskLibTable"));
+  mk("vendors", panelCard("Vendors", "Workshops and suppliers your fleet works with", "vendorTable"));
+  mk("integrations", `<div class="chart-card"><div class="chart-head"><div><h2>Integrations</h2><p class="muted">Connect FleetWorks to the tools your business already runs on</p></div></div><div class="integ-grid" id="integGrid"></div></div>`);
+  mk("reports", `<div class="chart-card"><div class="chart-head"><div><h2>Standard Reports</h2><p class="muted">One-click exports, ready for Excel and your accountant</p></div></div><div class="integ-grid" id="reportGrid"></div></div>`);
+  [
+    ["faults", "Faults", "Engine fault codes surface here automatically with the OBD / telematics integration.", "alert"],
+    ["recalls", "Recalls", "Manufacturer recall tracking for your vehicle makes is on the way.", "bell"],
+    ["charging", "EV Charging", "Charging sessions, kWh and cost per km arrive with the EV module.", "charge"],
+    ["places", "Places", "Saved depots, customer sites and geofences arrive with the GPS integration.", "mapPin"],
+    ["purchaseorders", "Purchase Orders", "Raise and track spare-part purchase orders against vendors.", "receipt"],
+    ["programs", "Service Programs", "Bundle service tasks into recurring programs and assign vehicles to them.", "calendarClock"],
+    ["inspschedules", "Inspection Schedules", "Assign inspection forms to vehicles on a repeating schedule.", "clipboardCheck"]
+  ].forEach(([id, t, d, ic]) => mk(id, soonCard(t, d, ic)));
+}
+
+// ---------- Render: dynamic data panels ----------
+function renderAssignments() {
+  const el = document.getElementById("assignTable");
+  if (!el) return;
+  el.innerHTML = db.vehicles.length ?
+    `<table class="chart-table-el"><thead><tr><th>Vehicle</th><th>Type</th><th>Driver</th><th>Contact</th><th>DL Validity</th></tr></thead><tbody>` +
+    db.vehicles.map(v => {
+      const d = db.drivers.find(x => x.vehicleId === v.id);
+      const days = d && d.dlExpiry ? daysUntil(d.dlExpiry) : null;
+      const badge = !d ? '<span class="fw-badge soon">Unassigned</span>' :
+        days === null ? '<span class="fw-badge upcoming">Not set</span>' :
+        days < 0 ? '<span class="fw-badge overdue">Expired</span>' :
+        days <= 30 ? `<span class="fw-badge soon">${days}d left</span>` : '<span class="fw-badge ok">Valid</span>';
+      return `<tr><td><strong>${esc(v.name)}</strong></td><td>${esc(v.type)}</td><td>${d ? esc(d.name) : "<span class='muted'>—</span>"}</td><td>${d && d.phone ? esc(d.phone) : "—"}</td><td>${badge}</td></tr>`;
+    }).join("") + "</tbody></table>" : "<p class='muted'>Add vehicles first.</p>";
+}
+function renderMeters() {
+  const el = document.getElementById("meterTable");
+  if (!el) return;
+  const rows = [...db.fuelLogs].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 40);
+  el.innerHTML = rows.length ?
+    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Odometer</th><th>Since last</th></tr></thead><tbody>` +
+    rows.map(f => {
+      const fills = vehicleFills(f.vehicleId);
+      const i = fills.findIndex(x => x.id === f.id);
+      const delta = i > 0 ? f.odo - fills[i - 1].odo : null;
+      return `<tr><td>${fmtDate(f.date)}</td><td><strong>${esc(vName(f.vehicleId))}</strong></td><td>${f.odo.toLocaleString("en-IN")} km</td><td>${delta ? "+" + delta.toLocaleString("en-IN") + " km" : "<span class='muted'>—</span>"}</td></tr>`;
+    }).join("") + "</tbody></table>" : "<p class='muted'>Meter readings appear as you log fuel fills.</p>";
+}
+function renderExpenseHistory() {
+  const el = document.getElementById("expHistTable");
+  if (!el) return;
+  const rows = [...db.expenses].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 60);
+  el.innerHTML = rows.length ?
+    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Category</th><th>Amount</th></tr></thead><tbody>` +
+    rows.map(e => `<tr><td>${fmtDate(e.date)}</td><td><strong>${esc(vName(e.vehicleId))}</strong></td><td>${esc(e.category)}</td><td>${fmtINR(e.amount)}</td></tr>`).join("") +
+    "</tbody></table>" : "<p class='muted'>No expenses recorded yet.</p>";
+}
+function renderReplacement() {
+  const el = document.getElementById("replTable");
+  if (!el) return;
+  const rows = db.vehicles.map(v => {
+    const spend = db.expenses.filter(e => e.vehicleId === v.id).reduce((s, e) => s + e.amount, 0);
+    const fuel = db.fuelLogs.filter(f => f.vehicleId === v.id).reduce((s, f) => s + f.amount, 0);
+    const fills = vehicleFills(v.id);
+    const km = fills.length > 1 ? fills[fills.length - 1].odo - fills[0].odo : 0;
+    const cpk = km ? (spend + fuel) / km : 0;
+    return { v, spend: spend + fuel, km, cpk };
+  }).sort((a, b) => b.cpk - a.cpk);
+  const avg = rows.filter(r => r.cpk).reduce((s, r) => s + r.cpk, 0) / (rows.filter(r => r.cpk).length || 1);
+  el.innerHTML = rows.length ?
+    `<table class="chart-table-el"><thead><tr><th>Vehicle</th><th>Lifetime Spend</th><th>KM Logged</th><th>Cost / km</th><th>Verdict</th></tr></thead><tbody>` +
+    rows.map(r => `<tr><td><strong>${esc(r.v.name)}</strong><br /><span class="muted">${esc(r.v.type)}</span></td>
+      <td>${fmtINR(r.spend)}</td><td>${r.km.toLocaleString("en-IN")}</td><td>${r.cpk ? "₹" + r.cpk.toFixed(1) : "—"}</td>
+      <td>${!r.cpk ? '<span class="fw-badge upcoming">Need data</span>' : r.cpk > avg * 1.3 ? '<span class="fw-badge overdue">Review — costly</span>' : r.cpk > avg * 1.1 ? '<span class="fw-badge soon">Watch</span>' : '<span class="fw-badge ok">Healthy</span>'}</td></tr>`).join("") +
+    "</tbody></table><p class='muted' style='margin-top:10px'>Verdicts compare each vehicle's all-in cost per km against the fleet average (₹" + avg.toFixed(1) + "/km).</p>" : "<p class='muted'>Add vehicles first.</p>";
+}
+function renderItemFailures() {
+  const el = document.getElementById("failTable");
+  if (!el) return;
+  const fails = [];
+  db.inspections.forEach(i => i.results.filter(r => !r.ok).forEach(r => fails.push({ date: i.date, veh: vName(i.vehicleId), item: r.item })));
+  fails.sort((a, b) => b.date.localeCompare(a.date));
+  el.innerHTML = fails.length ?
+    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Failed Item</th></tr></thead><tbody>` +
+    fails.map(f => `<tr><td>${fmtDate(f.date)}</td><td><strong>${esc(f.veh)}</strong></td><td><span class="fw-badge overdue">${FWIcon("alert", { size: 12 })}${esc(f.item)}</span></td></tr>`).join("") +
+    "</tbody></table>" : "<p class='muted'>No failed inspection items — good discipline.</p>";
+}
+function renderForms() {
+  const el = document.getElementById("formsList");
+  if (!el) return;
+  el.innerHTML = `<div class="forms-def"><h3 class="forms-def-t">${FWIcon("clipboardCheck", { size: 18 })} Daily 10-Point Check</h3>` +
+    INSPECTION_ITEMS.map((it, i) => `<div class="forms-item"><span class="forms-num">${i + 1}</span>${esc(it)}</div>`).join("") +
+    `<p class="muted" style="margin-top:12px">Failed items automatically become Issues for the AI to prioritise. Custom forms are coming with the multi-user upgrade.</p></div>`;
+}
+function renderServiceHistory() {
+  const el = document.getElementById("svcHistTable");
+  if (!el) return;
+  const evts = [
+    ...db.expenses.map(e => ({ d: e.date, veh: vName(e.vehicleId), what: e.category, amt: e.amount, kind: "Expense" })),
+    ...db.workOrders.filter(w => w.status === "Completed").map(w => ({ d: w.completedAt, veh: vName(w.vehicleId), what: w.title + (w.vendor ? " · " + w.vendor : ""), amt: w.finalCost || 0, kind: "Job card" }))
+  ].sort((a, b) => b.d.localeCompare(a.d)).slice(0, 60);
+  el.innerHTML = evts.length ?
+    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Work / Category</th><th>Type</th><th>Cost</th></tr></thead><tbody>` +
+    evts.map(e => `<tr><td>${fmtDate(e.d)}</td><td><strong>${esc(e.veh)}</strong></td><td>${esc(e.what)}</td><td><span class="fw-chip ${e.kind === "Job card" ? "is-done" : "is-void"}"><span class="dot"></span>${e.kind}</span></td><td>${fmtINR(e.amt)}</td></tr>`).join("") +
+    "</tbody></table>" : "<p class='muted'>Service history builds up as you record expenses and close job cards.</p>";
+}
+const TASK_CATALOG = ["Engine Oil & Filters", "Wheel Alignment & Balancing", "Greasing & Lubrication", "Air Filter Cleaning", "Coolant Top-up / Flush", "Brake Inspection", "General Service (PMS)"];
+function renderServiceTasks() {
+  const el = document.getElementById("taskLibTable");
+  if (!el) return;
+  el.innerHTML = `<table class="chart-table-el"><thead><tr><th>Task</th><th>Active Schedules</th><th>Times Recorded</th><th>Last Done</th></tr></thead><tbody>` +
+    TASK_CATALOG.map(t => {
+      const scheds = db.reminders.filter(r => r.task === t);
+      const done = db.expenses.filter(e => e.category === t).length;
+      const last = scheds.map(s => s.lastDate).sort().pop();
+      return `<tr><td><strong>${esc(t)}</strong></td><td>${scheds.length || "<span class='muted'>—</span>"}</td><td>${done || "<span class='muted'>—</span>"}</td><td>${last ? fmtDate(last) : "<span class='muted'>—</span>"}</td></tr>`;
+    }).join("") + "</tbody></table>";
+}
+function renderVendors() {
+  const el = document.getElementById("vendorTable");
+  if (!el) return;
+  const map = {};
+  db.parts.forEach(p => { if (p.vendor) { map[p.vendor] = map[p.vendor] || { parts: 0, jobs: 0, contact: "" }; map[p.vendor].parts++; if (p.vendorContact) map[p.vendor].contact = p.vendorContact; } });
+  db.workOrders.forEach(w => { if (w.vendor) { map[w.vendor] = map[w.vendor] || { parts: 0, jobs: 0, contact: "" }; map[w.vendor].jobs++; } });
+  const rows = Object.entries(map);
+  el.innerHTML = rows.length ?
+    `<table class="chart-table-el"><thead><tr><th>Vendor</th><th>Supplies</th><th>Parts</th><th>Job Cards</th><th>Contact</th></tr></thead><tbody>` +
+    rows.map(([name, v]) => `<tr><td><strong>${esc(name)}</strong></td><td>${v.parts && v.jobs ? "Parts + Service" : v.parts ? "Parts" : "Service"}</td><td>${v.parts || "—"}</td><td>${v.jobs || "—"}</td><td>${v.contact ? esc(v.contact) : "<span class='muted'>—</span>"}</td></tr>`).join("") +
+    "</tbody></table>" : "<p class='muted'>Vendors appear automatically as you add parts and job cards.</p>";
+}
+function renderIntegrations() {
+  const el = document.getElementById("integGrid");
+  if (!el) return;
+  const card = (icon, name, desc, live, href) => `<div class="integ-card">
+    <span class="ic-tile ${live ? "success" : "brand"}">${FWIcon(icon, { size: 20 })}</span>
+    <div><h4>${name} ${live ? '<span class="fw-badge ok">Active</span>' : '<span class="fw-badge upcoming">Soon</span>'}</h4><p>${desc}</p></div>
+    ${href ? `<a class="btn btn-outline btn-sm" href="${href}">Open</a>` : ""}</div>`;
+  el.innerHTML =
+    card("receipt", "Tally Export", "Push every expense as Tally-ready vouchers for GST filing.", true, "dashboard.html") +
+    card("truck", "VAHAN / Parivahan", "Auto-fill RC, insurance and fitness dates from the registration number.", false) +
+    card("mapPin", "GPS / Telematics", "Live locations, route history and engine fault codes.", false) +
+    card("fuel", "Fuel Cards", "Automatic fuel-fill capture from card transactions.", false) +
+    card("phone", "WhatsApp Alerts", "Compliance and breakdown alerts straight to your phone.", false);
+}
+function renderReports() {
+  const el = document.getElementById("reportGrid");
+  if (!el) return;
+  const card = (icon, name, desc, btnLabel, action) => `<div class="integ-card">
+    <span class="ic-tile info">${FWIcon(icon, { size: 20 })}</span>
+    <div><h4>${name}</h4><p>${desc}</p></div>
+    <button class="btn btn-outline btn-sm" data-report="${action}">${btnLabel}</button></div>`;
+  el.innerHTML =
+    card("shieldCheck", "Compliance Report", "Every renewal — RTO documents, licences, warranties — with due status.", "Export CSV", "radar") +
+    card("rupee", "Expense Report", "All expenses and diesel fills, ready for Excel or your accountant.", "Export CSV", "expenses") +
+    card("download", "Full Backup", "Your entire fleet data as a JSON file you own.", "Download", "backup");
+  el.querySelectorAll("[data-report]").forEach(b => b.addEventListener("click", () => {
+    const k = b.dataset.report;
+    if (k === "radar") exportRadarCsv();
+    else if (k === "expenses") exportExpensesCsv();
+    else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(db, null, 2)], { type: "application/json" }));
+      a.download = "fleetworks-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+      a.click(); URL.revokeObjectURL(a.href);
+    }
+  }));
 }
 
 // Sidebar drawer toggle (mobile)
@@ -1246,9 +1461,13 @@ function renderAll() {
   renderInspectionForm(); renderInspectionHistory();
   renderIssues(); renderWorkOrders(); renderReminders(); renderParts();
   renderRadar(); renderDocuments(); renderTyres(); renderSettings();
+  renderAssignments(); renderMeters(); renderExpenseHistory(); renderReplacement();
+  renderItemFailures(); renderForms(); renderServiceHistory(); renderServiceTasks();
+  renderVendors(); renderIntegrations(); renderReports();
   const org = document.getElementById("topOrg");
   if (org) org.textContent = (db.settings && db.settings.businessName) || "My Fleet";
   updateToolbarCounts();
 }
+buildDynamicPanels();
 initListToolbars();
 renderAll();
