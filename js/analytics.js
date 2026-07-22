@@ -612,3 +612,5 @@ document.getElementById("vehicleFilter").addEventListener("change", renderCharts
 document.getElementById("periodFilter").addEventListener("change", renderCharts);
 
 renderAnalyticsAll();
+// re-score health & inbox now that vehicleStats/predictParts exist
+if (typeof renderHealth === "function") { renderHealth(); renderActionInbox(); }

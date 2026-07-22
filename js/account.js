@@ -251,4 +251,31 @@ document.getElementById("qeIssForm").addEventListener("submit", e => {
   afterQuickSave(e.target);
 });
 
+// ---------- Driver Link ingestion ----------
+// Pull unconsumed driver_entries (posted from driver.html) into the fleet,
+// then mark them consumed. Silently no-ops if signed out or table missing.
+async function syncDriverEntries() {
+  if (!(window.fwCloud && fwCloud.user())) return;
+  let rows;
+  try { rows = await fwCloud.authGet("driver_entries", "select=*&consumed=eq.false&order=created_at.asc&limit=100"); }
+  catch { return; }
+  if (!Array.isArray(rows) || !rows.length) return;
+  const findVehicle = name => db.vehicles.find(v => v.name.toLowerCase() === String(name || "").trim().toLowerCase());
+  let merged = 0;
+  for (const r of rows) {
+    const v = findVehicle(r.vehicle_name);
+    if (!v) continue; // unknown vehicle name: leave pending so the owner can fix the assignment
+    const p = r.payload || {};
+    const day = (p.date || r.created_at || "").slice(0, 10);
+    if (r.kind === "fuel") db.fuelLogs.push({ id: uid(), vehicleId: v.id, date: day, litres: +p.litres || 0, amount: +p.amount || 0, odo: +p.odo || 0 });
+    else if (r.kind === "issue") db.issues.push({ id: uid(), vehicleId: v.id, title: String(p.title || "Reported by driver"), severity: p.severity || "Medium", status: "Open", createdAt: day, source: "Driver: " + (r.driver_name || "link") });
+    else if (r.kind === "inspection") db.inspections.push({ id: uid(), vehicleId: v.id, date: day, odo: +p.odo || 0, results: Array.isArray(p.results) ? p.results : [], passed: !!p.passed, notes: "Driver check — " + (r.driver_name || "link") });
+    else continue;
+    merged++;
+    await fwCloud.authPatch("driver_entries?id=eq." + r.id, { consumed: true });
+  }
+  if (merged) { saveStore(); renderAll(); markSynced(); }
+}
+
 renderAuthState();
+syncDriverEntries();

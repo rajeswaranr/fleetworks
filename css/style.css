@@ -1184,3 +1184,39 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .side-id { display: flex; flex-direction: column; gap: 1px; padding: 12px 14px 10px; }
 .side-id-org { color: #f2f6fd; font-weight: 700; font-size: 0.92rem; }
 .side-id-user { color: #8fa3c0; font-size: 0.76rem; }
+
+/* ---------- Home hub: Action Inbox + Fleet Health ---------- */
+.hub-sub { display: grid; grid-template-columns: 1.45fr 1fr; gap: 20px; margin-top: 26px; text-align: left; }
+.inbox-row { cursor: pointer; padding: 11px 16px; }
+.inbox-row:hover { background: #f7f9fc; }
+.health-strip { display: flex; flex-direction: column; gap: 8px; padding: 4px 16px 16px; }
+.hp-chip { display: flex; align-items: center; gap: 10px; }
+.hp-avg { padding-bottom: 8px; border-bottom: 1px solid #eceff3; margin-bottom: 4px; }
+.hp-score {
+  width: 38px; height: 26px; border-radius: 8px; color: #fff; font-weight: 800;
+  font-size: 0.8rem; display: inline-flex; align-items: center; justify-content: center; flex: none;
+}
+.hp-name { font-weight: 600; color: var(--navy); font-size: 0.88rem; }
+.hp-sub { font-size: 0.76rem; }
+@media (max-width: 900px) { .hub-sub { grid-template-columns: 1fr; } }
+
+/* ---------- Driver Link page ---------- */
+.drv-head {
+  display: flex; align-items: center; gap: 10px; padding: 14px 18px;
+  background: var(--navy); color: #fff;
+}
+.drv-brand { font-weight: 800; font-size: 1.1rem; }
+.drv-brand em { color: var(--amber); font-style: normal; }
+.drv-who { margin-left: auto; text-align: right; display: flex; flex-direction: column; }
+.drv-who strong { font-size: 0.92rem; }
+.drv-who .muted { color: #9fb1cc; font-size: 0.74rem; }
+.drv-main { max-width: 480px; margin: 18px auto 0; padding: 0 14px; }
+.drv-checklist { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
+.drv-check-row {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+  border-radius: 10px; font-size: 0.9rem; color: var(--navy); font-weight: 500;
+}
+.drv-check-row:nth-child(odd) { background: #f7f9fc; }
+.drv-check-row input { width: 19px; height: 19px; accent-color: #0ca30c; flex: none; }
+.drv-check-row:has(input:not(:checked)) { background: #fdeaea; }
+.drv-status { text-align: center; font-weight: 700; margin: 14px 0; font-size: 0.9rem; }

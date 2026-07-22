@@ -428,6 +428,95 @@ function renderOverview() {
     </div>`; }).join("");
 }
 
+// ---------- Vehicle Health Score (0–100) ----------
+// One number per truck: compliance + open issues + inspections + tyres +
+// overdue PM + cost deviation + overdue predictions. Higher is healthier.
+function healthScore(v) {
+  let s = 100;
+  const c = v.compliance || {};
+  Object.keys(DOC_LABELS).forEach(k => {
+    if (!c[k]) return;
+    const d = daysUntil(c[k]);
+    if (d < 0) s -= 12; else if (d <= warnDays()) s -= 4;
+  });
+  let pen = 0;
+  db.issues.filter(i => i.vehicleId === v.id && i.status !== "Resolved")
+    .forEach(i => pen += i.severity === "High" ? 12 : i.severity === "Medium" ? 6 : 3);
+  s -= Math.min(pen, 30);
+  const insp = db.inspections.filter(i => i.vehicleId === v.id).sort((a, b) => a.date.localeCompare(b.date));
+  if (insp.length && !insp[insp.length - 1].passed) s -= 10;
+  const worn = Object.values(latestReadings(v.id)).filter(r => r.treadDepth <= minTread()).length;
+  s -= Math.min(worn * 6, 12);
+  s -= Math.min(reminderStatus().filter(r => r.vehicleId === v.id && r.overdue).length * 5, 10);
+  if (typeof vehicleStats === "function") {
+    const vs = vehicleStats().filter(x => x.costPerKm > 0);
+    const avg = vs.length ? vs.reduce((a, b) => a + b.costPerKm, 0) / vs.length : 0;
+    const me = vs.find(x => x.id === v.id);
+    if (me && avg) { const dev = (me.costPerKm - avg) / avg; if (dev > 0.4) s -= 15; else if (dev > 0.2) s -= 10; }
+  }
+  if (typeof predictParts === "function")
+    s -= Math.min(predictParts().filter(p => p.vehicle.id === v.id && p.lifeUsed >= 1).length * 8, 16);
+  return Math.max(5, Math.round(s));
+}
+function healthColor(s) { return s >= 80 ? PAL.good : s >= 60 ? PAL.warn : PAL.critical; }
+function healthBadge(s) {
+  return `<span class="fw-badge ${s >= 80 ? "ok" : s >= 60 ? "soon" : "overdue"}" title="Health score">${s}/100</span>`;
+}
+
+function renderHealth() {
+  const el = document.getElementById("healthStrip");
+  if (!el) return;
+  if (!db.vehicles.length) { el.innerHTML = "<p class='muted'>Add vehicles to see their health scores.</p>"; return; }
+  const scored = db.vehicles.map(v => ({ v, s: healthScore(v) })).sort((a, b) => a.s - b.s);
+  const avg = Math.round(scored.reduce((a, b) => a + b.s, 0) / scored.length);
+  el.innerHTML =
+    `<div class="hp-chip hp-avg"><span class="hp-score" style="background:${healthColor(avg)}">${avg}</span><span class="hp-name">Fleet average</span><span class="muted hp-sub">weakest first</span></div>` +
+    scored.map(x => `<div class="hp-chip"><span class="hp-score" style="background:${healthColor(x.s)}">${x.s}</span><span class="hp-name">${esc(x.v.name)}</span><span class="muted hp-sub">${esc(x.v.type)}</span></div>`).join("");
+}
+
+// ---------- Action Inbox (Home) — everything pending, across all workspaces ----------
+function renderActionInbox() {
+  const el = document.getElementById("actionInbox");
+  if (!el) return;
+  const items = [];
+  radarItems().forEach(i => {
+    if (i.days < 0) items.push({ p: 0, ic: "alert", tone: "danger", t: `${i.type} for ${i.entity} expired ${-i.days} day${-i.days === 1 ? "" : "s"} ago`, a: "Renew", tab: "radar" });
+    else if (i.days <= warnDays()) items.push({ p: 2, ic: "clock", tone: "warning", t: `${i.type} for ${i.entity} due in ${i.days}d`, a: "Plan", tab: "radar" });
+  });
+  db.issues.filter(i => i.status !== "Resolved" && i.severity === "High").forEach(i =>
+    items.push({ p: 0, ic: "wrench", tone: "danger", t: `Critical issue on ${vName(i.vehicleId)}: ${i.title}`, a: "Fix", tab: "issues" }));
+  db.workOrders.filter(w => w.status !== "Completed").forEach(w => {
+    const age = Math.round((new Date() - new Date(w.createdAt)) / 86400000);
+    if (age > 5) items.push({ p: 1, ic: "tools", tone: "warning", t: `Job card "${w.title}" (${vName(w.vehicleId)}) open ${age} days`, a: "Chase", tab: "workorders" });
+  });
+  if (typeof predictParts === "function")
+    predictParts().filter(p => p.lifeUsed >= 1).slice(0, 3).forEach(p =>
+      items.push({ p: 1, ic: "trendUp", tone: "warning", t: `${p.category} on ${p.vehicle.name} past predicted life — ~${fmtINR(p.estCost)} planned`, a: "Book", tab: "analytics" }));
+  items.sort((a, b) => a.p - b.p);
+  el.innerHTML = items.length ?
+    items.slice(0, 10).map(i => `<div class="pred-row inbox-row" data-goto="${i.tab}"><div class="pred-main" style="display:flex;align-items:center;gap:10px;font-size:0.88rem"><span class="ic-tile ${i.tone}" style="width:30px;height:30px;flex:none">${FWIcon(i.ic, { size: 15 })}</span><span style="flex:1;min-width:0;text-align:left">${esc(i.t)}</span><span class="link-btn" style="flex:none">${i.a} &rarr;</span></div></div>`).join("") +
+      (items.length > 10 ? `<p class="muted" style="padding:8px 16px">+ ${items.length - 10} more inside the workspaces</p>` : "")
+    : `<p class="muted" style="padding:14px 16px">${FWIcon("checkCircle", { size: 14, cls: "ic-success" })} All clear — nothing pending today.</p>`;
+  el.querySelectorAll(".inbox-row").forEach(r => r.addEventListener("click", () =>
+    document.querySelector(`#tabBar .tab-btn[data-tab="${r.dataset.goto}"]`)?.click()));
+}
+
+// ---------- Driver Link (no-login entry page for drivers) ----------
+function copyDriverLink(driverId) {
+  const d = db.drivers.find(x => x.id === driverId);
+  if (!d) return;
+  const ownerId = window.fwCloud && fwCloud.uid && fwCloud.uid();
+  if (!ownerId) { alert("Sign in to your FleetWorks account first — driver links send entries to your cloud fleet."); return; }
+  if (!d.linkToken) { d.linkToken = uid(); saveStore(); }
+  const veh = d.vehicleId ? vName(d.vehicleId) : "";
+  const url = location.origin + location.pathname.replace(/[^/]*$/, "driver.html") +
+    "?o=" + encodeURIComponent(ownerId) + "&t=" + encodeURIComponent(d.linkToken) +
+    "&n=" + encodeURIComponent(d.name) + "&v=" + encodeURIComponent(veh);
+  const done = () => alert("Driver link copied!\n\nSend it to " + d.name + " on WhatsApp. From that page they can log diesel fills, report problems and submit the daily check — no app, no login.");
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, () => prompt("Copy this driver link:", url));
+  else prompt("Copy this driver link:", url);
+}
+
 // ---------- Render: vehicles & compliance ----------
 function complianceCell(till) {
   if (!till) return `<td class="comp-cell"><span class="fw-badge upcoming">Not set</span></td>`;
@@ -442,11 +531,12 @@ function renderVehicles() {
     const driver = db.drivers.find(d => d.vehicleId === v.id);
     return `<tr class="veh-row" data-vid="${v.id}" style="cursor:pointer">
       <td><strong>${esc(v.name)}</strong><br /><span class="muted">${esc(v.type)} · ${v.kmPerMonth.toLocaleString("en-IN")} km/mo${driver ? " · " + FWIcon("driver", { size: 13, cls: "ic-muted" }) + " " + esc(driver.name) : ""}</span></td>
+      <td>${healthBadge(healthScore(v))}</td>
       ${complianceCell(c.insurance)}${complianceCell(c.puc)}${complianceCell(c.fitness)}${complianceCell(c.permit)}${complianceCell(c.roadtax)}</tr>
-      <tr class="veh-history" data-hist="${v.id}" hidden><td colspan="6" style="background:#f8fafc">${serviceHistoryHTML(v.id)}</td></tr>`;
+      <tr class="veh-history" data-hist="${v.id}" hidden><td colspan="7" style="background:#f8fafc">${serviceHistoryHTML(v.id)}</td></tr>`;
   }).join("");
   document.getElementById("vehicleComplianceTable").innerHTML =
-    `<table class="chart-table-el"><thead><tr><th>Vehicle</th><th>Insurance</th><th>PUC</th><th>Fitness</th><th>Permit</th><th>Road Tax</th></tr></thead><tbody>${rows}</tbody></table>`;
+    `<table class="chart-table-el"><thead><tr><th>Vehicle</th><th>Health</th><th>Insurance</th><th>PUC</th><th>Fitness</th><th>Permit</th><th>Road Tax</th></tr></thead><tbody>${rows}</tbody></table>`;
   document.querySelectorAll(".veh-row").forEach(r => r.addEventListener("click", () => {
     const hist = document.querySelector(`[data-hist="${r.dataset.vid}"]`);
     hist.hidden = !hist.hidden;
@@ -467,7 +557,7 @@ function serviceHistoryHTML(vid) {
 // ---------- Render: drivers ----------
 function renderDrivers() {
   document.getElementById("driversTable").innerHTML = db.drivers.length ?
-    `<table class="chart-table-el"><thead><tr><th>Driver</th><th>DL Number</th><th>DL Validity</th><th>Assigned Vehicle</th></tr></thead><tbody>` +
+    `<table class="chart-table-el"><thead><tr><th>Driver</th><th>DL Number</th><th>DL Validity</th><th>Assigned Vehicle</th><th>Driver Link</th></tr></thead><tbody>` +
     db.drivers.map(d => {
       const days = d.dlExpiry ? daysUntil(d.dlExpiry) : null;
       const pill = days === null ? '<span class="fw-badge upcoming">Not set</span>' :
@@ -475,7 +565,8 @@ function renderDrivers() {
         days <= 30 ? `<span class="fw-badge soon">${FWIcon("clock", { size: 13 })}${days}d left</span>` :
         `<span class="fw-badge ok">${FWIcon("shieldCheck", { size: 13 })}${fmtDate(d.dlExpiry)}</span>`;
       return `<tr><td><strong>${esc(d.name)}</strong>${d.phone ? "<br /><span class='muted'>" + FWIcon("phone", { size: 13, cls: "ic-muted" }) + " " + esc(d.phone) + "</span>" : ""}</td>
-        <td>${esc(d.dlNo)}</td><td>${pill}</td><td>${d.vehicleId ? esc(vName(d.vehicleId)) : "<span class='muted'>—</span>"}</td></tr>`;
+        <td>${esc(d.dlNo)}</td><td>${pill}</td><td>${d.vehicleId ? esc(vName(d.vehicleId)) : "<span class='muted'>—</span>"}</td>
+        <td><button class="link-btn" onclick="copyDriverLink('${d.id}')">${FWIcon("link", { size: 13 })} Copy link</button></td></tr>`;
     }).join("") + "</tbody></table>"
     : "<p class='muted'>No drivers added yet.</p>";
 }
@@ -1542,6 +1633,8 @@ function renderAll() {
   renderVendors(); renderIntegrations(); renderReports();
   if (window.renderAnalyticsAll) renderAnalyticsAll();
   if (window.renderAccountPortal) renderAccountPortal();
+  renderHealth();
+  renderActionInbox();
   const org = document.getElementById("topOrg");
   if (org) org.textContent = (db.settings && db.settings.businessName) || "My Fleet";
   updateToolbarCounts();

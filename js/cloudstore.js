@@ -103,6 +103,21 @@
 
     logout() { setSession(null); location.reload(); },
 
+    /* Signed-in user's uuid (null when signed out) — used to build
+       owner-scoped rows like driver_entries. */
+    uid() { const s = session(); return (s && s.user && s.user.id) || null; },
+
+    /* Authenticated PATCH — path is table + PostgREST filter,
+       e.g. "driver_entries?id=eq.<uuid>". */
+    async authPatch(path, body) {
+      const r = await authFetch("/rest/v1/" + path, {
+        method: "PATCH",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify(body)
+      });
+      return r.ok;
+    },
+
     /* Generic authenticated read, scoped by RLS to whatever the signed-in
        account is allowed to see (e.g. a partner's own vendor_applications
        row). query is a raw PostgREST query string, e.g. "select=*&limit=1". */

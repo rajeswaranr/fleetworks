@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FleetWorks Driver — Daily Entry</title>
+  <meta name="description" content="FleetWorks driver page: log diesel fills, report problems and submit the daily vehicle check — no login needed." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" type="image/png" href="icons/icon-96.png" />
+  <meta name="theme-color" content="#0f1e33" />
+</head>
+<body style="background:#f4f6f9">
+
+  <header class="drv-head">
+    <img src="assets/logo-mark.svg" width="30" height="30" alt="" />
+    <span class="drv-brand">Fleet<em>Works</em></span>
+    <div class="drv-who">
+      <strong id="drvName">Driver</strong>
+      <span class="muted" id="drvVeh"></span>
+    </div>
+  </header>
+
+  <main class="drv-main">
+
+    <!-- Invalid / missing link -->
+    <div id="drvInvalid" class="chart-card" hidden style="text-align:center;padding:34px 22px">
+      <span class="ic-tile warning" style="width:54px;height:54px;margin:0 auto 12px"><i data-icon="alert" data-icon-size="28"></i></span>
+      <h2 style="color:var(--navy)">This link isn't valid</h2>
+      <p class="muted" style="margin-top:8px">Ask your fleet owner to send you a fresh Driver Link from the FleetWorks Fleet Manager (Drivers page).</p>
+    </div>
+
+    <div id="drvApp">
+      <div class="tab-bar" id="drvTabs">
+        <button class="tab-btn active" data-tab="fuel"><i data-icon="fuel" data-icon-size="16"></i> Diesel</button>
+        <button class="tab-btn" data-tab="issue"><i data-icon="alert" data-icon-size="16"></i> Problem</button>
+        <button class="tab-btn" data-tab="check"><i data-icon="clipboardCheck" data-icon-size="16"></i> Daily Check</button>
+      </div>
+
+      <!-- Diesel -->
+      <section class="tab-panel active" id="dtab-fuel">
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Diesel Fill</h2><p class="muted">Litres + meter reading — malik ka dashboard automatic update hoga</p></div></div>
+          <form id="dFuelForm" class="entry-form">
+            <div class="form-row">
+              <label>Litres
+                <input type="number" name="litres" step="0.01" min="1" placeholder="e.g. 180" required inputmode="decimal" />
+              </label>
+              <label>Total Amount (₹)
+                <input type="number" name="amount" min="1" placeholder="e.g. 16400" required inputmode="numeric" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Odometer (km)
+                <input type="number" name="odo" min="0" placeholder="meter reading" required inputmode="numeric" />
+              </label>
+              <label>Date
+                <input type="date" name="date" required />
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block"><i data-icon="fuel" data-icon-size="16"></i> Send Diesel Entry</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Problem -->
+      <section class="tab-panel" id="dtab-issue">
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Report a Problem</h2><p class="muted">Brake, engine, tyre — jo bhi gadbad hai, turant bhejo</p></div></div>
+          <form id="dIssForm" class="entry-form">
+            <label>What's wrong?
+              <input type="text" name="title" placeholder="e.g. Brake pedal spongy, engine overheating..." required />
+            </label>
+            <label>How serious?
+              <select name="severity" required>
+                <option>Low</option><option selected>Medium</option><option>High</option>
+              </select>
+            </label>
+            <button type="submit" class="btn btn-primary btn-block"><i data-icon="alert" data-icon-size="16"></i> Send Problem Report</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Daily check -->
+      <section class="tab-panel" id="dtab-check">
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Daily 10-Point Check</h2><p class="muted">Untick anything that's not OK, then submit</p></div></div>
+          <form id="dCheckForm" class="entry-form">
+            <div id="dCheckList" class="drv-checklist"></div>
+            <label>Odometer (km, optional)
+              <input type="number" name="odo" min="0" placeholder="meter reading" inputmode="numeric" />
+            </label>
+            <button type="submit" class="btn btn-primary btn-block"><i data-icon="clipboardCheck" data-icon-size="16"></i> Submit Daily Check</button>
+          </form>
+        </div>
+      </section>
+
+      <p id="drvStatus" class="drv-status" hidden></p>
+    </div>
+  </main>
+
+  <footer style="text-align:center;padding:18px;color:#8a94a6;font-size:0.75rem">
+    © 2026 FleetWorks Private Limited · <em>Where Every Fleet Learns.</em>
+  </footer>
+
+  <script src="js/icons.js"></script>
+  <script src="js/backend.js"></script>
+  <script src="js/driver.js"></script>
+</body>
+</html>
