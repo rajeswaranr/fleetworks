@@ -93,7 +93,7 @@
     dashboard: "gauge", vehicle: "truck", drivers: "driver", diesel: "fuel",
     inspection: "clipboardCheck", issues: "wrench", jobcard: "wrench",
     maintenance: "calendarClock", parts: "boxes", spares: "boxes",
-    ai: "brain", drishti: "brain", compliance: "shieldCheck",
+    ai: "brain", foresight: "brain", compliance: "shieldCheck",
     warranty: "shieldCheck", money: "rupee", cost: "rupee",
     analytics: "chartBar", reminder: "bell", reports: "chartBar",
     contacts: "driver", documents: "document", tools: "tools",

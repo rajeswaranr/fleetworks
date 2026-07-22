@@ -182,7 +182,7 @@ function computeInsights() {
     if (!dr.dlExpiry) return;
     const d = daysUntil(dr.dlExpiry);
     if (d < 0) out.push({ sev: 4, icon: "🪪", tag: "Driver DL", title: `${dr.name}: driving licence EXPIRED`, detail: `Expired ${-d} days ago. Driving without a valid DL risks challans and voids insurance claims.` });
-    else if (d <= 30) out.push({ sev: 3, icon: "🪪", tag: "Driver DL", title: `${dr.name}: DL expires in ${d} days`, detail: `Valid till ${fmtDate(dr.dlExpiry)}. Start the renewal at Parivahan Sarathi portal now.` });
+    else if (d <= 30) out.push({ sev: 3, icon: "🪪", tag: "Driver DL", title: `${dr.name}: DL expires in ${d} days`, detail: `Valid till ${fmtDate(dr.dlExpiry)}. Start the renewal at the Parivahan portal now.` });
   });
 
   // 9. Possible warranty claims (same part failing again within 12 months)

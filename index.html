@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FleetWorks — Where Every Fleet Learns | India's First AI/ML Vehicle Maintenance &amp; Management System</title>
-  <meta name="description" content="India's First AI/ML-powered vehicle maintenance and management system. Book truck, bus and fleet services, track expenses monthly/vehicle/part-wise with industry benchmarks, and predict repairs before parts fail." />
+  <title>FleetWorks — India's First AI-Powered Fleet Care Platform | Service Aggregator &amp; Fleet Management</title>
+  <meta name="description" content="India's first AI-powered fleet care platform. Book rated, authorised workshops for every HCV trade — mechanical, electrical, tyre, breakdown, towing, painting, fuel, EV charging, washing — with genuine parts, a low-price guarantee and warranty. Plus complete bookkeeping, predictive maintenance and higher uptime for fleet owners." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -18,33 +18,27 @@
   <!-- ======= TOP BAR ======= -->
   <div class="topbar">
     <div class="container topbar-inner">
-      <span>🛞 24x7 Breakdown Helpline: <a href="tel:+919740799722"><strong>+91 97407 99722</strong></a></span>
-      <span class="topbar-cities">Serving: Delhi NCR · Mumbai · Chennai · Bengaluru · Hyderabad · Pune · Kolkata</span>
+      <span><i data-icon="phone" data-icon-size="13"></i> 24×7 Breakdown Helpline: <a href="tel:+919740799722"><strong>+91 97407 99722</strong></a></span>
+      <span class="topbar-cities">Delhi NCR · Mumbai · Chennai · Bengaluru · Hyderabad · Pune · Kolkata · Ahmedabad</span>
     </div>
   </div>
 
   <!-- ======= NAVBAR ======= -->
   <header class="navbar" id="navbar">
     <div class="container nav-inner">
-      <a href="#" class="logo">
+      <a href="index.html" class="logo">
         <img src="assets/logo-mark.svg" width="40" height="34" alt="" style="display:block" />
         <span>Fleet<em>Works</em></span>
       </a>
       <nav class="nav-links" id="navLinks">
+        <a href="#platform">Platform</a>
         <a href="#services">Services</a>
+        <a href="#owners">For Fleet Owners</a>
         <a href="why.html">Why FleetWorks</a>
-        <a href="my.html" class="nav-partner">My FleetWorks</a>
-        <a href="dashboard.html">AI Dashboard</a>
-        <a href="fleet.html">Fleet Manager</a>
-        <a href="command.html">Command Center</a>
-        <a href="partner.html">Become a Partner</a>
+        <a href="partner.html">Partners</a>
       </nav>
       <div class="nav-actions">
-        <a href="tel:+919740799722" class="btn btn-outline btn-sm">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-          Call Us
-        </a>
-        <a href="signin.html" class="btn btn-outline btn-sm" id="navSignIn">Sign In</a>
+        <a href="my.html" class="btn btn-outline btn-sm" id="navSignIn">Sign In</a>
         <button class="btn btn-primary btn-sm" onclick="openBooking()">Book Service</button>
         <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
       </div>
@@ -55,27 +49,25 @@
   <section class="hero">
     <div class="container hero-inner">
       <div class="hero-text">
-        <span class="badge badge-flash"><i data-icon="zap" data-icon-size="14"></i> India's Unified Fleet Care Platform</span>
-        <h1>Every repair, every reminder — <span class="accent">one platform.</span></h1>
-        <p>Book verified workshops across <strong>9+ trades</strong> — mechanical, electrical, tyre, battery, body &amp; FC, towing, painting, washing, refurbishing — while FleetWorks keeps you RTO-compliant, tracks every rupee, and predicts repairs with AI. The whole fleet office, unified.</p>
-        <ul class="hero-points">
-          <li><i data-icon="network" data-icon-size="17" class="ic-amber"></i> One tap to 9+ verified trades</li>
-          <li><i data-icon="shieldCheck" data-icon-size="17" class="ic-amber"></i> RTO compliance &amp; expense tracking</li>
-          <li><i data-icon="brain" data-icon-size="17" class="ic-amber"></i> Drishti AI + Sarathi assistant</li>
-          <li><i data-icon="sos" data-icon-size="17" class="ic-amber"></i> 24×7 breakdown across highways</li>
-        </ul>
+        <span class="badge badge-flash"><i data-icon="zap" data-icon-size="14"></i> India's First AI-Powered Fleet Care Platform</span>
+        <h1>Every trade your fleet needs — <span class="accent">rated, genuine, guaranteed.</span></h1>
+        <p>One platform to book authorised workshops for every heavy-vehicle service, and to run your entire fleet office. Genuine parts only, a low-price guarantee, and AI that keeps your trucks earning — not waiting.</p>
+        <div class="hero-cta">
+          <button class="btn btn-primary" onclick="openBooking()"><i data-icon="wrench" data-icon-size="16"></i> Book a Service</button>
+          <a href="my.html" class="btn btn-outline btn-light-outline"><i data-icon="gauge" data-icon-size="16"></i> Start 15-Day Free Trial</a>
+        </div>
         <div class="hero-stats">
           <div><strong>50,000+</strong><span>Vehicles Serviced</span></div>
-          <div><strong>500+</strong><span>Partner Workshops</span></div>
+          <div><strong>500+</strong><span>Rated Workshops</span></div>
           <div><strong>25+</strong><span>Cities</span></div>
           <div><strong>4.7★</strong><span>Avg. Rating</span></div>
         </div>
       </div>
 
-      <!-- Quick booking card -->
+      <!-- Quick booking card (functional) -->
       <div class="booking-card" id="quickBook">
-        <h3>Get Instant Quote</h3>
-        <p class="muted">Free pickup &amp; inspection at select workshops</p>
+        <h3>Get an Instant Quote</h3>
+        <p class="muted">Free inspection at select workshops · call-back in 15 minutes</p>
         <form id="quickForm" novalidate>
           <label>Vehicle Type
             <select name="vehicle" required>
@@ -92,17 +84,16 @@
           <label>Service Needed
             <select name="service" id="quickService" required>
               <option value="">Select a service</option>
-              <option>Mechanical Repair</option>
-              <option>Electrical &amp; Wiring</option>
-              <option>Tyre Service / Replacement</option>
-              <option>Battery Service / Replacement</option>
-              <option>FC &amp; Body Shop</option>
+              <option>Mechanical &amp; Garage</option>
+              <option>Electrical</option>
+              <option>Puncture &amp; Tyre</option>
+              <option>Breakdown Assistance</option>
               <option>Towing &amp; Recovery</option>
-              <option>Painting &amp; Branding</option>
+              <option>Painting &amp; Body</option>
+              <option>Fuel Delivery</option>
+              <option>EV Charging</option>
               <option>Washing &amp; Detailing</option>
-              <option>Refurbishing</option>
-              <option>Preventive Maintenance / PMS</option>
-              <option>24x7 Breakdown Assistance</option>
+              <option>Full HCV Maintenance</option>
             </select>
           </label>
           <label>City
@@ -116,160 +107,170 @@
           <label>Mobile Number
             <input type="tel" name="phone" placeholder="10-digit mobile number" maxlength="10" pattern="[6-9][0-9]{9}" required />
           </label>
-          <button type="submit" class="btn btn-primary btn-block">Check Price — It's Free</button>
-          <p class="form-note">By continuing you agree to our Terms. We'll call you within 15 minutes.</p>
+          <button type="submit" class="btn btn-primary btn-block">Get My Quote — Free</button>
+          <p class="form-note">By continuing you agree to our Terms. No upfront charge.</p>
         </form>
       </div>
     </div>
   </section>
 
-  <!-- ======= PILLARS (unified solution) ======= -->
+  <!-- ======= TRUST STRIP ======= -->
+  <section class="trust-strip">
+    <div class="container">
+      <p class="trust-label">Every make, every heavy vehicle — serviced by verified experts</p>
+      <div class="brand-row">
+        <span>Tata</span><span>Ashok Leyland</span><span>BharatBenz</span><span>Eicher</span>
+        <span>Mahindra</span><span>Volvo</span><span>Scania</span><span>AMW</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======= PILLARS (three things) ======= -->
   <section class="section" id="platform">
     <div class="container">
       <div class="section-head">
-        <h2>One platform. Three ways we keep you moving.</h2>
-        <p>FleetWorks unifies the whole fleet office — the service network, the maintenance software and the AI — so nothing falls through the cracks.</p>
+        <h2>One platform, three ways we keep you moving</h2>
+        <p>FleetWorks brings the whole fleet office together — the service network, the books, and the AI — so nothing slips and every vehicle stays earning.</p>
       </div>
       <div class="pillars">
         <article class="pillar-card">
           <span class="pillar-ic"><i data-icon="network" data-icon-size="26"></i></span>
-          <h3>On-Demand Service Network</h3>
-          <p>One tap connects you to verified workshops across 9+ trades — mechanical, electrical, tyre, battery, body &amp; FC, towing, painting, washing and refurbishing — with upfront pricing and a service warranty.</p>
-          <a href="#services" class="link-btn">Explore services →</a>
+          <h3>Service Aggregator</h3>
+          <p>Book rated, authorised workshops for every trade — mechanic, electrical, tyre, breakdown, towing, painting, fuel, EV charging and washing — with genuine parts and a low-price guarantee.</p>
+          <a href="#services" class="link-btn">See all services →</a>
         </article>
         <article class="pillar-card featured">
           <span class="pillar-ic"><i data-icon="gauge" data-icon-size="26"></i></span>
-          <h3>Fleet Maintenance Software</h3>
-          <p>Your entire fleet office in one place — RTO compliance, diesel &amp; mileage, digital inspections, job cards, spares godown, tyre health and a document vault. Built for Indian transporters.</p>
-          <a href="fleet.html" class="link-btn">Open Fleet Manager →</a>
+          <h3>Fleet Books &amp; Uptime</h3>
+          <p>Complete bookkeeping and revenue maximising for fleet owners — track every rupee and every bolt, stay RTO-compliant, and keep uptime high with predictive maintenance.</p>
+          <a href="#owners" class="link-btn">For fleet owners →</a>
         </article>
         <article class="pillar-card">
           <span class="pillar-ic"><i data-icon="brain" data-icon-size="26"></i></span>
-          <h3>AI That Never Sleeps</h3>
-          <p><strong>Drishti</strong> watches your fleet round the clock — inflated bills, RTO lapses, falling mileage, worn tyres — while <strong>Sarathi</strong> answers your questions in plain language.</p>
+          <h3>AI Intelligence</h3>
+          <p><strong>Foresight</strong> predicts repairs before parts fail and flags inflated bills or lapsing documents; <strong>Copilot</strong> answers any question about your fleet in plain English.</p>
           <a href="dashboard.html" class="link-btn">See the AI →</a>
         </article>
       </div>
     </div>
   </section>
 
-  <!-- ======= SERVICES ======= -->
+  <!-- ======= AGGREGATOR / SERVICES ======= -->
   <section class="section alt" id="services">
     <div class="container">
       <div class="section-head">
         <h2>India's fleet-service aggregator</h2>
-        <p>Every trade your commercial vehicle needs, one verified network — from a puncture on the highway to a full body rebuild.</p>
+        <p>Every heavy-vehicle trade, one verified network — each workshop rated by fleet owners like you.</p>
       </div>
       <div class="services-grid">
-        <article class="service-card" data-service="Mechanical Repair">
+        <article class="service-card" data-service="Mechanical &amp; Garage">
           <div class="service-icon"><i data-icon="wrench" data-icon-size="26"></i></div>
-          <h3>Mechanical</h3>
-          <p>Engine overhaul, gearbox, differential, clutch, brakes, suspension, turbocharger and fuel-pump work by HCV specialists.</p>
-          <span class="price-tag">Free inspection &amp; quote</span>
+          <div class="svc-top"><h3>Mechanic &amp; Garages</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> 4.8</span></div>
+          <p>Authorised HCV garages for engine, gearbox, clutch, brakes, suspension and fuel-system work.</p>
           <button class="link-btn">Book Now →</button>
         </article>
-        <article class="service-card" data-service="Electrical &amp; Wiring">
+        <article class="service-card" data-service="Electrical">
           <div class="service-icon"><i data-icon="zap" data-icon-size="26"></i></div>
-          <h3>Electrical</h3>
-          <p>Self-starter, alternator, full wiring harness, lights, sensors and dashboard electrical diagnostics.</p>
-          <span class="price-tag">Free inspection &amp; quote</span>
+          <div class="svc-top"><h3>Electrical</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> 4.7</span></div>
+          <p>Self-starter, alternator, wiring harness, sensors, lights and full electrical diagnostics.</p>
           <button class="link-btn">Book Now →</button>
         </article>
-        <article class="service-card" data-service="Tyre Service / Replacement">
+        <article class="service-card" data-service="Puncture &amp; Tyre">
           <div class="service-icon"><i data-icon="tire" data-icon-size="26"></i></div>
-          <h3>Tyre</h3>
-          <p>New tyres (MRF, Apollo, JK, CEAT), retreading, alignment, balancing and on-road puncture assistance.</p>
-          <span class="price-tag">Free inspection &amp; quote</span>
-          <button class="link-btn">Book Now →</button>
-        </article>
-        <article class="service-card" data-service="Battery Service / Replacement">
-          <div class="service-icon"><i data-icon="battery" data-icon-size="26"></i></div>
-          <h3>Battery</h3>
-          <p>Doorstep testing, jump-start, charging and replacement — Exide, Amaron &amp; Tata Green with warranty.</p>
-          <span class="price-tag">Free inspection &amp; quote</span>
-          <button class="link-btn">Book Now →</button>
-        </article>
-        <article class="service-card" data-service="FC &amp; Body Shop">
-          <div class="service-icon"><i data-icon="carFront" data-icon-size="26"></i></div>
-          <h3>FC &amp; Body Shop</h3>
-          <p>Fitness-certificate prep, cabin &amp; load-body repair, denting, welding and load-body fabrication.</p>
-          <span class="price-tag">Free inspection &amp; quote</span>
+          <div class="svc-top"><h3>Puncture &amp; Tyre</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> 4.8</span></div>
+          <p>On-road puncture help, new tyres, retreading, alignment and balancing — all major brands.</p>
           <button class="link-btn">Book Now →</button>
         </article>
         <article class="service-card" data-service="Towing &amp; Recovery">
           <div class="service-icon"><i data-icon="tow" data-icon-size="26"></i></div>
-          <h3>Towing &amp; Recovery</h3>
-          <p>Flatbed and heavy-vehicle towing, on-road recovery and cross-city transport when a vehicle can't move.</p>
-          <span class="price-tag">Free inspection &amp; quote</span>
+          <div class="svc-top"><h3>Towing &amp; Recovery</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> 4.6</span></div>
+          <p>Flatbed and heavy-vehicle towing, on-road recovery and cross-city transport.</p>
           <button class="link-btn">Book Now →</button>
         </article>
-        <article class="service-card" data-service="Painting &amp; Branding">
+        <article class="service-card" data-service="Painting &amp; Body">
           <div class="service-icon"><i data-icon="spray" data-icon-size="26"></i></div>
-          <h3>Painting &amp; Branding</h3>
-          <p>Full-body painting, anti-rust coating, fleet livery and branding — showroom finish for your whole fleet.</p>
-          <span class="price-tag">Free inspection &amp; quote</span>
+          <div class="svc-top"><h3>Painting &amp; Body</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> 4.7</span></div>
+          <p>Cabin &amp; load-body repair, denting, fabrication, anti-rust, full painting and fleet livery.</p>
+          <button class="link-btn">Book Now →</button>
+        </article>
+        <article class="service-card" data-service="Fuel Delivery">
+          <div class="service-icon"><i data-icon="fuel" data-icon-size="26"></i></div>
+          <div class="svc-top"><h3>Fuel Delivery</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> 4.6</span></div>
+          <p>Doorstep and roadside diesel delivery when a vehicle runs dry — metered and billed.</p>
+          <button class="link-btn">Book Now →</button>
+        </article>
+        <article class="service-card" data-service="EV Charging">
+          <div class="service-icon"><i data-icon="charge" data-icon-size="26"></i></div>
+          <div class="svc-top"><h3>EV Charging</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> New</span></div>
+          <p>Charging-station locator and sessions for electric commercial vehicles across the network.</p>
           <button class="link-btn">Book Now →</button>
         </article>
         <article class="service-card" data-service="Washing &amp; Detailing">
           <div class="service-icon"><i data-icon="droplet" data-icon-size="26"></i></div>
-          <h3>Washing &amp; Detailing</h3>
-          <p>Pressure wash, underbody &amp; engine-bay cleaning, cabin detailing and periodic fleet-wash contracts.</p>
-          <span class="price-tag">Free inspection &amp; quote</span>
+          <div class="svc-top"><h3>Washing &amp; Detailing</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> 4.7</span></div>
+          <p>Pressure wash, underbody &amp; engine-bay cleaning, cabin detailing and fleet-wash contracts.</p>
           <button class="link-btn">Book Now →</button>
         </article>
-        <article class="service-card" data-service="Refurbishing">
-          <div class="service-icon"><i data-icon="sparkle" data-icon-size="26"></i></div>
-          <h3>Refurbishing</h3>
-          <p>End-to-end restoration to boost resale value — mechanical, body, interiors and paint, inspection-ready.</p>
-          <span class="price-tag">Free inspection &amp; quote</span>
-          <button class="link-btn">Book Now →</button>
-        </article>
-        <article class="service-card" data-service="Preventive Maintenance / PMS">
+        <article class="service-card" data-service="Full HCV Maintenance">
           <div class="service-icon"><i data-icon="calendarClock" data-icon-size="26"></i></div>
-          <h3>Preventive Maintenance</h3>
-          <p>Scheduled PMS — oil &amp; filters, greasing, coolant and a 40-point inspection with a digital report.</p>
-          <span class="price-tag">Free inspection &amp; quote</span>
+          <div class="svc-top"><h3>Full HCV Maintenance</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> 4.8</span></div>
+          <p>Scheduled PMS, 40-point inspections and preventive care — the complete maintenance package.</p>
           <button class="link-btn">Book Now →</button>
         </article>
-        <article class="service-card" data-service="Digital Fleet Maintenance">
-          <div class="service-icon"><i data-icon="gauge" data-icon-size="26"></i></div>
-          <h3>Fleet Software</h3>
-          <p>Compliance, fuel, inspections, job cards, spares and tyre health — the digital fleet office, included.</p>
-          <span class="price-tag">Free 15-day trial</span>
-          <a href="fleet.html" class="link-btn">Open →</a>
-        </article>
-        <article class="service-card highlight" data-service="24x7 Breakdown Assistance">
+        <article class="service-card highlight" data-service="Breakdown Assistance">
           <div class="service-icon amber"><i data-icon="sos" data-icon-size="26"></i></div>
-          <h3>24×7 Breakdown</h3>
-          <p>Stranded on the highway? On-road repair, towing and fuel delivery across 25+ cities and major corridors.</p>
-          <span class="price-tag">Response &lt; 90 min</span>
+          <div class="svc-top"><h3>24×7 Breakdown</h3><span class="rating light"><i data-icon="check" data-icon-size="11"></i> &lt; 90 min</span></div>
+          <p>Stranded on the highway? On-road repair, towing and fuel delivery across cities and corridors.</p>
           <button class="link-btn">Get Help Now →</button>
         </article>
       </div>
 
-      <div class="ai-strip" id="ai-features">
-        <div>
-          <h3 class="ai-strip-head"><i data-icon="brain" data-icon-size="24"></i> The AI/ML layer every fleet needs</h3>
-          <p>FleetWorks is more than repairs — it's India's first AI/ML vehicle maintenance and management system. Track expenses monthly-, vehicle- and part-wise, benchmarked against your own fleet and industry averages. Our models learn your service history and part lifespans to predict what you'll spend before the part fails.</p>
-          <div class="ai-chip-row">
-            <span class="ai-chip">Expense Analytics</span>
-            <span class="ai-chip">Industry Benchmarking</span>
-            <span class="ai-chip">Predictive Maintenance</span>
-            <span class="ai-chip">Expense Forecasting</span>
-            <span class="ai-chip">Tally Export for GST</span>
-            <span class="ai-chip">RTO Compliance Alerts</span>
-            <span class="ai-chip">Driver DL Tracking</span>
-            <span class="ai-chip">Diesel &amp; Mileage</span>
-            <span class="ai-chip">Digital Inspections</span>
-            <span class="ai-chip">Job Cards</span>
-            <span class="ai-chip">Drishti — AI Fleet Watch</span>
-            <span class="ai-chip">Sarathi — Ask Your Fleet</span>
-          </div>
+      <!-- USP guarantees (shown once) -->
+      <div class="usp-grid">
+        <div class="usp-card">
+          <span class="usp-ic"><i data-icon="shieldCheck" data-icon-size="22"></i></span>
+          <h4>Genuine parts only</h4>
+          <p>Every job uses genuine spares and high-grade oils &amp; lubricants — with the bill to prove it. No fakes, ever.</p>
         </div>
-        <div style="text-align:center">
-          <a href="my.html" class="btn btn-primary" style="font-size:1.05rem;padding:16px 34px;margin-bottom:10px">Start 15-Day Free Trial →</a><br />
-          <a href="dashboard.html" class="btn btn-ghost" style="font-size:1rem;padding:14px 30px">Try with Demo Data →</a>
-          <p style="margin-top:12px;color:#94a3b8;font-size:0.8rem">15-day free trial · GST or PAN to sign up · no card needed</p>
+        <div class="usp-card">
+          <span class="usp-ic"><i data-icon="rupee" data-icon-size="22"></i></span>
+          <h4>Low-price guarantee</h4>
+          <p>Find it cheaper for the same genuine work nearby and we'll match it. Our low-price challenge, on every quote.</p>
+        </div>
+        <div class="usp-card">
+          <span class="usp-ic"><i data-icon="document" data-icon-size="22"></i></span>
+          <h4>Warranty guaranteed</h4>
+          <p>Workmanship and parts carry a guaranteed warranty, as per terms &amp; conditions — in writing, every time.</p>
+        </div>
+        <div class="usp-card">
+          <span class="usp-ic"><i data-icon="search" data-icon-size="22"></i></span>
+          <h4>Track every bolt</h4>
+          <p>A full digital record of every part replaced — down to a single bolt — attached to each vehicle's history.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======= FOR FLEET OWNERS ======= -->
+  <section class="section" id="owners">
+    <div class="container">
+      <div class="section-head">
+        <h2>For fleet owners: keep the books tight and the wheels turning</h2>
+        <p>India's first AI-powered fleet management — complete bookkeeping and higher uptime, so every vehicle earns more and surprises you less.</p>
+      </div>
+      <div class="owner-split">
+        <ul class="owner-feats">
+          <li><i data-icon="rupee" data-icon-size="18" class="ic-amber"></i> <div><strong>Complete bookkeeping</strong><span>Every fuel fill, expense and job card tracked vehicle-, part- and month-wise — one-click Tally export for GST.</span></div></li>
+          <li><i data-icon="trendUp" data-icon-size="18" class="ic-amber"></i> <div><strong>Maximise revenue &amp; uptime</strong><span>Fewer breakdowns and faster turnaround mean more days on the road and more earning per vehicle.</span></div></li>
+          <li><i data-icon="brain" data-icon-size="18" class="ic-amber"></i> <div><strong>Predictive maintenance</strong><span>Foresight learns your service history and part lifespans to flag repairs before parts fail.</span></div></li>
+          <li><i data-icon="shieldCheck" data-icon-size="18" class="ic-amber"></i> <div><strong>RTO compliance radar</strong><span>Insurance, PUC, Fitness, Permit, Road Tax and driver licences — every expiry, ranked by urgency.</span></div></li>
+        </ul>
+        <div class="owner-cta-card">
+          <h3>Your whole fleet office, in your pocket</h3>
+          <p>Compliance, diesel &amp; mileage, inspections, job cards, spares and tyre health — with Foresight watching and Copilot answering.</p>
+          <a href="fleet.html" class="btn btn-primary btn-block">Open Fleet Manager</a>
+          <a href="my.html" class="btn btn-outline btn-block">Start 15-Day Free Trial</a>
+          <p class="form-note">GST or PAN to sign up · no card needed</p>
         </div>
       </div>
     </div>
@@ -279,91 +280,52 @@
   <section class="section alt" id="how-it-works">
     <div class="container">
       <div class="section-head">
-        <h2>How FleetWorks Works</h2>
-        <p>From quote to delivery in four simple steps.</p>
+        <h2>How it works</h2>
+        <p>From quote to back-on-the-road in four simple steps.</p>
       </div>
       <div class="steps">
         <div class="step">
           <div class="step-num">1</div>
-          <h3>Tell Us the Problem</h3>
-          <p>Select your vehicle and service online, or call our helpline. Get an instant estimated price.</p>
+          <h3>Tell us the problem</h3>
+          <p>Pick your vehicle and service online, or call the helpline. Get an instant estimate.</p>
         </div>
         <div class="step">
           <div class="step-num">2</div>
-          <h3>Get Matched</h3>
-          <p>We assign the best-rated nearby workshop or send a doorstep mechanic to your location.</p>
+          <h3>Get matched</h3>
+          <p>We assign the best-rated nearby workshop, or send a doorstep expert to you.</p>
         </div>
         <div class="step">
           <div class="step-num">3</div>
-          <h3>Approve &amp; Track</h3>
-          <p>Approve the final quote before work starts. Track job progress with photos and updates on WhatsApp.</p>
+          <h3>Approve &amp; track</h3>
+          <p>Approve the itemised quote before work starts. Track progress with photos on WhatsApp.</p>
         </div>
         <div class="step">
           <div class="step-num">4</div>
-          <h3>Pay &amp; Roll</h3>
-          <p>Pay only after quality check. GST invoice, genuine-part bills and up to 6-month warranty included.</p>
+          <h3>Pay &amp; roll</h3>
+          <p>Pay after a quality check. GST invoice, genuine-part bills and warranty included.</p>
         </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ======= VEHICLES ======= -->
-  <section class="section" id="vehicles">
-    <div class="container">
-      <div class="section-head">
-        <h2>Vehicles We Service</h2>
-        <p>All major brands — Tata, Ashok Leyland, BharatBenz, Eicher, Mahindra, Volvo, Scania &amp; more.</p>
-      </div>
-      <div class="vehicle-grid">
-        <div class="vehicle-chip">🚛 Trucks &amp; Lorries</div>
-        <div class="vehicle-chip">🚌 Buses &amp; Coaches</div>
-        <div class="vehicle-chip">🚚 LCVs &amp; Pickups</div>
-        <div class="vehicle-chip">🛻 Tippers &amp; Dumpers</div>
-        <div class="vehicle-chip">🛢️ Tankers</div>
-        <div class="vehicle-chip">📦 Trailers &amp; Containers</div>
-        <div class="vehicle-chip">🚜 Construction Equipment</div>
-        <div class="vehicle-chip">❄️ Reefer Vehicles</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ======= WHY US ======= -->
-  <section class="section" id="why-us">
-    <div class="container">
-      <div class="section-head">
-        <h2>Why Fleet Owners Trust Us</h2>
-      </div>
-      <div class="why-grid">
-        <div class="why-item"><span>🛡️</span><h3>Genuine Parts</h3><p>OEM &amp; OES parts with bills — no fakes, ever.</p></div>
-        <div class="why-item"><span>💰</span><h3>Upfront Pricing</h3><p>Approve the quote before a single bolt is touched.</p></div>
-        <div class="why-item"><span>🧾</span><h3>Tally Export for GST</h3><p>Every expense exports to Tally in one click — vouchers and ledgers ready for GST filing and your accountant.</p></div>
-        <div class="why-item"><span>⏱️</span><h3>Less Downtime</h3><p>Faster turnaround means your vehicle earns, not waits.</p></div>
-        <div class="why-item"><span>👨‍🔧</span><h3>Trained Mechanics</h3><p>HCV-certified technicians, background verified.</p></div>
-        <div class="why-item"><span>📱</span><h3>Live Job Tracking</h3><p>Photo updates and status on WhatsApp at every stage.</p></div>
       </div>
     </div>
   </section>
 
   <!-- ======= TESTIMONIALS ======= -->
-  <section class="section alt" id="reviews">
+  <section class="section" id="reviews">
     <div class="container">
-      <div class="section-head">
-        <h2>What Our Customers Say</h2>
-      </div>
+      <div class="section-head"><h2>Trusted by transporters across India</h2></div>
       <div class="testimonials">
         <blockquote class="testimonial">
           <div class="stars">★★★★★</div>
-          <p>"My truck broke down near Panipat at 2 AM. FleetWorks's mechanic reached in under an hour and got the fuel pump sorted on the spot. Lifesaver for transporters."</p>
+          <p>"My truck broke down near Panipat at 2 AM. A mechanic reached in under an hour and fixed the fuel pump on the spot. Lifesaver."</p>
           <footer><strong>Rajinder Singh</strong><span>Owner, 12-truck fleet · Delhi NCR</span></footer>
         </blockquote>
         <blockquote class="testimonial">
           <div class="stars">★★★★★</div>
-          <p>"We moved our 40-bus fleet to their Fleet Pro AMC. Breakdowns dropped by half and the monthly reports make audits painless."</p>
-          <footer><strong>Meena Krishnan</strong><span>Operations Head, Chennai Travels</span></footer>
+          <p>"The books practically keep themselves now. Breakdowns dropped by half and the monthly reports make GST audits painless."</p>
+          <footer><strong>Meena Krishnan</strong><span>Operations Head · Chennai Travels</span></footer>
         </blockquote>
         <blockquote class="testimonial">
           <div class="stars">★★★★☆</div>
-          <p>"Tyre replacement for my tipper cost 15% less than the local market, with proper billing. Alignment was included. Very professional."</p>
+          <p>"Genuine parts, proper billing, and the price was below the local market. Alignment was included. Very professional."</p>
           <footer><strong>Amol Pawar</strong><span>Construction Contractor · Pune</span></footer>
         </blockquote>
       </div>
@@ -371,31 +333,29 @@
   </section>
 
   <!-- ======= FAQ ======= -->
-  <section class="section" id="faq">
+  <section class="section alt" id="faq">
     <div class="container narrow">
-      <div class="section-head">
-        <h2>Frequently Asked Questions</h2>
-      </div>
+      <div class="section-head"><h2>Frequently asked questions</h2></div>
       <div class="faq-list">
         <details>
-          <summary>How does FleetWorks pricing work?</summary>
-          <p>You get an estimated price instantly when you book. After physical inspection, the workshop shares a final itemised quote — work starts only after your approval. No hidden charges.</p>
+          <summary>How does pricing work?</summary>
+          <p>You get an instant estimate when you book. After inspection, the workshop shares a final itemised quote — work starts only after your approval. Our low-price guarantee means we'll match a cheaper quote for the same genuine work nearby.</p>
         </details>
         <details>
-          <summary>Do you provide doorstep service?</summary>
-          <p>Yes. Battery replacement, tyre puncture, minor electrical work and inspections are done at your doorstep or roadside. Major mechanical jobs are done at partner workshops, with pickup assistance available.</p>
+          <summary>Are the parts genuine?</summary>
+          <p>Yes. Every job uses genuine spares and high-grade oils &amp; lubricants, with the bill to prove it. Every part replaced is logged to your vehicle's digital history — down to a single bolt.</p>
         </details>
         <details>
           <summary>What warranty do I get?</summary>
-          <p>Up to 6 months / 20,000 km warranty on service labour, plus the manufacturer's warranty on all parts (batteries and tyres carry their brand warranty).</p>
+          <p>Workmanship and parts carry a guaranteed warranty as per terms &amp; conditions — provided in writing with every job. Batteries and tyres also carry their brand warranty.</p>
+        </details>
+        <details>
+          <summary>Is the fleet software really free to try?</summary>
+          <p>Yes — a 15-day free trial with no card needed. You sign up with a GST number or PAN to verify your business. After the trial, keep your data and choose a plan that fits your fleet.</p>
         </details>
         <details>
           <summary>How fast is breakdown assistance?</summary>
-          <p>Inside city limits we target under 90 minutes. On major highways (NH-44, NH-48, Golden Quadrilateral corridors) our partner network covers most stretches within 2 hours.</p>
-        </details>
-        <details>
-          <summary>Can I get GST invoices for my company?</summary>
-          <p>Absolutely. Every job comes with a proper GST invoice against your GSTIN, and fleet customers get consolidated monthly statements.</p>
+          <p>Inside city limits we target under 90 minutes. On major highways our partner network covers most corridors within 2 hours.</p>
         </details>
       </div>
     </div>
@@ -410,7 +370,7 @@
       </div>
       <div class="cta-actions">
         <button class="btn btn-light" onclick="openBooking()">Book a Service</button>
-        <a href="tel:+919740799722" class="btn btn-ghost">📞 +91 97407 99722</a>
+        <a href="tel:+919740799722" class="btn btn-ghost"><i data-icon="phone" data-icon-size="15"></i> +91 97407 99722</a>
       </div>
     </div>
   </section>
@@ -419,43 +379,30 @@
   <footer class="footer">
     <div class="container footer-grid">
       <div>
-        <a href="#" class="logo footer-logo">
-          <span>Fleet<em>Works</em></span>
-        </a>
-        <p><em>Where Every Fleet Learns.</em><br />India's First AI/ML-powered vehicle maintenance &amp; management system. Repairs, expense analytics and predictive maintenance for trucks, buses and commercial fleets.</p>
+        <a href="index.html" class="logo footer-logo"><span>Fleet<em>Works</em></span></a>
+        <p>India's first AI-powered fleet care platform — a rated service aggregator with genuine parts and a low-price guarantee, plus complete bookkeeping and predictive maintenance for fleet owners.</p>
       </div>
       <div>
-        <h4>Services</h4>
-        <a href="#services">Mechanical Repairs</a>
-        <a href="#services">Tyre Services</a>
-        <a href="#services">Battery Services</a>
-        <a href="#services">Breakdown Assistance</a>
+        <h4>Platform</h4>
+        <a href="#platform">Overview</a>
+        <a href="#services">Services</a>
+        <a href="#owners">For Fleet Owners</a>
+        <a href="fleet.html">Fleet Manager</a>
+        <a href="dashboard.html">AI Dashboard</a>
       </div>
       <div>
         <h4>Company</h4>
         <a href="why.html">Why FleetWorks</a>
-        <a href="dashboard.html">AI Dashboard</a>
-        <a href="fleet.html">Fleet Manager</a>
-        <a href="command.html">Command Center</a>
+        <a href="partner.html">Become a Partner</a>
         <a href="#how-it-works">How It Works</a>
         <a href="#reviews">Reviews</a>
         <a href="#faq">FAQ</a>
-        <a href="partner.html">Partner With Us</a>
-        <a href="#">Careers</a>
-      </div>
-      <div>
-        <h4>Cities</h4>
-        <a href="#">Delhi NCR</a>
-        <a href="#">Mumbai</a>
-        <a href="#">Chennai</a>
-        <a href="#">Bengaluru</a>
-        <a href="#">Hyderabad</a>
       </div>
       <div>
         <h4>Contact</h4>
-        <a href="tel:+919740799722">📞 +91 97407 99722</a>
-        <a href="mailto:admin@fleetworks.in">✉️ admin@fleetworks.in</a>
-        <p class="muted">Mon–Sun, 24x7 support</p>
+        <a href="tel:+919740799722"><i data-icon="phone" data-icon-size="13"></i> +91 97407 99722</a>
+        <a href="mailto:admin@fleetworks.in"><i data-icon="document" data-icon-size="13"></i> admin@fleetworks.in</a>
+        <p class="muted">Mon–Sun · 24×7 support</p>
       </div>
     </div>
     <div class="footer-bottom">
@@ -471,7 +418,7 @@
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <button class="modal-close" onclick="closeBooking()" aria-label="Close">✕</button>
       <div id="modalFormView">
-        <h3 id="modalTitle">Book Your Service</h3>
+        <h3 id="modalTitle">Book your service</h3>
         <p class="muted">Fill this in and we'll call you back within 15 minutes.</p>
         <form id="bookingForm" novalidate>
           <label>Your Name
@@ -506,21 +453,16 @@
             <label>Service Needed
               <select name="service" id="modalService" required>
                 <option value="">Select service</option>
-                <option>Mechanical Repair</option>
-                <option>Electrical &amp; Wiring</option>
-                <option>Tyre Service / Replacement</option>
-                <option>Battery Service / Replacement</option>
-                <option>FC &amp; Body Shop</option>
+                <option>Mechanical &amp; Garage</option>
+                <option>Electrical</option>
+                <option>Puncture &amp; Tyre</option>
+                <option>Breakdown Assistance</option>
                 <option>Towing &amp; Recovery</option>
-                <option>Painting &amp; Branding</option>
+                <option>Painting &amp; Body</option>
+                <option>Fuel Delivery</option>
+                <option>EV Charging</option>
                 <option>Washing &amp; Detailing</option>
-                <option>Refurbishing</option>
-                <option>Preventive Maintenance / PMS</option>
-                <option>Digital Fleet Maintenance</option>
-                <option>24x7 Breakdown Assistance</option>
-                <option>Fleet — Starter Plan</option>
-                <option>Fleet — Pro Plan</option>
-                <option>Fleet — Enterprise Plan</option>
+                <option>Full HCV Maintenance</option>
                 <option>Partner Workshop Enquiry</option>
               </select>
             </label>
@@ -532,8 +474,8 @@
         </form>
       </div>
       <div id="modalSuccessView" hidden>
-        <div class="success-icon">✅</div>
-        <h3>Request Received!</h3>
+        <div class="success-icon"><i data-icon="checkCircle" data-icon-size="46"></i></div>
+        <h3>Request received!</h3>
         <p>Thanks, <strong id="successName"></strong>. Our service advisor will call <strong id="successPhone"></strong> within 15 minutes with your quote.</p>
         <p class="muted">Booking reference: <strong id="successRef"></strong></p>
         <button class="btn btn-primary btn-block" onclick="closeBooking()">Done</button>

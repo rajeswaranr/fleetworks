@@ -1,7 +1,6 @@
 /* ============ FleetWorks — copilot.js ============
-   Sarathi — the FleetWorks AI: a floating chat assistant that answers
+   Copilot — the FleetWorks AI: a floating chat assistant that answers
    questions from the fleet data in localStorage ("ff_fleet").
-   (Sarathi = charioteer: the trusted guide who steers you right.)
    Runs fully client-side; understands plain English fleet questions. */
 
 (function () {
@@ -140,17 +139,17 @@
 
   // ---------- UI ----------
   const html = `
-    <button id="cpFab" aria-label="Ask Sarathi, the FleetWorks AI">🛞<span>Ask Sarathi</span></button>
+    <button id="cpFab" aria-label="Ask Copilot, the FleetWorks AI"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5L19 9.9l-5.1 1.9L12 17l-1.9-5.2L5 9.9l5.1-1L12 3Z"/></svg><span>Ask Copilot</span></button>
     <div id="cpPanel" hidden>
       <div class="cp-head" id="cpHead" title="Drag to move">
-        <span class="cp-head-title"><span class="cp-drag-grip">⠿</span>🛞 Sarathi <small style="font-weight:500;opacity:0.75;margin-left:4px">· AI</small></span>
+        <span class="cp-head-title"><span class="cp-drag-grip">⠿</span><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M12 3l1.9 5L19 9.9l-5.1 1.9L12 17l-1.9-5.2L5 9.9l5.1-1L12 3Z"/></svg>Copilot <small style="font-weight:500;opacity:0.75;margin-left:4px">· AI</small></span>
         <span class="cp-head-actions">
           <button id="cpMin" aria-label="Minimize" title="Minimize">–</button>
           <button id="cpClose" aria-label="Close" title="Close">✕</button>
         </span>
       </div>
       <div class="cp-body" id="cpBody">
-        <div class="cp-msg cp-bot">Hello! 👋 I'm <strong>Sarathi</strong>, your fleet's AI. Ask me about expenses, mileage, RTO documents, driver licences, job cards or maintenance — plain English works great.</div>
+        <div class="cp-msg cp-bot">Hello! 👋 I'm <strong>Copilot</strong>, your fleet's AI. Ask me about expenses, mileage, RTO documents, driver licences, job cards or maintenance — plain English works great.</div>
         <div class="cp-chips" id="cpChips">
           <button data-q="Total spend this month">Spend this month</button>
           <button data-q="Which vehicle is most expensive per km?">Costliest vehicle</button>
