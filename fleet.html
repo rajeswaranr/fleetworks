@@ -78,6 +78,10 @@
         <button class="tab-btn" data-tab="issues"><i data-icon="wrench"></i> Issues &amp; Job Cards</button>
         <button class="tab-btn" data-tab="reminders"><i data-icon="calendarClock"></i> Maintenance</button>
         <button class="tab-btn" data-tab="parts"><i data-icon="boxes"></i> Spares Godown</button>
+        <button class="tab-btn" data-tab="radar"><i data-icon="shieldCheck"></i> Compliance Radar</button>
+        <button class="tab-btn" data-tab="documents"><i data-icon="document"></i> Documents</button>
+        <button class="tab-btn" data-tab="tyres"><i data-icon="tire"></i> Tyre Health</button>
+        <button class="tab-btn" data-tab="settings"><i data-icon="settings"></i> Settings</button>
       </div>
 
       <!-- ======= OVERVIEW ======= -->
@@ -406,6 +410,170 @@
             </div>
             <button type="submit" class="btn btn-primary">Save Part</button>
           </form>
+        </div>
+      </section>
+
+      <!-- ======= COMPLIANCE RADAR ======= -->
+      <section class="tab-panel" id="tab-radar">
+        <section class="stat-row" id="radarStats"></section>
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="shieldCheck" data-icon-size="22"></i></span> Compliance Radar</h2>
+              <p class="muted">Every renewal across your fleet in one place — vehicle documents, driver licences, part warranties and maintenance — ranked by urgency. Drishti keeps this list current.</p>
+            </div>
+            <div class="radar-filters" id="radarFilters"></div>
+          </div>
+          <div class="chart-scroll"><div id="radarTable"></div></div>
+        </div>
+      </section>
+
+      <!-- ======= DOCUMENTS ======= -->
+      <section class="tab-panel" id="tab-documents">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile info"><i data-icon="document" data-icon-size="22"></i></span> Document Vault</h2>
+              <p class="muted">Store RC, Insurance, Permit, PUC, Fitness, Road Tax and driver documents. Expiry dates flow straight into the Compliance Radar and Drishti alerts.</p>
+            </div>
+          </div>
+          <div class="chart-scroll"><div id="documentsTable"></div></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Add / Update Document</h2></div></div>
+          <form id="documentForm" class="entry-form">
+            <div class="form-row">
+              <label>Attach To
+                <select name="entityType" id="docEntityType" required>
+                  <option value="vehicle">Vehicle</option>
+                  <option value="driver">Driver</option>
+                </select>
+              </label>
+              <label id="docEntityWrap">Vehicle / Driver
+                <select name="entityId" id="docEntitySelect" required></select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Document Type
+                <select name="docType" id="docTypeSelect" required></select>
+              </label>
+              <label>Document Number
+                <input type="text" name="number" placeholder="e.g. policy / permit no." />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Issued On
+                <input type="date" name="issueDate" />
+              </label>
+              <label>Valid Till (Expiry)
+                <input type="date" name="expiryDate" required />
+              </label>
+            </div>
+            <label>Note (optional)
+              <input type="text" name="note" placeholder="e.g. Insurer, RTO office, agent contact" />
+            </label>
+            <button type="submit" class="btn btn-primary"><i data-icon="plus" data-icon-size="16"></i> Save Document</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ======= TYRE HEALTH ======= -->
+      <section class="tab-panel" id="tab-tyres">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="tire" data-icon-size="22"></i></span> Tyre Health</h2>
+              <p class="muted">Log tread depth and pressure per wheel position. Worn tyres (below the safe limit) and under-inflation are flagged automatically — better mileage, fewer blowouts.</p>
+            </div>
+            <div>
+              <label class="inline-select">Vehicle
+                <select id="tyreVehicleFilter"></select>
+              </label>
+            </div>
+          </div>
+          <div id="tyreLayout"></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Log a Tyre Reading</h2></div></div>
+          <form id="tyreForm" class="entry-form">
+            <div class="form-row">
+              <label>Vehicle
+                <select name="vehicleId" id="tyreFormVehicle" required></select>
+              </label>
+              <label>Wheel Position
+                <select name="position" id="tyrePosition" required></select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Tread Depth (mm)
+                <input type="number" name="treadDepth" min="0" max="30" step="0.1" placeholder="e.g. 8.5" required />
+              </label>
+              <label>Pressure (psi)
+                <input type="number" name="pressure" min="0" max="160" placeholder="e.g. 100" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Odometer (km)
+                <input type="number" name="odo" min="0" placeholder="current km" />
+              </label>
+              <label>Reading Date
+                <input type="date" name="date" required />
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary"><i data-icon="plus" data-icon-size="16"></i> Save Reading</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- ======= SETTINGS ======= -->
+      <section class="tab-panel" id="tab-settings">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="settings" data-icon-size="22"></i></span> Settings</h2>
+              <p class="muted">Your business profile and how FleetWorks alerts you. These are saved with your fleet and sync to your account.</p>
+            </div>
+          </div>
+          <form id="settingsForm" class="entry-form">
+            <div class="form-row">
+              <label>Transport / Company Name
+                <input type="text" name="businessName" placeholder="e.g. SR Transports" />
+              </label>
+              <label>GSTIN (optional)
+                <input type="text" name="gstin" placeholder="e.g. 33ABCDE1234F1Z5" maxlength="15" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Base City / Depot
+                <input type="text" name="city" placeholder="e.g. Coimbatore" />
+              </label>
+              <label>Warn me before expiry (days)
+                <select name="warnDays">
+                  <option value="15">15 days</option>
+                  <option value="30" selected>30 days</option>
+                  <option value="45">45 days</option>
+                  <option value="60">60 days</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Safe tread-depth limit (mm)
+                <input type="number" name="minTread" min="0" max="10" step="0.1" placeholder="1.6" />
+              </label>
+              <label>Target mileage alert (% drop)
+                <input type="number" name="mileageDropPct" min="5" max="50" placeholder="15" />
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Save Settings</button>
+          </form>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Data &amp; Backup</h2></div></div>
+          <div class="settings-actions">
+            <button type="button" class="btn btn-outline" id="exportDataBtn"><i data-icon="download" data-icon-size="16"></i> Export My Fleet (JSON)</button>
+            <button type="button" class="btn btn-outline" id="clearDemoBtn"><i data-icon="trash" data-icon-size="16"></i> Clear Demo Data</button>
+          </div>
+          <p class="muted" style="margin-top:12px">Export downloads a full copy of your fleet data to your device. Clearing demo data removes the sample fleet only — your own records are kept.</p>
         </div>
       </section>
     </div>

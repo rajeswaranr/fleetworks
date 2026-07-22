@@ -16,9 +16,11 @@ function loadStore() {
       fuelLogs: d.fuelLogs || [], inspections: d.inspections || [],
       issues: d.issues || [], reminders: d.reminders || [],
       parts: d.parts || [], drivers: d.drivers || [],
-      workOrders: d.workOrders || [], demo: !!d.demo
+      workOrders: d.workOrders || [], documents: d.documents || [],
+      tyreReadings: d.tyreReadings || [], settings: d.settings || {},
+      demo: !!d.demo
     };
-  } catch { return { vehicles: [], expenses: [], fuelLogs: [], inspections: [], issues: [], reminders: [], parts: [], drivers: [], workOrders: [], demo: false }; }
+  } catch { return { vehicles: [], expenses: [], fuelLogs: [], inspections: [], issues: [], reminders: [], parts: [], drivers: [], workOrders: [], documents: [], tyreReadings: [], settings: {}, demo: false }; }
 }
 function saveStore() {
   localStorage.setItem(STORE_KEY, JSON.stringify(db));
@@ -53,6 +55,34 @@ const INSPECTION_ITEMS = [
   "Engine oil leak check", "Coolant level", "Battery & terminals",
   "Documents in cabin (RC/Ins/PUC)", "Load body & tarpaulin", "Cabin & seat belts"
 ];
+
+// Document types for the Document Vault, split by what they attach to.
+const DOC_TYPES = {
+  vehicle: ["Registration Certificate (RC)", "Insurance Policy", "National Permit", "State Permit",
+            "PUC Certificate", "Fitness Certificate (FC)", "Road Tax Receipt", "Green Tax",
+            "Goods Carriage Permit", "Fastag / Toll", "Other"],
+  driver: ["Driving Licence", "Aadhaar", "PAN Card", "Police Verification",
+           "Medical Certificate", "Training Certificate", "Other"]
+};
+
+// Wheel positions by vehicle type — used by Tyre Health. Trucks/tippers are
+// 10-wheelers (2 front + dual rear on 2 axles); LCV/Bus kept simpler.
+const AXLE_LAYOUTS = {
+  "Truck (HCV)": ["Front Left", "Front Right", "Rear-1 Left Outer", "Rear-1 Left Inner", "Rear-1 Right Inner", "Rear-1 Right Outer", "Rear-2 Left Outer", "Rear-2 Left Inner", "Rear-2 Right Inner", "Rear-2 Right Outer"],
+  "Tipper": ["Front Left", "Front Right", "Rear-1 Left Outer", "Rear-1 Left Inner", "Rear-1 Right Inner", "Rear-1 Right Outer", "Rear-2 Left Outer", "Rear-2 Left Inner", "Rear-2 Right Inner", "Rear-2 Right Outer"],
+  "Trailer": ["Front Left", "Front Right", "Rear-1 Left Outer", "Rear-1 Left Inner", "Rear-1 Right Inner", "Rear-1 Right Outer", "Rear-2 Left Outer", "Rear-2 Left Inner", "Rear-2 Right Inner", "Rear-2 Right Outer"],
+  "Tanker": ["Front Left", "Front Right", "Rear-1 Left Outer", "Rear-1 Left Inner", "Rear-1 Right Inner", "Rear-1 Right Outer", "Rear-2 Left Outer", "Rear-2 Left Inner", "Rear-2 Right Inner", "Rear-2 Right Outer"],
+  "Bus": ["Front Left", "Front Right", "Rear Left Outer", "Rear Left Inner", "Rear Right Inner", "Rear Right Outer"],
+  "LCV": ["Front Left", "Front Right", "Rear Left", "Rear Right"]
+};
+function tyrePositions(vid) {
+  const v = db.vehicles.find(x => x.id === vid);
+  return AXLE_LAYOUTS[v && v.type] || AXLE_LAYOUTS["LCV"];
+}
+
+// Settings-aware thresholds (fall back to sensible Indian defaults).
+function warnDays() { return +(db.settings && db.settings.warnDays) || 30; }
+function minTread() { return +(db.settings && db.settings.minTread) || 1.6; }
 
 // ---------- Fuel maths ----------
 function vehicleFills(vid) {
@@ -138,6 +168,13 @@ function computeInsights() {
     const d = daysUntil(p.warrantyExpiry);
     if (d < 0) out.push({ sev: 2, icon: "🛡️", tag: "Warranty", title: `${p.name}: warranty expired`, detail: `Expired ${-d} days ago${p.vendor ? " · " + p.vendor : ""}. Any pending claims should be raised before replacement.` });
     else if (d <= 30) out.push({ sev: 1, icon: "🛡️", tag: "Warranty", title: `${p.name}: warranty expires in ${d} days`, detail: `${p.vendor ? "Vendor: " + p.vendor + ". " : ""}Raise any known defects with the vendor before it lapses.` });
+  });
+
+  // 7c. Worn tyres (tread at/under the safe limit)
+  db.vehicles.forEach(v => {
+    const latest = latestReadings(v.id);
+    const worn = Object.values(latest).filter(r => r.treadDepth <= minTread());
+    if (worn.length) out.push({ sev: 3, icon: "tire", tag: "Tyre health", title: `${v.name}: ${worn.length} tyre(s) worn to ${minTread()}mm or below`, detail: `${worn.map(r => r.position).join(", ")} need replacement. Bald tyres fail fitness checks and risk blowouts on highway runs.` });
   });
 
   // 8. Driver licence expiry
@@ -490,6 +527,147 @@ function partDetailHTML(p) {
       : "<span class='muted'>No further details recorded.</span>") + "</div>";
 }
 
+// ---------- Render: Compliance Radar (unified renewals) ----------
+// Aggregate every dated renewal in the fleet into one urgency-ranked list.
+function radarItems() {
+  const items = [];
+  const push = (cat, entity, type, date) => { if (date) items.push({ cat, entity, type, date, days: daysUntil(date) }); };
+  db.vehicles.forEach(v => {
+    const c = v.compliance || {};
+    push("vehicle", v.name, "Insurance", c.insurance);
+    push("vehicle", v.name, "PUC", c.puc);
+    push("vehicle", v.name, "Fitness (FC)", c.fitness);
+    push("vehicle", v.name, "National Permit", c.permit);
+    push("vehicle", v.name, "Road Tax", c.roadtax);
+  });
+  db.documents.forEach(d => {
+    const name = d.entityType === "driver"
+      ? (db.drivers.find(x => x.id === d.entityId) || {}).name
+      : (db.vehicles.find(x => x.id === d.entityId) || {}).name;
+    push(d.entityType, name || "—", d.docType, d.expiryDate);
+  });
+  db.drivers.forEach(dr => push("driver", dr.name, "Driving Licence", dr.dlExpiry));
+  db.parts.forEach(p => push("warranty", p.name, "Warranty", p.warrantyExpiry));
+  reminderStatus().forEach(r => push("maintenance", vName(r.vehicleId), r.task, r.nextDate));
+  // de-dup: a vehicle doc and a compliance field of the same type/entity — keep the earlier
+  return items.sort((a, b) => a.days - b.days);
+}
+function radarBadge(days) {
+  if (days < 0) return `<span class="fw-badge overdue">${FWIcon("alert", { size: 13 })}Overdue ${-days}d</span>`;
+  if (days <= warnDays()) return `<span class="fw-badge soon">${FWIcon("clock", { size: 13 })}${days === 0 ? "Due today" : days + "d left"}</span>`;
+  return `<span class="fw-badge ok">${FWIcon("shieldCheck", { size: 13 })}${days}d</span>`;
+}
+const RADAR_ICON = { vehicle: "truck", driver: "driver", warranty: "shieldCheck", maintenance: "calendarClock" };
+let radarFilter = "all";
+function renderRadar() {
+  const all = radarItems();
+  const overdue = all.filter(i => i.days < 0).length;
+  const soon = all.filter(i => i.days >= 0 && i.days <= warnDays()).length;
+  const ok = all.length - overdue - soon;
+  document.getElementById("radarStats").innerHTML = `
+    <div class="stat-tile"><span class="ic-tile danger">${FWIcon("alert", { size: 22 })}</span><span class="stat-label">Overdue now</span><span class="stat-value" style="color:${overdue ? PAL.critical : PAL.good}">${overdue}</span><span class="stat-sub">renew immediately</span></div>
+    <div class="stat-tile"><span class="ic-tile warning">${FWIcon("clock", { size: 22 })}</span><span class="stat-label">Due within ${warnDays()} days</span><span class="stat-value">${soon}</span><span class="stat-sub">plan renewals</span></div>
+    <div class="stat-tile"><span class="ic-tile success">${FWIcon("shieldCheck", { size: 22 })}</span><span class="stat-label">In good standing</span><span class="stat-value">${ok}</span><span class="stat-sub">no action needed</span></div>
+    <div class="stat-tile"><span class="ic-tile brand">${FWIcon("bell", { size: 22 })}</span><span class="stat-label">Total tracked</span><span class="stat-value">${all.length}</span><span class="stat-sub">renewals on radar</span></div>`;
+
+  const filters = [["all", "All"], ["overdue", "Overdue"], ["soon", "Due soon"], ["vehicle", "Vehicle docs"], ["driver", "Driver docs"], ["warranty", "Warranty"], ["maintenance", "Maintenance"]];
+  document.getElementById("radarFilters").innerHTML = filters.map(([k, l]) =>
+    `<button class="radar-chip${radarFilter === k ? " active" : ""}" data-rf="${k}">${l}</button>`).join("");
+
+  let rows = all;
+  if (radarFilter === "overdue") rows = all.filter(i => i.days < 0);
+  else if (radarFilter === "soon") rows = all.filter(i => i.days >= 0 && i.days <= warnDays());
+  else if (["vehicle", "driver", "warranty", "maintenance"].includes(radarFilter)) rows = all.filter(i => i.cat === radarFilter);
+
+  document.getElementById("radarTable").innerHTML = rows.length ?
+    `<table class="chart-table-el"><thead><tr><th>Entity</th><th>Renewal</th><th>Valid Till</th><th>Status</th></tr></thead><tbody>` +
+    rows.map(i => `<tr>
+      <td><span class="cell-ic">${FWIcon(RADAR_ICON[i.cat] || "document", { size: 15, cls: "ic-muted" })}<strong>${esc(i.entity)}</strong></span></td>
+      <td>${esc(i.type)}</td>
+      <td>${fmtDate(i.date)}</td>
+      <td>${radarBadge(i.days)}</td></tr>`).join("") + "</tbody></table>"
+    : "<p class='muted'>Nothing in this view. Add vehicle compliance dates, documents or driver licences to populate the radar.</p>";
+}
+
+// ---------- Render: Document Vault ----------
+function docTypeOptions(entityType) {
+  return (DOC_TYPES[entityType] || DOC_TYPES.vehicle).map(t => `<option>${t}</option>`).join("");
+}
+function fillDocEntitySelect() {
+  const type = document.getElementById("docEntityType").value;
+  const list = type === "driver" ? db.drivers : db.vehicles;
+  document.getElementById("docEntitySelect").innerHTML =
+    list.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join("") ||
+    `<option value="">No ${type}s added yet</option>`;
+  document.getElementById("docTypeSelect").innerHTML = docTypeOptions(type);
+}
+function renderDocuments() {
+  const rows = [...db.documents].sort((a, b) => (a.expiryDate || "").localeCompare(b.expiryDate || ""));
+  document.getElementById("documentsTable").innerHTML = rows.length ?
+    `<table class="chart-table-el"><thead><tr><th>Attached To</th><th>Document</th><th>Number</th><th>Valid Till</th><th></th></tr></thead><tbody>` +
+    rows.map(d => {
+      const name = d.entityType === "driver"
+        ? (db.drivers.find(x => x.id === d.entityId) || {}).name
+        : (db.vehicles.find(x => x.id === d.entityId) || {}).name;
+      const days = d.expiryDate ? daysUntil(d.expiryDate) : null;
+      const badge = days === null ? '<span class="fw-badge upcoming">No expiry</span>' : radarBadge(days);
+      return `<tr>
+        <td><span class="cell-ic">${FWIcon(d.entityType === "driver" ? "driver" : "truck", { size: 15, cls: "ic-muted" })}<strong>${esc(name || "—")}</strong></span></td>
+        <td>${esc(d.docType)}</td>
+        <td>${d.number ? esc(d.number) : "<span class='muted'>—</span>"}</td>
+        <td>${d.expiryDate ? fmtDate(d.expiryDate) + " " : ""}${badge}</td>
+        <td><button class="icon-btn" title="Delete" onclick="deleteDocument('${d.id}')">${FWIcon("trash", { size: 16, cls: "ic-danger" })}</button></td></tr>`;
+    }).join("") + "</tbody></table>"
+    : "<p class='muted'>No documents stored yet. Add your first RC, insurance or permit below — expiries will show on the Compliance Radar.</p>";
+}
+function deleteDocument(id) {
+  if (!confirm("Delete this document?")) return;
+  db.documents = db.documents.filter(d => d.id !== id);
+  saveStore(); renderDocuments(); renderRadar(); renderOverview();
+}
+
+// ---------- Render: Tyre Health ----------
+function latestReadings(vid) {
+  const map = {};
+  db.tyreReadings.filter(t => t.vehicleId === vid)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .forEach(t => { map[t.position] = t; });
+  return map;
+}
+function renderTyres() {
+  const sel = document.getElementById("tyreVehicleFilter");
+  const vid = sel.value || (db.vehicles[0] && db.vehicles[0].id);
+  const box = document.getElementById("tyreLayout");
+  if (!vid) { box.innerHTML = "<p class='muted'>Add a vehicle first.</p>"; return; }
+  const positions = tyrePositions(vid);
+  const latest = latestReadings(vid);
+  const worn = positions.filter(p => latest[p] && latest[p].treadDepth <= minTread()).length;
+  const cards = positions.map(pos => {
+    const r = latest[pos];
+    const cls = !r ? "empty" : r.treadDepth <= minTread() ? "bad" : r.treadDepth <= minTread() + 1.5 ? "warn" : "good";
+    return `<div class="tyre-cell ${cls}">
+      <span class="tyre-pos">${FWIcon("tire", { size: 16 })} ${esc(pos)}</span>
+      ${r ? `<span class="tyre-read">${r.treadDepth}mm${r.pressure ? " · " + r.pressure + " psi" : ""}</span>
+             <span class="tyre-date">${fmtDate(r.date)}</span>` : `<span class="tyre-read muted">No reading</span>`}
+    </div>`;
+  }).join("");
+  box.innerHTML = `
+    <div class="tyre-summary">${worn ? `<span class="fw-badge overdue">${FWIcon("alert", { size: 13 })}${worn} tyre(s) at/under ${minTread()}mm — replace</span>` : `<span class="fw-badge ok">${FWIcon("shieldCheck", { size: 13 })}All tyres above the ${minTread()}mm safe limit</span>`} <span class="muted">Safe limit is set in Settings.</span></div>
+    <div class="tyre-grid">${cards}</div>`;
+}
+
+// ---------- Render: Settings ----------
+function renderSettings() {
+  const s = db.settings || {};
+  const f = document.getElementById("settingsForm");
+  f.businessName.value = s.businessName || "";
+  f.gstin.value = s.gstin || "";
+  f.city.value = s.city || "";
+  f.warnDays.value = s.warnDays || "30";
+  f.minTread.value = s.minTread || "";
+  f.mileageDropPct.value = s.mileageDropPct || "";
+}
+
 // ---------- Tooltip ----------
 const tip = () => document.getElementById("vizTooltip");
 function bindTips(container) {
@@ -634,7 +812,27 @@ function loadDemoFleet() {
     { id: uid(), name: "Alternator — 12V 90A", partNumber: "ALT-12V90-BL", make: "Bosch", category: "Electrical", sourcing: "Aftermarket", vendor: "Highway Motors, Chennai", vendorContact: "9840345678", unitCost: 6800, qty: 2, minQty: 1, location: "Rack E-2", purchaseDate: daysFromNow(-200), warrantyExpiry: daysFromNow(-5) }
   ];
 
-  db = { vehicles, expenses, fuelLogs, inspections, issues, reminders, parts, drivers, workOrders, demo: true };
+  // Documents: a few stored certificates, incl. one expiring soon and a driver doc
+  const documents = [
+    { id: uid(), entityType: "vehicle", entityId: "v1", docType: "Registration Certificate (RC)", number: "TN01AB1234", issueDate: daysFromNow(-1400), expiryDate: daysFromNow(1200), note: "RTO Chennai Central" },
+    { id: uid(), entityType: "vehicle", entityId: "v2", docType: "National Permit", number: "NP-TN-2024-5678", issueDate: daysFromNow(-320), expiryDate: daysFromNow(40), note: "5-year national permit" },
+    { id: uid(), entityType: "vehicle", entityId: "v3", docType: "Fitness Certificate (FC)", number: "FC-TN22-3456", issueDate: daysFromNow(-350), expiryDate: daysFromNow(-15), note: "Renew at RTO Salem" },
+    { id: uid(), entityType: "vehicle", entityId: "v4", docType: "Green Tax", number: "GT-KA05-7890", issueDate: daysFromNow(-200), expiryDate: daysFromNow(160), note: "" },
+    { id: uid(), entityType: "driver", entityId: drivers[1].id, docType: "Medical Certificate", number: "MED-2025-4471", issueDate: daysFromNow(-300), expiryDate: daysFromNow(65), note: "Annual HGV medical" }
+  ];
+
+  // Tyre readings: v1 (10-wheeler) fully logged with one worn tyre; v4 (bus) partial
+  const tyreReadings = [];
+  const v1pos = AXLE_LAYOUTS["Truck (HCV)"];
+  const v1tread = [7.8, 8.1, 5.5, 6.0, 5.8, 1.4, 6.6, 6.9, 7.1, 3.0]; // Rear-1 Right Outer worn out, Rear-2 outer getting low
+  v1pos.forEach((pos, i) => tyreReadings.push({ id: uid(), vehicleId: "v1", position: pos, treadDepth: v1tread[i], pressure: i < 2 ? 110 : 100, odo: 168000, date: daysFromNow(-4) }));
+  const v4pos = AXLE_LAYOUTS["Bus"];
+  const v4tread = [6.2, 5.9, 4.1, 4.5, 3.0, 4.8];
+  v4pos.forEach((pos, i) => tyreReadings.push({ id: uid(), vehicleId: "v4", position: pos, treadDepth: v4tread[i], pressure: 95, odo: 205000, date: daysFromNow(-2) }));
+
+  const settings = { businessName: "SR Transports", gstin: "", city: "Coimbatore", warnDays: 30, minTread: 1.6, mileageDropPct: 15 };
+
+  db = { vehicles, expenses, fuelLogs, inspections, issues, reminders, parts, drivers, workOrders, documents, tyreReadings, settings, demo: true };
   saveStore();
   renderAll();
 }
@@ -642,8 +840,10 @@ function loadDemoFleet() {
 // ---------- Forms & events ----------
 function fillVehicleSelects() {
   const opts = db.vehicles.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
-  ["compVehicle", "fuelVehicle", "inspVehicle", "issueVehicle", "remVehicle", "fuelVehicleFilter"].forEach(id => {
+  ["compVehicle", "fuelVehicle", "inspVehicle", "issueVehicle", "remVehicle", "fuelVehicleFilter",
+   "tyreVehicleFilter", "tyreFormVehicle"].forEach(id => {
     const el = document.getElementById(id);
+    if (!el) return;
     const keep = el.value;
     el.innerHTML = opts;
     if ([...el.options].some(o => o.value === keep)) el.value = keep;
@@ -652,6 +852,16 @@ function fillVehicleSelects() {
   const keepD = dv.value;
   dv.innerHTML = '<option value="">Not assigned</option>' + opts;
   if ([...dv.options].some(o => o.value === keepD)) dv.value = keepD;
+  fillDocEntitySelect();
+  fillTyrePositions();
+}
+function fillTyrePositions() {
+  const vsel = document.getElementById("tyreFormVehicle");
+  const psel = document.getElementById("tyrePosition");
+  if (!vsel || !psel) return;
+  const keep = psel.value;
+  psel.innerHTML = tyrePositions(vsel.value).map(p => `<option>${p}</option>`).join("");
+  if ([...psel.options].some(o => o.value === keep)) psel.value = keep;
 }
 
 document.getElementById("driverForm").addEventListener("submit", e => {
@@ -734,11 +944,78 @@ document.getElementById("partForm").addEventListener("submit", e => {
 document.getElementById("fuelVehicleFilter").addEventListener("change", renderFuel);
 document.getElementById("demoBtn").addEventListener("click", loadDemoFleet);
 
-// Tabs
+// ---- Documents ----
+document.getElementById("docEntityType").addEventListener("change", fillDocEntitySelect);
+document.getElementById("documentForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  if (!fd.entityId) { alert("Add a " + fd.entityType + " first, then attach the document."); return; }
+  db.documents.push({
+    id: uid(), entityType: fd.entityType, entityId: fd.entityId,
+    docType: fd.docType, number: fd.number.trim(),
+    issueDate: fd.issueDate || null, expiryDate: fd.expiryDate, note: fd.note.trim()
+  });
+  saveStore(); e.target.reset(); fillDocEntitySelect();
+  renderDocuments(); renderRadar(); renderOverview();
+});
+
+// ---- Tyre Health ----
+document.getElementById("tyreVehicleFilter").addEventListener("change", renderTyres);
+document.getElementById("tyreFormVehicle").addEventListener("change", fillTyrePositions);
+document.getElementById("tyreForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  db.tyreReadings.push({
+    id: uid(), vehicleId: fd.vehicleId, position: fd.position,
+    treadDepth: +fd.treadDepth, pressure: fd.pressure ? +fd.pressure : null,
+    odo: fd.odo ? +fd.odo : null, date: fd.date
+  });
+  saveStore(); e.target.reset();
+  document.getElementById("tyreVehicleFilter").value = fd.vehicleId;
+  renderTyres(); renderOverview();
+});
+
+// ---- Settings ----
+document.getElementById("settingsForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  db.settings = {
+    businessName: fd.businessName.trim(), gstin: fd.gstin.trim(), city: fd.city.trim(),
+    warnDays: +fd.warnDays, minTread: fd.minTread ? +fd.minTread : null,
+    mileageDropPct: fd.mileageDropPct ? +fd.mileageDropPct : null
+  };
+  saveStore(); renderRadar(); renderTyres(); renderOverview();
+  alert("Settings saved.");
+});
+document.getElementById("exportDataBtn").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(db, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "fleetworks-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+  a.click(); URL.revokeObjectURL(a.href);
+});
+document.getElementById("clearDemoBtn").addEventListener("click", () => {
+  if (!db.demo) { alert("No demo data loaded — your own records are untouched."); return; }
+  if (!confirm("Remove the sample demo fleet? Your own added records stay.")) return;
+  localStorage.removeItem(STORE_KEY);
+  db = loadStore(); renderAll();
+});
+
+// ---- Compliance Radar filter chips ----
+document.getElementById("radarFilters").addEventListener("click", e => {
+  const b = e.target.closest(".radar-chip");
+  if (!b) return;
+  radarFilter = b.dataset.rf;
+  renderRadar();
+});
+
+// Tabs — use closest() so clicks landing on the button's inner SVG icon
+// still resolve to the .tab-btn that carries data-tab.
 document.getElementById("tabBar").addEventListener("click", e => {
-  if (!e.target.dataset.tab) return;
-  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b === e.target));
-  document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "tab-" + e.target.dataset.tab));
+  const btn = e.target.closest(".tab-btn");
+  if (!btn || !btn.dataset.tab) return;
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b === btn));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "tab-" + btn.dataset.tab));
 });
 
 // Navbar
@@ -761,5 +1038,6 @@ function renderAll() {
   renderOverview(); renderVehicles(); renderDrivers(); renderFuel();
   renderInspectionForm(); renderInspectionHistory();
   renderIssues(); renderWorkOrders(); renderReminders(); renderParts();
+  renderRadar(); renderDocuments(); renderTyres(); renderSettings();
 }
 renderAll();

@@ -837,3 +837,44 @@ i[data-icon] { display: inline-flex; align-items: center; justify-content: cente
 .head-ic { display: inline-flex; align-items: center; gap: 10px; }
 .head-ic h2 { display: inline; }
 
+/* icon next to a cell value (radar / documents tables) */
+.cell-ic { display: inline-flex; align-items: center; gap: 7px; }
+.cell-ic .fw-ic { color: var(--muted); flex: none; }
+
+/* small ghost icon button (row delete etc.) */
+.icon-btn { background: none; border: none; cursor: pointer; padding: 4px; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--muted); }
+.icon-btn:hover { background: var(--bg-alt); }
+
+/* inline label+select in a chart-head */
+.inline-select { font-size: 0.8rem; font-weight: 600; color: var(--muted);
+  display: inline-flex; flex-direction: column; gap: 4px; }
+.inline-select select { font-family: inherit; font-size: 0.9rem; font-weight: 600; color: var(--ink);
+  padding: 8px 12px; border: 1.5px solid var(--line); border-radius: 9px; background: #fff; }
+
+/* ---- Compliance Radar filter chips ---- */
+.radar-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.radar-chip { font-family: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  padding: 6px 13px; border-radius: 100px; border: 1.5px solid var(--line);
+  background: #fff; color: var(--muted); transition: all 0.15s ease; }
+.radar-chip:hover { border-color: var(--navy); color: var(--navy); }
+.radar-chip.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+
+/* ---- Tyre Health grid ---- */
+.tyre-summary { margin: 4px 0 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tyre-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+.tyre-cell { border: 1.5px solid var(--line); border-radius: 12px; padding: 13px 15px;
+  display: flex; flex-direction: column; gap: 4px; background: #fff; border-left-width: 4px; }
+.tyre-cell.good  { border-left-color: var(--green); }
+.tyre-cell.warn  { border-left-color: var(--amber); }
+.tyre-cell.bad   { border-left-color: #dc2626; background: #fdf6f6; }
+.tyre-cell.empty { border-left-color: var(--line); background: var(--bg-alt); }
+.tyre-pos  { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 0.82rem; color: var(--navy); }
+.tyre-pos .fw-ic { color: var(--muted); }
+.tyre-read { font-size: 0.9rem; font-weight: 700; color: var(--ink); }
+.tyre-read.muted { font-weight: 500; }
+.tyre-date { font-size: 0.74rem; color: var(--muted); }
+
+/* ---- Settings ---- */
+.settings-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
