@@ -109,9 +109,16 @@
         <button class="side-close" id="sideClose" aria-label="Close menu">&times;</button>
       </div>
       <nav class="side-nav" id="tabBar">
-        <!-- ======= PILLAR 1: FleetOps — maintenance & daily operations ======= -->
+        <div class="side-id" id="sideIdentity" hidden>
+          <span class="side-id-org" id="idOrg"></span>
+          <span class="side-id-user" id="idUser"></span>
+        </div>
+        <button class="side-item tab-btn active" data-tab="home"><i data-icon="network"></i><span>Home — All Apps</span></button>
+
+        <!-- ======= WORKSPACE: FleetOps — maintenance & daily operations ======= -->
+        <div data-ws="ops" hidden>
         <div class="side-pillar ops"><span class="pp"></span>Fleet<em>Ops</em></div>
-        <button class="side-item tab-btn active" data-tab="overview"><i data-icon="gauge"></i><span>FleetOps Dashboard</span></button>
+        <button class="side-item tab-btn" data-tab="overview"><i data-icon="gauge"></i><span>FleetOps Dashboard</span></button>
         <button class="side-item tab-btn" data-tab="map"><i data-icon="mapPin"></i><span>Fleet Map</span></button>
 
         <div class="side-group has-children open">
@@ -182,24 +189,41 @@
             <button class="side-item tab-btn" data-tab="charging"><span>EV Charging</span></button>
           </div>
         </div>
+        </div>
 
-        <!-- ======= PILLAR 2: FleetFin — accounts & money only ======= -->
+        <!-- ======= WORKSPACE: FleetFin — accounts & money only ======= -->
+        <div data-ws="fin" hidden>
         <div class="side-pillar fin"><span class="pp"></span>Fleet<em>Fin</em></div>
         <button class="side-item tab-btn" data-tab="fin"><i data-icon="gauge"></i><span>FleetFin Dashboard</span></button>
-        <button class="side-item tab-btn" data-tab="expensehistory"><i data-icon="receipt"></i><span>Expense History</span></button>
+        <button class="side-item tab-btn" data-tab="account"><i data-icon="plus"></i><span>Add Entry — Diesel / Expense</span></button>
+        <button class="side-item tab-btn" data-tab="expensehistory"><i data-icon="receipt"></i><span>Expenses</span></button>
+        <button class="side-item tab-btn" data-tab="fuel"><i data-icon="fuel"></i><span>Fuel</span></button>
+        <button class="side-item tab-btn" data-tab="toll"><i data-icon="mapPin"></i><span>Toll &amp; FASTag</span></button>
+        <button class="side-item tab-btn" data-tab="def"><i data-icon="spray"></i><span>DEF / AdBlue</span></button>
+        <button class="side-item tab-btn" data-tab="invoices"><i data-icon="document"></i><span>Invoices</span></button>
+        <button class="side-item tab-btn" data-tab="gstbills"><i data-icon="receipt"></i><span>Bills — GST / Non-GST</span></button>
         <button class="side-item tab-btn" data-tab="accounts"><i data-icon="rupee"></i><span>Accounts &amp; Tally</span></button>
-        <button class="side-item tab-btn" data-tab="reports"><i data-icon="chartBar"></i><span>Standard Reports</span></button>
+        <button class="side-item tab-btn" data-tab="reports"><i data-icon="chartBar"></i><span>Reports &amp; Filters</span></button>
+        </div>
 
-        <!-- ======= PILLAR 3: FleetIQ — prediction, analytics, forecasting only ======= -->
+        <!-- ======= WORKSPACE: FleetIQ — prediction, analytics, forecasting only ======= -->
+        <div data-ws="iq" hidden>
         <div class="side-pillar iq"><span class="pp"></span>Fleet<em>IQ</em></div>
         <button class="side-item tab-btn" data-tab="analytics"><i data-icon="brain"></i><span>FleetIQ Dashboard</span></button>
-        <button class="side-item tab-btn" data-tab="replacement"><i data-icon="trendUp"></i><span>Replacement Analysis</span></button>
+        <button class="side-item tab-btn" data-tab="recurrent"><i data-icon="wrench"></i><span>Recurrent Issues</span></button>
+        <button class="side-item tab-btn" data-tab="deviation"><i data-icon="chartBar"></i><span>Deviation Analysis</span></button>
+        <button class="side-item tab-btn" data-tab="whatif"><i data-icon="eye"></i><span>What-if Analysis</span></button>
+        <button class="side-item tab-btn" data-tab="forecasting"><i data-icon="trendUp"></i><span>Forecasting</span></button>
+        <button class="side-item tab-btn" data-tab="anomaly"><i data-icon="shieldAlert"></i><span>Anomaly Detection</span></button>
+        <button class="side-item tab-btn" data-tab="replacement"><i data-icon="truck"></i><span>Predictive Analysis</span></button>
         <button class="side-item tab-btn" data-tab="itemfailures"><i data-icon="alert"></i><span>Failure Intelligence</span></button>
+        <button class="side-item tab-btn" data-tab="recommend"><i data-icon="checkCircle"></i><span>Recommendations</span></button>
+        </div>
 
         <div class="side-sep"></div>
-        <button class="side-item tab-btn" data-tab="integrations"><i data-icon="link"></i><span>Integrations</span></button>
         <button class="side-item tab-btn" data-tab="account"><i data-icon="driver"></i><span>My Account</span></button>
         <button class="side-item tab-btn" data-tab="settings"><i data-icon="settings"></i><span>Settings</span></button>
+        <button class="side-item tab-btn" data-tab="integrations"><i data-icon="link"></i><span>Integrations</span></button>
         <a class="side-item" href="tel:+919740799722"><i data-icon="phone"></i><span>Help &amp; Support</span></a>
       </nav>
       <div class="side-foot">
@@ -214,7 +238,7 @@
     <div class="app-main">
       <header class="app-top">
         <button class="side-toggle" id="sideToggle" aria-label="Menu"><span></span><span></span><span></span></button>
-        <h1 id="pageTitle">FleetOps Dashboard</h1>
+        <h1 id="pageTitle">Home</h1>
         <div class="top-search">
           <i data-icon="search" data-icon-size="15"></i>
           <input type="search" id="globalSearch" placeholder="Search this page…" autocomplete="off" />
@@ -238,7 +262,37 @@
         <div id="fleetContent" hidden>
 
       <!-- ======= OVERVIEW (widget dashboard) ======= -->
-      <section class="tab-panel active" id="tab-overview">
+      <!-- ======= HOME — APP HUB ======= -->
+      <section class="tab-panel active" id="tab-home">
+        <div class="hub-wrap">
+          <div class="hub-head">
+            <h2 id="hubGreeting">Welcome to FleetWorks</h2>
+            <p class="muted">Three workspaces, one fleet. Everything you enter in one flows through all three.</p>
+          </div>
+          <div class="hub-grid">
+            <button type="button" class="hub-card" data-hub="ops">
+              <span class="ic-tile brand hub-ic"><i data-icon="truck" data-icon-size="34"></i></span>
+              <h3>Fleet<em>Ops</em></h3>
+              <p>Run the fleet, day to day. Vehicles &amp; RTO, drivers, job cards, inspections, service reminders, parts, tyres and fuel — everything that keeps trucks rolling.</p>
+              <span class="hub-cta">Open FleetOps &rarr;</span>
+            </button>
+            <button type="button" class="hub-card" data-hub="fin">
+              <span class="ic-tile success hub-ic"><i data-icon="rupee" data-icon-size="34"></i></span>
+              <h3>Fleet<em>Fin</em></h3>
+              <p>Mind the money. Every expense, diesel fill, invoice and toll in GST-ready books — with Tally export, cost charts and reports your accountant will love.</p>
+              <span class="hub-cta">Open FleetFin &rarr;</span>
+            </button>
+            <button type="button" class="hub-card" data-hub="iq">
+              <span class="ic-tile info hub-ic"><i data-icon="brain" data-icon-size="34"></i></span>
+              <h3>Fleet<em>IQ</em></h3>
+              <p>See tomorrow, today. Forecasting, anomaly detection, recurrent-issue hunting, deviation analysis and AI recommendations that keep trucks earning.</p>
+              <span class="hub-cta">Open FleetIQ &rarr;</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-overview">
         <div class="dash-toolbar">
           <span class="lt-count" id="dashUpdated"></span>
           <span class="lt-spacer"></span>

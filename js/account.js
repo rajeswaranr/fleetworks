@@ -54,6 +54,18 @@ function updateAuthPill() {
        <button type="button" class="btn btn-primary btn-sm btn-block" id="pillSignIn">Sign In / Create Account</button>`;
   document.getElementById("pillSignIn")?.addEventListener("click", openGate);
   document.getElementById("pillLogout")?.addEventListener("click", doLogout);
+
+  // sidebar identity block: transporter name + username
+  const idBox = document.getElementById("sideIdentity");
+  if (idBox) {
+    const p = window.fwCloud && fwCloud.profile();
+    const org = (p && p.transport_name) || (db.settings && db.settings.businessName) || "My Fleet";
+    idBox.hidden = false;
+    document.getElementById("idOrg").textContent = org;
+    document.getElementById("idUser").textContent = user ? ownerDisplayName() : "Demo mode";
+  }
+  const hg = document.getElementById("hubGreeting");
+  if (hg) hg.textContent = user ? "Welcome back, " + ownerDisplayName() : "Welcome to FleetWorks";
 }
 
 function doLogout() {

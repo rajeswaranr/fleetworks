@@ -1156,3 +1156,31 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .auth-gate-alt { margin-top: 10px; }
 .auth-gate-news { padding: 24px 28px 12px; }
 .auth-gate-logo img { border-radius: 12px; }
+
+/* ---------- Home hub (three-workspace launcher) ---------- */
+.hub-wrap { max-width: 980px; margin: 26px auto 0; text-align: center; }
+.hub-head h2 { color: var(--navy); font-size: 1.65rem; }
+.hub-head p { margin-top: 6px; }
+.hub-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 30px; }
+.hub-card {
+  background: #fff; border: 1px solid #e7ebf1; border-radius: 18px;
+  padding: 34px 26px 26px; cursor: pointer; text-align: center; font-family: inherit;
+  box-shadow: 0 6px 20px rgba(15, 30, 51, 0.05);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+}
+.hub-card:hover { transform: translateY(-4px); box-shadow: 0 18px 44px rgba(15, 30, 51, 0.13); border-color: #d6deea; }
+.hub-ic { width: 64px; height: 64px; margin: 0 auto 16px; }
+.hub-card h3 { font-size: 1.3rem; color: var(--navy); font-weight: 800; }
+.hub-card h3 em { font-style: normal; color: var(--amber); }
+.hub-card[data-hub="fin"] h3 em { color: #1baf7a; }
+.hub-card[data-hub="iq"] h3 em { color: #4a86e8; }
+.hub-card p { color: #64748b; font-size: 0.88rem; line-height: 1.55; margin: 10px 0 16px; }
+.hub-cta { color: var(--amber-dark); font-weight: 700; font-size: 0.85rem; }
+.hub-card[data-hub="fin"] .hub-cta { color: #14855c; }
+.hub-card[data-hub="iq"] .hub-cta { color: #3568c4; }
+@media (max-width: 900px) { .hub-grid { grid-template-columns: 1fr; } }
+
+/* Sidebar identity block */
+.side-id { display: flex; flex-direction: column; gap: 1px; padding: 12px 14px 10px; }
+.side-id-org { color: #f2f6fd; font-weight: 700; font-size: 0.92rem; }
+.side-id-user { color: #8fa3c0; font-size: 0.76rem; }

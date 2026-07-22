@@ -327,6 +327,37 @@ function renderDashboard() {
   // tyres
   const worn = db.vehicles.reduce((n, v) => n + Object.values(latestReadings(v.id)).filter(r => r.treadDepth <= minTread()).length, 0);
 
+  // breakdown ageing (open issues by age bucket)
+  const ages = [0, 0, 0, 0];
+  openIss.forEach(i => {
+    if (!i.createdAt) return;
+    const d = (now - new Date(i.createdAt)) / 86400000;
+    if (d <= 7) ages[0]++; else if (d <= 30) ages[1]++; else if (d <= 90) ages[2]++; else ages[3]++;
+  });
+
+  // inspection item failures per month
+  const failM = months.map(m => db.inspections.filter(i => i.date && i.date.startsWith(m))
+    .reduce((s, i) => s + i.results.filter(r => !r.ok).length, 0));
+
+  // regulatory non-compliance by document type (+ driver DLs)
+  const regRows = Object.entries(DOC_LABELS).map(([k, label]) => {
+    let o = 0, s = 0;
+    db.vehicles.forEach(v => {
+      const till = v.compliance && v.compliance[k];
+      if (!till) return;
+      const d = daysUntil(till);
+      if (d < 0) o++; else if (d <= warnDays()) s++;
+    });
+    return { label, o, s };
+  });
+  let dlO = 0, dlS = 0;
+  db.drivers.forEach(d => {
+    if (!d.dlExpiry) return;
+    const x = daysUntil(d.dlExpiry);
+    if (x < 0) dlO++; else if (x <= warnDays()) dlS++;
+  });
+  regRows.push({ label: "Driver DL", o: dlO, s: dlS });
+
   // recent activity
   const acts = [
     ...db.issues.map(i => ({ d: i.resolvedAt || i.createdAt, t: `${vName(i.vehicleId)} — ${i.title} (${i.status})`, ic: i.status === "Resolved" ? "checkCircle" : "wrench" })),
@@ -348,6 +379,10 @@ function renderDashboard() {
     dw("On-Time Maintenance", `<span class="dw-big" style="color:${onTime >= 90 ? G : onTime >= 70 ? A : R}">${onTime}%</span><span class="dw-sub">PM schedules on time</span>`),
     dw("Inspections · 30 days", dwPair(insp30, "Submitted", N, failRate + "%", "Item fail rate", failRate ? A : G)),
     dw("Tyre Health", `<span class="dw-big" style="color:${worn ? R : G}">${worn}</span><span class="dw-sub">Tyres at/under ${minTread()}mm</span>`),
+    dw("Breakdown Ageing", miniBars(ages, ["≤7d", "8–30", "31–90", ">90d"], PAL.serious) + `<span class="dw-sub">${openIss.length} open issue${openIss.length === 1 ? "" : "s"} by age</span>`),
+    dw("Inspection Failures", miniBars(failM, mL, PAL.critical) + `<span class="dw-sub">Failed checklist items per month</span>`),
+    dw("Regulatory Non-Compliance", regRows.map(r =>
+      `<div class="dw-rank"><span class="dw-rank-l">${esc(r.label)}</span><span class="dw-rank-v" style="color:${r.o ? R : G}">${r.o} overdue</span><span class="dw-rank-v" style="color:${r.s ? A : G}">${r.s} due soon</span></div>`).join(""), "dw-w2"),
     dw("Latest Meter Readings", meters.map(m =>
       `<div class="dw-rank"><span class="dw-rank-l">${esc(m.name)}</span><span class="dw-rank-bar"><i style="width:${Math.round(m.odo / maxOdo * 100)}%"></i></span><span class="dw-rank-v">${m.odo.toLocaleString("en-IN")} km</span></div>`).join("") || "<span class='dw-sub'>No fuel logs yet</span>", "dw-w2"),
     dw("Recent Activity", acts.map(a =>
@@ -362,7 +397,11 @@ function renderDashboard() {
     dw("Total Costs", miniBars(totM, mL, PAL.s2) + `<span class="dw-sub">6-month total: <strong>${fmtINR(totM.reduce((a, b) => a + b, 0))}</strong></span>`),
     dw("Cost per km", `<span class="dw-big">₹${cpk ? cpk.toFixed(1) : "—"}</span><span class="dw-sub">All-in, from ${km.toLocaleString("en-IN")} km logged</span>`),
     dw("Top Repair Spend", topCats.map(([c, amt]) =>
-      `<div class="dw-rank"><span class="dw-rank-l">${esc(c)}</span><span class="dw-rank-bar"><i style="width:${Math.round(amt / maxCat * 100)}%"></i></span><span class="dw-rank-v">${fmtINR(amt)}</span></div>`).join("") || "<span class='dw-sub'>No expenses yet</span>", "dw-w2")
+      `<div class="dw-rank"><span class="dw-rank-l">${esc(c)}</span><span class="dw-rank-bar"><i style="width:${Math.round(amt / maxCat * 100)}%"></i></span><span class="dw-rank-v">${fmtINR(amt)}</span></div>`).join("") || "<span class='dw-sub'>No expenses yet</span>", "dw-w2"),
+    dw("Recurrent Expenses", Object.entries(byCat)
+      .map(([c, amt]) => ({ c, amt, n: db.expenses.filter(e => e.category === c).length }))
+      .filter(x => x.n >= 3).sort((a, b) => b.n - a.n).slice(0, 5)
+      .map(x => `<div class="dw-rank"><span class="dw-rank-l">${esc(x.c)}</span><span class="dw-rank-v">${x.n}×</span><span class="dw-rank-v">avg ${fmtINR(x.amt / x.n)}</span></div>`).join("") || "<span class='dw-sub'>No repeating categories yet</span>", "dw-w2")
   ].join("");
 
   const upd = document.getElementById("dashUpdated");
@@ -1132,6 +1171,13 @@ document.getElementById("radarFilters").addEventListener("click", e => {
   renderRadar();
 });
 
+// ---------- Workspaces (Home hub → FleetOps / FleetFin / FleetIQ) ----------
+// The sidebar shows only the menus of the active workspace; Home shows none.
+function setWorkspace(ws) {
+  document.querySelectorAll("#tabBar [data-ws]").forEach(el => { el.hidden = el.dataset.ws !== ws; });
+  document.body.dataset.ws = ws;
+}
+
 // Sidebar nav (enterprise shell) — closest() so clicks on the inner SVG icon
 // still resolve to the .tab-btn that carries data-tab. Updates the page title
 // and closes the mobile drawer.
@@ -1152,9 +1198,12 @@ document.getElementById("tabBar").addEventListener("click", e => {
   clearPageSearch();
   updateToolbarCounts();
   history.replaceState(null, "", "#" + btn.dataset.tab);
-  // My Account works even with an empty fleet (that's where you sign in / add data)
+  // switch workspace to wherever the clicked tab lives (hub, deep link, or sidebar)
+  if (btn.dataset.tab === "home") setWorkspace("home");
+  else { const w = btn.closest("[data-ws]"); if (w) setWorkspace(w.dataset.ws); }
+  // Home & My Account work even with an empty fleet
   if (!db.vehicles.length) {
-    const exempt = btn.dataset.tab === "account";
+    const exempt = btn.dataset.tab === "account" || btn.dataset.tab === "home";
     document.getElementById("emptyState").hidden = exempt;
     document.getElementById("fleetContent").hidden = !exempt;
   }
@@ -1294,8 +1343,19 @@ function buildDynamicPanels() {
   mk("vendors", panelCard("Vendors", "Workshops and suppliers your fleet works with", "vendorTable"));
   mk("integrations", `<div class="chart-card"><div class="chart-head"><div><h2>Integrations</h2><p class="muted">Connect FleetWorks to the tools your business already runs on</p></div></div><div class="integ-grid" id="integGrid"></div></div>`);
   mk("reports", `<div class="chart-card"><div class="chart-head"><div><h2>Standard Reports</h2><p class="muted">One-click exports, ready for Excel and your accountant</p></div></div><div class="integ-grid" id="reportGrid"></div></div>`);
+  // FleetIQ study panels (rendered by analytics.js)
+  mk("recurrent", panelCard("Recurrent Issues & Repeat Repairs", "The same part failing twice is a pattern, not bad luck — FleetIQ surfaces every repeat", "recurTable"));
+  mk("deviation", panelCard("Deviation Analysis", "Vehicles running meaningfully above or below your fleet's cost per km", "devTable"));
+  mk("anomaly", panelCard("Anomaly Detection", "Bills that look too big against your own history for that part", "anomTable"));
+  mk("forecasting", `<div class="chart-card"><div class="chart-head"><div><h2>Expense Forecasting</h2><p class="muted">Least-squares ML regression on your monthly spend, damped against noisy months — next 3 months projected</p></div><div class="chart-legend" id="fcastLegend"></div></div><div class="chart-scroll"><div id="fcastChart" class="chart-area"></div></div><details class="chart-table"><summary>View as table</summary><div id="fcastTable"></div></details></div>`);
+  mk("recommend", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="brain" data-icon-size="22"></i></span> Recommendations</h2><p class="muted">What FleetWorks AI would do this week, in priority order</p></div></div><div id="recoList" class="predictions"></div></div>`);
   [
     ["faults", "Faults", "Engine fault codes surface here automatically with the OBD / telematics integration.", "alert"],
+    ["whatif", "What-if Analysis", "Simulate before you commit — add a vehicle, change a route, switch tyre brands, and see the projected cost impact. Coming with the planning module.", "brain"],
+    ["invoices", "Invoices", "Customer and vendor invoices arrive with the billing module.", "document"],
+    ["toll", "Toll & FASTag", "FASTag toll books per vehicle and route arrive with the telematics integration.", "mapPin"],
+    ["def", "DEF / AdBlue", "DEF consumption and cost-per-km tracking for BS6 vehicles is on the way.", "spray"],
+    ["gstbills", "Bills — GST / Non-GST", "GST vs non-GST bill split arrives with invoice capture — your Tally export already carries per-category ledgers.", "receipt"],
     ["recalls", "Recalls", "Manufacturer recall tracking for your vehicle makes is on the way.", "bell"],
     ["charging", "EV Charging", "Charging sessions, kWh and cost per km arrive with the EV module.", "charge"],
     ["places", "Places", "Saved depots, customer sites and geofences arrive with the GPS integration.", "mapPin"],
@@ -1463,8 +1523,10 @@ document.getElementById("sideClose")?.addEventListener("click", () =>
 // ---------- Orchestration ----------
 function renderAll() {
   const has = db.vehicles.length > 0;
-  document.getElementById("emptyState").hidden = has;
-  document.getElementById("fleetContent").hidden = !has;
+  const activeId = document.querySelector("#fleetContent > .tab-panel.active")?.id;
+  const exempt = activeId === "tab-home" || activeId === "tab-account";
+  document.getElementById("emptyState").hidden = has || exempt;
+  document.getElementById("fleetContent").hidden = !(has || exempt);
   if (!has) return;
   // demo store from the dashboard may lack fleet-manager collections — extend it once
   if (db.demo !== true && db.vehicles.length && !db.fuelLogs.length && db.expenses.length && db.vehicles[0].id === "v1" && !db.vehicles[0].compliance) {
@@ -1487,3 +1549,10 @@ function renderAll() {
 buildDynamicPanels();
 initListToolbars();
 renderAll();
+
+// Home hub cards open their workspace and land on its dashboard
+document.querySelectorAll(".hub-card").forEach(c => c.addEventListener("click", () => {
+  const target = { ops: "overview", fin: "fin", iq: "analytics" }[c.dataset.hub];
+  document.querySelector(`#tabBar .tab-btn[data-tab="${target}"]`)?.click();
+}));
+setWorkspace("home");

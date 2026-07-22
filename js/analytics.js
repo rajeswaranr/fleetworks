@@ -304,7 +304,8 @@ function renderMonthlyInto(prefix, expenses, withForecast) {
 }
 function renderMonthly() {
   renderMonthlyInto("monthly", filteredExpenses(), false);     // FleetFin: actuals
-  renderMonthlyInto("iqMonthly", db.expenses, true);           // FleetIQ: + ML forecast
+  renderMonthlyInto("iqMonthly", db.expenses, true);           // FleetIQ dashboard: + ML forecast
+  renderMonthlyInto("fcast", db.expenses, true);               // FleetIQ Forecasting panel
 }
 
 // ---------- Render: vehicle chart ----------
@@ -509,6 +510,82 @@ function renderAccounts() {
     "</tbody></table>";
 }
 
+// ---------- FleetIQ study panels ----------
+function renderRecurrent() {
+  const el = document.getElementById("recurTable");
+  if (!el) return;
+  const rows = [];
+  db.vehicles.forEach(v => {
+    const cats = {};
+    db.expenses.filter(e => e.vehicleId === v.id).forEach(e => (cats[e.category] = cats[e.category] || []).push(e));
+    Object.entries(cats).filter(([, l]) => l.length >= 2).forEach(([c, l]) =>
+      rows.push({ v: v.name, what: c, kind: "Repeat repair", n: l.length, total: l.reduce((s, e) => s + e.amount, 0), last: l.map(e => e.date).sort().pop() }));
+    const titles = {};
+    db.issues.filter(i => i.vehicleId === v.id).forEach(i => (titles[i.title.trim().toLowerCase()] = titles[i.title.trim().toLowerCase()] || []).push(i));
+    Object.values(titles).filter(l => l.length >= 2).forEach(l =>
+      rows.push({ v: v.name, what: l[0].title, kind: "Repeat issue", n: l.length, total: 0, last: l.map(i => i.createdAt).sort().pop() }));
+  });
+  rows.sort((a, b) => b.n - a.n);
+  el.innerHTML = rows.length ?
+    `<table class="chart-table-el"><thead><tr><th>Vehicle</th><th>What keeps recurring</th><th>Type</th><th>Times</th><th>Total spent</th><th>Last seen</th></tr></thead><tbody>` +
+    rows.map(r => `<tr><td><strong>${esc(r.v)}</strong></td><td>${esc(r.what)}</td><td>${r.kind}</td><td>${r.n}×</td><td>${r.total ? fmtINRfull(r.total) : "—"}</td><td>${r.last ? fmtDate(r.last) : "—"}</td></tr>`).join("") + "</tbody></table>"
+    : "<p class='muted'>No repeats yet — that's a good sign. FleetIQ flags anything that fails twice on the same vehicle.</p>";
+}
+
+function renderDeviation() {
+  const el = document.getElementById("devTable");
+  if (!el) return;
+  const vs = vehicleStats().filter(v => v.costPerKm > 0);
+  if (!vs.length) { el.innerHTML = "<p class='muted'>Add expenses and FleetIQ will benchmark every vehicle against your fleet average.</p>"; return; }
+  const avg = mean(vs.map(v => v.costPerKm));
+  el.innerHTML =
+    `<table class="chart-table-el"><thead><tr><th>Vehicle</th><th>Type</th><th>₹/km</th><th>Fleet avg</th><th>Deviation</th><th>Verdict</th></tr></thead><tbody>` +
+    vs.map(v => {
+      const dev = avg ? ((v.costPerKm - avg) / avg) * 100 : 0;
+      const badge = dev > 15 ? `<span class="fw-badge overdue">${dev.toFixed(0)}% costlier</span>` :
+        dev < -15 ? `<span class="fw-badge ok">${Math.abs(dev).toFixed(0)}% cheaper</span>` :
+        `<span class="fw-badge upcoming">Within band</span>`;
+      return `<tr><td><strong>${esc(v.name)}</strong></td><td>${esc(v.type)}</td><td>₹${v.costPerKm.toFixed(2)}</td><td>₹${avg.toFixed(2)}</td><td>${dev >= 0 ? "+" : ""}${dev.toFixed(0)}%</td><td>${badge}</td></tr>`;
+    }).join("") + "</tbody></table>";
+}
+
+function renderAnomaly() {
+  const el = document.getElementById("anomTable");
+  if (!el) return;
+  const byCat = {};
+  db.expenses.forEach(e => (byCat[e.category] = byCat[e.category] || []).push(e.amount));
+  const rows = [];
+  db.expenses.forEach(e => {
+    const arr = byCat[e.category];
+    if (arr.length < 3) return;
+    const avg = mean(arr);
+    if (e.amount > avg * 1.8) rows.push({ ...e, avg, x: e.amount / avg });
+  });
+  rows.sort((a, b) => b.x - a.x);
+  el.innerHTML = rows.length ?
+    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Category</th><th>Billed</th><th>Your average</th><th>Factor</th></tr></thead><tbody>` +
+    rows.slice(0, 12).map(r => `<tr><td>${fmtDate(r.date)}</td><td><strong>${esc(vName(r.vehicleId))}</strong></td><td>${esc(r.category)}</td><td style="color:${DASH_PAL.critical}"><strong>${fmtINRfull(r.amount)}</strong></td><td>${fmtINRfull(r.avg)}</td><td>${r.x.toFixed(1)}× normal</td></tr>`).join("") + "</tbody></table>"
+    : "<p class='muted'>No anomalies right now. Any bill 1.8× above your own average for that part will appear here.</p>";
+}
+
+function renderRecommendations() {
+  const el = document.getElementById("recoList");
+  if (!el) return;
+  const items = [];
+  predictParts().filter(p => p.lifeUsed >= 0.85).slice(0, 5).forEach(p =>
+    items.push({ ic: "wrench", tone: "warning", t: `Plan ${p.category} for ${p.vehicle.name} now — ~${fmtINR(p.estCost)} planned beats a roadside failure`, d: p.lifeUsed >= 1 ? "Overdue" : "~" + p.dueDate.toLocaleDateString("en-IN", { month: "short", year: "numeric" }) }));
+  if (typeof computeInsights === "function")
+    computeInsights().filter(i => i.sev >= 3).slice(0, 5).forEach(i =>
+      items.push({ ic: "alert", tone: "danger", t: `${i.title} — ${i.detail}`, d: i.tag }));
+  const vs = vehicleStats().filter(v => v.costPerKm > 0);
+  const avg = mean(vs.map(v => v.costPerKm));
+  vs.filter(v => avg && (v.costPerKm - avg) / avg > 0.2).forEach(v =>
+    items.push({ ic: "chartBar", tone: "info", t: `Audit ${v.name}: ₹${v.costPerKm.toFixed(2)}/km vs fleet ₹${avg.toFixed(2)} — check driver habits, route or a lingering fault`, d: "Deviation" }));
+  el.innerHTML = items.length ?
+    items.map(i => `<div class="pred-row" style="padding:12px 16px"><div class="pred-main" style="display:flex;align-items:center;gap:10px;font-size:0.9rem"><span class="ic-tile ${i.tone}" style="width:32px;height:32px;flex:none">${FWIcon(i.ic, { size: 16 })}</span><span style="flex:1;min-width:0">${esc(i.t)}</span><span class="muted" style="flex:none;font-size:0.78rem">${esc(i.d)}</span></div></div>`).join("")
+    : "<p class='muted'>All clear. Recommendations appear as predictions come due, anomalies surface or vehicles drift from the fleet average.</p>";
+}
+
 // ---------- Filters & orchestration ----------
 function renderCharts() { renderMonthly(); renderAnalyticsVehicles(); renderAnalyticsParts(); }
 
@@ -525,6 +602,10 @@ function renderAnalyticsAll() {
   renderCharts();
   renderPredictions();
   renderAccounts();
+  renderRecurrent();
+  renderDeviation();
+  renderAnomaly();
+  renderRecommendations();
 }
 
 document.getElementById("vehicleFilter").addEventListener("change", renderCharts);
