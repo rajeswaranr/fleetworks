@@ -17,13 +17,22 @@
 --      tables (create-org-if-missing, then replace that org's rows).
 --   5. A trigger on `fleets` that calls it on every insert/update — the
 --      DUAL-WRITE BRIDGE. No frontend change needed in this phase.
---   6. A one-time backfill for every existing fleet.
+--   6. FK indexes, an updated_at trigger (for Phase-2 direct writes) and
+--      explicit grants to `authenticated` (RLS still decides which rows).
+--   7. A one-time backfill for every existing fleet.
 --
 -- MIGRATION SHAPE
 --   Phase 1 (this file): blob is still the source of truth; tables are a live,
 --     always-consistent read-model. Nothing user-facing changes.
 --   Phase 2 (later): point the new app's READS at these tables.
 --   Phase 3 (later): switch WRITES to these tables, drop the trigger + blob.
+--
+-- VALIDATION
+--   Executed and iterated against Postgres 16 (PGlite/WASM): schema runs
+--   clean, projection fidelity (counts, dates, numerics, jsonb, FK links)
+--   verified, tenant isolation proven (no cross-org leakage, non-member
+--   blocked, admin sees all), nasty inputs handled, and the whole file is
+--   idempotent (safe to re-run). See db/tests/.
 -- ---------------------------------------------------------------------------
 
 -- ========================= 1. TENANCY =========================
@@ -237,6 +246,33 @@ create table if not exists inspections (
 );
 create index if not exists idx_inspections_org on inspections(org_id);
 
+-- foreign-key indexes for joins from the vehicle hub (and issue link)
+create index if not exists idx_drivers_vehicle      on drivers(vehicle_id);
+create index if not exists idx_documents_vehicle    on documents(vehicle_id);
+create index if not exists idx_documents_driver     on documents(driver_id);
+create index if not exists idx_tyres_vehicle        on tyre_readings(vehicle_id);
+create index if not exists idx_fuel_vehicle         on fuel_logs(vehicle_id);
+create index if not exists idx_expenses_vehicle     on expenses(vehicle_id);
+create index if not exists idx_issues_vehicle       on issues(vehicle_id);
+create index if not exists idx_workorders_vehicle   on work_orders(vehicle_id);
+create index if not exists idx_workorders_issue     on work_orders(issue_id);
+create index if not exists idx_reminders_vehicle    on reminders(vehicle_id);
+create index if not exists idx_inspections_vehicle  on inspections(vehicle_id);
+
+-- keep updated_at honest when the app writes these tables directly (Phase 2)
+create or replace function set_updated_at()
+returns trigger language plpgsql as $$
+begin new.updated_at = now(); return new; end;
+$$;
+do $$
+declare t text;
+begin
+  foreach t in array array['organizations','vehicles','drivers'] loop
+    execute format('drop trigger if exists set_updated_at_%1$s on %1$s;', t);
+    execute format('create trigger set_updated_at_%1$s before update on %1$s for each row execute function set_updated_at();', t);
+  end loop;
+end $$;
+
 -- ========================= 3. ROW LEVEL SECURITY =========================
 
 alter table organizations enable row level security;
@@ -276,6 +312,24 @@ begin
     execute format(
       'create policy %I on %I for all to authenticated using (is_org_member(org_id)) with check (is_org_member(org_id));',
       p, t);
+  end loop;
+end $$;
+
+-- Table-level privileges. RLS decides WHICH rows; the role still needs the base
+-- grant or PostgREST returns "permission denied". RLS remains the boundary, so
+-- granting broadly to authenticated is safe. anon gets nothing (no policy +
+-- no grant = fully denied).
+grant usage on schema public to authenticated;
+grant select, update on organizations to authenticated;
+grant select on memberships to authenticated;
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'vehicles','drivers','documents','tyre_readings','fuel_logs','expenses',
+    'issues','work_orders','parts','reminders','inspections'
+  ] loop
+    execute format('grant select, insert, update, delete on %I to authenticated;', t);
   end loop;
 end $$;
 
