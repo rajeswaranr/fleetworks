@@ -1009,3 +1009,32 @@ i[data-icon] { display: inline-flex; align-items: center; justify-content: cente
 .list-toolbar .btn .fw-ic { flex: none; }
 .form-card.collapsed { display: none; }
 
+/* ---- overview widget dashboard ---- */
+.dash-toolbar { display: flex; align-items: center; margin-bottom: 14px; }
+.dash-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(235px, 1fr));
+  gap: 14px; margin-bottom: 22px;
+}
+.dw { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+.dw-w2 { grid-column: span 2; }
+.dw-head {
+  font-size: 0.63rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 10px;
+}
+.dw-big { display: block; font-size: 1.55rem; font-weight: 800; color: var(--navy); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.dw-big small { font-size: 0.8rem; font-weight: 600; color: var(--muted); margin-left: 4px; }
+.dw-sub { display: block; font-size: 0.74rem; color: var(--muted); margin-top: 3px; }
+.dw-pair { display: flex; gap: 26px; }
+.dw-chart { display: block; width: 100%; height: 62px; margin: 2px 0 6px; }
+.dw-rank { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.dw-rank-l { flex: 0 0 128px; font-size: 0.78rem; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dw-rank-bar { flex: 1; height: 9px; background: var(--bg-alt); border-radius: 5px; overflow: hidden; }
+.dw-rank-bar i { display: block; height: 100%; background: var(--amber); border-radius: 5px; }
+.dw-rank-v { flex: 0 0 auto; font-size: 0.74rem; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dw-act { display: flex; align-items: center; gap: 9px; padding: 6px 0; border-bottom: 1px solid var(--bg-alt); font-size: 0.8rem; color: var(--ink); }
+.dw-act:last-child { border-bottom: none; }
+.dw-act .fw-ic { flex: none; }
+.dw-act span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dw-act time { flex: none; font-size: 0.7rem; color: var(--muted); }
+@media (max-width: 680px) { .dw-w2 { grid-column: auto; } }
+

@@ -236,19 +236,137 @@ function reminderStatus() {
   }).sort((a, b) => a.nextDate.localeCompare(b.nextDate));
 }
 
-// ---------- Render: overview ----------
-function renderOverview() {
-  const openIssues = db.issues.filter(i => i.status !== "Resolved").length;
-  const expiring = db.vehicles.reduce((n, v) => n + Object.values(v.compliance || {}).filter(t => t && daysUntil(t) <= 30).length, 0);
-  const fuelSpend = db.fuelLogs.reduce((s, f) => s + f.amount, 0);
-  const insights = computeInsights();
-  const critical = insights.filter(i => i.sev >= 3).length;
+// ---------- Dashboard widget helpers ----------
+function monthKeys(n = 6) {
+  const out = [], d = new Date();
+  d.setDate(1);
+  for (let i = n - 1; i >= 0; i--) {
+    const x = new Date(d.getFullYear(), d.getMonth() - i, 1);
+    out.push(x.toISOString().slice(0, 7));
+  }
+  return out;
+}
+function miniBars(vals, labels, color) {
+  const W = 220, H = 62, pb = 13, max = Math.max(...vals, 1), bw = W / vals.length;
+  let s = `<svg viewBox="0 0 ${W} ${H}" class="dw-chart" preserveAspectRatio="none">`;
+  vals.forEach((v, i) => {
+    const h = (H - pb - 6) * v / max;
+    s += `<rect x="${(i * bw + 4).toFixed(1)}" y="${(H - pb - h).toFixed(1)}" width="${(bw - 8).toFixed(1)}" height="${Math.max(h, 1.5).toFixed(1)}" rx="2" fill="${color || PAL.s1}"/>`;
+    s += `<text x="${(i * bw + bw / 2).toFixed(1)}" y="${H - 3}" text-anchor="middle" font-size="8.5" fill="${PAL.muted}">${labels[i]}</text>`;
+  });
+  return s + "</svg>";
+}
+function dwPair(aVal, aLbl, aCol, bVal, bLbl, bCol) {
+  return `<div class="dw-pair">
+    <div><span class="dw-big" style="color:${aCol}">${aVal}</span><span class="dw-sub">${aLbl}</span></div>
+    <div><span class="dw-big" style="color:${bCol}">${bVal}</span><span class="dw-sub">${bLbl}</span></div>
+  </div>`;
+}
+function dw(label, body, cls) { return `<div class="dw${cls ? " " + cls : ""}"><div class="dw-head">${label}</div>${body}</div>`; }
 
-  document.getElementById("fleetStats").innerHTML = `
-    <div class="stat-tile"><span class="ic-tile ${critical ? "danger" : "success"}">${FWIcon("alert", { size: 22 })}</span><span class="stat-label">AI alerts needing action</span><span class="stat-value" style="color:${critical ? PAL.critical : PAL.good}">${critical}</span><span class="stat-sub">${insights.length} total insights</span></div>
-    <div class="stat-tile"><span class="ic-tile warning">${FWIcon("wrench", { size: 22 })}</span><span class="stat-label">Open issues</span><span class="stat-value">${openIssues}</span><span class="stat-sub">AI prioritised</span></div>
-    <div class="stat-tile"><span class="ic-tile info">${FWIcon("shieldCheck", { size: 22 })}</span><span class="stat-label">Docs expiring ≤ 30 days</span><span class="stat-value">${expiring}</span><span class="stat-sub">Insurance · PUC · FC · Permit · Tax</span></div>
-    <div class="stat-tile"><span class="ic-tile brand">${FWIcon("fuel", { size: 22 })}</span><span class="stat-label">Fuel spend (logged)</span><span class="stat-value">${fmtINR(fuelSpend)}</span><span class="stat-sub">${db.fuelLogs.length} fills</span></div>`;
+// ---------- Render: overview widget dashboard ----------
+function renderDashboard() {
+  const grid = document.getElementById("dashGrid");
+  if (!grid) return;
+  const now = new Date();
+  const months = monthKeys(6);
+  const mL = months.map(m => new Date(m + "-01").toLocaleDateString("en-IN", { month: "short" }));
+
+  // reminders / renewals
+  const rs = reminderStatus();
+  const remO = rs.filter(r => r.overdue).length, remS = rs.filter(r => r.dueSoon).length;
+  const radar = radarItems();
+  const seg = cat => {
+    const it = radar.filter(i => i.cat === cat);
+    return [it.filter(i => i.days < 0).length, it.filter(i => i.days >= 0 && i.days <= warnDays()).length];
+  };
+  const [vrO, vrS] = seg("vehicle"), [drO, drS] = seg("driver"), [wtO, wtS] = seg("warranty");
+
+  // issues
+  const openIss = db.issues.filter(i => i.status !== "Resolved");
+  const highOpen = openIss.filter(i => i.severity === "High").length;
+  const resolved = db.issues.filter(i => i.resolvedAt);
+  const avgResolve = resolved.length ? (resolved.reduce((s, i) => s + (new Date(i.resolvedAt) - new Date(i.createdAt)) / 86400000, 0) / resolved.length) : 0;
+  const issM = months.map(m => db.issues.filter(i => i.createdAt && i.createdAt.startsWith(m)).length);
+
+  // job cards / vehicle status / assignments
+  const openWO = db.workOrders.filter(w => w.status !== "Completed");
+  const oldestWO = openWO.length ? Math.max(...openWO.map(w => Math.round((now - new Date(w.createdAt)) / 86400000))) : 0;
+  const inShop = new Set(openWO.map(w => w.vehicleId)).size;
+  const assigned = new Set(db.drivers.filter(d => d.vehicleId).map(d => d.vehicleId)).size;
+
+  // costs
+  const sumM = (arr, key) => months.map(m => arr.filter(x => x[key] && x[key].startsWith(m)).reduce((s, x) => s + x.amount, 0));
+  const fuelM = sumM(db.fuelLogs, "date"), svcM = sumM(db.expenses, "date");
+  const totM = months.map((_, i) => fuelM[i] + svcM[i]);
+
+  // cost per km (lifetime, from odometer spans)
+  let km = 0;
+  db.vehicles.forEach(v => { const f = vehicleFills(v.id); if (f.length > 1) km += f[f.length - 1].odo - f[0].odo; });
+  const costAll = db.expenses.reduce((s, e) => s + e.amount, 0) + db.fuelLogs.reduce((s, f) => s + f.amount, 0);
+  const cpk = km ? costAll / km : 0;
+
+  // top repair spend categories
+  const byCat = {};
+  db.expenses.forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
+  const topCats = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const maxCat = topCats.length ? topCats[0][1] : 1;
+
+  // meters
+  const meters = db.vehicles.map(v => { const f = vehicleFills(v.id); return { name: v.name, odo: f.length ? f[f.length - 1].odo : 0 }; })
+    .sort((a, b) => b.odo - a.odo).slice(0, 5);
+  const maxOdo = meters.length ? meters[0].odo : 1;
+
+  // inspections
+  const insp30 = db.inspections.filter(i => (now - new Date(i.date)) / 86400000 <= 30).length;
+  const items = db.inspections.reduce((s, i) => s + i.results.length, 0);
+  const fails = db.inspections.reduce((s, i) => s + i.results.filter(r => !r.ok).length, 0);
+  const failRate = items ? Math.round(fails / items * 100) : 0;
+  const onTime = rs.length ? Math.round(rs.filter(r => !r.overdue).length / rs.length * 100) : 100;
+
+  // tyres
+  const worn = db.vehicles.reduce((n, v) => n + Object.values(latestReadings(v.id)).filter(r => r.treadDepth <= minTread()).length, 0);
+
+  // recent activity
+  const acts = [
+    ...db.issues.map(i => ({ d: i.resolvedAt || i.createdAt, t: `${vName(i.vehicleId)} — ${i.title} (${i.status})`, ic: i.status === "Resolved" ? "checkCircle" : "wrench" })),
+    ...db.workOrders.filter(w => w.completedAt).map(w => ({ d: w.completedAt, t: `Job card closed: ${w.title} · ${fmtINR(w.finalCost || 0)}`, ic: "checkCircle" })),
+    ...db.inspections.map(i => ({ d: i.date, t: `Inspection ${i.passed ? "passed" : "failed"} — ${vName(i.vehicleId)}`, ic: "clipboardCheck" }))
+  ].filter(a => a.d).sort((a, b) => b.d.localeCompare(a.d)).slice(0, 6);
+
+  const R = "#c62828", A = "#b26a00", G = "#148a4e", N = "#0f1e33";
+  grid.innerHTML = [
+    dw("Service Reminders", dwPair(remO, "Overdue", remO ? R : G, remS, "Due Soon", remS ? A : G)),
+    dw("Vehicle Renewals · RTO", dwPair(vrO, "Overdue", vrO ? R : G, vrS, "Due Soon", vrS ? A : G)),
+    dw("Driver Renewals · DL", dwPair(drO, "Overdue", drO ? R : G, drS, "Due Soon", drS ? A : G)),
+    dw("Warranties", dwPair(wtO, "Expired", wtO ? R : G, wtS, "Expiring", wtS ? A : G)),
+    dw("Open Issues", `<div class="dw-pair"><div><span class="dw-big">${openIss.length}</span><span class="dw-sub">Open now</span></div><div><span class="dw-big" style="color:${highOpen ? R : G}">${highOpen}</span><span class="dw-sub">Critical</span></div></div>` + miniBars(issM, mL, PAL.serious)),
+    dw("Time to Resolve", `<span class="dw-big">${avgResolve ? avgResolve.toFixed(1) : "—"}<small>days</small></span><span class="dw-sub">Average, resolved issues</span>`),
+    dw("Job Cards", dwPair(openWO.length, "In workshop", openWO.length ? A : G, oldestWO, "Oldest (days)", oldestWO > 5 ? R : N)),
+    dw("Vehicle Status", dwPair(db.vehicles.length - inShop, "Active", G, inShop, "In Shop", inShop ? A : G)),
+    dw("Assignments", dwPair(assigned, "Assigned", N, Math.max(db.vehicles.length - assigned, 0), "Unassigned", db.vehicles.length - assigned ? A : G)),
+    dw("On-Time Maintenance", `<span class="dw-big" style="color:${onTime >= 90 ? G : onTime >= 70 ? A : R}">${onTime}%</span><span class="dw-sub">PM schedules on time</span>`),
+    dw("Inspections · 30 days", dwPair(insp30, "Submitted", N, failRate + "%", "Item fail rate", failRate ? A : G)),
+    dw("Tyre Health", `<span class="dw-big" style="color:${worn ? R : G}">${worn}</span><span class="dw-sub">Tyres at/under ${minTread()}mm</span>`),
+    dw("Fuel Costs", miniBars(fuelM, mL, PAL.s1) + `<span class="dw-sub">This month: <strong>${fmtINR(fuelM[fuelM.length - 1])}</strong></span>`),
+    dw("Service Costs", miniBars(svcM, mL, PAL.s3) + `<span class="dw-sub">This month: <strong>${fmtINR(svcM[svcM.length - 1])}</strong></span>`),
+    dw("Total Costs", miniBars(totM, mL, PAL.s2) + `<span class="dw-sub">6-month total: <strong>${fmtINR(totM.reduce((a, b) => a + b, 0))}</strong></span>`),
+    dw("Cost per km", `<span class="dw-big">₹${cpk ? cpk.toFixed(1) : "—"}</span><span class="dw-sub">All-in, from ${km.toLocaleString("en-IN")} km logged</span>`),
+    dw("Top Repair Spend", topCats.map(([c, amt]) =>
+      `<div class="dw-rank"><span class="dw-rank-l">${esc(c)}</span><span class="dw-rank-bar"><i style="width:${Math.round(amt / maxCat * 100)}%"></i></span><span class="dw-rank-v">${fmtINR(amt)}</span></div>`).join("") || "<span class='dw-sub'>No expenses yet</span>", "dw-w2"),
+    dw("Latest Meter Readings", meters.map(m =>
+      `<div class="dw-rank"><span class="dw-rank-l">${esc(m.name)}</span><span class="dw-rank-bar"><i style="width:${Math.round(m.odo / maxOdo * 100)}%"></i></span><span class="dw-rank-v">${m.odo.toLocaleString("en-IN")} km</span></div>`).join("") || "<span class='dw-sub'>No fuel logs yet</span>", "dw-w2"),
+    dw("Recent Activity", acts.map(a =>
+      `<div class="dw-act">${FWIcon(a.ic, { size: 14, cls: "ic-muted" })}<span>${esc(a.t)}</span><time>${fmtDate(a.d)}</time></div>`).join("") || "<span class='dw-sub'>No activity yet</span>", "dw-w2")
+  ].join("");
+
+  const upd = document.getElementById("dashUpdated");
+  if (upd) upd.textContent = "Live · updated " + now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+}
+
+function renderOverview() {
+  const insights = computeInsights();
+  renderDashboard();
 
   const sevColor = s => s >= 4 ? PAL.critical : s === 3 ? PAL.serious : s === 2 ? PAL.warn : s === 1 ? PAL.s1 : PAL.good;
   // severity -> [icon name, tile colour class] : one professional SVG per row
