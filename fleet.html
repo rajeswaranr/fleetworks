@@ -26,11 +26,10 @@
         <button class="side-close" id="sideClose" aria-label="Close menu">&times;</button>
       </div>
       <nav class="side-nav" id="tabBar">
-        <button class="side-item tab-btn active" data-tab="overview"><i data-icon="gauge"></i><span>Dashboard</span></button>
-        <button class="side-item tab-btn" data-tab="map"><i data-icon="mapPin"></i><span>Fleet Map</span></button>
-
         <!-- ======= PILLAR 1: FleetOps — maintenance & daily operations ======= -->
         <div class="side-pillar ops"><span class="pp"></span>Fleet<em>Ops</em></div>
+        <button class="side-item tab-btn active" data-tab="overview"><i data-icon="gauge"></i><span>FleetOps Dashboard</span></button>
+        <button class="side-item tab-btn" data-tab="map"><i data-icon="mapPin"></i><span>Fleet Map</span></button>
 
         <div class="side-group has-children open">
           <button type="button" class="side-parent"><i data-icon="truck"></i><span>Fleet</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
@@ -103,13 +102,14 @@
 
         <!-- ======= PILLAR 2: FleetFin — accounts & money only ======= -->
         <div class="side-pillar fin"><span class="pp"></span>Fleet<em>Fin</em></div>
+        <button class="side-item tab-btn" data-tab="fin"><i data-icon="gauge"></i><span>FleetFin Dashboard</span></button>
         <button class="side-item tab-btn" data-tab="expensehistory"><i data-icon="receipt"></i><span>Expense History</span></button>
         <button class="side-item tab-btn" data-tab="accounts"><i data-icon="rupee"></i><span>Accounts &amp; Tally</span></button>
         <button class="side-item tab-btn" data-tab="reports"><i data-icon="chartBar"></i><span>Standard Reports</span></button>
 
         <!-- ======= PILLAR 3: FleetIQ — prediction, analytics, forecasting only ======= -->
         <div class="side-pillar iq"><span class="pp"></span>Fleet<em>IQ</em></div>
-        <button class="side-item tab-btn" data-tab="analytics"><i data-icon="brain"></i><span>AI Analytics</span></button>
+        <button class="side-item tab-btn" data-tab="analytics"><i data-icon="brain"></i><span>FleetIQ Dashboard</span></button>
         <button class="side-item tab-btn" data-tab="replacement"><i data-icon="trendUp"></i><span>Replacement Analysis</span></button>
         <button class="side-item tab-btn" data-tab="itemfailures"><i data-icon="alert"></i><span>Failure Intelligence</span></button>
 
@@ -131,7 +131,7 @@
     <div class="app-main">
       <header class="app-top">
         <button class="side-toggle" id="sideToggle" aria-label="Menu"><span></span><span></span><span></span></button>
-        <h1 id="pageTitle">Foresight AI</h1>
+        <h1 id="pageTitle">FleetOps Dashboard</h1>
         <div class="top-search">
           <i data-icon="search" data-icon-size="15"></i>
           <input type="search" id="globalSearch" placeholder="Search this page…" autocomplete="off" />
@@ -161,15 +161,61 @@
           <span class="lt-spacer"></span>
         </div>
         <section class="dash-grid" id="dashGrid"></section>
-        <div class="chart-card">
+      </section>
+
+      <!-- ======= FLEETFIN DASHBOARD ======= -->
+      <section class="tab-panel" id="tab-fin">
+        <section class="stat-row" id="finStatRow" aria-label="Money at a glance"></section>
+        <section class="dash-grid" id="finGrid"></section>
+
+        <div class="dash-filters">
+          <label>Vehicle
+            <select id="vehicleFilter"><option value="all">All vehicles</option></select>
+          </label>
+          <label>Period
+            <select id="periodFilter">
+              <option value="6">Last 6 months</option>
+              <option value="12" selected>Last 12 months</option>
+              <option value="24">Last 24 months</option>
+            </select>
+          </label>
+          <button type="button" class="btn btn-outline btn-sm" onclick="exportTally()" style="margin-left:auto"><i data-icon="receipt" data-icon-size="15"></i> Export to Tally (GST)</button>
+        </div>
+
+        <section class="chart-card">
           <div class="chart-head">
             <div>
-              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="brain" data-icon-size="22"></i></span> Foresight — The AI That Keeps Watch</h2>
-              <p class="muted">FleetWorks' own AI watchdog scans your fleet round the clock — inflated bills, double billing, RTO lapses, DL expiries, falling mileage, warranty-claimable repeat failures and overdue maintenance surface here, ranked by risk.</p>
+              <h2>Monthly Expenses</h2>
+              <p class="muted">Actual maintenance spend by month — filter by vehicle and period</p>
+            </div>
+            <div class="chart-legend" id="monthlyLegend"></div>
+          </div>
+          <div class="chart-scroll"><div id="monthlyChart" class="chart-area"></div></div>
+          <details class="chart-table"><summary>View as table</summary><div id="monthlyTable"></div></details>
+        </section>
+
+        <section class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2>Vehicle-wise Cost per KM</h2>
+              <p class="muted">Each vehicle vs your fleet average vs industry average for its class</p>
+            </div>
+            <div class="chart-legend" id="vehicleLegend"></div>
+          </div>
+          <div class="chart-scroll"><div id="vehicleChart" class="chart-area"></div></div>
+          <details class="chart-table"><summary>View as table</summary><div id="vehicleTable"></div></details>
+        </section>
+
+        <section class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2>Part-wise Spend</h2>
+              <p class="muted">Where the money goes, with your average part cost vs industry</p>
             </div>
           </div>
-          <div id="insightsFeed" class="insights-feed"></div>
-        </div>
+          <div class="chart-scroll"><div id="partChart" class="chart-area"></div></div>
+          <details class="chart-table"><summary>View as table</summary><div id="partTable"></div></details>
+        </section>
       </section>
 
       <!-- ======= VEHICLES & COMPLIANCE ======= -->
@@ -676,57 +722,28 @@
         </div>
       </section>
 
-      <!-- ======= AI ANALYTICS (merged from dashboard.html) ======= -->
+      <!-- ======= FLEETIQ DASHBOARD ======= -->
       <section class="tab-panel" id="tab-analytics">
-        <section class="stat-row" id="statRow" aria-label="Key figures"></section>
-
-        <div class="dash-filters">
-          <label>Vehicle
-            <select id="vehicleFilter"><option value="all">All vehicles</option></select>
-          </label>
-          <label>Period
-            <select id="periodFilter">
-              <option value="6">Last 6 months</option>
-              <option value="12" selected>Last 12 months</option>
-              <option value="24">Last 24 months</option>
-            </select>
-          </label>
-          <button type="button" class="btn btn-outline btn-sm" onclick="exportTally()" style="margin-left:auto"><i data-icon="receipt" data-icon-size="15"></i> Export to Tally (GST)</button>
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="brain" data-icon-size="22"></i></span> FleetIQ — Your Fleet, Predicted</h2>
+              <p class="muted">FleetWorks AI/ML learns from every entry you make — forecasting spend, predicting part failures before they strand a truck, and turning breakdowns into planned pit-stops. Predicted maintenance means more days on the road, and more days on the road means more revenue.</p>
+            </div>
+          </div>
+          <section class="stat-row" id="iqStatRow" aria-label="AI impact"></section>
         </div>
 
         <section class="chart-card">
           <div class="chart-head">
             <div>
-              <h2>Monthly Expenses</h2>
-              <p class="muted">Actual spend by month, with ML forecast for the next 3 months</p>
+              <h2>Expense Forecast</h2>
+              <p class="muted">Your actual spend with the ML regression forecast for the next 3 months</p>
             </div>
-            <div class="chart-legend" id="monthlyLegend"></div>
+            <div class="chart-legend" id="iqMonthlyLegend"></div>
           </div>
-          <div class="chart-scroll"><div id="monthlyChart" class="chart-area"></div></div>
-          <details class="chart-table"><summary>View as table</summary><div id="monthlyTable"></div></details>
-        </section>
-
-        <section class="chart-card">
-          <div class="chart-head">
-            <div>
-              <h2>Vehicle-wise Cost per KM</h2>
-              <p class="muted">Each vehicle vs your fleet average vs industry average for its class</p>
-            </div>
-            <div class="chart-legend" id="vehicleLegend"></div>
-          </div>
-          <div class="chart-scroll"><div id="vehicleChart" class="chart-area"></div></div>
-          <details class="chart-table"><summary>View as table</summary><div id="vehicleTable"></div></details>
-        </section>
-
-        <section class="chart-card">
-          <div class="chart-head">
-            <div>
-              <h2>Part-wise Spend</h2>
-              <p class="muted">Where the money goes, with your average part cost vs industry</p>
-            </div>
-          </div>
-          <div class="chart-scroll"><div id="partChart" class="chart-area"></div></div>
-          <details class="chart-table"><summary>View as table</summary><div id="partTable"></div></details>
+          <div class="chart-scroll"><div id="iqMonthlyChart" class="chart-area"></div></div>
+          <details class="chart-table"><summary>View as table</summary><div id="iqMonthlyTable"></div></details>
         </section>
 
         <section class="chart-card">
@@ -739,6 +756,16 @@
           <div id="predictions" class="predictions"></div>
           <p class="disclaimer">Predictions blend your fleet's observed replacement intervals with indicative industry lifespan data. Actual wear varies with terrain, load and driving style.</p>
         </section>
+
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="brain" data-icon-size="22"></i></span> Foresight — The AI That Keeps Watch</h2>
+              <p class="muted">FleetWorks' own AI watchdog scans your fleet round the clock — inflated bills, double billing, RTO lapses, DL expiries, falling mileage, warranty-claimable repeat failures and overdue maintenance surface here, ranked by risk.</p>
+            </div>
+          </div>
+          <div id="insightsFeed" class="insights-feed"></div>
+        </div>
       </section>
 
       <!-- ======= MY ACCOUNT (merged from my.html) ======= -->

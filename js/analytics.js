@@ -211,32 +211,53 @@ function legendHTML(items) {
 }
 
 // ---------- Render: stat tiles ----------
+// FleetFin — the money picture (actuals only)
 function renderStats() {
+  const el = document.getElementById("finStatRow");
+  if (!el) return;
   const nowK = todayKey();
   const thisMonth = db.expenses.filter(e => monthKey(e.date) === nowK).reduce((s, e) => s + e.amount, 0);
+  const fuelMonth = (db.fuelLogs || []).filter(f => monthKey(f.date) === nowK).reduce((s, f) => s + f.amount, 0);
   const vs = vehicleStats();
   const fleetCpk = mean(vs.filter(v => v.costPerKm > 0).map(v => v.costPerKm));
   const indCpk = mean(vs.map(v => v.industry));
   const deltaPct = indCpk ? ((fleetCpk - indCpk) / indCpk) * 100 : 0;
+  const deltaGood = deltaPct <= 0;
+  el.innerHTML = `
+    <div class="stat-tile"><span class="stat-label">Maintenance this month</span><span class="stat-value">${fmtINR(thisMonth)}</span><span class="stat-sub">${nowK ? monthLabel(nowK) : ""}</span></div>
+    <div class="stat-tile"><span class="stat-label">Diesel this month</span><span class="stat-value">${fmtINR(fuelMonth)}</span><span class="stat-sub">from fuel logs</span></div>
+    <div class="stat-tile"><span class="stat-label">Fleet cost per km</span><span class="stat-value">₹${fleetCpk.toFixed(2)}</span>
+      <span class="stat-sub" style="color:${deltaGood ? "#006300" : DASH_PAL.critical}">${deltaGood ? "▼" : "▲"} ${Math.abs(deltaPct).toFixed(0)}% vs industry ₹${indCpk.toFixed(2)}</span></div>
+    <div class="stat-tile"><span class="stat-label">Records in books</span><span class="stat-value">${db.expenses.length + (db.fuelLogs || []).length}</span><span class="stat-sub">${db.vehicles.length} vehicles tracked</span></div>`;
+}
+
+// FleetIQ — what the AI sees ahead, and what acting on it is worth
+function renderIQStats() {
+  const el = document.getElementById("iqStatRow");
+  if (!el) return;
   const monthly = monthlySeries(db.expenses);
   const fc = forecastMonthly(monthly.slice(-12), 3);
   const fcTotal = fc.reduce((s, f) => s + f.amount, 0);
-
-  const deltaGood = deltaPct <= 0;
-  document.getElementById("statRow").innerHTML = `
-    <div class="stat-tile"><span class="stat-label">Spend this month</span><span class="stat-value">${fmtINR(thisMonth)}</span><span class="stat-sub">${nowK ? monthLabel(nowK) : ""}</span></div>
-    <div class="stat-tile"><span class="stat-label">Fleet cost per km</span><span class="stat-value">₹${fleetCpk.toFixed(2)}</span>
-      <span class="stat-sub" style="color:${deltaGood ? "#006300" : DASH_PAL.critical}">${deltaGood ? "▼" : "▲"} ${Math.abs(deltaPct).toFixed(0)}% vs industry ₹${indCpk.toFixed(2)}</span></div>
+  const preds = predictParts();
+  const due = preds.filter(p => p.lifeUsed >= 0.85);
+  const dueCost = due.reduce((s, p) => s + p.estCost, 0);
+  // roadside failure runs ~40% over a planned replacement (towing, downtime, distress pricing)
+  const avoided = dueCost * 0.4;
+  const signals = (typeof computeInsights === "function") ? computeInsights().filter(i => i.sev >= 2).length : 0;
+  el.innerHTML = `
     <div class="stat-tile"><span class="stat-label">Forecast, next 3 months</span><span class="stat-value">${fmtINR(fcTotal)}</span><span class="stat-sub">ML regression on your history</span></div>
-    <div class="stat-tile"><span class="stat-label">Vehicles tracked</span><span class="stat-value">${db.vehicles.length}</span><span class="stat-sub">${db.expenses.length} expense records</span></div>`;
+    <div class="stat-tile"><span class="stat-label">Replacements due soon</span><span class="stat-value" style="color:${due.length ? DASH_PAL.serious : DASH_PAL.good}">${due.length}</span><span class="stat-sub">≈ ${fmtINR(dueCost)} if planned now</span></div>
+    <div class="stat-tile"><span class="stat-label">Breakdown cost avoidable</span><span class="stat-value" style="color:#006300">${fmtINR(avoided)}</span><span class="stat-sub">est. 40% roadside premium saved</span></div>
+    <div class="stat-tile"><span class="stat-label">AI signals active</span><span class="stat-value">${signals}</span><span class="stat-sub">Foresight watching 24×7</span></div>`;
 }
 
-// ---------- Render: monthly chart ----------
-function renderMonthly() {
-  const data = monthlySeries(filteredExpenses());
-  const box = document.getElementById("monthlyChart");
+// ---------- Render: monthly chart (prefix-parameterised for Fin & IQ) ----------
+function renderMonthlyInto(prefix, expenses, withForecast) {
+  const box = document.getElementById(prefix + "Chart");
+  if (!box) return;
+  const data = monthlySeries(expenses);
   if (!data.length) { box.innerHTML = "<p class='muted'>No expenses in this window.</p>"; return; }
-  const fc = forecastMonthly(data, 3);
+  const fc = withForecast ? forecastMonthly(data.slice(-12), 3) : [];
   const all = [...data.map(d => ({ ...d, type: "actual" })), ...fc.map(d => ({ ...d, type: "forecast" }))];
 
   const H = 260, padL = 56, padB = 34, padT = 18, padR = 10;
@@ -270,14 +291,20 @@ function renderMonthly() {
   });
   s += "</svg>";
   box.innerHTML = s;
-  document.getElementById("monthlyLegend").innerHTML = legendHTML([
-    { color: DASH_PAL.s1, label: "Actual" }, { color: DASH_PAL.s1soft, label: "Forecast (ML)" }
-  ]);
-  document.getElementById("monthlyTable").innerHTML =
+  const legend = document.getElementById(prefix + "Legend");
+  if (legend) legend.innerHTML = legendHTML(withForecast
+    ? [{ color: DASH_PAL.s1, label: "Actual" }, { color: DASH_PAL.s1soft, label: "Forecast (ML)" }]
+    : [{ color: DASH_PAL.s1, label: "Monthly spend" }]);
+  const table = document.getElementById(prefix + "Table");
+  if (table) table.innerHTML =
     "<table><thead><tr><th>Month</th><th>Spend</th><th>Type</th></tr></thead><tbody>" +
     all.map(d => `<tr><td>${monthLabel(d.key)}</td><td>${fmtINRfull(d.amount)}</td><td>${d.type}</td></tr>`).join("") +
     "</tbody></table>";
   bindTips(box);
+}
+function renderMonthly() {
+  renderMonthlyInto("monthly", filteredExpenses(), false);     // FleetFin: actuals
+  renderMonthlyInto("iqMonthly", db.expenses, true);           // FleetIQ: + ML forecast
 }
 
 // ---------- Render: vehicle chart ----------
@@ -494,6 +521,7 @@ function renderAnalyticsAll() {
   if ([...vf.options].some(o => o.value === keep)) vf.value = keep;
 
   renderStats();
+  renderIQStats();
   renderCharts();
   renderPredictions();
   renderAccounts();
