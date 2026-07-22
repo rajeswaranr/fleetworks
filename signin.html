@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — FleetWorks</title>
+  <meta name="description" content="Sign in to FleetWorks as a transport owner, a workshop partner, or FleetWorks staff." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="icons/icon-96.png" />
+  <meta name="theme-color" content="#0f1e33" />
+</head>
+<body>
+
+  <!-- ======= NAVBAR ======= -->
+  <header class="navbar" id="navbar">
+    <div class="container nav-inner">
+      <a href="index.html" class="logo">
+        <img src="assets/logo-mark.svg" width="40" height="34" alt="" style="display:block" />
+        <span>Fleet<em>Works</em></span>
+      </a>
+      <div class="nav-actions">
+        <a href="index.html" class="btn btn-outline btn-sm">← Back to FleetWorks</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ======= ROLE CHOOSER ======= -->
+  <section class="dash-hero">
+    <div class="container" style="text-align:center">
+      <span class="badge">🔐 One Platform, Every Role</span>
+      <h1>Sign In to <span class="accent">FleetWorks</span></h1>
+      <p style="max-width:560px;margin:0 auto">Choose how you use FleetWorks — each role has its own sign in and its own view of the platform.</p>
+    </div>
+  </section>
+
+  <main class="container dash-main" style="max-width:1000px">
+    <div class="role-grid">
+      <a href="my.html" class="role-card">
+        <span class="role-icon">🚛</span>
+        <h2>Transport Owner</h2>
+        <p>Log diesel, expenses and problems for your fleet. Get AI predictions, industry benchmarks and Tally-ready accounts.</p>
+        <span class="role-cta">Owner Sign In →</span>
+      </a>
+      <a href="partner.html#register" class="role-card">
+        <span class="role-icon">🤝</span>
+        <h2>Workshop Partner</h2>
+        <p>Register your workshop or sign in to track your application status and (soon) manage incoming jobs.</p>
+        <span class="role-cta">Partner Sign In →</span>
+      </a>
+      <a href="admin.html" class="role-card">
+        <span class="role-icon">🛡️</span>
+        <h2>FleetWorks Staff</h2>
+        <p>Internal console for FleetWorks admins and BDAs — view customer leads and the vendor onboarding pipeline.</p>
+        <span class="role-cta">Staff Sign In →</span>
+      </a>
+    </div>
+    <p class="muted" style="text-align:center;margin-top:28px">New to FleetWorks? <a href="my.html" style="color:var(--amber-dark);font-weight:600">Create a free owner account</a> or <a href="partner.html#register" style="color:var(--amber-dark);font-weight:600">register your workshop</a>.</p>
+  </main>
+
+  <!-- ======= FOOTER ======= -->
+  <footer class="footer" style="margin-top:40px">
+    <div class="footer-bottom">
+      <div class="container">
+        <span>© 2026 FleetWorks Private Limited. All rights reserved.</span>
+        <span><em>Where Every Fleet Learns.</em></span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const navbar = document.getElementById("navbar");
+    window.addEventListener("scroll", () => navbar.classList.toggle("scrolled", window.scrollY > 10));
+  </script>
+</body>
+</html>

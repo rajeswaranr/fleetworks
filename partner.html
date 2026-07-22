@@ -69,18 +69,42 @@
           <div><strong>0%</strong><span>Joining Fee</span></div>
         </div>
       </div>
-      <div class="booking-card">
-        <h3>Check Application Status</h3>
-        <p class="muted">Already applied? Track your onboarding here.</p>
-        <form id="statusForm" novalidate>
-          <label>Registered Mobile Number
-            <input type="tel" name="phone" placeholder="10-digit mobile number" maxlength="10" required />
-          </label>
-          <button type="submit" class="btn btn-outline btn-block">Check Status</button>
-          <div id="statusResult" class="status-result" hidden></div>
-        </form>
-        <hr class="divider" />
-        <a href="#register" class="btn btn-primary btn-block">New Vendor? Register Free →</a>
+      <div class="booking-card" id="partnerAuthCard">
+        <!-- Signed out -->
+        <div id="partnerSignedOut">
+          <h3>Partner Sign In</h3>
+          <p class="muted">Already registered? Sign in to check your status.</p>
+          <form id="partnerLoginForm" novalidate>
+            <label>Email
+              <input type="email" name="email" required autocomplete="username" />
+            </label>
+            <label>Password
+              <input type="password" name="password" required autocomplete="current-password" />
+            </label>
+            <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+            <p class="field-error" id="partnerLoginErr" hidden></p>
+          </form>
+          <hr class="divider" />
+          <details>
+            <summary style="cursor:pointer;font-size:0.85rem;color:var(--muted);font-weight:600">Applied before sign-in existed? Check status by phone</summary>
+            <form id="statusForm" novalidate style="margin-top:14px">
+              <label>Registered Mobile Number
+                <input type="tel" name="phone" placeholder="10-digit mobile number" maxlength="10" required />
+              </label>
+              <button type="submit" class="btn btn-outline btn-block">Check Status</button>
+              <div id="statusResult" class="status-result" hidden></div>
+            </form>
+          </details>
+          <hr class="divider" />
+          <a href="#register" class="btn btn-primary btn-block">New Vendor? Register Free →</a>
+        </div>
+
+        <!-- Signed in -->
+        <div id="partnerSignedIn" hidden>
+          <h3>Welcome back<span id="partnerOwnerName"></span> 👋</h3>
+          <div id="partnerAppDetails"></div>
+          <button class="btn btn-outline btn-block" id="partnerLogoutBtn" style="margin-top:14px">Sign Out</button>
+        </div>
       </div>
     </div>
   </section>
@@ -200,8 +224,8 @@
               <label>Mobile Number
                 <input type="tel" name="phone" placeholder="10-digit number" maxlength="10" pattern="[6-9][0-9]{9}" required />
               </label>
-              <label>Email (optional)
-                <input type="email" name="email" placeholder="you@example.com" />
+              <label>Email
+                <input type="email" name="email" placeholder="you@example.com" required />
               </label>
             </div>
             <div class="form-row">
@@ -312,6 +336,16 @@
                 </select>
               </label>
             </div>
+            <div class="form-row">
+              <label>Create a Password
+                <input type="password" name="password" placeholder="Minimum 6 characters" minlength="6" required autocomplete="new-password" />
+              </label>
+              <label>Confirm Password
+                <input type="password" name="passwordConfirm" placeholder="Re-enter password" minlength="6" required autocomplete="new-password" />
+              </label>
+            </div>
+            <p class="field-error" id="passwordError" hidden>Passwords must match and be at least 6 characters.</p>
+            <p class="muted" style="font-size:0.78rem">This creates your Partner Sign In — use it to check your application status and (soon) manage jobs.</p>
             <label>Upload Documents <small>(shop licence / GST certificate / workshop photos — optional now, required before go-live)</small>
               <input type="file" name="documents" multiple accept=".pdf,.jpg,.jpeg,.png" />
             </label>
@@ -333,6 +367,7 @@
           <h3>Application Submitted!</h3>
           <p>Welcome aboard, <strong id="vSuccessName"></strong>. Your application reference is <strong id="vSuccessRef"></strong>.</p>
           <p class="muted">Our onboarding team will call <strong id="vSuccessPhone"></strong> within 24 hours to schedule your verification visit.</p>
+          <p class="field-error" id="vSuccessConfirmNote" hidden style="color:var(--amber-dark);background:rgba(245,166,35,0.1);padding:10px 14px;border-radius:8px">📧 Check your email to confirm your account before signing in.</p>
           <div class="success-next">
             <h4>What happens next?</h4>
             <ol>
@@ -440,6 +475,7 @@
   </footer>
 
   <script src="js/backend.js"></script>
+  <script src="js/cloudstore.js"></script>
   <script src="js/partner.js"></script>
   <script>
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");

@@ -89,6 +89,27 @@
 
     logout() { setSession(null); location.reload(); },
 
+    /* Generic authenticated read, scoped by RLS to whatever the signed-in
+       account is allowed to see (e.g. a partner's own vendor_applications
+       row). query is a raw PostgREST query string, e.g. "select=*&limit=1". */
+    async authGet(table, query) {
+      const r = await authFetch("/rest/v1/" + table + "?" + (query || "select=*"), {});
+      if (!r.ok) return null;
+      return r.json();
+    },
+
+    /* Authenticated insert -- runs as the signed-in user (not the anon
+       role), so RLS "with check (auth.uid() = owner_id)" style policies
+       can enforce a row can only ever be claimed by its real owner. */
+    async authInsert(table, row) {
+      const r = await authFetch("/rest/v1/" + table, {
+        method: "POST",
+        headers: { "Prefer": "return=minimal" },
+        body: JSON.stringify(row)
+      });
+      return r.ok;
+    },
+
     /* Pull cloud fleet -> localStorage (cloud wins if it has data). */
     async pull() {
       const r = await authFetch("/rest/v1/fleets?select=data&limit=1", {});

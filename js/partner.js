@@ -1,5 +1,9 @@
 /* ============ FleetWorks — partner.js (vendor onboarding) ============ */
 
+// The floating fleet-sync pill (cloudstore.js) doesn't apply to partners —
+// they have no fleet data to sync. Remove it on this page only.
+document.getElementById("fwSyncPill")?.remove();
+
 // ---------- Navbar ----------
 const navbar = document.getElementById("navbar");
 const hamburger = document.getElementById("hamburger");
@@ -51,9 +55,11 @@ function validateStep(n) {
     if (!ok) valid = false;
   });
 
-  // Optional fields with format rules (email, gstin)
-  step.querySelectorAll("input[name=email], input[name=gstin]").forEach((field) => {
-    const ok = validators[field.name](field.value.trim());
+  // GSTIN stays genuinely optional (no [required] attribute), so it needs
+  // its own format check independent of the required-fields loop above.
+  // Email is now required and is fully covered by that loop already.
+  step.querySelectorAll("input[name=gstin]").forEach((field) => {
+    const ok = validators.gstin(field.value.trim());
     field.classList.toggle("invalid", !ok);
     if (!ok) valid = false;
   });
@@ -67,11 +73,19 @@ function validateStep(n) {
     if (!servicesOk || !vehiclesOk) valid = false;
   }
 
-  // Step 3: consent
+  // Step 3: consent + password match
   if (n === 3) {
     const consentOk = step.querySelector('input[name="consent"]').checked;
     document.getElementById("consentError").hidden = consentOk;
     if (!consentOk) valid = false;
+
+    const pw = step.querySelector('input[name="password"]');
+    const pwc = step.querySelector('input[name="passwordConfirm"]');
+    const pwOk = pw.value.length >= 6 && pw.value === pwc.value;
+    pw.classList.toggle("invalid", pw.value.length < 6);
+    pwc.classList.toggle("invalid", !pwOk);
+    document.getElementById("passwordError").hidden = pwOk;
+    if (!pwOk) valid = false;
   }
 
   return valid;
@@ -115,9 +129,13 @@ function getVendors() {
   return JSON.parse(localStorage.getItem("ff_vendors") || "[]");
 }
 
-vendorForm.addEventListener("submit", (e) => {
+vendorForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!validateStep(3)) return;
+
+  const submitBtn = vendorForm.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Submitting…";
 
   const fd = new FormData(vendorForm);
   const data = Object.fromEntries(fd);
@@ -128,26 +146,59 @@ vendorForm.addEventListener("submit", (e) => {
   data.status = "Under Review";
   data.createdAt = new Date().toISOString();
   delete data.consent;
+  const password = data.password;
+  delete data.password;
+  delete data.passwordConfirm;
 
   // Local copy (offline safety) + cloud insert via Supabase when configured.
   const vendors = getVendors();
   vendors.push(data);
   localStorage.setItem("ff_vendors", JSON.stringify(vendors));
-  if (window.fwInsert) {
-    window.fwInsert("vendor_applications", {
-      ref: data.ref, business_name: data.businessName, owner_name: data.ownerName,
-      business_type: data.businessType, phone: data.phone, email: data.email || null,
-      city: data.city, pincode: data.pincode, address: data.address,
-      services: data.services, vehicles: data.vehicles,
-      mechanics: data.mechanics, bays: data.bays, all_night: data.allNight,
-      doorstep: data.doorstep, experience: data.experience,
-      gstin: data.gstin || null, pan: data.pan, bank_ready: data.bankReady
-    });
+
+  // Account creation: if Supabase requires email confirmation, there's no
+  // session yet and owner_id stays null for now — the sign-in flow's
+  // claim fallback links it up the first time they successfully log in
+  // (matched by verified email, see db/schema-roles.sql).
+  let ownerId = null;
+  let needsEmailConfirm = false;
+  if (window.fwCloud && password) {
+    try {
+      const res = await fwCloud.signup(data.email, password, {
+        role: "partner", business_name: data.businessName, phone: data.phone
+      });
+      if (res === "ready") {
+        const session = JSON.parse(localStorage.getItem("fw_session") || "null");
+        ownerId = session?.user?.id || null;
+      } else {
+        needsEmailConfirm = true;
+      }
+    } catch (ex) {
+      // Account creation failed (e.g. email already registered under a
+      // different application) — the application itself still goes
+      // through; they can sign in with that existing account instead.
+    }
   }
+
+  const row = {
+    ref: data.ref, business_name: data.businessName, owner_name: data.ownerName,
+    business_type: data.businessType, phone: data.phone, email: data.email,
+    city: data.city, pincode: data.pincode, address: data.address,
+    services: data.services, vehicles: data.vehicles,
+    mechanics: data.mechanics, bays: data.bays, all_night: data.allNight,
+    doorstep: data.doorstep, experience: data.experience,
+    gstin: data.gstin || null, pan: data.pan, bank_ready: data.bankReady,
+    owner_id: ownerId
+  };
+  // owner_id can only be set by an authenticated insert (RLS enforces this
+  // at the database level) -- anonymous submissions must leave it null.
+  if (ownerId && window.fwCloud) await fwCloud.authInsert("vendor_applications", row);
+  else if (window.fwInsert) window.fwInsert("vendor_applications", row);
 
   document.getElementById("vSuccessName").textContent = data.ownerName;
   document.getElementById("vSuccessRef").textContent = data.ref;
   document.getElementById("vSuccessPhone").textContent = "+91 " + data.phone;
+  const confirmNote = document.getElementById("vSuccessConfirmNote");
+  if (confirmNote) confirmNote.hidden = !needsEmailConfirm;
   vendorForm.hidden = true;
   document.getElementById("stepper").hidden = true;
   document.getElementById("vendorSuccess").hidden = false;
@@ -196,3 +247,81 @@ statusForm.addEventListener("submit", (e) => {
     else showNotFound();
   });
 });
+
+// ---------- Partner Sign In & Portal ----------
+const partnerLoginForm = document.getElementById("partnerLoginForm");
+const partnerSignedOut = document.getElementById("partnerSignedOut");
+const partnerSignedIn = document.getElementById("partnerSignedIn");
+
+function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+async function fetchOwnApplication() {
+  const uid = JSON.parse(localStorage.getItem("fw_session") || "null")?.user?.id;
+  if (!uid || !window.fwCloud) return null;
+  let rows = await fwCloud.authGet("vendor_applications", "owner_id=eq." + uid + "&select=*&order=created_at.desc&limit=1");
+  if (rows && rows.length) return rows[0];
+
+  // Not linked yet (e.g. the account was confirmed after the application
+  // was submitted) — try to claim an ownerless application with a
+  // matching email. Matched on the JWT's *verified* email claim (proven
+  // by actually confirming that inbox), never on phone number, which
+  // anyone could type in without proving they own it.
+  const email = JSON.parse(localStorage.getItem("fw_session") || "null")?.user?.email;
+  if (email) {
+    const matches = await fwCloud.authGet("vendor_applications",
+      "email=eq." + encodeURIComponent(email) + "&owner_id=is.null&order=created_at.desc&limit=1");
+    if (matches && matches.length) {
+      await fetch(FW_BACKEND.url + "/rest/v1/vendor_applications?id=eq." + matches[0].id, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey,
+          "Authorization": "Bearer " + JSON.parse(localStorage.getItem("fw_session")).access_token,
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify({ owner_id: uid })
+      }).catch(() => {});
+      rows = await fwCloud.authGet("vendor_applications", "owner_id=eq." + uid + "&select=*&order=created_at.desc&limit=1");
+      if (rows && rows.length) return rows[0];
+    }
+  }
+  return null;
+}
+
+async function renderPartnerPortal() {
+  partnerSignedOut.hidden = true;
+  partnerSignedIn.hidden = false;
+  document.getElementById("partnerOwnerName").textContent = "";
+  const details = document.getElementById("partnerAppDetails");
+  details.innerHTML = "<p class='muted'>Loading your application…</p>";
+
+  const app = await fetchOwnApplication();
+  if (!app) {
+    details.innerHTML = "<p class='muted'>No application linked to this account yet. If you just registered, this can take a minute — or <a href='#register'>register your workshop</a>.</p>";
+    return;
+  }
+  document.getElementById("partnerOwnerName").textContent = " — " + app.business_name;
+  details.innerHTML =
+    "Ref: <strong>" + esc(app.ref) + "</strong><br />" +
+    "Applied " + new Date(app.created_at).toLocaleDateString("en-IN") + "<br />" +
+    "Status: <span class='status-pill'>" + esc(app.status) + "</span>";
+}
+
+partnerLoginForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const err = document.getElementById("partnerLoginErr");
+  err.hidden = true;
+  const fd = Object.fromEntries(new FormData(partnerLoginForm));
+  try {
+    await fwCloud.login(fd.email, fd.password);
+    renderPartnerPortal();
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+  }
+});
+
+document.getElementById("partnerLogoutBtn").addEventListener("click", () => {
+  if (confirm("Sign out of your partner account?")) fwCloud.logout();
+});
+
+if (window.fwCloud && fwCloud.user()) renderPartnerPortal();
