@@ -18,11 +18,13 @@
   <rect x="3" y="3" width="90" height="90" rx="26" fill="url(#fwTile)"/>
   <rect x="3" y="3" width="90" height="52" rx="26" fill="url(#fwSheen)"/>
   <rect x="3.75" y="3.75" width="88.5" height="88.5" rx="25.25" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="1.5"/>
-  <!-- three horizontal bars: motion / load -->
-  <path d="M24 37 H45 M24 48 H45 M24 59 H45" stroke="#eaf1fb" stroke-opacity="0.92" stroke-width="6" stroke-linecap="round"/>
+  <!-- two horizontal bars: the vehicle body -->
+  <path d="M22 35 H56 M22 44 H56" stroke="#eaf1fb" stroke-opacity="0.92" stroke-width="4.5" stroke-linecap="round"/>
+  <!-- two spaced tyre curves -->
+  <path d="M25 57 a5 5 0 0 1 10 0 M46 57 a5 5 0 0 1 10 0" fill="none" stroke="url(#fwAmber)" stroke-width="4" stroke-linecap="round"/>
   <!-- two forward arrows: momentum -->
-  <path d="M52 37 L61 48 L52 59" fill="none" stroke="url(#fwAmber)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M63 37 L72 48 L63 59" fill="none" stroke="url(#fwAmber)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M61 37 L69 46 L61 55" fill="none" stroke="url(#fwAmber)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M71 37 L79 46 L71 55" fill="none" stroke="url(#fwAmber)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
   <!-- AI spark -->
-  <path d="M72 18 l1.7 4.6 4.6 1.7 -4.6 1.7 -1.7 4.6 -1.7 -4.6 -4.6 -1.7 4.6 -1.7 z" fill="url(#fwAmber)"/>
+  <path d="M74 15 l1.5 4.1 4.1 1.5 -4.1 1.5 -1.5 4.1 -1.5 -4.1 -4.1 -1.5 4.1 -1.5 z" fill="url(#fwAmber)"/>
 </svg>
