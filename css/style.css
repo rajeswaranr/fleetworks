@@ -303,6 +303,20 @@ input.invalid, select.invalid { border-color: #dc2626; box-shadow: 0 0 0 3px rgb
 .hm-stat span { color: #93a7c4; font-size: 0.66rem; letter-spacing: 0.04em; }
 @keyframes hmBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) { .hm-live .dot { animation: none; } }
+
+/* ---------- Email-confirmation panel (owner sign-up) ---------- */
+.auth-confirm { text-align: center; padding: 6px 2px 2px; }
+.auth-confirm-ic {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 66px; height: 66px; border-radius: 50%; margin-bottom: 14px;
+  background: #eafaf0; color: var(--green);
+}
+.auth-confirm h2 { color: var(--navy); font-size: 1.2rem; margin-bottom: 8px; }
+.auth-confirm p { color: var(--muted); font-size: 0.9rem; margin-bottom: 12px; line-height: 1.55; }
+.auth-confirm strong { color: var(--ink); }
+.auth-confirm .auth-confirm-hint { font-size: 0.82rem; }
+.auth-confirm .btn { margin-top: 10px; }
+#resendNote { font-size: 0.8rem; color: var(--navy); margin-top: -4px; }
 .link-btn {
   background: none; border: none; cursor: pointer; font-family: inherit;
   color: var(--navy); font-weight: 700; font-size: 0.88rem; text-align: left; padding: 0;

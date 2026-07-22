@@ -45,6 +45,8 @@
     checkCircle: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/>',
     xCircle: '<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/>',
     bell: '<path d="M18 8a6 6 0 1 0-12 0c0 6-2.5 7-2.5 7h17S18 14 18 8Z"/><path d="M10.5 20a1.8 1.8 0 0 0 3 0"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 7 8.5 6 8.5-6"/>',
+    mailCheck: '<path d="M21 10.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9"/><path d="m3.5 7 8.5 6 8.5-6"/><path d="m16 18 2 2 4-4"/>',
 
     /* ---- money / analytics ---- */
     rupee: '<path d="M7 4h10M7 8h10M14.5 8c0 3-2.5 4.5-5.5 4.5H7l6.5 7"/>',

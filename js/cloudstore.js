@@ -74,6 +74,20 @@
       return "confirm_email"; // confirmations enabled in Supabase
     },
 
+    /* Re-send the sign-up confirmation email (Supabase resend endpoint). */
+    async resend(email) {
+      const r = await fetch(cfg().url + "/auth/v1/resend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": cfg().anonKey },
+        body: JSON.stringify({ type: "signup", email })
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.msg || j.error_description || "Could not resend — please wait a minute and try again.");
+      }
+      return true;
+    },
+
     async login(email, password) {
       const r = await fetch(cfg().url + "/auth/v1/token?grant_type=password", {
         method: "POST",

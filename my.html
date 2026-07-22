@@ -84,6 +84,16 @@
           <p class="field-error" id="authErr" hidden></p>
           <p class="muted" id="authNote" style="font-size:0.78rem" hidden></p>
         </form>
+
+        <!-- Email-confirmation panel (shown after Create Account) -->
+        <div id="authConfirm" class="auth-confirm" hidden>
+          <span class="auth-confirm-ic"><i data-icon="mailCheck" data-icon-size="30"></i></span>
+          <h2>Check your email to activate</h2>
+          <p>We've sent an activation link to <strong id="confirmEmail"></strong>. Click it to activate your FleetWorks account, then come back here and sign in.</p>
+          <p class="muted auth-confirm-hint">Didn't get it within a minute? Check your spam folder, or <button type="button" class="link-btn" id="resendConfirm">resend the link</button>.</p>
+          <p class="muted" id="resendNote" hidden></p>
+          <button type="button" class="btn btn-outline btn-block" id="backToSignIn">Back to Sign In</button>
+        </div>
       </div>
     </div>
 
@@ -237,6 +247,7 @@
     </div>
   </footer>
 
+  <script src="js/icons.js"></script>
   <script src="js/backend.js"></script>
   <script src="js/cloudstore.js"></script>
   <script src="js/my.js"></script>

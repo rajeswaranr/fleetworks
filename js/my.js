@@ -83,12 +83,30 @@ document.getElementById("authForm").addEventListener("submit", async e => {
       };
       const res = await fwCloud.signup(fd.email, fd.password, profile);
       if (res === "ready") { await fwCloud.pull(); location.reload(); }
-      else { note.textContent = "✅ Account created! Check your email inbox, click the confirmation link, then sign in here."; note.hidden = false; }
+      else { showEmailConfirm(fd.email); }
     } else {
       await fwCloud.login(fd.email, fd.password);
       location.reload();
     }
   } catch (ex) { err.textContent = ex.message; err.hidden = false; }
+});
+
+// ---------- Email-confirmation panel ----------
+function showEmailConfirm(email) {
+  document.getElementById("confirmEmail").textContent = email;
+  document.getElementById("authForm").hidden = true;
+  document.getElementById("authTitle").hidden = true;
+  const sub = document.getElementById("authTitle").nextElementSibling;
+  if (sub) sub.hidden = true;
+  document.getElementById("authConfirm").hidden = false;
+}
+document.getElementById("backToSignIn").addEventListener("click", () => location.reload());
+document.getElementById("resendConfirm").addEventListener("click", async () => {
+  const email = document.getElementById("confirmEmail").textContent;
+  const rn = document.getElementById("resendNote");
+  rn.hidden = false; rn.textContent = "Sending…";
+  try { await fwCloud.resend(email); rn.textContent = "Link re-sent — check your inbox (and spam)."; }
+  catch (ex) { rn.textContent = ex.message; }
 });
 
 document.getElementById("authTopBtn").addEventListener("click", () => {
