@@ -1142,3 +1142,17 @@ i[data-icon] { display: inline-flex; align-items: center; justify-content: cente
 .agn-item p { font-size: 0.82rem; margin-top: 2px; }
 body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !important; }
 @media (max-width: 860px) { .auth-gate-grid { grid-template-columns: 1fr; } }
+
+/* Auth gate — clean-up pass */
+.auth-gate-card, .auth-gate-news {
+  box-shadow: 0 8px 26px rgba(15, 30, 51, 0.06);
+  border: 1px solid #e7ebf1; border-radius: 16px;
+}
+.auth-gate-card { padding: 34px 34px 24px; }
+.auth-gate-card > h2 { text-align: center; font-size: 1.35rem; }
+.auth-gate-card > p.muted { text-align: center; }
+.auth-gate-card .entry-form { margin-top: 6px; }
+.auth-gate-sep { border: 0; border-top: 1px solid #eceff3; margin: 20px 0 4px; }
+.auth-gate-alt { margin-top: 10px; }
+.auth-gate-news { padding: 24px 28px 12px; }
+.auth-gate-logo img { border-radius: 12px; }
