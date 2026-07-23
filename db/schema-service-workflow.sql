@@ -387,21 +387,39 @@ $$ select exists (
 
 do $$ declare t text;
 begin
-  foreach t in array array['request_assignments','assessments','estimates','estimate_items',
-    'work_logs','attachments','work_reports','invoices','payments','feedback',
-    'workshop_complaints','status_events']
+  foreach t in array array['request_assignments','assessments','estimates',
+    'work_logs','attachments','work_reports','invoices','feedback','status_events']
   loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists %I_vis on public.%I', t, t);
-    if t = 'estimate_items' then
-      execute 'create policy estimate_items_vis on public.estimate_items for all to authenticated
-        using (exists (select 1 from public.estimates e where e.id = estimate_id and public.can_see_request(e.request_id)))';
-    else
-      execute format('create policy %I_vis on public.%I for all to authenticated
-        using (public.can_see_request(request_id))', t, t);
-    end if;
+    execute format('create policy %I_vis on public.%I for all to authenticated
+      using (public.can_see_request(request_id))', t, t);
   end loop;
 end $$;
+
+-- estimate_items has no request_id — visibility flows through its estimate
+alter table public.estimate_items enable row level security;
+drop policy if exists estimate_items_vis on public.estimate_items;
+create policy estimate_items_vis on public.estimate_items for all to authenticated
+  using (exists (select 1 from public.estimates e
+                  where e.id = estimate_id and public.can_see_request(e.request_id)));
+
+-- payments has no request_id — visibility flows through its invoice
+alter table public.payments enable row level security;
+drop policy if exists payments_vis on public.payments;
+create policy payments_vis on public.payments for all to authenticated
+  using (exists (select 1 from public.invoices i
+                  where i.id = invoice_id and public.can_see_request(i.request_id)));
+
+-- workshop_complaints: request_id is optional — fall back to org / workshop
+alter table public.workshop_complaints enable row level security;
+drop policy if exists workshop_complaints_vis on public.workshop_complaints;
+create policy workshop_complaints_vis on public.workshop_complaints for all to authenticated
+  using (
+    (request_id is not null and public.can_see_request(request_id))
+    or (org_id is not null and public.is_org_member(org_id))
+    or (workshop_id is not null and public.is_workshop_user(workshop_id))
+  );
 
 alter table public.workshops enable row level security;
 drop policy if exists workshops_read on public.workshops;
