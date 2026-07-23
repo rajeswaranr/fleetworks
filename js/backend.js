@@ -7,7 +7,11 @@
 
 window.FW_BACKEND = {
   url: "https://crdblxeufbhysglbbtxi.supabase.co",
-  anonKey: "sb_publishable_DOrG4C5uWnD1HJZ9HONFlA_T9MOp9fb"  // publishable key: safe to be public, RLS enforces security
+  anonKey: "sb_publishable_DOrG4C5uWnD1HJZ9HONFlA_T9MOp9fb",  // publishable key: safe to be public, RLS enforces security
+  // PaddleOCR bill-reader service (server/ocr/). Fill in after deploying,
+  // e.g. "https://<user>-fleetworks-ocr.hf.space". Blank = on-device
+  // Tesseract only (the app auto-falls-back when this is unreachable).
+  ocrUrl: ""
 };
 
 window.fwConfigured = function () {

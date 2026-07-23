@@ -655,21 +655,42 @@ function initBillScan() {
     form.hidden = false;
     if (!form.date.value) form.date.value = new Date().toISOString().slice(0, 10);
   });
+  // PaddleOCR service first (server/ocr/, much better on Indian bills),
+  // on-device Tesseract as the offline fallback.
+  async function ocrText(f) {
+    const base = (window.FW_BACKEND && FW_BACKEND.ocrUrl || "").replace(/\/$/, "");
+    if (base) {
+      try {
+        st.textContent = "Reading bill with FleetWorks OCR…";
+        const fd = new FormData();
+        fd.append("file", f);
+        const r = await fetch(base + "/ocr", { method: "POST", body: fd });
+        if (r.ok) {
+          const j = await r.json();
+          return { text: j.text || "", server: j };
+        }
+      } catch { /* fall back below */ }
+    }
+    st.textContent = "Loading reader…";
+    await loadTesseract();
+    st.textContent = "Reading bill… (first scan is slow)";
+    const { data } = await Tesseract.recognize(f, "eng");
+    return { text: data.text || "", server: null };
+  }
+
   file.addEventListener("change", async () => {
     const f = file.files[0];
     if (!f) return;
     try {
-      st.textContent = "Loading reader…";
-      await loadTesseract();
-      st.textContent = "Reading bill… (first scan is slow)";
-      const { data } = await Tesseract.recognize(f, "eng");
-      const text = data.text || "";
+      const { text, server } = await ocrText(f);
       form.hidden = false;
-      const gstin = (text.match(/\b\d{2}[A-Z]{5}\d{4}[A-Z][0-9A-Z]Z[0-9A-Z]\b/i) || [])[0] || "";
+      const gstin = (server && server.gstin) ||
+        (text.match(/\b\d{2}[A-Z]{5}\d{4}[A-Z][0-9A-Z]Z[0-9A-Z]\b/i) || [])[0] || "";
       form.gstin.value = gstin.toUpperCase();
       const nums = [...text.matchAll(/(\d[\d,]{2,9}(?:\.\d{1,2})?)/g)]
         .map(m => +m[1].replace(/,/g, "")).filter(n => n >= 100 && n <= 2000000);
-      if (nums.length) form.amount.value = Math.round(Math.max(...nums));
+      if (server && server.amount) form.amount.value = Math.round(server.amount);
+      else if (nums.length) form.amount.value = Math.round(Math.max(...nums));
       const dm = text.match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/);
       if (dm) {
         const yy = dm[3].length === 2 ? "20" + dm[3] : dm[3];
