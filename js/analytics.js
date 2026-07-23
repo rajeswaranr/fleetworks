@@ -720,6 +720,60 @@ function initBillScan() {
     return items.slice(0, 15);
   }
 
+  // ---------- PDF bills: pdf.js text layer first, OCR the page as fallback ----------
+  let pdfjsP = null;
+  function loadPdfJs() {
+    if (!pdfjsP) pdfjsP = (async () => {
+      const m = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.min.mjs");
+      m.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.mjs";
+      return m;
+    })().catch(e => { pdfjsP = null; throw e; });
+    return pdfjsP;
+  }
+  function looseItems(lines) {
+    const out = [];
+    lines.forEach(ln => {
+      const m = ln.trim().match(/^(.*?[a-z].*?)\s+(?:rs\.?|₹)?\s*(\d[\d,]*(?:\.\d{1,2})?)$/i);
+      if (!m) return;
+      const a = +m[2].replace(/,/g, ""), d = m[1].replace(/[.:\-\s]+$/, "").trim();
+      if (a >= 10 && a <= 2000000 && d.length >= 4 && !/total|grand|amount|gst|tax|invoice|round/i.test(d)) out.push({ desc: d, amount: a });
+    });
+    return out.slice(0, 15);
+  }
+  async function pdfText(f) {
+    st.textContent = "Reading PDF…";
+    const pdfjs = await loadPdfJs();
+    const doc = await pdfjs.getDocument({ data: await f.arrayBuffer() }).promise;
+    const lines = [];
+    for (let p = 1; p <= Math.min(doc.numPages, 3); p++) {
+      const page = await doc.getPage(p);
+      const tc = await page.getTextContent();
+      const rows = {};
+      tc.items.forEach(it => {
+        const y = Math.round(it.transform[5]);
+        (rows[y] = rows[y] || []).push(it);
+      });
+      Object.keys(rows).map(Number).sort((a, b) => b - a).forEach(y => {
+        const line = rows[y].sort((a, b) => a.transform[4] - b.transform[4]).map(i => i.str).join(" ").replace(/\s+/g, " ").trim();
+        if (line) lines.push(line);
+      });
+    }
+    const text = lines.join("\n");
+    if (text.replace(/\s/g, "").length >= 30) {
+      const items = parseBillItems(lines);
+      return { text, server: { items: items.length ? items : looseItems(lines) } };
+    }
+    // scanned PDF (no text layer): rasterize page 1 and OCR it
+    st.textContent = "Scanned PDF — reading page with OCR…";
+    const page = await doc.getPage(1);
+    const vp = page.getViewport({ scale: 2 });
+    const c = document.createElement("canvas");
+    c.width = vp.width; c.height = vp.height;
+    await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+    const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.92));
+    return ocrText(new File([blob], "page.jpg", { type: "image/jpeg" }));
+  }
+
   async function ocrText(f) {
     // 1. RapidOCR — PaddleOCR's PP-OCRv4 models running fully on-device
     try {
@@ -820,14 +874,8 @@ function initBillScan() {
     e.target.value = "";
     if (!f) return;
     lastBillFile = f;
-    if (f.type === "application/pdf") {
-      form.hidden = false;
-      if (!form.date.value) form.date.value = new Date().toISOString().slice(0, 10);
-      st.textContent = "PDF attached — enter the details and save; the PDF is stored with the bill.";
-      return;
-    }
     try {
-      const { text, server } = await ocrText(f);
+      const { text, server } = f.type === "application/pdf" ? await pdfText(f) : await ocrText(f);
       form.hidden = false;
       const gstin = (server && server.gstin) ||
         (text.match(/\b\d{2}[A-Z]{5}\d{4}[A-Z][0-9A-Z]Z[0-9A-Z]\b/i) || [])[0] || "";
@@ -843,7 +891,9 @@ function initBillScan() {
       if (dm) {
         const yy = dm[3].length === 2 ? "20" + dm[3] : dm[3];
         const dt = new Date(+yy, +dm[2] - 1, +dm[1]);
-        if (!isNaN(dt) && dt <= new Date()) form.date.value = dt.toISOString().slice(0, 10);
+        // build the string locally — toISOString() shifts a day west of UTC
+        if (!isNaN(dt) && dt <= new Date())
+          form.date.value = yy + "-" + String(+dm[2]).padStart(2, "0") + "-" + String(+dm[1]).padStart(2, "0");
       }
       if (!form.date.value) form.date.value = new Date().toISOString().slice(0, 10);
       st.textContent = gstin ? "Read ✓ — GSTIN found. Check the fields, pick vehicle & category, save."
