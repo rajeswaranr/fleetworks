@@ -623,7 +623,7 @@ function renderGST() {
     <div class="stat-tile"><span class="stat-label">ITC this FY</span><span class="stat-value" style="color:#006300">${fmtINR(itcFY)}</span><span class="stat-sub">since ${monthLabel(fy.slice(0, 7))}</span></div>
     <div class="stat-tile"><span class="stat-label">GST bills captured</span><span class="stat-value">${gstBills.length}</span><span class="stat-sub">of ${fyExp.length} bills this FY</span></div>
     <div class="stat-tile"><span class="stat-label">Non-GST spend</span><span class="stat-value" style="color:${nonGstSpend ? DASH_PAL.serious : DASH_PAL.good}">${fmtINR(nonGstSpend)}</span><span class="stat-sub">≈${fmtINR(nonGstSpend * 0.18 / 1.18)} credit lost — ask for GST bills</span></div>`;
-  const rows = [...db.expenses].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 40);
+  const rows = [...db.expenses].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 200);
   tbl.innerHTML = rows.length ?
     `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Expense</th><th>Amount</th><th>GST</th><th>ITC</th><th>Bill</th></tr></thead><tbody>` +
     rows.map(e => {
@@ -635,7 +635,7 @@ function renderGST() {
         <td>${fmtINRfull(e.amount)}</td>
         <td>${e.gstin ? `<span class="fw-badge ok">${esc(e.gstin)}</span>` : '<span class="fw-badge soon">No GST bill</span>'}</td>
         <td>${e.gstin ? fmtINRfull(itcOf(e)) : "—"}</td>
-        <td>${(e.billPath || e.billThumb) ? `<button class="link-btn" onclick="event.stopPropagation();fwViewBill(${i})">View</button>` : "—"}</td></tr>
+        <td>${(e.billPath || e.billThumb) ? `<button class="link-btn" onclick="event.stopPropagation();fwViewBill(${i})">View</button> ` : ""}<button class="link-btn" onclick="event.stopPropagation();fwEditBill(${i})">Edit</button> <button class="link-btn" style="color:#b91c1c" onclick="event.stopPropagation();fwDeleteBill(${i})">Del</button></td></tr>
       <tr class="bill-det" data-bd="${i}" hidden><td colspan="7" style="background:#f8fafc">
         <div style="padding:10px 8px">
           ${(e.vendor || e.gstin || e.billNo) ? `<p style="margin-bottom:8px"><strong>${esc(e.vendor || "Vendor")}</strong>${e.gstin ? " · GSTIN " + esc(e.gstin) : ""}${e.billNo ? " · Bill " + esc(e.billNo) : ""}</p>` : ""}
@@ -644,6 +644,7 @@ function renderGST() {
             items.map(it => `<tr><td>${esc(it.desc)}</td><td>${esc(it.partNo || "—")}</td><td>${fmtINRfull(it.amount)}</td><td>${e.gstin ? fmtINRfull(it.amount * 0.18 / 1.18) : "—"}</td></tr>`).join("") +
             `</tbody></table>` : "<p class='muted'>No itemisation saved for this bill.</p>"}
           <button class="link-btn" style="margin-top:8px" onclick="fwEditBill(${i})">✎ Edit this expense</button>
+          <button class="link-btn" style="margin-top:8px;color:#b91c1c" onclick="fwDeleteBill(${i})">Delete</button>
         </div></td></tr>`;
     }).join("") + "</tbody></table>"
     : "<p class='muted'>No bills yet — scan or enter your first bill above.</p>";

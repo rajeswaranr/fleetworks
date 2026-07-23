@@ -1683,9 +1683,28 @@ function renderExpenseHistory() {
   if (!el) return;
   const rows = [...db.expenses].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 60);
   el.innerHTML = rows.length ?
-    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Category</th><th>Amount</th></tr></thead><tbody>` +
-    rows.map(e => `<tr><td>${fmtDate(e.date)}</td><td><strong>${esc(vName(e.vehicleId))}</strong></td><td>${esc(e.category)}</td><td>${fmtINR(e.amount)}</td></tr>`).join("") +
+    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Expense</th><th>Amount</th><th>Actions</th></tr></thead><tbody>` +
+    rows.map(e => {
+      const i = db.expenses.indexOf(e);
+      return `<tr><td>${fmtDate(e.date)}</td><td><strong>${esc(vName(e.vehicleId))}</strong></td>
+        <td>${e.title ? `<strong>${esc(e.title)}</strong><br /><span class="muted">${esc(e.category)}</span>` : esc(e.category)}</td>
+        <td>${fmtINR(e.amount)}</td>
+        <td><button class="link-btn" onclick="fwGoEditBill(${i})">Edit</button>
+            <button class="link-btn" style="color:#b91c1c" onclick="fwDeleteBill(${i})">Delete</button></td></tr>`;
+    }).join("") +
     "</tbody></table>" : "<p class='muted'>No expenses recorded yet.</p>";
+}
+// jump from Expense History to the bill editor (gstbills tab)
+function fwGoEditBill(i) {
+  document.querySelector('#tabBar .tab-btn[data-tab="gstbills"]')?.click();
+  if (window.fwEditBill) fwEditBill(i);
+}
+function fwDeleteBill(i) {
+  const e = db.expenses[i];
+  if (!e) return;
+  if (!confirm(`Delete this expense?\n\n${fmtDate(e.date)} · ${vName(e.vehicleId)} · ${e.title || e.category} · ${fmtINR(e.amount)}\n\nThis cannot be undone.`)) return;
+  db.expenses.splice(i, 1);
+  saveStore(); renderAll();
 }
 function renderReplacement() {
   const el = document.getElementById("replTable");
