@@ -50,6 +50,7 @@ function wfAdvance(id, toIdx, by, note, patch) {
   r.stage = toIdx;
   r.events.push({ stage: toIdx, at: wfNow(), by, note: note || WF_STAGES[toIdx].label });
   if (patch) Object.assign(r, patch);
+  wfCloudAdvance(r, toIdx);
   // FleetWorks auto-steps: invoice immediately after completion
   if (WF_STAGES[toIdx].k === "completed") {
     const sub = r.finalAmount || (r.assessment && r.assessment.total) || 0;
@@ -76,6 +77,7 @@ function wfRaise(vehicle, issue, severity) {
   WFD.unshift(r);
   wfSave();
   wfRender();
+  wfCloudRaise(r);
 }
 
 // ---------- The graphical pipeline tracker ----------
@@ -221,6 +223,90 @@ document.getElementById("svcReqForm")?.addEventListener("submit", e => {
   wfRaise(vehicle, fd.issue.trim(), fd.severity);
   e.target.reset();
 });
+
+// ---------- Cloud bridge (Phase 2: service_requests et al., RLS-scoped) ----------
+// Fire-and-forget: every call is wrapped so offline/signed-out keeps the
+// local-first flow untouched. Stage index → request_stage enum:
+const WF_ENUM = ["raised", "assigned", "accepted", "reached", "assessed", "approved",
+  "in_progress", "completed", "invoiced", "paid", "reported", "closed"];
+let WF_ORG = null, WF_VEH = null;
+
+async function wfCloudCtx() {
+  if (!(window.fwCloud && fwCloud.user())) return null;
+  if (!WF_ORG) {
+    const orgs = await fwCloud.authGet("organizations", "select=id&limit=1").catch(() => null);
+    WF_ORG = orgs && orgs[0] ? orgs[0].id : null;
+    WF_VEH = WF_ORG ? await fwCloud.authGet("vehicles", "select=id,name&limit=500").catch(() => null) : null;
+  }
+  return WF_ORG;
+}
+
+async function wfCloudRaise(r) {
+  try {
+    if (!(await wfCloudCtx())) return;
+    const v = (WF_VEH || []).find(x => x.name.toLowerCase() === r.vehicle.toLowerCase());
+    if (!v) return;
+    const row = await fwCloud.authInsertRet("service_requests",
+      { org_id: WF_ORG, vehicle_id: v.id, raised_by: fwCloud.uid(), issue: r.issue, severity: r.severity, stage: "assigned" });
+    if (row) { r.cloudId = row.id; wfSave(); }
+  } catch { /* offline-first */ }
+}
+
+async function wfCloudAdvance(r, toIdx) {
+  try {
+    if (!r.cloudId || !(window.fwCloud && fwCloud.user())) return;
+    const k = WF_ENUM[toIdx];
+    // artifacts first, so server triggers see them
+    if (k === "assessed" && r.assessment) {
+      const a = await fwCloud.authInsertRet("assessments",
+        { request_id: r.cloudId, notes: r.assessment.notes, tat_hours: parseInt(r.assessment.tat) * 24 || 24 });
+      const est = await fwCloud.authInsertRet("estimates",
+        { request_id: r.cloudId, assessment_id: a && a.id, status: "sent", sent_at: new Date().toISOString() });
+      if (est) {
+        r.cloudEstimateId = est.id;
+        await fwCloud.authInsert("estimate_items",
+          { estimate_id: est.id, description: "As per assessment — " + r.assessment.notes.slice(0, 80), qty: 1, rate: r.assessment.total });
+      }
+    }
+    if (k === "approved" && r.cloudEstimateId)
+      await fwCloud.authPatch("estimates?id=eq." + r.cloudEstimateId,
+        { status: "approved", approved_at: new Date().toISOString(), approved_by: fwCloud.uid() });
+    // stage update — on 'completed' the DB trigger auto-invoices and flips to 'invoiced'
+    await fwCloud.authPatch("service_requests?id=eq." + r.cloudId, { stage: k === "invoiced" ? "completed" : k });
+    if (k === "invoiced" || k === "completed") {
+      const inv = await fwCloud.authGet("invoices", "select=id,number,subtotal,gst_amount,total&request_id=eq." + r.cloudId);
+      if (inv && inv[0]) {
+        r.cloudInvoiceId = inv[0].id;
+        r.invoice = { number: inv[0].number, subtotal: +inv[0].subtotal, gst: +inv[0].gst_amount, total: +inv[0].total, issuedAt: wfNow() };
+        wfSave(); wfRender();
+      }
+    }
+    if (k === "paid" && r.cloudInvoiceId) {
+      await fwCloud.authInsert("payments", { invoice_id: r.cloudInvoiceId, amount: r.invoice ? r.invoice.total : 0, method: "upi" });
+      await fwCloud.authPatch("invoices?id=eq." + r.cloudInvoiceId, { status: "paid" });
+    }
+    if (k === "reported" && r.postReport)
+      await fwCloud.authInsert("work_reports", { request_id: r.cloudId, summary: r.postReport });
+    if (k === "closed" && r.feedback)
+      await fwCloud.authInsert("feedback", { request_id: r.cloudId, rating: r.feedback.stars, comments: r.feedback.text || null });
+  } catch { /* offline-first */ }
+}
+
+// Pull cloud stage forward into local cards on load (cloud wins on stage)
+(async function wfCloudPull() {
+  try {
+    if (!(await wfCloudCtx())) return;
+    const rows = await fwCloud.authGet("service_requests", "select=id,stage,issue,severity,updated_at&order=created_at.desc&limit=50");
+    if (!rows) return;
+    let changed = false;
+    rows.forEach(row => {
+      const local = WFD.find(x => x.cloudId === row.id);
+      const idx = WF_ENUM.indexOf(row.stage);
+      if (local && idx > local.stage) { local.stage = idx; local.events.push({ stage: idx, at: wfNow(), by: "FleetWorks", note: "Synced from cloud — " + row.stage }); changed = true; }
+    });
+    if (changed) { wfSave(); wfRender(); }
+  } catch { /* offline-first */ }
+})();
 
 // ---------- Demo seed (only when both empty and demo mode somewhere) ----------
 if (!WFD.length && (localStorage.getItem("ff_fleet") || localStorage.getItem("fw_garage"))) {

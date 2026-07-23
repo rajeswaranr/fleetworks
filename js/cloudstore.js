@@ -118,6 +118,19 @@
       return r.ok;
     },
 
+    /* Authenticated insert that returns the created row(s) — used by the
+       service workflow to capture server-generated uuids. */
+    async authInsertRet(table, row) {
+      const r = await authFetch("/rest/v1/" + table, {
+        method: "POST",
+        headers: { "Prefer": "return=representation" },
+        body: JSON.stringify(row)
+      });
+      if (!r.ok) return null;
+      const rows = await r.json();
+      return rows && rows[0];
+    },
+
     /* Generic authenticated read, scoped by RLS to whatever the signed-in
        account is allowed to see (e.g. a partner's own vendor_applications
        row). query is a raw PostgREST query string, e.g. "select=*&limit=1". */
