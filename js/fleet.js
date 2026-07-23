@@ -1589,6 +1589,9 @@ function buildDynamicPanels() {
       <span class="muted" id="billScanStatus"></span>
     </div>
     <form id="billForm" class="entry-form" hidden>
+      <label>Expense title
+        <input type="text" name="title" placeholder="e.g. Brake overhaul — TN-01, Annai Auto Works" />
+      </label>
       <div class="form-row">
         <label>Vehicle<select name="vehicleId" id="billVehicle" required></select></label>
         <label>Date<input type="date" name="date" required /></label>
@@ -1605,10 +1608,12 @@ function buildDynamicPanels() {
         <label>Amount (&#8377;)<input type="number" name="amount" min="1" required inputmode="numeric" /></label>
       </div>
       <div class="form-row">
+        <label>Vendor / Workshop name<input type="text" name="vendor" placeholder="e.g. Annai Auto Works" /></label>
         <label>Vendor GSTIN (blank = non-GST bill)<input type="text" name="gstin" maxlength="15" style="text-transform:uppercase" /></label>
         <label>Bill No (optional)<input type="text" name="billNo" /></label>
       </div>
       <div id="billItems"></div>
+      <button type="button" class="link-btn" id="billAddItem">+ Add item row</button>
       <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Confirm &amp; Save Bill</button>
     </form>
     <p class="disclaimer">First scan downloads the free open-source reader (RapidOCR / PP-OCRv4, ~16 MB, one time). Bill photos never leave your phone — OCR runs entirely in your browser.</p>

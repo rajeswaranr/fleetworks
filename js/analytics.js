@@ -625,12 +625,32 @@ function renderGST() {
     <div class="stat-tile"><span class="stat-label">Non-GST spend</span><span class="stat-value" style="color:${nonGstSpend ? DASH_PAL.serious : DASH_PAL.good}">${fmtINR(nonGstSpend)}</span><span class="stat-sub">≈${fmtINR(nonGstSpend * 0.18 / 1.18)} credit lost — ask for GST bills</span></div>`;
   const rows = [...db.expenses].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 40);
   tbl.innerHTML = rows.length ?
-    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Category</th><th>Amount</th><th>GST</th><th>ITC</th><th>Bill</th></tr></thead><tbody>` +
-    rows.map(e => `<tr><td>${fmtDate(e.date)}</td><td><strong>${esc(vName(e.vehicleId))}</strong></td><td>${esc(e.category)}</td><td>${fmtINRfull(e.amount)}</td>
-      <td>${e.gstin ? `<span class="fw-badge ok">${esc(e.gstin)}</span>` : '<span class="fw-badge soon">No GST bill</span>'}</td>
-      <td>${e.gstin ? fmtINRfull(itcOf(e)) : "—"}</td>
-      <td>${(e.billPath || e.billThumb) ? `<button class="link-btn" onclick="fwViewBill(${db.expenses.indexOf(e)})">View</button>` : "—"}</td></tr>`).join("") + "</tbody></table>"
+    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Expense</th><th>Amount</th><th>GST</th><th>ITC</th><th>Bill</th></tr></thead><tbody>` +
+    rows.map(e => {
+      const i = db.expenses.indexOf(e);
+      const items = e.items || [];
+      return `<tr class="bill-row" data-bi="${i}" style="cursor:pointer" title="Click for itemised detail">
+        <td>${fmtDate(e.date)}</td><td><strong>${esc(vName(e.vehicleId))}</strong></td>
+        <td>${e.title ? `<strong>${esc(e.title)}</strong><br /><span class="muted">${esc(e.category)}</span>` : esc(e.category)}</td>
+        <td>${fmtINRfull(e.amount)}</td>
+        <td>${e.gstin ? `<span class="fw-badge ok">${esc(e.gstin)}</span>` : '<span class="fw-badge soon">No GST bill</span>'}</td>
+        <td>${e.gstin ? fmtINRfull(itcOf(e)) : "—"}</td>
+        <td>${(e.billPath || e.billThumb) ? `<button class="link-btn" onclick="event.stopPropagation();fwViewBill(${i})">View</button>` : "—"}</td></tr>
+      <tr class="bill-det" data-bd="${i}" hidden><td colspan="7" style="background:#f8fafc">
+        <div style="padding:10px 8px">
+          ${(e.vendor || e.gstin || e.billNo) ? `<p style="margin-bottom:8px"><strong>${esc(e.vendor || "Vendor")}</strong>${e.gstin ? " · GSTIN " + esc(e.gstin) : ""}${e.billNo ? " · Bill " + esc(e.billNo) : ""}</p>` : ""}
+          ${items.length ?
+            `<table class="chart-table-el"><thead><tr><th>Item</th><th>Part No</th><th>Price</th><th>GST incl. (18%)</th></tr></thead><tbody>` +
+            items.map(it => `<tr><td>${esc(it.desc)}</td><td>${esc(it.partNo || "—")}</td><td>${fmtINRfull(it.amount)}</td><td>${e.gstin ? fmtINRfull(it.amount * 0.18 / 1.18) : "—"}</td></tr>`).join("") +
+            `</tbody></table>` : "<p class='muted'>No itemisation saved for this bill.</p>"}
+          <button class="link-btn" style="margin-top:8px" onclick="fwEditBill(${i})">✎ Edit this expense</button>
+        </div></td></tr>`;
+    }).join("") + "</tbody></table>"
     : "<p class='muted'>No bills yet — scan or enter your first bill above.</p>";
+  tbl.querySelectorAll(".bill-row").forEach(r => r.addEventListener("click", () => {
+    const d = tbl.querySelector(`[data-bd="${r.dataset.bi}"]`);
+    if (d) d.hidden = !d.hidden;
+  }));
 }
 
 // Open the stored bill: cloud original (signed URL) if present, else the thumbnail
@@ -745,6 +765,55 @@ function initBillScan() {
   }
 
   let lastBillFile = null;
+  let billEditIdx = null;
+
+  function billItemRow(it) {
+    it = it || {};
+    return `<div class="drv-check-row bi-row" style="gap:8px">
+      <input type="checkbox" class="bi-chk" checked />
+      <input type="text" class="bi-desc" placeholder="Item / part" value="${esc(it.desc || "")}" style="flex:2;padding:7px 9px;border:1.5px solid #e2e8f0;border-radius:8px" />
+      <input type="text" class="bi-pn" placeholder="Part no" value="${esc(it.partNo || "")}" style="flex:1;padding:7px 9px;border:1.5px solid #e2e8f0;border-radius:8px" />
+      <input type="number" class="bi-amt" placeholder="₹" min="0" value="${it.amount != null ? Math.round(it.amount) : ""}" style="width:96px;padding:7px 9px;border:1.5px solid #e2e8f0;border-radius:8px" />
+    </div>`;
+  }
+  function billRecalc() {
+    const t = [...document.querySelectorAll("#billItems .bi-row")].reduce((s, r) =>
+      s + (r.querySelector(".bi-chk").checked ? (+r.querySelector(".bi-amt").value || 0) : 0), 0);
+    if (t) form.amount.value = Math.round(t);
+  }
+  function fillBillItems(items) {
+    const box = document.getElementById("billItems");
+    if (!box) return;
+    box.innerHTML = (items.length ?
+      `<p class="muted" style="margin:8px 0 4px"><strong>Items read from the bill — edit or untick anything wrong:</strong></p>` : "") +
+      items.map(billItemRow).join("");
+    box.oninput = billRecalc; box.onchange = billRecalc;
+    billRecalc();
+  }
+  document.getElementById("billAddItem")?.addEventListener("click", () => {
+    const box = document.getElementById("billItems");
+    box.insertAdjacentHTML("beforeend", billItemRow());
+    box.oninput = billRecalc; box.onchange = billRecalc;
+  });
+
+  // Edit an already-saved expense: prefill the form + items, save updates in place
+  window.fwEditBill = function (i) {
+    const e2 = db.expenses[i];
+    if (!e2) return;
+    billEditIdx = i;
+    form.hidden = false;
+    form.title.value = e2.title || "";
+    form.vehicleId.value = e2.vehicleId || "";
+    form.date.value = e2.date || "";
+    form.category.value = e2.category || "";
+    form.amount.value = e2.amount || "";
+    form.vendor.value = e2.vendor || "";
+    form.gstin.value = e2.gstin || "";
+    form.billNo.value = e2.billNo || "";
+    fillBillItems(e2.items || []);
+    st.textContent = "Editing saved expense — Confirm & Save updates it in place.";
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   async function onBillPick(e) {
     const f = e.target.files[0];
     e.target.value = "";
@@ -766,19 +835,9 @@ function initBillScan() {
         .map(m => +m[1].replace(/,/g, "")).filter(n => n >= 100 && n <= 2000000);
       if (server && server.amount) form.amount.value = Math.round(server.amount);
       else if (nums.length) form.amount.value = Math.round(Math.max(...nums));
-      // itemised review: user confirms/unticks each read line before saving
-      const box = document.getElementById("billItems");
-      if (box) {
-        const items = (server && server.items) || [];
-        box.innerHTML = items.length ?
-          `<p class="muted" style="margin:8px 0 4px"><strong>Items read from the bill — untick anything wrong:</strong></p>` +
-          items.map(it => `<label class="drv-check-row"><input type="checkbox" class="bi-chk" data-amt="${it.amount}" checked /><span style="flex:1">${esc(it.desc)}</span><strong>₹${Math.round(it.amount).toLocaleString("en-IN")}</strong></label>`).join("") : "";
-        box.onchange = () => {
-          const t = [...box.querySelectorAll(".bi-chk:checked")].reduce((s, c) => s + +c.dataset.amt, 0);
-          if (t) form.amount.value = Math.round(t);
-        };
-        box.onchange();
-      }
+      // itemised review: fully editable rows (item / part no / price) the
+      // user confirms before saving
+      fillBillItems((server && server.items) || []);
       const dm = text.match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/);
       if (dm) {
         const yy = dm[3].length === 2 ? "20" + dm[3] : dm[3];
@@ -799,15 +858,29 @@ function initBillScan() {
   form.addEventListener("submit", e => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target));
-    const confirmed = [...document.querySelectorAll("#billItems .bi-chk:checked")]
-      .map(c => ({ desc: c.parentElement.querySelector("span").textContent, amount: +c.dataset.amt }));
-    const exp = {
+    const confirmed = [...document.querySelectorAll("#billItems .bi-row")]
+      .filter(r => r.querySelector(".bi-chk").checked && r.querySelector(".bi-desc").value.trim())
+      .map(r => ({
+        desc: r.querySelector(".bi-desc").value.trim(),
+        partNo: r.querySelector(".bi-pn").value.trim() || undefined,
+        amount: +r.querySelector(".bi-amt").value || 0
+      }));
+    const fields = {
       vehicleId: fd.vehicleId, date: fd.date, category: fd.category, amount: +fd.amount,
+      title: (fd.title || "").trim() || undefined,
+      vendor: (fd.vendor || "").trim() || undefined,
       gstin: (fd.gstin || "").trim().toUpperCase() || undefined,
       billNo: (fd.billNo || "").trim() || undefined,
       items: confirmed.length ? confirmed : undefined
     };
-    db.expenses.push(exp);
+    let exp;
+    if (billEditIdx !== null && db.expenses[billEditIdx]) {
+      exp = Object.assign(db.expenses[billEditIdx], fields);   // edit keeps billThumb/billPath
+      billEditIdx = null;
+    } else {
+      exp = fields;
+      db.expenses.push(exp);
+    }
     // store the bill itself: on-device thumbnail + original to Supabase Storage
     const bill = lastBillFile; lastBillFile = null;
     if (bill && bill.type.indexOf("image/") === 0) {
