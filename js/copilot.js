@@ -23,6 +23,47 @@
   function answer(qRaw) {
     const q = qRaw.toLowerCase();
     const db = data();
+
+    // ---------- How-to: Copilot knows the tool itself ----------
+    const hasQ = (...w) => w.some(x => q.includes(x));
+    const HOWTO = [
+      { p: ["add vehicle", "add a vehicle", "new vehicle", "register vehicle", "create vehicle"], t: "Add a vehicle", go: "account",
+        s: "Sidebar → <strong>My Account</strong> → <strong>Vehicle</strong> tab → enter number, type & monthly km → <em>Add Vehicle</em>. It appears everywhere instantly — compliance, health score, analytics." },
+      { p: ["add driver", "add a driver", "new driver"], t: "Add a driver", go: "drivers",
+        s: "FleetOps → <strong>Fleet → Drivers & Contacts</strong> → fill name, DL number, validity & assigned vehicle → save. Use <em>Copy link</em> on his row to give him a no-login phone entry page." },
+      { p: ["add expense", "add bill", "upload bill", "scan bill", "add an expense", "enter bill", "upload invoice", "scan a bill"], t: "Add an expense / bill", go: "gstbills",
+        s: "FleetFin → <strong>Bills — GST / Non-GST</strong> → <em>Scan with Camera</em>, <em>Upload Bill File</em> (image/PDF) or <em>Enter Manually</em> → check the auto-read items (edit item, part no, price; untick wrong ones) → <em>Confirm & Save Bill</em>. The bill itself is stored too." },
+      { p: ["delete bill", "delete expense", "edit bill", "edit expense", "remove expense", "delete a non gst", "delete non-gst", "non gst bill"], t: "Edit / delete an expense", go: "expensehistory",
+        s: "FleetFin → <strong>Expenses</strong> (or Bills — GST/Non-GST) → every row has <em>Edit</em> and <em>Delete</em>. Click a bill row first to see its itemised table; Delete asks for confirmation." },
+      { p: ["add diesel", "add fuel", "diesel entry", "fuel entry", "log diesel"], t: "Log a diesel fill", go: "account",
+        s: "Sidebar → <strong>My Account</strong> → <strong>Diesel</strong> tab → litres + amount + odometer. Mileage, Diesel Watch and cost-per-km update automatically." },
+      { p: ["book service", "raise complaint", "service request", "raise a complaint", "book a service"], t: "Book service / raise a complaint", go: "servicereq",
+        s: "FleetOps → <strong>Book Service — Live Status</strong> → pick vehicle, describe the problem → FleetWorks matches a rated mechanic and you track all 12 stages (assessment → your approval → repair → invoice → feedback) on one pipeline. Roadside breakdown? Hit the red <strong>SOS</strong> button in the top bar." },
+      { p: ["add trip", "log trip", "freight", "trip entry"], t: "Log a trip & freight", go: "trips",
+        s: "FleetOps → <strong>Fleet → Trips & Loads</strong> → vehicle, route, freight received → save. Profit-per-vehicle updates on the same page." },
+      { p: ["khata", "advance", "settlement"], t: "Driver khata", go: "khata",
+        s: "FleetFin → <strong>Driver Khata</strong> → record advances given, trip expenses and cash returned — the balance with each driver updates live." },
+      { p: ["tally", "gst filing", "export accounts"], t: "Export to Tally", go: "accounts",
+        s: "FleetFin → <strong>Accounts & Tally</strong> → <em>Export to Tally (GST)</em> downloads payment vouchers with per-category ledgers. Import in Tally via Gateway of Tally → Import Data → Vouchers." },
+      { p: ["driver link", "driver page", "driver app"], t: "Driver Link", go: "drivers",
+        s: "FleetOps → <strong>Fleet → Drivers</strong> → <em>Copy link</em> on the driver's row → send on WhatsApp. He logs diesel, problems and the daily 10-point check from his phone — no app, no login." },
+      { p: ["health score", "vehicle health"], t: "Vehicle health scores", go: "home",
+        s: "<strong>Home</strong> shows the Fleet Health strip (0–100 per vehicle, weakest first); the Vehicles & RTO table has a Health column too." },
+      { p: ["what if", "whatif", "simulate"], t: "What-if simulator", go: "whatif",
+        s: "FleetIQ → <strong>What-if Analysis</strong> → drag the diesel-price / monthly-running / extra-vehicle sliders and monthly & yearly costs reproject live from your own numbers." },
+      { p: ["reminder", "pm due", "service due"], t: "Service reminders", go: "reminders",
+        s: "FleetOps → <strong>Reminders & Compliance → Service Reminders</strong> → set task + interval per vehicle. Overdue ones surface in Home's Action Inbox automatically." }
+    ];
+    const goBtn = tab => document.querySelector(`#tabBar .tab-btn[data-tab=${tab}]`)
+      ? ` <button class="link-btn" onclick="document.querySelector('#tabBar .tab-btn[data-tab=${tab}]').click()">Take me there →</button>` : "";
+    const hit = HOWTO.find(h => h.p.some(p => q.includes(p)));
+    if (hit && hasQ("how", "where", "add", "delete", "edit", "upload", "scan", "log", "book", "raise", "export", "copy", "guide", "what", "khata", "tally", "link", "simulate")) {
+      return `<strong>${hit.t}:</strong><br>${hit.s}${goBtn(hit.go)}`;
+    }
+    if (hasQ("how do i", "how to", "help me", "what can you", "guide me")) {
+      return "I can guide you through FleetWorks — try: <em>add a vehicle · add a driver · upload a bill · delete an expense · log diesel · book service · driver link · export to Tally · what-if</em>. Or ask about your data: spend, mileage, RTO documents, DLs, job cards.";
+    }
+
     if (!db.vehicles.length) return "I don't see any fleet data yet. Load the demo fleet or add your vehicles first — then ask me anything about your spend, mileage, compliance or maintenance.";
 
     const findVehicle = () => db.vehicles.find(v => q.includes(v.name.toLowerCase()) || q.includes(v.name.toLowerCase().replace(/-/g, "")));
