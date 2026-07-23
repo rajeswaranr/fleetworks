@@ -1609,7 +1609,7 @@ function buildDynamicPanels() {
       <div id="billItems"></div>
       <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Confirm &amp; Save Bill</button>
     </form>
-    <p class="disclaimer">First scan downloads the free on-device reader (~15 MB, one time). Bill photos never leave your phone — OCR runs entirely in your browser.</p>
+    <p class="disclaimer">First scan downloads the free open-source reader (RapidOCR / PP-OCRv4, ~16 MB, one time). Bill photos never leave your phone — OCR runs entirely in your browser.</p>
   </div>
   <section class="stat-row" id="gstTiles"></section>
   <div class="chart-card"><div class="chart-head"><div><h2>GST vs Non-GST Bills</h2><p class="muted">Bills with a GSTIN earn input-tax credit; the rest is leakage worth chasing</p></div></div><div class="chart-scroll"><div id="gstBillsTable"></div></div></div>`);

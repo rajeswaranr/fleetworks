@@ -655,9 +655,58 @@ function initBillScan() {
     form.hidden = false;
     if (!form.date.value) form.date.value = new Date().toISOString().slice(0, 10);
   });
-  // PaddleOCR service first (server/ocr/, much better on Indian bills),
-  // on-device Tesseract as the offline fallback.
+  // Engine order: RapidOCR on-device (PP-OCRv4 via ONNX, free, private) →
+  // PaddleOCR server if configured → Tesseract as the last-resort fallback.
+  let rapidP = null;
+  function loadRapid() {
+    if (!rapidP) rapidP = (async () => {
+      const m = await import(new URL("js/vendor/rapidocr.esm.js", location.href).href);
+      const base = "https://cdn.jsdelivr.net/npm/@gutenye/ocr-models@1.4.2/assets/";
+      return m.default.create({ models: {
+        detectionPath: base + "ch_PP-OCRv4_det_infer.onnx",
+        recognitionPath: base + "ch_PP-OCRv4_rec_infer.onnx",
+        dictionaryPath: base + "ppocr_keys_v1.txt"
+      } });
+    })().catch(e => { rapidP = null; throw e; });
+    return rapidP;
+  }
+  function parseBillItems(lines) {
+    const re = /^(.{4,60}?)[\s.:]{2,}(?:rs\.?|₹)?\s*(\d[\d,]{1,8}(?:\.\d{1,2})?)$/i;
+    const items = [];
+    lines.forEach(ln => {
+      const m = ln.trim().match(re);
+      if (!m) return;
+      const a = +m[2].replace(/,/g, "");
+      if (a >= 10 && a <= 2000000) items.push({ desc: m[1].replace(/[.:\-\s]+$/, ""), amount: a });
+    });
+    return items.slice(0, 15);
+  }
+
   async function ocrText(f) {
+    // 1. RapidOCR — PaddleOCR's PP-OCRv4 models running fully on-device
+    try {
+      st.textContent = "Reading bill on-device… (first scan downloads the reader, ~16 MB once)";
+      const ocr = await loadRapid();
+      // NB: the engine hangs on blob: URLs — always feed it a data URL
+      const dataUrl = await new Promise((ok, no) => {
+        const fr = new FileReader();
+        fr.onload = () => ok(fr.result); fr.onerror = no;
+        fr.readAsDataURL(f);
+      });
+      // watchdog: first run compiles ~10 MB of WASM; if the engine stalls
+      // beyond 45s we fall through to Tesseract rather than block the user
+      const res = await Promise.race([
+        ocr.detect(dataUrl),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("rapidocr-slow")), 45000))
+      ]);
+      const arr = Array.isArray(res) ? res : (res && res.texts) || [];
+      const lines = arr.map(t => t.text).filter(Boolean);
+      if (lines.length) return { text: lines.join("\n"), server: { items: parseBillItems(lines) } };
+    } catch { /* fall through to next engine */ }
+    return ocrTextLegacy(f);
+  }
+
+  async function ocrTextLegacy(f) {
     const base = (window.FW_BACKEND && FW_BACKEND.ocrUrl || "").replace(/\/$/, "");
     if (base) {
       try {
