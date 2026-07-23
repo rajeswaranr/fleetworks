@@ -119,6 +119,7 @@
         <div data-ws="ops" hidden>
         <div class="side-pillar ops"><span class="pp"></span>Fleet<em>Ops</em></div>
         <button class="side-item tab-btn" data-tab="overview"><i data-icon="gauge"></i><span>FleetOps Dashboard</span></button>
+        <button class="side-item tab-btn" data-tab="servicereq"><i data-icon="tow"></i><span>Book Service — Live Status</span></button>
         <button class="side-item tab-btn" data-tab="map"><i data-icon="mapPin"></i><span>Fleet Map</span></button>
 
         <div class="side-group has-children open">
@@ -323,6 +324,33 @@
           <span class="lt-spacer"></span>
         </div>
         <section class="dash-grid" id="dashGrid"></section>
+      </section>
+
+      <!-- ======= SERVICE REQUESTS (integrated owner ↔ mechanic workflow) ======= -->
+      <section class="tab-panel" id="tab-servicereq">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="tow" data-icon-size="22"></i></span> Book a Service / Raise a Complaint</h2>
+              <p class="muted">FleetWorks matches a rated mechanic near you, shares his details, and walks the job through 12 tracked stages — assessment, your approval, repair photos, invoice, feedback.</p>
+            </div>
+          </div>
+          <form id="svcReqForm" class="entry-form">
+            <div class="form-row">
+              <label>Vehicle<select id="svcVehicle" required></select></label>
+              <label>How serious?
+                <select name="severity" required>
+                  <option>Low</option><option selected>Medium</option><option>High</option>
+                </select>
+              </label>
+            </div>
+            <label>What's the problem?
+              <input type="text" name="issue" placeholder="e.g. Brake pedal spongy, engine overheating on ghats…" required />
+            </label>
+            <button type="submit" class="btn btn-primary"><i data-icon="alert" data-icon-size="16"></i> Raise Request — FleetWorks Takes Over</button>
+          </form>
+        </div>
+        <div id="svcReqList"></div>
       </section>
 
       <!-- ======= FLEETFIN DASHBOARD ======= -->
@@ -1096,6 +1124,7 @@
   <script src="js/fleet.js"></script>
   <script src="js/analytics.js"></script>
   <script src="js/account.js"></script>
+  <script src="js/workflow.js"></script>
   <script src="js/copilot.js"></script>
   <script>
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");

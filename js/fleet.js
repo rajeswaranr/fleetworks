@@ -1189,7 +1189,7 @@ function loadDemoFleet() {
 function fillVehicleSelects() {
   const opts = db.vehicles.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
   ["compVehicle", "fuelVehicle", "inspVehicle", "issueVehicle", "remVehicle", "fuelVehicleFilter",
-   "tyreVehicleFilter", "tyreFormVehicle", "tripVehicle", "billVehicle"].forEach(id => {
+   "tyreVehicleFilter", "tyreFormVehicle", "tripVehicle", "billVehicle", "svcVehicle"].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const keep = el.value;

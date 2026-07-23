@@ -80,6 +80,7 @@
         </div>
         <div class="side-pillar ops"><span class="pp"></span>Partner Workshop</div>
         <button class="side-item tab-btn active" data-tab="gdash"><i data-icon="gauge"></i><span>Dashboard</span></button>
+        <button class="side-item tab-btn" data-tab="gflow"><i data-icon="tow"></i><span>Live FleetWorks Jobs</span></button>
         <button class="side-item tab-btn" data-tab="jobs"><i data-icon="wrench"></i><span>Job Cards</span></button>
         <button class="side-item tab-btn" data-tab="quotes"><i data-icon="receipt"></i><span>Estimates &amp; Approvals</span></button>
         <button class="side-item tab-btn" data-tab="ginsp"><i data-icon="clipboardCheck"></i><span>Inspection Reports</span></button>
@@ -126,6 +127,18 @@
                 <div id="gFortnight" class="predictions"></div>
               </div>
             </div>
+          </section>
+
+          <!-- ======= LIVE FLEETWORKS JOBS (integrated workflow) ======= -->
+          <section class="tab-panel" id="tab-gflow">
+            <div class="chart-card">
+              <div class="chart-head"><div>
+                <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="tow" data-icon-size="22"></i></span> Live FleetWorks Jobs</h2>
+                <p class="muted">Owner complaints assigned to you — assessment &amp; estimate, owner approval, repair, photos and final report, all tracked on one pipeline both sides can see.</p>
+              </div></div>
+            </div>
+            <div id="gFlowList"></div>
+            <input type="file" id="wfPhotoFile" accept="image/*" hidden />
           </section>
 
           <!-- ======= JOB CARDS ======= -->
@@ -258,5 +271,6 @@
   <script src="js/backend.js"></script>
   <script src="js/cloudstore.js"></script>
   <script src="js/garage.js"></script>
+  <script src="js/workflow.js"></script>
 </body>
 </html>

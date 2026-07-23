@@ -1262,3 +1262,35 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .gphotos img { width: 74px; height: 74px; object-fit: cover; border-radius: 10px; border: 1px solid #e2e8f0; }
 .gq-row label { flex: 1; }
 .gq-row label:first-child { flex: 2.2; }
+
+/* ---------- Service-workflow pipeline tracker ---------- */
+.wf-card { margin-bottom: 18px; }
+.wf-stepper { display: flex; overflow-x: auto; padding: 14px 4px 8px; }
+.wf-step { display: flex; flex-direction: column; align-items: center; min-width: 92px; position: relative; text-align: center; flex: 1; }
+.wf-step::before { content: ""; position: absolute; top: 12px; right: 50%; width: 100%; height: 3px; background: #e2e8f0; z-index: 0; }
+.wf-step:first-child::before { display: none; }
+.wf-step.done::before { background: #1baf7a; }
+.wf-step.cur::before { background: linear-gradient(90deg, #1baf7a, #f5a623); }
+.wf-dot {
+  width: 26px; height: 26px; border-radius: 50%; background: #e2e8f0; color: #64748b;
+  font-size: 0.72rem; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  z-index: 1; flex: none;
+}
+.wf-step.done .wf-dot { background: #1baf7a; color: #fff; }
+.wf-step.cur .wf-dot { background: var(--amber); color: #fff; animation: wfPulse 1.8s infinite; }
+@keyframes wfPulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(245, 166, 35, 0.25); }
+  50% { box-shadow: 0 0 0 9px rgba(245, 166, 35, 0.1); }
+}
+.wf-lbl { font-size: 0.62rem; font-weight: 600; color: var(--navy); margin-top: 7px; line-height: 1.25; max-width: 88px; }
+.wf-actor { font-size: 0.55rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px; }
+.wf-actor.Owner { color: #b26a00; }
+.wf-actor.Mechanic { color: #148a4e; }
+.wf-actor.FleetWorks { color: #2a78d6; }
+.wf-act { background: #f7f9fc; border: 1px solid #e7ebf1; border-radius: 12px; padding: 11px 14px; margin-top: 10px; font-size: 0.86rem; }
+.wf-actions { margin-top: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.wf-form { width: 100%; }
+.wf-form input { width: 100%; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-family: inherit; font-size: 0.9rem; }
+.wf-form .form-row { display: flex; gap: 10px; }
+.wf-fb { font-size: 0.88rem; color: var(--navy); font-weight: 600; }
+.wf-star { font-size: 1rem; color: #e2930f; }
