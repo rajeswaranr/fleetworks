@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FleetWorks Partner — Garage Dashboard</title>
+  <meta name="description" content="FleetWorks partner workshop dashboard: job cards, estimates, inspections, repair photos, spares stock, ratings and fortnightly FleetWorks payouts." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="icons/icon-96.png" />
+  <meta name="theme-color" content="#0f1e33" />
+</head>
+<body class="app-body">
+
+  <!-- ======= PARTNER GATE ======= -->
+  <div id="gGate" class="auth-gate">
+    <div class="auth-gate-inner">
+      <div class="auth-gate-logo">
+        <img src="assets/logo-mark.svg" width="44" height="44" alt="" />
+        <span>Fleet<em>Works</em> Partner</span>
+      </div>
+      <div class="auth-gate-grid">
+        <div class="onboard-card auth-gate-card">
+          <h2>Partner Workshop Login</h2>
+          <p class="muted" style="margin-bottom:16px">For FleetWorks-onboarded garages &amp; workshops</p>
+          <form id="gLoginForm" class="entry-form">
+            <label>Email
+              <input type="email" name="email" placeholder="workshop@example.com" required autocomplete="username" />
+            </label>
+            <label>Password
+              <input type="password" name="password" required autocomplete="current-password" />
+            </label>
+            <button type="submit" class="btn btn-primary btn-block">Log In</button>
+            <p class="field-error" id="gLoginErr" hidden></p>
+          </form>
+          <hr class="auth-gate-sep" />
+          <p class="muted auth-gate-alt">See how it works? <button type="button" class="link-btn" id="gDemoBtn">Open the demo garage &rarr;</button></p>
+          <p class="muted auth-gate-alt">Not a partner yet? <a href="partner.html#register">Register your workshop</a> — free onboarding.</p>
+        </div>
+        <div class="onboard-card auth-gate-news">
+          <h3>Why garages run on FleetWorks</h3>
+          <div class="agn-item">
+            <span class="fw-badge ok">Jobs</span>
+            <div><strong>Fleet jobs, sent to you</strong>
+              <p class="muted">Predictive maintenance means owners book before breakdowns — planned jobs, not panic calls.</p></div>
+          </div>
+          <div class="agn-item">
+            <span class="fw-badge ok">Paid</span>
+            <div><strong>FleetWorks pays every fortnight</strong>
+              <p class="muted">No chasing owners for money — complete the job card and the payout lands on cycle.</p></div>
+          </div>
+          <div class="agn-item">
+            <span class="fw-badge ok">Trust</span>
+            <div><strong>Estimates approved before you touch a bolt</strong>
+              <p class="muted">Digital quotes, owner approval on record, photos during repair — zero billing disputes.</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-shell" id="gShell" style="display:none">
+    <!-- ======= SIDEBAR ======= -->
+    <aside class="app-side" id="appSide">
+      <div class="side-head">
+        <a href="index.html" class="side-logo">
+          <img src="assets/logo-mark.svg" width="30" height="30" alt="" />
+          <span>Fleet<em>Works</em></span>
+        </a>
+        <button class="side-close" id="sideClose" aria-label="Close menu">&times;</button>
+      </div>
+      <nav class="side-nav" id="gTabBar">
+        <div class="side-id">
+          <span class="side-id-org" id="gIdName">Workshop</span>
+          <span class="side-id-user" id="gIdCity"></span>
+        </div>
+        <div class="side-pillar ops"><span class="pp"></span>Partner Workshop</div>
+        <button class="side-item tab-btn active" data-tab="gdash"><i data-icon="gauge"></i><span>Dashboard</span></button>
+        <button class="side-item tab-btn" data-tab="jobs"><i data-icon="wrench"></i><span>Job Cards</span></button>
+        <button class="side-item tab-btn" data-tab="quotes"><i data-icon="receipt"></i><span>Estimates &amp; Approvals</span></button>
+        <button class="side-item tab-btn" data-tab="ginsp"><i data-icon="clipboardCheck"></i><span>Inspection Reports</span></button>
+        <button class="side-item tab-btn" data-tab="gstock"><i data-icon="boxes"></i><span>Spares Stock</span></button>
+        <button class="side-item tab-btn" data-tab="gpay"><i data-icon="rupee"></i><span>Payments &amp; Payouts</span></button>
+        <button class="side-item tab-btn" data-tab="grate"><i data-icon="shieldCheck"></i><span>Ratings &amp; Complaints</span></button>
+        <div class="side-sep"></div>
+        <button class="side-item tab-btn" data-tab="gadv"><i data-icon="phone"></i><span>Service Advisor</span></button>
+        <button class="side-item tab-btn" data-tab="gset"><i data-icon="settings"></i><span>Workshop Profile</span></button>
+        <a class="side-item" href="tel:+919740799722"><i data-icon="phone"></i><span>Help &amp; Support</span></a>
+      </nav>
+      <div class="side-foot">
+        <div class="side-plan">
+          <span class="side-plan-t">FleetWorks Partner</span>
+          <button class="btn btn-outline btn-sm btn-block" id="gLogout">Sign Out</button>
+        </div>
+        <a href="index.html" class="side-foot-link">&larr; Back to site</a>
+      </div>
+    </aside>
+
+    <!-- ======= MAIN ======= -->
+    <div class="app-main">
+      <header class="app-top">
+        <button class="side-toggle" id="sideToggle" aria-label="Menu"><span></span><span></span><span></span></button>
+        <h1 id="gPageTitle">Dashboard</h1>
+        <div class="app-top-actions">
+          <span class="top-org" id="gTopOrg"></span>
+          <button class="btn btn-primary btn-sm" id="gDemoReset">Reload Demo Garage</button>
+        </div>
+      </header>
+      <main class="app-content">
+        <div id="gContent">
+
+          <!-- ======= DASHBOARD ======= -->
+          <section class="tab-panel active" id="tab-gdash">
+            <section class="stat-row" id="gStats"></section>
+            <div class="hub-sub">
+              <div class="chart-card">
+                <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="calendarClock" data-icon-size="20"></i></span> Today's Schedule</h2><p class="muted">Planned &amp; in-progress jobs, oldest first</p></div></div>
+                <div id="gSchedule" class="predictions"></div>
+              </div>
+              <div class="chart-card">
+                <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="rupee" data-icon-size="20"></i></span> This Fortnight</h2><p class="muted">Earnings building towards your next payout</p></div></div>
+                <div id="gFortnight" class="predictions"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ======= JOB CARDS ======= -->
+          <section class="tab-panel" id="tab-jobs">
+            <div class="chart-card">
+              <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="wrench" data-icon-size="22"></i></span> Job Cards</h2><p class="muted">Every FleetWorks job in your workshop — estimate, approval, repair photos, inspection, delivery</p></div></div>
+              <div id="gJobsList" class="predictions"></div>
+            </div>
+            <input type="file" id="gPhotoFile" accept="image/*" hidden />
+          </section>
+
+          <!-- ======= ESTIMATES ======= -->
+          <section class="tab-panel" id="tab-quotes">
+            <div class="chart-card">
+              <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="receipt" data-icon-size="22"></i></span> Build an Estimate</h2><p class="muted">Line-item quote goes to the owner in FleetWorks — work starts only after approval</p></div></div>
+              <form id="gQuoteForm" class="entry-form">
+                <label>Job
+                  <select id="gQuoteJob" required></select>
+                </label>
+                <div id="gQuoteItems"></div>
+                <button type="button" class="btn btn-outline btn-sm" id="gAddItem">+ Add line item</button>
+                <p style="margin:10px 0;font-weight:700;color:var(--navy)">Estimate total: <span id="gQuoteTotal">₹0</span></p>
+                <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Send Estimate to Owner</button>
+              </form>
+            </div>
+            <div class="chart-card">
+              <div class="chart-head"><div><h2>Estimate Status</h2></div></div>
+              <div class="chart-scroll"><div id="gQuotesTable"></div></div>
+            </div>
+          </section>
+
+          <!-- ======= INSPECTIONS ======= -->
+          <section class="tab-panel" id="tab-ginsp">
+            <div class="chart-card">
+              <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="clipboardCheck" data-icon-size="22"></i></span> Workshop Inspection Report</h2><p class="muted">Checked-in condition report — shared with the owner along with your repair photos</p></div></div>
+              <form id="gInspForm" class="entry-form">
+                <label>Job
+                  <select id="gInspJob" required></select>
+                </label>
+                <div id="gInspItems" class="drv-checklist"></div>
+                <label>Workshop notes
+                  <input type="text" name="notes" placeholder="e.g. Front brake liners 80% worn, recommend replacement" />
+                </label>
+                <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Save Inspection Report</button>
+              </form>
+            </div>
+            <div class="chart-card">
+              <div class="chart-head"><div><h2>Submitted Reports</h2></div></div>
+              <div id="gInspList" class="predictions"></div>
+            </div>
+          </section>
+
+          <!-- ======= STOCK ======= -->
+          <section class="tab-panel" id="tab-gstock">
+            <div class="chart-card">
+              <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile warning"><i data-icon="boxes" data-icon-size="22"></i></span> Spares Stock</h2><p class="muted">Your godown — low-stock items flagged before they stall a job</p></div></div>
+              <form id="gStockForm" class="entry-form">
+                <div class="form-row">
+                  <label>Part name<input type="text" name="name" placeholder="e.g. Brake Liner Set — HCV" required /></label>
+                  <label>Part number (optional)<input type="text" name="partNo" /></label>
+                </div>
+                <div class="form-row">
+                  <label>Quantity<input type="number" name="qty" min="0" required inputmode="numeric" /></label>
+                  <label>Re-order at<input type="number" name="minQty" min="0" required inputmode="numeric" /></label>
+                  <label>Unit cost (₹)<input type="number" name="unitCost" min="0" inputmode="numeric" /></label>
+                </div>
+                <button type="submit" class="btn btn-primary"><i data-icon="plus" data-icon-size="16"></i> Add / Update Part</button>
+              </form>
+              <div class="chart-scroll"><div id="gStockTable"></div></div>
+            </div>
+          </section>
+
+          <!-- ======= PAYMENTS ======= -->
+          <section class="tab-panel" id="tab-gpay">
+            <section class="stat-row" id="gPayTiles"></section>
+            <div class="chart-card">
+              <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="rupee" data-icon-size="22"></i></span> Payout History</h2><p class="muted">FleetWorks settles completed job cards every fortnight — 1st &amp; 16th of each month</p></div></div>
+              <div class="chart-scroll"><div id="gPayTable"></div></div>
+              <p class="disclaimer">Payouts are gross job value minus the FleetWorks platform fee (10%). GST invoices for the fee are available in your email each cycle.</p>
+            </div>
+          </section>
+
+          <!-- ======= RATINGS ======= -->
+          <section class="tab-panel" id="tab-grate">
+            <section class="stat-row" id="gRateTiles"></section>
+            <div class="hub-sub">
+              <div class="chart-card">
+                <div class="chart-head"><div><h2>Recent Ratings</h2><p class="muted">Owners rate every delivered job</p></div></div>
+                <div id="gRatingsList" class="predictions"></div>
+              </div>
+              <div class="chart-card">
+                <div class="chart-head"><div><h2>Complaints</h2><p class="muted">Resolve fast — response time affects your ranking</p></div></div>
+                <div id="gComplaints" class="predictions"></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ======= ADVISOR ======= -->
+          <section class="tab-panel" id="tab-gadv">
+            <div class="chart-card" style="max-width:560px">
+              <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="phone" data-icon-size="22"></i></span> Your FleetWorks Service Advisor</h2><p class="muted">One person, one number — onboarding, payouts, disputes, spare sourcing, anything</p></div></div>
+              <div id="gAdvisorCard"></div>
+            </div>
+          </section>
+
+          <!-- ======= PROFILE ======= -->
+          <section class="tab-panel" id="tab-gset">
+            <div class="chart-card">
+              <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="settings" data-icon-size="22"></i></span> Workshop Profile</h2></div></div>
+              <form id="gProfileForm" class="entry-form">
+                <div class="form-row">
+                  <label>Workshop name<input type="text" name="name" required /></label>
+                  <label>City<input type="text" name="city" /></label>
+                </div>
+                <div class="form-row">
+                  <label>Phone<input type="tel" name="phone" maxlength="10" inputmode="numeric" /></label>
+                  <label>GSTIN<input type="text" name="gstin" maxlength="15" style="text-transform:uppercase" /></label>
+                </div>
+                <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Save Profile</button>
+              </form>
+            </div>
+          </section>
+
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/backend.js"></script>
+  <script src="js/cloudstore.js"></script>
+  <script src="js/garage.js"></script>
+</body>
+</html>

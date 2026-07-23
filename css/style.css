@@ -1256,3 +1256,9 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 /* Benchmark section headings */
 .bench-h { color: var(--navy); font-size: 0.98rem; margin: 18px 4px 8px; }
 .bench-h:first-child { margin-top: 4px; }
+
+/* ---------- Garage (partner) extras ---------- */
+.gphotos { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.gphotos img { width: 74px; height: 74px; object-fit: cover; border-radius: 10px; border: 1px solid #e2e8f0; }
+.gq-row label { flex: 1; }
+.gq-row label:first-child { flex: 2.2; }

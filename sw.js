@@ -1,5 +1,5 @@
 /* FleetWorks service worker — network-first with offline fallback cache */
-const CACHE = "fleetworks-v35";
+const CACHE = "fleetworks-v36";
 const CORE = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ const CORE = [
   "./my.html",
   "./signin.html",
   "./driver.html",
+  "./garage.html",
   "./css/style.css",
   "./js/icons.js",
   "./js/backend.js",
@@ -19,6 +20,7 @@ const CORE = [
   "./js/analytics.js",
   "./js/account.js",
   "./js/driver.js",
+  "./js/garage.js",
   "./js/copilot.js",
   "./js/cloudstore.js",
   "./manifest.json",
