@@ -1316,6 +1316,34 @@ function fillTyrePositions() {
   if ([...psel.options].some(o => o.value === keep)) psel.value = keep;
 }
 
+// ---------- Save confirmation + cross-cutting refresh ----------
+// Every entry form below saves into `db` (localStorage + debounced cloud
+// push, both already handled by saveStore()) and re-renders its own tab —
+// but several tabs aggregate data from EVERYTHING (Home's health strip and
+// action inbox, Payroll's driver list, Team & Access's picker). Narrow
+// per-form renders were silently skipping those, so a save was correct but
+// looked stale until something else forced a full re-render. This runs the
+// cheap cross-tab renders (no chart repaints) after every save, and
+// toast() gives visible confirmation on forms that had none at all.
+function refreshCrossCutting() {
+  renderHealth();
+  renderActionInbox();
+  if (window.renderPayroll) renderPayroll();
+  if (window.renderTeamPicker) renderTeamPicker();
+  if (window.renderAccountPortal) renderAccountPortal();
+}
+let toastTimer = null;
+function toast(msg, tone) {
+  let el = document.getElementById("fwToast");
+  if (!el) { el = document.createElement("div"); el.id = "fwToast"; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.className = tone || "ok"; // replaces the whole class list, dropping any "show" from a prior toast
+  void el.offsetHeight; // force a reflow so the entrance transition always plays, even on rapid repeats
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
 document.getElementById("driverForm").addEventListener("submit", e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
@@ -1323,14 +1351,15 @@ document.getElementById("driverForm").addEventListener("submit", e => {
   if (existing) Object.assign(existing, { name: fd.name.trim(), phone: fd.phone, dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId });
   else db.drivers.push({ id: uid(), name: fd.name.trim(), phone: fd.phone, dlNo: fd.dlNo.trim(), dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId });
   saveStore(); e.target.reset(); renderDrivers(); renderVehicles(); renderOverview();
-  if (window.renderPayroll) renderPayroll();
+  refreshCrossCutting();
+  toast(existing ? "Driver updated." : "Driver added.");
 });
 
 document.getElementById("complianceForm").addEventListener("submit", e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
   const v = db.vehicles.find(x => x.id === fd.vehicleId);
-  if (v) { v.compliance = v.compliance || {}; v.compliance[fd.doc] = fd.validTill; saveStore(); renderVehicles(); renderOverview(); }
+  if (v) { v.compliance = v.compliance || {}; v.compliance[fd.doc] = fd.validTill; saveStore(); renderVehicles(); renderOverview(); refreshCrossCutting(); toast("Compliance date saved."); }
   e.target.reset();
 });
 
@@ -1339,6 +1368,8 @@ document.getElementById("fuelForm").addEventListener("submit", e => {
   const fd = Object.fromEntries(new FormData(e.target));
   db.fuelLogs.push({ id: uid(), vehicleId: fd.vehicleId, date: fd.date, litres: +fd.litres, amount: +fd.amount, odo: +fd.odo });
   saveStore(); e.target.reset(); renderFuel(); renderOverview();
+  refreshCrossCutting();
+  toast("Fuel entry saved.");
 });
 
 document.getElementById("inspectionForm").addEventListener("submit", e => {
@@ -1351,6 +1382,7 @@ document.getElementById("inspectionForm").addEventListener("submit", e => {
     db.issues.push({ id: uid(), vehicleId: vid, title: r.item + " — inspection fault", severity: r.item.includes("Brake") || r.item.includes("Tyre") ? "High" : "Medium", status: "Open", createdAt: new Date().toISOString().slice(0, 10), source: "Inspection" });
   });
   saveStore(); renderInspectionForm(); renderInspectionHistory(); renderIssues(); renderOverview();
+  refreshCrossCutting();
   alert(passed ? "Inspection passed — all 10 points OK" : "Inspection recorded. Failed items have been added to Issues for AI prioritisation.");
 });
 
@@ -1359,6 +1391,8 @@ document.getElementById("issueForm").addEventListener("submit", e => {
   const fd = Object.fromEntries(new FormData(e.target));
   db.issues.push({ id: uid(), vehicleId: fd.vehicleId, title: fd.title.trim(), severity: fd.severity, status: "Open", createdAt: new Date().toISOString().slice(0, 10), source: "Manual" });
   saveStore(); e.target.reset(); renderIssues(); renderOverview();
+  refreshCrossCutting();
+  toast("Issue logged.");
 });
 
 document.getElementById("reminderForm").addEventListener("submit", e => {
@@ -1366,6 +1400,8 @@ document.getElementById("reminderForm").addEventListener("submit", e => {
   const fd = Object.fromEntries(new FormData(e.target));
   db.reminders.push({ id: uid(), vehicleId: fd.vehicleId, task: fd.task, everyMonths: +fd.everyMonths, lastDate: fd.lastDate });
   saveStore(); e.target.reset(); renderReminders(); renderOverview();
+  refreshCrossCutting();
+  toast("Reminder saved.");
 });
 
 document.getElementById("partForm").addEventListener("submit", e => {
@@ -1392,6 +1428,7 @@ document.getElementById("partForm").addEventListener("submit", e => {
     db.parts.push({ id: uid(), ...partData });
   }
   saveStore(); e.target.reset(); renderParts(); renderOverview();
+  toast(existing ? "Part restocked." : "Part added.");
 });
 
 document.getElementById("fuelVehicleFilter").addEventListener("change", renderFuel);
@@ -1410,6 +1447,8 @@ document.getElementById("documentForm").addEventListener("submit", e => {
   });
   saveStore(); e.target.reset(); fillDocEntitySelect();
   renderDocuments(); renderRadar(); renderOverview();
+  refreshCrossCutting();
+  toast("Document saved.");
 });
 
 // ---- Tyre Health ----
@@ -1426,6 +1465,8 @@ document.getElementById("tyreForm").addEventListener("submit", e => {
   saveStore(); e.target.reset();
   document.getElementById("tyreVehicleFilter").value = fd.vehicleId;
   renderTyres(); renderOverview();
+  refreshCrossCutting();
+  toast("Tyre reading saved.");
 });
 
 // ---- Settings ----
@@ -1439,6 +1480,7 @@ document.getElementById("settingsForm").addEventListener("submit", e => {
     mileageDropPct: fd.mileageDropPct ? +fd.mileageDropPct : null
   };
   saveStore(); renderRadar(); renderTyres(); renderOverview();
+  refreshCrossCutting();
   alert("Settings saved.");
 });
 document.getElementById("exportDataBtn").addEventListener("click", () => {
@@ -1984,12 +2026,14 @@ document.getElementById("tripForm")?.addEventListener("submit", e => {
   const fd = Object.fromEntries(new FormData(e.target));
   db.trips.push({ id: uid(), vehicleId: fd.vehicleId, date: fd.date, from: fd.from.trim(), to: fd.to.trim(), freight: +fd.freight, km: fd.km ? +fd.km : null });
   saveStore(); e.target.reset(); renderAll();
+  toast("Trip saved.");
 });
 document.getElementById("khataForm")?.addEventListener("submit", e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
   db.driverLedger.push({ id: uid(), driverId: fd.driverId, date: fd.date, type: fd.type, amount: +fd.amount, note: (fd.note || "").trim() });
   saveStore(); e.target.reset(); renderAll();
+  toast("Khata entry saved.");
 });
 
 // Add Vehicle page (FleetOps main)

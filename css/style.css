@@ -865,6 +865,19 @@ i[data-icon] { display: inline-flex; align-items: center; justify-content: cente
 .fw-badge.medium   { background: #fff4e0; color: #b26a00; }
 .fw-badge.low      { background: #eef2f7; color: #475569; }
 
+/* ---- save confirmation toast ---- */
+#fwToast {
+  position: fixed; top: 18px; left: 50%; z-index: 400;
+  transform: translateX(-50%) translateY(-16px);
+  display: flex; align-items: center; gap: 8px;
+  background: #0f1e33; color: #fff; padding: 11px 20px; border-radius: 10px;
+  font-family: inherit; font-size: 0.85rem; font-weight: 600;
+  box-shadow: 0 10px 30px rgba(15,30,51,0.25);
+  opacity: 0; pointer-events: none; transition: opacity .22s ease, transform .22s ease;
+}
+#fwToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#fwToast.err  { background: #c62828; }
+
 /* ---- tab-bar icons: align emoji-free SVGs inside existing tab buttons ---- */
 .tab-btn { display: inline-flex; align-items: center; gap: 7px; }
 .tab-btn .fw-ic { width: 17px; height: 17px; }

@@ -13,9 +13,19 @@ let PAYOUTS = {}; // driver_ext_id -> row from driver_payout_details
 
 function payrollSignedIn() { return !!(window.fwCloud && fwCloud.user()); }
 
+// Every early-return path below must still leave `sel` (the automated-
+// payment driver dropdown) in a clear, explained state — an untouched
+// <select> just looks like a bug ("driver name isn't in the dropdown")
+// rather than "you haven't set up automated payouts yet".
+function setSelUnavailable(sel, btn, message) {
+  if (sel) sel.innerHTML = `<option value="">${esc(message)}</option>`;
+  if (btn) btn.disabled = true;
+}
+
 async function renderPayroll() {
   const roster = document.getElementById("payrollRoster");
   const sel = document.getElementById("paySalaryDriver");
+  const sendBtn = document.querySelector("#paySalaryForm button[type=submit]");
   const manualSel = document.getElementById("manualSalaryDriver");
   if (!roster) return; // tab not in DOM yet
 
@@ -27,24 +37,26 @@ async function renderPayroll() {
 
   if (!db.drivers.length) {
     roster.innerHTML = "<p class='muted'>Add drivers first — Fleet &rarr; Drivers &amp; Contacts.</p>";
-    if (sel) sel.innerHTML = "";
+    setSelUnavailable(sel, sendBtn, "Add a driver first");
     return;
   }
   if (!payrollSignedIn()) {
     roster.innerHTML = "<p class='muted'>Sign in to set up automated payouts.</p>";
-    if (sel) sel.innerHTML = "";
+    setSelUnavailable(sel, sendBtn, "Sign in first");
     return;
   }
 
   const org = await (window.getMyOrgId ? getMyOrgId() : null);
   if (!org) {
     roster.innerHTML = "<p class='muted'>No organization found yet — save something once while signed in, then reload this tab.</p>";
+    setSelUnavailable(sel, sendBtn, "Sign in and save something first");
     return;
   }
 
   const rows = await fwCloud.authGet("driver_payout_details", `select=*&org_id=eq.${org}`);
   if (rows === null) {
     roster.innerHTML = "<p class='muted'>Payroll needs <code>db/schema-payroll.sql</code> run once in Supabase.</p>";
+    setSelUnavailable(sel, sendBtn, "Not set up in Supabase yet");
     return;
   }
   PAYOUTS = Object.fromEntries(rows.map(r => [r.driver_ext_id, r]));
@@ -60,11 +72,14 @@ async function renderPayroll() {
         <td><button type="button" class="link-btn" onclick="openPayoutModal('${esc(d.id)}','${esc(d.name)}')">${p ? "Update" : "Set up payout"}</button></td></tr>`;
     }).join("") + "</tbody></table>";
 
+  const payable = db.drivers.filter(d => PAYOUTS[d.id]);
   if (sel) {
-    const payable = db.drivers.filter(d => PAYOUTS[d.id]);
-    sel.innerHTML = payable.length
-      ? payable.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("")
-      : `<option value="">Set up a driver's payout details first</option>`;
+    if (payable.length) {
+      sel.innerHTML = payable.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+      if (sendBtn) sendBtn.disabled = false;
+    } else {
+      setSelUnavailable(sel, sendBtn, "No driver set up for automated payouts yet — use 'Set up payout' above");
+    }
   }
 
   await renderPayrollHistory(org);
@@ -120,6 +135,7 @@ document.getElementById("payoutForm")?.addEventListener("submit", async e => {
     });
     document.getElementById("payoutModal").style.display = "none";
     renderPayroll();
+    toast("Payout details saved.");
   } catch (ex) {
     errEl.textContent = ex.message || "Could not save payout details.";
     errEl.hidden = false;
@@ -145,7 +161,7 @@ document.getElementById("manualSalaryForm")?.addEventListener("submit", async e 
     transfer_ref: "man" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     initiated_by: fwCloud.uid(),
   });
-  if (ok) { e.target.reset(); renderPayroll(); }
+  if (ok) { e.target.reset(); renderPayroll(); toast("Payment logged to your books."); }
   else { errEl.textContent = "Could not save this payment — check your connection and try again."; errEl.hidden = false; }
   btn.disabled = false;
 });
