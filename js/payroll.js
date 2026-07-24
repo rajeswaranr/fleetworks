@@ -178,6 +178,7 @@ function updatePayNowHint() {
     ? `${driver.name} has no UPI ID on file — add one in Drivers & Contacts to enable one-tap pay.`
     : "";
   renderUpiQr();
+  renderBankInfo();
 }
 async function renderUpiQr() {
   const box = document.getElementById("payNowUpiQr");
@@ -195,6 +196,34 @@ async function renderUpiQr() {
   } catch {
     box.innerHTML = "";
   }
+}
+// Bank transfer has no UPI-style "scan and it opens pre-filled" standard —
+// this QR (and the copyable text next to it) just carries the account
+// holder/number/IFSC as plain text, so a NEFT/IMPS transfer can be filled
+// in without retyping (and risking a typo) — not a one-tap payment.
+function buildBankInfoText(driver) {
+  return `Account Holder: ${driver.name}\nAccount Number: ${driver.bankAccount}\nIFSC: ${driver.bankIfsc}`;
+}
+async function renderBankInfo() {
+  const box = document.getElementById("payNowBankInfo");
+  if (!box) return;
+  const form = document.getElementById("manualSalaryForm");
+  const driver = db.drivers.find(d => d.id === form.driverExtId.value);
+  if (!driver || !driver.bankAccount || !driver.bankIfsc) { box.innerHTML = ""; return; }
+  const text = buildBankInfoText(driver);
+  let qrHtml = "";
+  try {
+    await loadQrCode();
+    qrHtml = `<div id="payNowBankQrImg" style="width:180px;height:180px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0"></div>`;
+  } catch { /* QR is a nice-to-have here — the copyable text still works without it */ }
+  box.innerHTML = `${qrHtml}
+    <div class="chart-card" style="padding:10px;margin-top:${qrHtml ? "8px" : "0"};font-size:0.82rem;white-space:pre-line">${esc(text)}</div>
+    <button type="button" class="link-btn" id="copyBankInfoBtn" style="margin-top:4px">${FWIcon("document", { size: 13 })} Copy for NEFT/IMPS</button>`;
+  if (qrHtml) new QRCode(document.getElementById("payNowBankQrImg"), { text, width: 178, height: 178, correctLevel: QRCode.CorrectLevel.M });
+  document.getElementById("copyBankInfoBtn")?.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(text); toast("Bank details copied."); }
+    catch { toast("Could not copy — select the text above manually.", "err"); }
+  });
 }
 document.getElementById("manualSalaryDriver")?.addEventListener("change", updatePayNowHint);
 document.getElementById("manualSalaryForm")?.addEventListener("input", e => {

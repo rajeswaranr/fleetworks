@@ -718,6 +718,14 @@
                 <input type="text" name="upiId" placeholder="e.g. driver@okhdfcbank" />
               </label>
             </div>
+            <div class="form-row">
+              <label>Bank Account Number (for NEFT/IMPS reference)
+                <input type="text" name="bankAccount" inputmode="numeric" placeholder="e.g. 12345678901" />
+              </label>
+              <label>IFSC Code
+                <input type="text" name="bankIfsc" style="text-transform:uppercase" maxlength="11" placeholder="e.g. HDFC0000123" />
+              </label>
+            </div>
             <button type="submit" class="btn btn-primary">Save Driver</button>
           </form>
         </div>
@@ -773,7 +781,10 @@
               <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Save to Books</button>
             </div>
             <p class="muted" id="payNowUpiHint" style="margin-top:6px;font-size:0.8rem"></p>
-            <div id="payNowUpiQr" style="margin-top:10px"></div>
+            <div style="display:flex;gap:20px;flex-wrap:wrap">
+              <div id="payNowUpiQr"></div>
+              <div id="payNowBankInfo"></div>
+            </div>
             <p class="field-error" id="manualSalaryErr" hidden></p>
           </form>
         </div>

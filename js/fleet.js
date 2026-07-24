@@ -1357,8 +1357,10 @@ document.getElementById("driverForm").addEventListener("submit", e => {
   const fd = Object.fromEntries(new FormData(e.target));
   const existing = db.drivers.find(d => d.dlNo.toLowerCase() === fd.dlNo.trim().toLowerCase());
   const upiId = (fd.upiId || "").trim() || undefined;
-  if (existing) Object.assign(existing, { name: fd.name.trim(), phone: fd.phone, dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId });
-  else db.drivers.push({ id: uid(), name: fd.name.trim(), phone: fd.phone, dlNo: fd.dlNo.trim(), dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId });
+  const bankAccount = (fd.bankAccount || "").replace(/\s+/g, "") || undefined;
+  const bankIfsc = (fd.bankIfsc || "").trim().toUpperCase() || undefined;
+  if (existing) Object.assign(existing, { name: fd.name.trim(), phone: fd.phone, dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId, bankAccount, bankIfsc });
+  else db.drivers.push({ id: uid(), name: fd.name.trim(), phone: fd.phone, dlNo: fd.dlNo.trim(), dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId, bankAccount, bankIfsc });
   saveStore(); e.target.reset(); renderDrivers(); renderVehicles(); renderOverview();
   refreshCrossCutting();
   toast(existing ? "Driver updated." : "Driver added.");
