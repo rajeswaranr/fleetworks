@@ -266,8 +266,9 @@
 
   function renderPill() {
     const u = fwCloud.user();
+    const escLocal = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     pill.innerHTML = u
-      ? `<span class="dot" style="background:#0ca30c"></span> Synced · ${u.split("@")[0]}`
+      ? `<span class="dot" style="background:#0ca30c"></span> Synced · ${escLocal(u.split("@")[0])}`
       : `<span class="dot" style="background:#94a3b8"></span> Sign in to sync`;
     pill.title = u ? "Fleet data syncing to your FleetWorks cloud account. Click to sign out." : "Create a free account to back up and sync your fleet across devices";
   }

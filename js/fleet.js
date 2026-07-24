@@ -61,9 +61,17 @@ function waSend(phone, msg) {
   if (!p) { alert("No WhatsApp number on file for this contact."); return; }
   window.open("https://wa.me/" + p + "?text=" + encodeURIComponent(msg || ""), "_blank", "noopener");
 }
+// HTML-escapes a JS value serialized for embedding inside a quoted HTML
+// attribute (e.g. onclick='fn(JSON_HERE)'). JSON.stringify alone only makes
+// a string JS-safe (escapes " and \) — it does NOT escape ' or < / >, so a
+// driver/vehicle name or note containing a single quote can break straight
+// out of a single-quoted attribute and inject arbitrary markup/script. The
+// browser HTML-decodes the attribute before the inline JS ever parses it,
+// so escaping here is transparent to the actual onclick handler.
+function escAttr(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
 function waBtn(phone, msg, label) {
   if (!waNorm(phone)) return "";
-  return `<button type="button" class="link-btn wa-btn" onclick='waSend(${JSON.stringify(waNorm(phone))},${JSON.stringify(msg)})'>${FWIcon("chat", { size: 13 })} ${label || "WhatsApp"}</button>`;
+  return `<button type="button" class="link-btn wa-btn" onclick='waSend(${escAttr(JSON.stringify(waNorm(phone)))},${escAttr(JSON.stringify(msg))})'>${FWIcon("chat", { size: 13 })} ${label || "WhatsApp"}</button>`;
 }
 function ownerName() { return (db.settings && db.settings.businessName) || "FleetWorks owner"; }
 

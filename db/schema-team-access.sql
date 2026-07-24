@@ -101,10 +101,26 @@ $$;
 -- ========================= 4. ROLE-AWARE RLS =========================
 -- Replaces the blanket "org_members_all_<table>" policies from
 -- schema-normalized.sql for tables where per-vehicle scoping applies.
--- parts (org-wide inventory, not vehicle-specific) is left as-is on
--- purpose — supervisors/drivers get no special restriction there.
+
+-- parts (org-wide inventory, not vehicle-specific): every org member can
+-- read the catalogue, but only owner/manager can change stock, cost or
+-- vendor data — the blanket policy this replaces let a driver or
+-- supervisor freely edit the whole org's parts inventory.
+drop policy if exists org_members_all_parts on parts;
+drop policy if exists parts_select on parts;
+drop policy if exists parts_admin_write on parts;
+drop policy if exists parts_admin_update on parts;
+drop policy if exists parts_admin_delete on parts;
+create policy parts_select on parts for select to authenticated using (is_org_member(org_id));
+create policy parts_admin_write on parts for insert to authenticated with check (is_org_admin(org_id));
+create policy parts_admin_update on parts for update to authenticated using (is_org_admin(org_id)) with check (is_org_admin(org_id));
+create policy parts_admin_delete on parts for delete to authenticated using (is_org_admin(org_id));
 
 drop policy if exists org_members_all_vehicles on vehicles;
+drop policy if exists vehicles_select on vehicles;
+drop policy if exists vehicles_admin_write on vehicles;
+drop policy if exists vehicles_admin_update on vehicles;
+drop policy if exists vehicles_admin_delete on vehicles;
 create policy vehicles_select on vehicles for select to authenticated
   using (can_view_vehicle(org_id, ext_id));
 create policy vehicles_admin_write on vehicles for insert to authenticated
@@ -115,12 +131,22 @@ create policy vehicles_admin_delete on vehicles for delete to authenticated
   using (is_org_admin(org_id));
 
 drop policy if exists org_members_all_drivers on drivers;
+drop policy if exists drivers_select on drivers;
+drop policy if exists drivers_admin_write on drivers;
+-- Unassigned drivers (vehicle_id is null) are admin-only — the previous
+-- version let any supervisor/driver in the org read every OTHER driver's
+-- name/phone/DL number as long as that driver hadn't been assigned a
+-- vehicle yet.
 create policy drivers_select on drivers for select to authenticated
-  using (is_org_admin(org_id) or vehicle_id is null or can_view_vehicle_id(org_id, vehicle_id));
+  using (is_org_admin(org_id) or (vehicle_id is not null and can_view_vehicle_id(org_id, vehicle_id)));
 create policy drivers_admin_write on drivers for all to authenticated
   using (is_org_admin(org_id)) with check (is_org_admin(org_id));
 
 drop policy if exists org_members_all_documents on documents;
+drop policy if exists documents_select on documents;
+drop policy if exists documents_write on documents;
+drop policy if exists documents_update on documents;
+drop policy if exists documents_delete on documents;
 create policy documents_select on documents for select to authenticated
   using (is_org_admin(org_id) or (entity_type = 'vehicle' and can_view_vehicle_id(org_id, vehicle_id)));
 create policy documents_write on documents for insert to authenticated
@@ -139,6 +165,10 @@ begin
   foreach t in array array['tyre_readings','fuel_logs','expenses','issues','work_orders','reminders','inspections']
   loop
     execute format('drop policy if exists org_members_all_%1$s on %1$s;', t);
+    execute format('drop policy if exists %1$s_select on %1$s;', t);
+    execute format('drop policy if exists %1$s_insert on %1$s;', t);
+    execute format('drop policy if exists %1$s_update on %1$s;', t);
+    execute format('drop policy if exists %1$s_delete on %1$s;', t);
     execute format('create policy %1$s_select on %1$s for select to authenticated using (can_view_vehicle_id(org_id, vehicle_id));', t);
     execute format('create policy %1$s_insert on %1$s for insert to authenticated with check (can_update_vehicle_id(org_id, vehicle_id));', t);
     execute format('create policy %1$s_update on %1$s for update to authenticated using (can_update_vehicle_id(org_id, vehicle_id)) with check (can_update_vehicle_id(org_id, vehicle_id));', t);

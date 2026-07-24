@@ -54,13 +54,16 @@ create policy "anon_insert_leads" on leads
 create policy "anon_insert_vendor_applications" on vendor_applications
   for insert to anon with check (true);
 
--- Logged-in users (you) may read everything:
-create policy "auth_read_leads" on leads
-  for select to authenticated using (true);
-create policy "auth_read_vendor_applications" on vendor_applications
-  for select to authenticated using (true);
-create policy "auth_update_vendor_applications" on vendor_applications
-  for update to authenticated using (true);
+-- SECURITY: do NOT add a broad "select ... using (true)" policy here for
+-- authenticated users. This file alone leaves leads/vendor_applications
+-- fail-closed (readable by no one but the schema owner) on purpose — run
+-- db/schema-roles.sql immediately after this file, which grants read/update
+-- access scoped to admin-flagged accounts and to partners' own rows only.
+-- An earlier version of this file granted "select ... using (true)" to any
+-- authenticated user, which meant any signed-in fleet owner could read
+-- every customer's phone number and every partner's PAN/GSTIN. Never
+-- reintroduce that policy — schema-roles.sql's header comment has the
+-- full incident writeup.
 
 -- ---------- Applicant status check (safe, limited) ----------
 -- Lets the partner page show an applicant their own status by phone

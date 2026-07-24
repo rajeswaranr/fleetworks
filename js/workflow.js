@@ -33,6 +33,11 @@ function wfSave() { localStorage.setItem(WF_KEY, JSON.stringify(WFD)); }
 let WFD = wfLoad();
 
 const wfEsc = s => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+// Same escaping as wfEsc, plus single-quote — for values embedded inside a
+// single-quoted HTML attribute (e.g. onclick='fn(JSON_HERE)'), where a
+// mechanic/vehicle/issue name containing ' would otherwise break out of the
+// attribute and inject markup. JSON.stringify alone doesn't escape ' or </>.
+const wfEscAttr = s => wfEsc(s).replace(/'/g, "&#39;");
 const wfINR = v => "₹" + Math.round(v).toLocaleString("en-IN");
 const wfNow = () => new Date().toISOString();
 const wfDate = d => new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
@@ -101,7 +106,7 @@ function wfWa(phone, msg) {
 function wfWaBtn(phone, msg, label) {
   let p = String(phone || "").replace(/\D/g, "");
   if (!p) return "";
-  return ` <button type="button" class="link-btn wa-btn" onclick='wfWa(${JSON.stringify(phone)},${JSON.stringify(msg)})'>${typeof FWIcon === "function" ? FWIcon("chat", { size: 13 }) : ""} ${label || "WhatsApp"}</button>`;
+  return ` <button type="button" class="link-btn wa-btn" onclick='wfWa(${wfEscAttr(JSON.stringify(phone))},${wfEscAttr(JSON.stringify(msg))})'>${typeof FWIcon === "function" ? FWIcon("chat", { size: 13 }) : ""} ${label || "WhatsApp"}</button>`;
 }
 
 function wfDetails(r) {

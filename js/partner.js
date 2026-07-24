@@ -227,9 +227,9 @@ statusForm.addEventListener("submit", (e) => {
   const showFound = (name, ref, status, createdAt) => {
     statusResult.className = "status-result found";
     statusResult.innerHTML =
-      "<strong>" + name + "</strong><br />" +
-      "Ref: " + ref + " · Applied " + new Date(createdAt).toLocaleDateString("en-IN") +
-      '<br />Status: <span class="status-pill">' + status + "</span>";
+      "<strong>" + esc(name) + "</strong><br />" +
+      "Ref: " + esc(ref) + " · Applied " + new Date(createdAt).toLocaleDateString("en-IN") +
+      '<br />Status: <span class="status-pill">' + esc(status) + "</span>";
   };
   const showNotFound = () => {
     statusResult.className = "status-result error";

@@ -279,7 +279,11 @@
     typing.innerHTML = "<span></span><span></span><span></span>";
     body.appendChild(typing); body.scrollTop = body.scrollHeight;
     llmAnswer(q)
-      .then(a => { typing.remove(); addMsg(a || answer(q), "bot"); })
+      // addMsg renders bot messages via innerHTML (needed for answer()'s
+      // "Take me there" buttons) — the LLM's reply is untrusted text, not
+      // markup we generated, so it must be escaped before display, unlike
+      // the local rule-based answer() output.
+      .then(a => { typing.remove(); addMsg(a ? esc(a).replace(/\n/g, "<br>") : answer(q), "bot"); })
       .catch(() => { typing.remove(); addMsg(answer(q), "bot"); });
   }
 

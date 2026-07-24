@@ -8,7 +8,14 @@
 
 "use strict";
 
-const esc = s => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const esc = s => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+// For values embedded inside a single-quoted JS string literal within an
+// HTML attribute (e.g. onclick="fn('...')") — esc() alone doesn't escape
+// the ' that delimits that inner string, so a vehicle name containing one
+// could break out and inject markup/script into every driver/supervisor
+// who opens this portal. JSON.stringify + HTML-escaping the result is safe
+// regardless of which characters the value contains.
+const escAttr = s => esc(JSON.stringify(s)).replace(/'/g, "&#39;");
 const fmtINR = v => "₹" + Math.round(v || 0).toLocaleString("en-IN");
 const fmtDate = d => d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—";
 const today = () => new Date().toISOString().slice(0, 10);
@@ -30,7 +37,7 @@ async function loadVehicles() {
   const box = document.getElementById("teamVehicleList");
   box.innerHTML = vehicles.length ? vehicles.map(v => {
     const access = ASSIGN[v.ext_id] || "view";
-    return `<div class="chart-card" style="cursor:pointer" onclick="openVehicle('${v.id}','${esc(v.ext_id)}','${esc(v.name)}','${access}')">
+    return `<div class="chart-card" style="cursor:pointer" onclick="openVehicle(${escAttr(v.id)},${escAttr(v.ext_id)},${escAttr(v.name)},${escAttr(access)})">
       <div class="chart-head" style="margin-bottom:6px"><div>
         <h2 style="font-size:1.05rem"><strong>${esc(v.name)}</strong> <span class="fw-badge ${access === "update" ? "soon" : "upcoming"}">${access === "update" ? "Can update" : "View only"}</span></h2>
         <p class="muted">${esc(v.type || "")}</p>

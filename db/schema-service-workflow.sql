@@ -138,6 +138,16 @@ create table if not exists public.service_advisors (
 alter table public.workshops
   add column if not exists advisor_id uuid references public.service_advisors(id);
 
+-- FleetWorks' own internal staff directory, not org-scoped — platform-admin
+-- only. Every other table in this file gets RLS a few lines down; this one
+-- was previously missing it entirely, leaving staff name/phone/email fully
+-- readable and writable by any authenticated client.
+alter table public.service_advisors enable row level security;
+drop policy if exists service_advisors_admin on public.service_advisors;
+create policy service_advisors_admin on public.service_advisors for all to authenticated
+  using (coalesce((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin', false))
+  with check (coalesce((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin', false));
+
 -- ---------- The service request (one row per complaint/booking) ----------
 create table if not exists public.service_requests (
   id           uuid primary key default gen_random_uuid(),
@@ -320,8 +330,28 @@ create table if not exists public.status_events (
 );
 create index if not exists se_request on public.status_events(request_id, created_at);
 
+-- Identity lock: org_id/vehicle_id must never change after a request is
+-- raised. Without this, sr_partner_upd's implicit with-check (Postgres
+-- reuses the USING clause when no explicit WITH CHECK is given) only
+-- re-validates that the workshop still owns whatever workshop_id ends up
+-- on the row — it says nothing about org_id/vehicle_id, so a matched
+-- workshop could otherwise repoint a request at a different org's vehicle
+-- entirely via a raw PATCH. A trigger (not RLS) enforces this because RLS
+-- policies can't compare NEW against OLD directly.
+create or replace function public.trg_sr_lock_identity() returns trigger
+language plpgsql as $$
+begin
+  if new.org_id is distinct from old.org_id or new.vehicle_id is distinct from old.vehicle_id then
+    raise exception 'service_requests.org_id and vehicle_id cannot be changed after creation';
+  end if;
+  return new;
+end $$;
+drop trigger if exists sr_lock_identity on public.service_requests;
+create trigger sr_lock_identity before update on public.service_requests
+  for each row execute function public.trg_sr_lock_identity();
+
 create or replace function public.trg_sr_stage_audit() returns trigger
-language plpgsql security definer as $$
+language plpgsql security definer set search_path = public as $$
 begin
   if tg_op = 'INSERT' then
     insert into public.status_events (request_id, from_stage, to_stage, actor, note)
@@ -339,7 +369,7 @@ create trigger sr_stage_audit before insert or update on public.service_requests
 
 -- Auto-invoice when a request reaches 'completed'
 create or replace function public.trg_sr_autoinvoice() returns trigger
-language plpgsql security definer as $$
+language plpgsql security definer set search_path = public as $$
 declare est_total numeric(12,2);
 begin
   if new.stage = 'completed' and old.stage is distinct from 'completed'
@@ -363,7 +393,7 @@ create trigger sr_autoinvoice before update on public.service_requests
 -- ---------- Row-level security ----------
 -- Owner side: members of the org. Partner side: the workshop's auth user.
 create or replace function public.is_workshop_user(p_workshop uuid)
-returns boolean language sql stable security definer as
+returns boolean language sql stable security definer set search_path = public as
 $$ select exists (select 1 from public.workshops w where w.id = p_workshop and w.owner_user = auth.uid()) $$;
 
 alter table public.service_requests enable row level security;
@@ -379,16 +409,23 @@ create policy sr_partner_upd on public.service_requests for update to authentica
 
 -- Child tables inherit visibility through the request
 create or replace function public.can_see_request(p_request uuid)
-returns boolean language sql stable security definer as
+returns boolean language sql stable security definer set search_path = public as
 $$ select exists (
      select 1 from public.service_requests r
       where r.id = p_request
         and (public.is_org_member(r.org_id) or public.is_workshop_user(r.workshop_id))) $$;
 
+-- These six tables are legitimately written by BOTH sides at different
+-- workflow stages (workshop logs an assessment/work entry, owner approves
+-- an estimate, etc.) — kept broad. invoices/feedback/status_events/payments/
+-- workshop_complaints are handled separately below with tighter, per-actor
+-- policies, because those are exactly the tables where letting the party
+-- being evaluated (the workshop) edit or delete the record ABOUT itself is
+-- a real integrity hole, not just an access-control nicety.
 do $$ declare t text;
 begin
   foreach t in array array['request_assignments','assessments','estimates',
-    'work_logs','attachments','work_reports','invoices','feedback','status_events']
+    'work_logs','attachments','work_reports']
   loop
     execute format('alter table public.%I enable row level security', t);
     execute format('drop policy if exists %I_vis on public.%I', t, t);
@@ -404,31 +441,101 @@ create policy estimate_items_vis on public.estimate_items for all to authenticat
   using (exists (select 1 from public.estimates e
                   where e.id = estimate_id and public.can_see_request(e.request_id)));
 
--- payments has no request_id — visibility flows through its invoice
+-- status_events: the audit trail. Only the security-definer sr_stage_audit
+-- trigger writes this (it bypasses RLS) — no client, on either side, ever
+-- needs or gets a write path, so the party being audited can't edit or
+-- erase its own history.
+alter table public.status_events enable row level security;
+drop policy if exists status_events_vis on public.status_events;
+drop policy if exists status_events_select on public.status_events;
+create policy status_events_select on public.status_events for select to authenticated
+  using (public.can_see_request(request_id));
+revoke insert, update, delete on public.status_events from authenticated;
+
+-- feedback: only the customer (org side) can rate/review a job — the
+-- workshop being reviewed must never be able to write its own feedback.
+alter table public.feedback enable row level security;
+drop policy if exists feedback_vis on public.feedback;
+drop policy if exists feedback_select on public.feedback;
+drop policy if exists feedback_write on public.feedback;
+drop policy if exists feedback_update on public.feedback;
+create policy feedback_select on public.feedback for select to authenticated
+  using (public.can_see_request(request_id));
+create policy feedback_write on public.feedback for insert to authenticated
+  with check (exists (select 1 from public.service_requests r where r.id = request_id and public.is_org_member(r.org_id)));
+create policy feedback_update on public.feedback for update to authenticated
+  using (exists (select 1 from public.service_requests r where r.id = request_id and public.is_org_member(r.org_id)));
+
+-- invoices: only the security-definer trg_sr_autoinvoice trigger creates
+-- these; only the org (who owes the money) may mark one paid — the
+-- workshop being invoiced-for must never write here.
+alter table public.invoices enable row level security;
+drop policy if exists invoices_vis on public.invoices;
+drop policy if exists invoices_select on public.invoices;
+drop policy if exists invoices_update on public.invoices;
+create policy invoices_select on public.invoices for select to authenticated
+  using (public.can_see_request(request_id));
+create policy invoices_update on public.invoices for update to authenticated
+  using (exists (select 1 from public.service_requests r where r.id = request_id and public.is_org_member(r.org_id)));
+revoke insert, delete on public.invoices from authenticated;
+
+-- payments has no request_id — visibility flows through its invoice. This
+-- is a self-reported "I paid" record (same pattern as FleetWorks Payroll's
+-- manual salary log) from the org side only — the workshop must never be
+-- able to insert/forge a payment against its own invoice.
 alter table public.payments enable row level security;
 drop policy if exists payments_vis on public.payments;
-create policy payments_vis on public.payments for all to authenticated
-  using (exists (select 1 from public.invoices i
-                  where i.id = invoice_id and public.can_see_request(i.request_id)));
+drop policy if exists payments_select on public.payments;
+drop policy if exists payments_insert on public.payments;
+create policy payments_select on public.payments for select to authenticated
+  using (exists (select 1 from public.invoices i where i.id = invoice_id and public.can_see_request(i.request_id)));
+create policy payments_insert on public.payments for insert to authenticated
+  with check (exists (select 1 from public.invoices i join public.service_requests r on r.id = i.request_id
+                        where i.id = invoice_id and public.is_org_member(r.org_id)));
+revoke update, delete on public.payments from authenticated;
 
--- workshop_complaints: request_id is optional — fall back to org / workshop
+-- workshop_complaints: only the org can file/manage a complaint against a
+-- workshop — the accused workshop can see it (to respond in person / via
+-- support) but never edit its status or delete it outright.
 alter table public.workshop_complaints enable row level security;
 drop policy if exists workshop_complaints_vis on public.workshop_complaints;
-create policy workshop_complaints_vis on public.workshop_complaints for all to authenticated
+drop policy if exists workshop_complaints_select on public.workshop_complaints;
+drop policy if exists workshop_complaints_write on public.workshop_complaints;
+drop policy if exists workshop_complaints_update on public.workshop_complaints;
+create policy workshop_complaints_select on public.workshop_complaints for select to authenticated
   using (
     (request_id is not null and public.can_see_request(request_id))
     or (org_id is not null and public.is_org_member(org_id))
     or (workshop_id is not null and public.is_workshop_user(workshop_id))
   );
+create policy workshop_complaints_write on public.workshop_complaints for insert to authenticated
+  with check (org_id is not null and public.is_org_member(org_id));
+create policy workshop_complaints_update on public.workshop_complaints for update to authenticated
+  using (org_id is not null and public.is_org_member(org_id));
 
+-- workshops/mechanics carry GSTIN and phone numbers — no client code
+-- currently browses these tables platform-wide (there's no "browse
+-- workshops" UI yet), so scoping this to the workshop's own account plus
+-- orgs actually matched to it via a request is a pure tightening with
+-- nothing to break. If a public workshop directory becomes a real feature,
+-- add a narrow view exposing only name/city/rating/services (no GSTIN/
+-- phone) for that instead of reopening this policy.
 alter table public.workshops enable row level security;
 drop policy if exists workshops_read on public.workshops;
-create policy workshops_read on public.workshops for select to authenticated using (true);
+create policy workshops_read on public.workshops for select to authenticated
+  using (
+    owner_user = auth.uid()
+    or exists (select 1 from public.service_requests r where r.workshop_id = workshops.id and public.is_org_member(r.org_id))
+  );
 drop policy if exists workshops_own on public.workshops;
 create policy workshops_own on public.workshops for update to authenticated using (owner_user = auth.uid());
 alter table public.mechanics enable row level security;
 drop policy if exists mechanics_read on public.mechanics;
-create policy mechanics_read on public.mechanics for select to authenticated using (true);
+create policy mechanics_read on public.mechanics for select to authenticated
+  using (
+    exists (select 1 from public.workshops w where w.id = mechanics.workshop_id and w.owner_user = auth.uid())
+    or exists (select 1 from public.service_requests r where r.mechanic_id = mechanics.id and public.is_org_member(r.org_id))
+  );
 alter table public.payout_cycles enable row level security;
 drop policy if exists payout_partner on public.payout_cycles;
 create policy payout_partner on public.payout_cycles for select to authenticated

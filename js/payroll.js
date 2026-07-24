@@ -70,7 +70,7 @@ async function renderPayroll() {
         : `UPI ${esc(p.upi_id_masked || "")}`;
       const status = !p ? "" : `<span class="fw-badge ${p.beneficiary_status === "verified" ? "ok" : "soon"}">${esc(p.beneficiary_status)}</span>`;
       return `<tr><td>${esc(d.name)}</td><td>${detail}</td><td>${status}</td>
-        <td><button type="button" class="link-btn" onclick="openPayoutModal('${esc(d.id)}','${esc(d.name)}')">${p ? "Update" : "Set up payout"}</button></td></tr>`;
+        <td><button type="button" class="link-btn" onclick="openPayoutModal(${escAttr(JSON.stringify(d.id))},${escAttr(JSON.stringify(d.name))})">${p ? "Update" : "Set up payout"}</button></td></tr>`;
     }).join("") + "</tbody></table>";
 
   const payable = db.drivers.filter(d => PAYOUTS[d.id]);
@@ -146,11 +146,28 @@ document.getElementById("payoutForm")?.addEventListener("submit", async e => {
 
 // ---------- Pay Now via UPI (opens the owner's own UPI app — GPay/PhonePe/
 // Paytm/BHIM all handle upi:// links — no gateway, no account, the owner
-// just confirms the payment themselves like normal) ----------
+// just confirms the payment themselves like normal) + a scannable QR code
+// of the same link (same idea as Razorpay's free public QR generator —
+// encode the standard NPCI upi://pay URI as a QR image — but generated
+// locally with an open-source library instead of depending on their site
+// or requiring any account) for when it's easier to scan from a phone
+// while managing payroll on a laptop. ----------
 function buildUpiLink(vpa, name, amount, note) {
   const params = new URLSearchParams({ pa: vpa, pn: name, am: String(amount), cu: "INR" });
   if (note) params.set("tn", note.slice(0, 50));
   return "upi://pay?" + params.toString();
+}
+let qrcodeLoading = null;
+function loadQrCode() {
+  if (window.QRCode) return Promise.resolve();
+  if (!qrcodeLoading) qrcodeLoading = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js";
+    s.onload = res;
+    s.onerror = () => { qrcodeLoading = null; rej(new Error("Could not load the QR code generator — check your internet connection.")); };
+    document.head.appendChild(s);
+  });
+  return qrcodeLoading;
 }
 function updatePayNowHint() {
   const hint = document.getElementById("payNowUpiHint");
@@ -160,8 +177,29 @@ function updatePayNowHint() {
   hint.textContent = driver && !driver.upiId
     ? `${driver.name} has no UPI ID on file — add one in Drivers & Contacts to enable one-tap pay.`
     : "";
+  renderUpiQr();
+}
+async function renderUpiQr() {
+  const box = document.getElementById("payNowUpiQr");
+  if (!box) return;
+  const form = document.getElementById("manualSalaryForm");
+  const driver = db.drivers.find(d => d.id === form.driverExtId.value);
+  const amount = +form.amount.value || 0;
+  if (!driver || !driver.upiId || !amount) { box.innerHTML = ""; return; }
+  const note = (form.notes.value || "Salary " + (form.period.value || "")).trim();
+  const link = buildUpiLink(driver.upiId, driver.name, amount, note);
+  try {
+    await loadQrCode();
+    box.innerHTML = `<div id="payNowUpiQrImg" style="width:180px;height:180px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0"></div><p class="muted" style="font-size:0.78rem;margin-top:4px">Scan with any UPI app to pay ${esc(fmtINR(amount))}</p>`;
+    new QRCode(document.getElementById("payNowUpiQrImg"), { text: link, width: 178, height: 178, correctLevel: QRCode.CorrectLevel.M });
+  } catch {
+    box.innerHTML = "";
+  }
 }
 document.getElementById("manualSalaryDriver")?.addEventListener("change", updatePayNowHint);
+document.getElementById("manualSalaryForm")?.addEventListener("input", e => {
+  if (["amount", "notes", "period"].includes(e.target.name)) renderUpiQr();
+});
 document.getElementById("payNowUpiBtn")?.addEventListener("click", () => {
   const form = document.getElementById("manualSalaryForm");
   const hint = document.getElementById("payNowUpiHint");
@@ -171,7 +209,7 @@ document.getElementById("payNowUpiBtn")?.addEventListener("click", () => {
   const amount = +form.amount.value || 0;
   if (!amount) { hint.textContent = "Enter an amount first."; return; }
   const note = (form.notes.value || "Salary " + (form.period.value || "")).trim();
-  hint.textContent = "Opening your UPI app…";
+  hint.textContent = "Opening your UPI app… or scan the QR code below from your phone.";
   window.location.href = buildUpiLink(driver.upiId, driver.name, amount, note);
 });
 
