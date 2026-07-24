@@ -1499,6 +1499,7 @@ document.getElementById("tabBar").addEventListener("click", e => {
     document.getElementById("fleetContent").hidden = !exempt;
   }
   if (btn.dataset.tab === "account" && window.renderAuthState) renderAuthState();
+  if (btn.dataset.tab === "map" && window.renderFleetMap) renderFleetMap();
 });
 
 // ---------- Top-bar page search (filters the active panel's lists) ----------
@@ -1622,7 +1623,14 @@ function buildDynamicPanels() {
     s.className = "tab-panel"; s.id = "tab-" + id; s.innerHTML = inner;
     host.appendChild(s);
   };
-  mk("map", soonCard("Fleet Map", "Live vehicle locations on a map arrive with the GPS / telematics integration.", "mapPin"));
+  mk("map", `<div class="chart-card">
+    <div class="chart-head"><div>
+      <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="mapPin" data-icon-size="22"></i></span> Fleet Map</h2>
+      <p class="muted">Vehicles plotted by Base Depot / City — set it on a vehicle (Add Vehicle or Vehicle List) to place it here. Live GPS tracking is a future telematics integration.</p>
+    </div></div>
+    <div id="fleetMapEl" style="height:480px;border-radius:12px;overflow:hidden"></div>
+    <div id="fleetMapUnmatched" class="muted" style="margin-top:10px;font-size:0.85rem"></div>
+  </div>`);
   mk("assignments", panelCard("Vehicle Assignments", "Which driver operates which vehicle right now", "assignTable"));
   mk("meters", panelCard("Meter History", "Odometer readings captured with every fuel fill, newest first", "meterTable"));
   mk("expensehistory", panelCard("Expense History", "Every expense entry across the fleet, newest first", "expHistTable"));
