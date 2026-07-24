@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FleetWorks Team Portal</title>
+  <meta name="description" content="FleetWorks team portal for supervisors and drivers — view or update only the vehicles you're assigned." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" type="image/png" href="icons/icon-96.png" />
+  <meta name="theme-color" content="#0f1e33" />
+</head>
+<body style="background:#f4f6f9">
+
+  <!-- ======= LOGIN ======= -->
+  <div id="teamGate" class="auth-gate">
+    <div class="auth-gate-inner" style="max-width:460px">
+      <div class="auth-gate-logo">
+        <img src="assets/logo-mark.svg" width="44" height="44" alt="" />
+        <span>Fleet<em>Works</em> Team</span>
+      </div>
+      <div class="onboard-card auth-gate-card">
+        <h2>Team Sign In</h2>
+        <p class="muted" style="margin-bottom:16px">For supervisors &amp; drivers — ask your fleet owner for your login</p>
+        <form id="teamLoginForm" class="entry-form">
+          <label>Email<input type="email" name="email" required autocomplete="username" /></label>
+          <label>Password<input type="password" name="password" required autocomplete="current-password" /></label>
+          <button type="submit" class="btn btn-primary btn-block">Log In</button>
+          <p class="field-error" id="teamLoginErr" hidden></p>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======= PORTAL ======= -->
+  <div id="teamApp" hidden>
+    <header class="drv-head">
+      <img src="assets/logo-mark.svg" width="30" height="30" alt="" />
+      <span class="drv-brand">Fleet<em>Works</em> Team</span>
+      <div class="drv-who">
+        <strong id="teamWhoName">—</strong>
+        <span class="muted" id="teamWhoRole"></span>
+      </div>
+      <button class="btn btn-outline btn-sm" id="teamLogoutBtn" style="margin-left:12px">Sign Out</button>
+    </header>
+
+    <main class="drv-main" style="max-width:760px">
+      <p class="muted" id="teamAccessNote" style="margin:14px 0"></p>
+      <div id="teamVehicleList"></div>
+    </main>
+  </div>
+
+  <!-- ======= VEHICLE DETAIL (view or update) ======= -->
+  <div id="teamVehModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:center;justify-content:center;padding:16px">
+    <div class="chart-card" style="max-width:520px;width:100%;max-height:88vh;overflow:auto">
+      <div id="teamVehModalBody"></div>
+      <button type="button" class="link-btn" id="teamVehModalClose" style="display:block;margin:10px auto 0">Close</button>
+    </div>
+  </div>
+
+  <footer style="text-align:center;padding:18px;color:#8a94a6;font-size:0.75rem">
+    © 2026 FleetWorks Private Limited · <em>Where Every Fleet Learns.</em>
+  </footer>
+
+  <script src="js/icons.js"></script>
+  <script src="js/backend.js"></script>
+  <script src="js/cloudstore.js"></script>
+  <script src="js/team.js"></script>
+</body>
+</html>

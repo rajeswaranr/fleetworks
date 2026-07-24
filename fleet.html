@@ -227,6 +227,7 @@
 
         <div class="side-sep"></div>
         <button class="side-item tab-btn" data-tab="account"><i data-icon="driver"></i><span>My Account</span></button>
+        <button class="side-item tab-btn" data-tab="team"><i data-icon="network"></i><span>Team &amp; Access</span></button>
         <button class="side-item tab-btn" data-tab="settings"><i data-icon="settings"></i><span>Settings</span></button>
         <button class="side-item tab-btn" data-tab="integrations"><i data-icon="link"></i><span>Integrations</span></button>
         <a class="side-item" href="tel:+919740799722"><i data-icon="phone"></i><span>Help &amp; Support</span></a>
@@ -1037,6 +1038,41 @@
             </div>
             <button type="submit" class="btn btn-primary"><i data-icon="plus" data-icon-size="16"></i> Save Reading</button>
           </form>
+        </div>
+      </section>
+
+      <!-- ======= TEAM & ACCESS (supervisors / drivers) ======= -->
+      <section class="tab-panel" id="tab-team">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="network" data-icon-size="22"></i></span> Team &amp; Access</h2>
+              <p class="muted">Give a supervisor or driver their own login, scoped to only the vehicles you assign — enforced by the database, not just the screen. Requires sign-in and <code>db/schema-team-access.sql</code> run once in Supabase.</p>
+            </div>
+          </div>
+          <form id="teamInviteForm" class="entry-form">
+            <div class="form-row">
+              <label>Name<input type="text" name="name" placeholder="e.g. Murugan S" required /></label>
+              <label>Role
+                <select name="role" id="teamRole" required>
+                  <option value="supervisor">Supervisor — view only</option>
+                  <option value="driver">Driver — can update</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Email (their login)<input type="email" name="email" placeholder="name@example.com" required /></label>
+              <label>Temporary password<input type="text" name="password" placeholder="min 6 characters" minlength="6" required /></label>
+            </div>
+            <label>Assign vehicles</label>
+            <div id="teamVehiclePicker" class="drv-checklist"></div>
+            <button type="submit" class="btn btn-primary"><i data-icon="plus" data-icon-size="16"></i> Create Login &amp; Assign</button>
+            <p class="field-error" id="teamInviteErr" hidden></p>
+          </form>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Team Roster</h2><p class="muted">Portal for your team: <code id="teamPortalUrl">fleet.html → team.html</code></p></div></div>
+          <div class="chart-scroll"><div id="teamRosterTable"></div></div>
         </div>
       </section>
 

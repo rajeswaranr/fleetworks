@@ -138,6 +138,28 @@
       return j.signedURL ? cfg().url + "/storage/v1" + j.signedURL : null;
     },
 
+    /* Call a Supabase Edge Function as the signed-in user (their JWT is
+       forwarded — the function verifies it server-side; e.g. team-invite). */
+    async callFunction(name, body) {
+      const r = await authFetch("/functions/v1/" + name, { method: "POST", body: JSON.stringify(body || {}) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || "Request failed (" + r.status + ")");
+      return j;
+    },
+
+    /* Call a Postgres function (RLS/security-definer applies as normal). */
+    async authRpc(fn, args) {
+      const r = await authFetch("/rest/v1/rpc/" + fn, { method: "POST", body: JSON.stringify(args || {}) });
+      if (!r.ok) return null;
+      return r.json();
+    },
+
+    /* Authenticated delete — query is a PostgREST filter, e.g. "id=eq.<uuid>". */
+    async authDelete(table, query) {
+      const r = await authFetch("/rest/v1/" + table + "?" + query, { method: "DELETE" });
+      return r.ok;
+    },
+
     /* Authenticated insert that returns the created row(s) — used by the
        service workflow to capture server-generated uuids. */
     async authInsertRet(table, row) {

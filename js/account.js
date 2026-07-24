@@ -272,5 +272,90 @@ async function syncDriverEntries() {
   if (merged) { saveStore(); renderAll(); markSynced(); }
 }
 
+// ---------- Team & Access (supervisors / drivers, DB-enforced) ----------
+let myOrgId = null;
+async function getMyOrgId() {
+  if (myOrgId) return myOrgId;
+  if (!(window.fwCloud && fwCloud.user())) return null;
+  const rows = await fwCloud.authGet("memberships", "select=org_id&role=in.(owner,manager)&limit=1").catch(() => null);
+  myOrgId = rows && rows[0] ? rows[0].org_id : null;
+  return myOrgId;
+}
+
+function renderTeamPicker() {
+  const box = document.getElementById("teamVehiclePicker");
+  if (!box) return;
+  const roleSel = document.getElementById("teamRole");
+  const defAccess = roleSel && roleSel.value === "driver" ? "update" : "view";
+  box.innerHTML = db.vehicles.length ? db.vehicles.map(v => `
+    <label class="drv-check-row" style="justify-content:space-between">
+      <span style="display:flex;align-items:center;gap:10px"><input type="checkbox" class="tv-chk" value="${esc(v.id)}" /><span>${esc(v.name)}</span></span>
+      <select class="tv-access" data-veh="${esc(v.id)}">
+        <option value="view" ${defAccess === "view" ? "selected" : ""}>View only</option>
+        <option value="update" ${defAccess === "update" ? "selected" : ""}>Can update</option>
+      </select>
+    </label>`).join("") : "<p class='muted'>Add vehicles first — FleetOps → Add Vehicle.</p>";
+}
+document.getElementById("teamRole")?.addEventListener("change", renderTeamPicker);
+
+async function renderTeamRoster() {
+  const el = document.getElementById("teamRosterTable");
+  if (!el) return;
+  const url = location.origin + location.pathname.replace(/[^/]*$/, "team.html");
+  const urlEl = document.getElementById("teamPortalUrl");
+  if (urlEl) urlEl.textContent = url;
+  if (!(window.fwCloud && fwCloud.user())) { el.innerHTML = "<p class='muted'>Sign in to manage your team.</p>"; return; }
+  const org = await getMyOrgId();
+  if (!org) { el.innerHTML = "<p class='muted'>No organization found yet — save something once while signed in, then reload this tab.</p>"; return; }
+  const rows = await fwCloud.authRpc("team_roster", { p_org: org });
+  if (!rows) { el.innerHTML = "<p class='muted'>Team roster needs <code>db/schema-team-access.sql</code> run once in Supabase.</p>"; return; }
+  el.innerHTML = rows.length ?
+    `<table class="chart-table-el"><thead><tr><th>Name / Email</th><th>Role</th><th>Vehicles</th><th></th></tr></thead><tbody>` +
+    rows.map(r => `<tr><td>${esc(r.email)}</td><td><span class="fw-badge upcoming">${esc(r.role)}</span></td>
+      <td>${(r.assigned_vehicles || []).map(id => { const v = db.vehicles.find(x => x.id === id); return esc(v ? v.name : id); }).join(", ") || "<span class='muted'>none</span>"}</td>
+      <td>${r.role === "owner" ? "" : `<button class="link-btn" style="color:#b91c1c" onclick="teamRevoke('${r.membership_id}')">Revoke</button>`}</td></tr>`).join("") + "</tbody></table>"
+    : "<p class='muted'>No team members yet — invite a supervisor or driver above.</p>";
+}
+
+window.teamRevoke = async function (membershipId) {
+  if (!confirm("Revoke this person's FleetWorks access? They will no longer be able to sign in to your fleet.")) return;
+  const ok = await fwCloud.authDelete("memberships", "id=eq." + membershipId);
+  if (ok) renderTeamRoster(); else alert("Could not revoke — check your connection and try again.");
+};
+
+document.getElementById("teamInviteForm")?.addEventListener("submit", async e => {
+  e.preventDefault();
+  const errEl = document.getElementById("teamInviteErr");
+  errEl.hidden = true;
+  if (!(window.fwCloud && fwCloud.user())) { errEl.textContent = "Sign in first."; errEl.hidden = false; return; }
+  const fd = Object.fromEntries(new FormData(e.target));
+  const vehicles = [...document.querySelectorAll("#teamVehiclePicker .tv-chk:checked")].map(c => ({
+    extId: c.value,
+    access: document.querySelector(`.tv-access[data-veh="${CSS.escape(c.value)}"]`).value
+  }));
+  if (!vehicles.length) { errEl.textContent = "Tick at least one vehicle to assign."; errEl.hidden = false; return; }
+  const btn = e.target.querySelector("button[type=submit]");
+  btn.disabled = true;
+  try {
+    const res = await fwCloud.callFunction("team-invite", { email: fd.email, password: fd.password, name: fd.name, role: fd.role, vehicles });
+    const url = location.origin + location.pathname.replace(/[^/]*$/, "team.html");
+    alert(`${fd.name} can now sign in at:\n${url}\n\nEmail: ${res.email}\n\nShare the password with them directly (call/in person) — not over WhatsApp or SMS.`);
+    e.target.reset();
+    renderTeamPicker();
+    renderTeamRoster();
+  } catch (ex) {
+    errEl.textContent = ex.message || "Could not create the login.";
+    errEl.hidden = false;
+  }
+  btn.disabled = false;
+});
+
+const _origRenderAuthStateForTeam = renderAuthState;
+renderAuthState = function () {
+  _origRenderAuthStateForTeam();
+  renderTeamPicker();
+  renderTeamRoster();
+};
+
 renderAuthState();
 syncDriverEntries();
