@@ -49,8 +49,10 @@ alter table leads enable row level security;
 alter table vendor_applications enable row level security;
 
 -- Visitors (anon key) may submit, never read:
+drop policy if exists "anon_insert_leads" on leads;
 create policy "anon_insert_leads" on leads
   for insert to anon with check (true);
+drop policy if exists "anon_insert_vendor_applications" on vendor_applications;
 create policy "anon_insert_vendor_applications" on vendor_applications
   for insert to anon with check (true);
 
