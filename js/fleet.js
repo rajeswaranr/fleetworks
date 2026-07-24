@@ -1323,6 +1323,7 @@ document.getElementById("driverForm").addEventListener("submit", e => {
   if (existing) Object.assign(existing, { name: fd.name.trim(), phone: fd.phone, dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId });
   else db.drivers.push({ id: uid(), name: fd.name.trim(), phone: fd.phone, dlNo: fd.dlNo.trim(), dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId });
   saveStore(); e.target.reset(); renderDrivers(); renderVehicles(); renderOverview();
+  if (window.renderPayroll) renderPayroll();
 });
 
 document.getElementById("complianceForm").addEventListener("submit", e => {
