@@ -1,2 +1,5 @@
 # Local Claude Code tooling (preview server config)
 .claude/
+
+# Supabase CLI local state (which project is linked, auth cache)
+supabase/.temp/

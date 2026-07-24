@@ -1957,6 +1957,7 @@ function renderAll() {
   if (window.renderAnalyticsAll) renderAnalyticsAll();
   if (window.renderAccountPortal) renderAccountPortal();
   if (window.renderTeamPicker) renderTeamPicker();
+  if (window.renderPayroll) renderPayroll();
   renderTrips();
   renderKhata();
   renderHealth();

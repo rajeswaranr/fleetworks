@@ -200,6 +200,7 @@
         <button class="side-item tab-btn" data-tab="fin"><i data-icon="gauge"></i><span>FleetFin Dashboard</span></button>
         <button class="side-item tab-btn" data-tab="account"><i data-icon="plus"></i><span>Add Entry — Diesel / Expense</span></button>
         <button class="side-item tab-btn" data-tab="khata"><i data-icon="driver"></i><span>Driver Khata</span></button>
+        <button class="side-item tab-btn" data-tab="payroll"><i data-icon="rupee"></i><span>Payroll — Pay Drivers</span></button>
         <button class="side-item tab-btn" data-tab="expensehistory"><i data-icon="receipt"></i><span>Expenses</span></button>
         <button class="side-item tab-btn" data-tab="fuel"><i data-icon="fuel"></i><span>Fuel</span></button>
         <button class="side-item tab-btn" data-tab="toll"><i data-icon="mapPin"></i><span>Toll &amp; FASTag</span></button>
@@ -683,6 +684,83 @@
           </form>
         </div>
       </section>
+
+      <!-- ======= PAYROLL (salary payouts via Cashfree) ======= -->
+      <section class="tab-panel" id="tab-payroll">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="rupee" data-icon-size="22"></i></span> Payroll — Pay Drivers</h2>
+              <p class="muted">Salary transfers go out via Cashfree Payouts — bank transfer or UPI, real money movement. Requires sign-in and <code>db/schema-payroll.sql</code> run once in Supabase.</p>
+            </div>
+          </div>
+          <div class="chart-scroll"><div id="payrollRoster"></div></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Send a Salary Payment</h2></div></div>
+          <form id="paySalaryForm" class="entry-form">
+            <div class="form-row">
+              <label>Driver
+                <select name="driverExtId" id="paySalaryDriver" required></select>
+              </label>
+              <label>Period
+                <input type="month" name="period" required />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Amount (₹)
+                <input type="number" name="amount" min="1" placeholder="e.g. 25000" required />
+              </label>
+              <label>Notes (optional)
+                <input type="text" name="notes" placeholder="e.g. July salary" maxlength="200" />
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary"><i data-icon="rupee" data-icon-size="16"></i> Send Payment</button>
+            <p class="field-error" id="paySalaryErr" hidden></p>
+          </form>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Payment History</h2></div></div>
+          <div class="chart-scroll"><div id="payrollHistory"></div></div>
+        </div>
+      </section>
+
+      <!-- ======= PAYOUT SETUP MODAL ======= -->
+      <div id="payoutModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:center;justify-content:center;padding:16px">
+        <div class="chart-card" style="max-width:440px;width:100%">
+          <h2 id="payoutModalTitle">Set up payout</h2>
+          <form id="payoutForm" class="entry-form">
+            <input type="hidden" name="driverExtId" />
+            <label>Account holder name
+              <input type="text" name="driverName" required />
+            </label>
+            <label>Payout method
+              <select name="method" id="payoutMethod">
+                <option value="bank">Bank account</option>
+                <option value="upi">UPI</option>
+              </select>
+            </label>
+            <div id="payoutBankFields">
+              <label>Bank account number
+                <input type="text" name="bankAccountNumber" inputmode="numeric" />
+              </label>
+              <label>IFSC code
+                <input type="text" name="bankIfsc" style="text-transform:uppercase" maxlength="11" />
+              </label>
+            </div>
+            <div id="payoutUpiFields" hidden>
+              <label>UPI ID
+                <input type="text" name="upiId" placeholder="name@bank" />
+              </label>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:6px">
+              <button type="submit" class="btn btn-primary">Save Payout Details</button>
+              <button type="button" class="btn btn-outline" id="payoutModalClose">Cancel</button>
+            </div>
+            <p class="field-error" id="payoutErr" hidden></p>
+          </form>
+        </div>
+      </div>
 
       <!-- ======= FUEL ======= -->
       <section class="tab-panel" id="tab-fuel">
@@ -1331,6 +1409,7 @@
   <script src="js/fleet.js"></script>
   <script src="js/analytics.js"></script>
   <script src="js/account.js"></script>
+  <script src="js/payroll.js"></script>
   <script src="js/workflow.js"></script>
   <script src="js/copilot.js"></script>
   <script>
