@@ -65,9 +65,11 @@ function wfAdvance(id, toIdx, by, note, patch) {
 
 function wfRaise(vehicle, issue, severity) {
   const m = WF_MECHANICS[WFD.length % WF_MECHANICS.length];
+  let store = {}; try { store = JSON.parse(localStorage.getItem("ff_fleet") || "{}"); } catch { }
+  const owner = { name: (store.settings && store.settings.businessName) || "FleetWorks owner", phone: (store.settings && store.settings.ownerPhone) || "" };
   const r = {
     id: wfUid(), vehicle, issue, severity, createdAt: wfNow(), stage: 1,
-    mechanic: m, assessment: null, invoice: null, finalAmount: null,
+    mechanic: m, owner, assessment: null, invoice: null, finalAmount: null,
     photos: [], postReport: null, feedback: null,
     events: [
       { stage: 0, at: wfNow(), by: "Owner", note: "Complaint raised: " + issue },
@@ -89,10 +91,31 @@ function wfStepper(r) {
   }).join("") + `</div>`;
 }
 
+// WhatsApp click-to-chat (self-contained: workflow.js loads in both apps)
+function wfWa(phone, msg) {
+  let p = String(phone || "").replace(/\D/g, "");
+  if (p.length === 10) p = "91" + p;
+  if (!p) return;
+  window.open("https://wa.me/" + p + "?text=" + encodeURIComponent(msg || ""), "_blank", "noopener");
+}
+function wfWaBtn(phone, msg, label) {
+  let p = String(phone || "").replace(/\D/g, "");
+  if (!p) return "";
+  return ` <button type="button" class="link-btn wa-btn" onclick='wfWa(${JSON.stringify(phone)},${JSON.stringify(msg)})'>${typeof FWIcon === "function" ? FWIcon("chat", { size: 13 }) : ""} ${label || "WhatsApp"}</button>`;
+}
+
 function wfDetails(r) {
   let h = "";
-  if (r.stage >= 1) h += `<div class="wf-act"><strong>${wfEsc(r.mechanic.name)}</strong> — ${wfEsc(r.mechanic.exp)}<br />
-    <span class="muted">${wfEsc(r.mechanic.shop)} · ${r.mechanic.rating}★ · ${r.mechanic.km} km away · <a href="tel:+91${r.mechanic.phone}">${r.mechanic.phone}</a></span></div>`;
+  if (r.stage >= 1) {
+    const gm = r.mechanic.phone ? wfWaBtn(r.mechanic.phone,
+      `Namaste ${r.mechanic.name}, ${r.vehicle} ke baare mein (${r.issue}). FleetWorks request ${r.id.toUpperCase()}.`, "WhatsApp mechanic") : "";
+    h += `<div class="wf-act"><strong>${wfEsc(r.mechanic.name)}</strong> — ${wfEsc(r.mechanic.exp)}<br />
+      <span class="muted">${wfEsc(r.mechanic.shop)} · ${r.mechanic.rating}★ · ${r.mechanic.km} km away · <a href="tel:+91${r.mechanic.phone}">${r.mechanic.phone}</a></span>${gm}</div>`;
+  }
+  // garage view only: let the mechanic WhatsApp the owner back
+  if (document.getElementById("gFlowList") && r.owner && r.owner.phone) {
+    h += `<div class="wf-act"><strong>Owner:</strong> ${wfEsc(r.owner.name)} · <a href="tel:+91${r.owner.phone}">${r.owner.phone}</a>${wfWaBtn(r.owner.phone, `Namaste, ${r.vehicle} (${r.issue}) — ${r.mechanic.shop}. FleetWorks ${r.id.toUpperCase()}.`, "WhatsApp owner")}</div>`;
+  }
   if (r.assessment) h += `<div class="wf-act"><strong>Assessment:</strong> ${wfEsc(r.assessment.notes)}<br />
     <span class="muted">Estimate <strong>${wfINR(r.assessment.total)}</strong> · TAT <strong>${wfEsc(r.assessment.tat)}</strong>${r.assessment.items ? " · " + wfEsc(r.assessment.items) : ""}</span></div>`;
   if (r.invoice) h += `<div class="wf-act"><strong>FleetWorks Invoice ${r.invoice.number}</strong> — work ${wfINR(r.invoice.subtotal)} + GST ${wfINR(r.invoice.gst)} = <strong>${wfINR(r.invoice.total)}</strong>${r.stage >= 9 ? ' <span class="fw-badge ok">PAID</span>' : ""}</div>`;

@@ -1333,3 +1333,8 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
   text-transform: uppercase; margin: 4px 0 12px; padding-bottom: 8px; border-bottom: 1px solid #eceff3;
 }
 .req { color: #d03b3b; }
+
+/* ---------- WhatsApp click-to-chat buttons ---------- */
+.wa-btn { color: #1a8f4c !important; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+.wa-btn:hover { color: #12703b !important; }
+.wa-btn svg { color: #25d366; }

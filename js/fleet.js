@@ -48,6 +48,25 @@ function median(a) { if (!a.length) return 0; const s = [...a].sort((x, y) => x 
 function vName(id) { const v = db.vehicles.find(x => x.id === id); return v ? v.name : "Unknown"; }
 function uid() { return "x" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
+// ---------- WhatsApp (click-to-chat) ----------
+// Opens WhatsApp (app on mobile, web on desktop) with a pre-filled message.
+// A 10-digit Indian number gets the 91 prefix. No API/token — works today.
+function waNorm(phone) {
+  let p = String(phone || "").replace(/\D/g, "");
+  if (p.length === 10) p = "91" + p;
+  return p;
+}
+function waSend(phone, msg) {
+  const p = waNorm(phone);
+  if (!p) { alert("No WhatsApp number on file for this contact."); return; }
+  window.open("https://wa.me/" + p + "?text=" + encodeURIComponent(msg || ""), "_blank", "noopener");
+}
+function waBtn(phone, msg, label) {
+  if (!waNorm(phone)) return "";
+  return `<button type="button" class="link-btn wa-btn" onclick='waSend(${JSON.stringify(waNorm(phone))},${JSON.stringify(msg)})'>${FWIcon("chat", { size: 13 })} ${label || "WhatsApp"}</button>`;
+}
+function ownerName() { return (db.settings && db.settings.businessName) || "FleetWorks owner"; }
+
 const DOC_LABELS = { insurance: "Insurance", puc: "PUC", fitness: "Fitness (FC)", permit: "Nat. Permit", roadtax: "Road Tax" };
 const EXPECTED_KMPL = { "Truck (HCV)": 4.0, "LCV": 8.5, "Bus": 4.5, "Tipper": 3.2, "Trailer": 3.6, "Tanker": 3.8 };
 
@@ -702,15 +721,21 @@ function serviceHistoryHTML(vid) {
 // ---------- Render: drivers ----------
 function renderDrivers() {
   document.getElementById("driversTable").innerHTML = db.drivers.length ?
-    `<table class="chart-table-el"><thead><tr><th>Driver</th><th>DL Number</th><th>DL Validity</th><th>Assigned Vehicle</th><th>Driver Link</th></tr></thead><tbody>` +
+    `<table class="chart-table-el"><thead><tr><th>Driver</th><th>DL Number</th><th>DL Validity</th><th>Assigned Vehicle</th><th>Message</th><th>Driver Link</th></tr></thead><tbody>` +
     db.drivers.map(d => {
       const days = d.dlExpiry ? daysUntil(d.dlExpiry) : null;
       const pill = days === null ? '<span class="fw-badge upcoming">Not set</span>' :
         days < 0 ? '<span class="fw-badge overdue">' + FWIcon("alert", { size: 13 }) + 'Expired</span>' :
         days <= 30 ? `<span class="fw-badge soon">${FWIcon("clock", { size: 13 })}${days}d left</span>` :
         `<span class="fw-badge ok">${FWIcon("shieldCheck", { size: 13 })}${fmtDate(d.dlExpiry)}</span>`;
+      // contextual message: nudge on DL expiry, else a general check-in
+      const veh = d.vehicleId ? vName(d.vehicleId) : "";
+      const msg = days !== null && days < 30
+        ? `Namaste ${d.name}, aapka Driving Licence ${days < 0 ? "expire ho chuka hai" : days + " din mein expire ho raha hai"}. Kripya jaldi renew karayein. — ${ownerName()}`
+        : `Namaste ${d.name}${veh ? " (" + veh + ")" : ""}, ${ownerName()} FleetWorks se. `;
       return `<tr><td><strong>${esc(d.name)}</strong>${d.phone ? "<br /><span class='muted'>" + FWIcon("phone", { size: 13, cls: "ic-muted" }) + " " + esc(d.phone) + "</span>" : ""}</td>
         <td>${esc(d.dlNo)}</td><td>${pill}</td><td>${d.vehicleId ? esc(vName(d.vehicleId)) : "<span class='muted'>—</span>"}</td>
+        <td>${d.phone ? waBtn(d.phone, msg, "WhatsApp") : "<span class='muted'>No number</span>"}</td>
         <td><button class="link-btn" onclick="copyDriverLink('${d.id}')">${FWIcon("link", { size: 13 })} Copy link</button></td></tr>`;
     }).join("") + "</tbody></table>"
     : "<p class='muted'>No drivers added yet.</p>";
@@ -1060,6 +1085,7 @@ function renderSettings() {
   const f = document.getElementById("settingsForm");
   f.businessName.value = s.businessName || "";
   f.gstin.value = s.gstin || "";
+  if (f.ownerPhone) f.ownerPhone.value = s.ownerPhone || "";
   f.city.value = s.city || "";
   f.warnDays.value = s.warnDays || "30";
   f.minTread.value = s.minTread || "";
@@ -1407,6 +1433,7 @@ document.getElementById("settingsForm").addEventListener("submit", e => {
   const fd = Object.fromEntries(new FormData(e.target));
   db.settings = {
     businessName: fd.businessName.trim(), gstin: fd.gstin.trim(), city: fd.city.trim(),
+    ownerPhone: (fd.ownerPhone || "").replace(/\D/g, "").slice(0, 10) || undefined,
     warnDays: +fd.warnDays, minTread: fd.minTread ? +fd.minTread : null,
     mileageDropPct: fd.mileageDropPct ? +fd.mileageDropPct : null
   };
