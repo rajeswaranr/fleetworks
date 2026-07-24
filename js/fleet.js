@@ -429,6 +429,84 @@ function renderOverview() {
     </div>`; }).join("");
 }
 
+// ---------- Add Vehicle (FleetOps main page) ----------
+function saveNewVehicle(form) {
+  const fd = Object.fromEntries(new FormData(form));
+  const v = {
+    id: "v" + Date.now(),
+    name: (fd.name || "").trim().toUpperCase(),
+    type: fd.type,
+    kmPerMonth: +fd.kmPerMonth || 0,
+    status: fd.status || "Active",
+    make: (fd.make || "").trim() || undefined,
+    model: (fd.model || "").trim() || undefined,
+    year: fd.year ? +fd.year : undefined,
+    chassisNo: (fd.chassisNo || "").trim().toUpperCase() || undefined,
+    engineNo: (fd.engineNo || "").trim().toUpperCase() || undefined,
+    ownership: fd.ownership || undefined,
+    group: (fd.group || "").trim() || undefined,
+    depot: (fd.depot || "").trim() || undefined,
+    emission: fd.emission || undefined,
+    fuelType: fd.fuelType || undefined,
+    tankCapacity: fd.tankCapacity ? +fd.tankCapacity : undefined,
+    color: (fd.color || "").trim() || undefined,
+    gvw: fd.gvw ? +fd.gvw : undefined,
+    payload: fd.payload ? +fd.payload : undefined,
+    axleConfig: fd.axleConfig || undefined,
+    tyreFrontPsi: fd.tyreFrontPsi ? +fd.tyreFrontPsi : undefined,
+    tyreRearPsi: fd.tyreRearPsi ? +fd.tyreRearPsi : undefined,
+    tyreSize: (fd.tyreSize || "").trim() || undefined,
+    rto: (fd.rto || "").trim() || undefined,
+    purchaseDate: fd.purchaseDate || undefined,
+    purchasePrice: fd.purchasePrice ? +fd.purchasePrice : undefined,
+    purchaseVendor: (fd.purchaseVendor || "").trim() || undefined,
+    inServiceDate: fd.inServiceDate || undefined,
+    serviceLifeMonths: fd.serviceLifeMonths ? +fd.serviceLifeMonths : undefined,
+    resaleValue: fd.resaleValue ? +fd.resaleValue : undefined,
+    notes: (fd.notes || "").trim() || undefined,
+    compliance: {
+      insurance: fd.insurance || "", puc: fd.puc || "", fitness: fd.fitness || "",
+      permit: fd.permit || "", roadtax: fd.roadtax || ""
+    }
+  };
+  if (!v.name || !v.type) { alert("Registration number and vehicle type are required."); return null; }
+  if (db.vehicles.some(x => x.name === v.name)) { alert(v.name + " is already in your fleet."); return null; }
+  db.vehicles.push(v);
+  // opening odometer becomes the first meter reading
+  if (fd.odo) db.fuelLogs.push({ id: uid(), vehicleId: v.id, date: new Date().toISOString().slice(0, 10), litres: 0, amount: 0, odo: +fd.odo, opening: true });
+  if (fd.driverId) { const d = db.drivers.find(x => x.id === fd.driverId); if (d) d.vehicleId = v.id; }
+  saveStore();
+  renderAll();
+  return v;
+}
+function fillDriverSelect() {
+  const sel = document.getElementById("avDriver");
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Not assigned</option>' +
+    db.drivers.filter(d => !d.vehicleId).map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join("");
+}
+
+// ---------- Getting Started (signed-in, empty fleet) ----------
+function renderGettingStarted() {
+  const list = document.getElementById("gsList");
+  if (!list) return;
+  const nameEl = document.getElementById("gsName");
+  if (nameEl && window.ownerDisplayName) nameEl.textContent = ownerDisplayName();
+  const steps = [
+    { t: "Add your first vehicle", d: "Registration, type and monthly running — that's all it takes to start.", done: db.vehicles.length > 0, tab: "addvehicle" },
+    { t: "Add your drivers", d: "Keep DL validity tracked, and give each driver a no-login entry link.", done: db.drivers.length > 0, tab: "drivers" },
+    { t: "Log diesel or an expense", d: "Scan a bill or type it in — mileage and cost-per-km start computing.", done: (db.fuelLogs || []).length > 0 || db.expenses.length > 0, tab: "gstbills" },
+    { t: "Set service reminders", d: "Oil change, PMS, greasing — FleetWorks warns you before they're due.", done: db.reminders.length > 0, tab: "reminders" },
+    { t: "Fill RTO renewal dates", d: "Insurance, PUC, FC, permit and road tax — never miss a renewal again.", done: db.vehicles.some(v => v.compliance && Object.values(v.compliance).some(Boolean)), tab: "vehicles" }
+  ];
+  list.innerHTML = steps.map((s, i) => `
+    <button type="button" class="gs-item ${s.done ? "done" : ""}" onclick="document.querySelector('#tabBar .tab-btn[data-tab=${s.tab}]').click()">
+      <span class="gs-num">${s.done ? FWIcon("check", { size: 15 }) : i + 1}</span>
+      <span class="gs-txt"><strong>${esc(s.t)}</strong><span class="muted">${esc(s.d)}</span></span>
+      <span class="gs-go">${s.done ? "Done" : "Start →"}</span>
+    </button>`).join("");
+}
+
 // ---------- Render: trips & revenue ----------
 function renderTrips() {
   const tbl = document.getElementById("tripsTable"), pt = document.getElementById("profitTable");
@@ -1827,10 +1905,16 @@ document.getElementById("sideClose")?.addEventListener("click", () =>
 function renderAll() {
   const has = db.vehicles.length > 0;
   const activeId = document.querySelector("#fleetContent > .tab-panel.active")?.id;
-  const exempt = activeId === "tab-home" || activeId === "tab-account";
-  document.getElementById("emptyState").hidden = has || exempt;
+  const exempt = activeId === "tab-home" || activeId === "tab-account" || activeId === "tab-addvehicle";
+  // Signed-in owners with an empty fleet get the Getting Started landing,
+  // never the demo prompt — their account starts clean.
+  const signedIn = !!(window.fwCloud && fwCloud.user());
+  const startEl = document.getElementById("startState");
+  if (startEl) startEl.hidden = has || exempt || !signedIn;
+  document.getElementById("emptyState").hidden = has || exempt || signedIn;
   document.getElementById("fleetContent").hidden = !(has || exempt);
-  if (!has) return;
+  fillDriverSelect();
+  if (!has) { renderGettingStarted(); return; }
   // demo store from the dashboard may lack fleet-manager collections — extend it once
   if (db.demo !== true && db.vehicles.length && !db.fuelLogs.length && db.expenses.length && db.vehicles[0].id === "v1" && !db.vehicles[0].compliance) {
     loadDemoFleet(); return;
@@ -1869,6 +1953,47 @@ document.getElementById("khataForm")?.addEventListener("submit", e => {
   db.driverLedger.push({ id: uid(), driverId: fd.driverId, date: fd.date, type: fd.type, amount: +fd.amount, note: (fd.note || "").trim() });
   saveStore(); e.target.reset(); renderAll();
 });
+
+// Add Vehicle page (FleetOps main)
+document.getElementById("addVehForm")?.addEventListener("submit", e => {
+  e.preventDefault();
+  const v = saveNewVehicle(e.target);
+  if (!v) return;
+  e.target.reset();
+  alert(v.name + " added to your fleet.\n\nNext: log a diesel fill or an expense and FleetWorks AI starts learning immediately.");
+  document.querySelector('#tabBar .tab-btn[data-tab="vehicles"]')?.click();
+});
+document.getElementById("avSaveAdd")?.addEventListener("click", () => {
+  const form = document.getElementById("addVehForm");
+  if (!form.reportValidity()) return;
+  const v = saveNewVehicle(form);
+  if (!v) return;
+  form.reset();
+  const s = document.createElement("p");
+  s.className = "muted";
+  s.textContent = v.name + " saved — add the next one.";
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+
+// A signed-in owner never inherits demo data — their account starts clean.
+function clearDemoForOwner() {
+  if (db.demo === true && window.fwCloud && fwCloud.user()) {
+    db = { vehicles: [], expenses: [], fuelLogs: [], inspections: [], issues: [], reminders: [],
+      parts: [], drivers: [], workOrders: [], documents: [], tyreReadings: [],
+      settings: db.settings || {}, trips: [], driverLedger: [], demo: false };
+    saveStore();
+    renderAll();
+    return true;
+  }
+  return false;
+}
+// hide the demo loader for real accounts
+function syncDemoButton() {
+  const b = document.getElementById("demoBtn");
+  if (b) b.hidden = !!(window.fwCloud && fwCloud.user());
+}
+clearDemoForOwner();
+syncDemoButton();
 
 renderAll();
 

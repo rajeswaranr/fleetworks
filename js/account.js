@@ -75,6 +75,9 @@ function doLogout() {
 function renderAuthState() {
   const user = window.fwCloud && fwCloud.user();
   applyAuthGate();
+  // a real account never inherits demo data, and never sees the demo loader
+  if (user && window.clearDemoForOwner) clearDemoForOwner();
+  if (window.syncDemoButton) syncDemoButton();
   document.getElementById("portalView").hidden = !user;
   document.getElementById("accountSignedOut").hidden = !!user;
   if (user) {
@@ -216,15 +219,7 @@ function afterQuickSave(form) {
   renderAll();
 }
 
-document.getElementById("qeVehForm").addEventListener("submit", e => {
-  e.preventDefault();
-  const fd = Object.fromEntries(new FormData(e.target));
-  const v = { id: "v" + Date.now(), name: fd.name.trim().toUpperCase(), type: fd.type, kmPerMonth: +fd.kmPerMonth };
-  db.vehicles.push(v);
-  selVehicle = v.id;
-  afterQuickSave(e.target);
-  alert(`${v.name} added! Now add its diesel and expense entries — FleetWorks AI starts learning immediately.`);
-});
+// Vehicles are added on the FleetOps → Add Vehicle page, not here.
 
 document.getElementById("qeFuelForm").addEventListener("submit", e => {
   e.preventDefault();

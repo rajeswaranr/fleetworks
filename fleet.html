@@ -119,6 +119,7 @@
         <div data-ws="ops" hidden>
         <div class="side-pillar ops"><span class="pp"></span>Fleet<em>Ops</em></div>
         <button class="side-item tab-btn" data-tab="overview"><i data-icon="gauge"></i><span>FleetOps Dashboard</span></button>
+        <button class="side-item tab-btn side-cta" data-tab="addvehicle"><i data-icon="truck"></i><span>Add Vehicle</span></button>
         <button class="side-item tab-btn" data-tab="servicereq"><i data-icon="tow"></i><span>Book Service — Live Status</span></button>
         <button class="side-item tab-btn" data-tab="map"><i data-icon="mapPin"></i><span>Fleet Map</span></button>
 
@@ -264,7 +265,197 @@
           <button class="btn btn-outline" onclick="document.querySelector('#tabBar .tab-btn[data-tab=account]').click()">My Account</button>
         </div>
 
+        <!-- ======= GETTING STARTED (signed-in landing, no vehicles yet) ======= -->
+        <div id="startState" hidden>
+          <div class="gs-wrap">
+            <div class="gs-head">
+              <span class="ic-tile brand" style="width:60px;height:60px;margin:0 auto 14px"><i data-icon="truck" data-icon-size="30"></i></span>
+              <h2>Welcome to FleetWorks, <span id="gsName">Owner</span></h2>
+              <p class="muted">Your fleet is empty and clean — let's set it up. It takes about two minutes.</p>
+            </div>
+            <div class="gs-list" id="gsList"></div>
+            <div class="gs-cta">
+              <button class="btn btn-primary btn-lg" onclick="document.querySelector('#tabBar .tab-btn[data-tab=addvehicle]').click()">
+                <i data-icon="truck" data-icon-size="18"></i> Add Your First Vehicle
+              </button>
+              <p class="muted" style="margin-top:10px;font-size:0.82rem">Just exploring? <button type="button" class="link-btn" onclick="loadDemoFleet()">Load a demo fleet instead</button></p>
+            </div>
+          </div>
+        </div>
+
         <div id="fleetContent" hidden>
+
+      <!-- ======= ADD VEHICLE (FleetOps main page) ======= -->
+      <section class="tab-panel" id="tab-addvehicle">
+        <form id="addVehForm">
+          <div class="chart-card">
+            <div class="chart-head">
+              <div>
+                <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="truck" data-icon-size="22"></i></span> Add a Vehicle</h2>
+                <p class="muted">Only the first two fields are required — everything else can be filled in later from the vehicle's page.</p>
+              </div>
+            </div>
+
+            <h3 class="av-h">Identification</h3>
+            <div class="form-row">
+              <label>Registration Number <span class="req">*</span>
+                <input type="text" name="name" placeholder="e.g. TN-01-AB-1234" required style="text-transform:uppercase" />
+              </label>
+              <label>Vehicle Type <span class="req">*</span>
+                <select name="type" required>
+                  <option value="">Select type</option>
+                  <option>Truck (HCV)</option><option>LCV</option><option>Bus</option>
+                  <option>Tipper</option><option>Trailer</option><option>Tanker</option>
+                </select>
+              </label>
+              <label>Status
+                <select name="status">
+                  <option>Active</option><option>In Shop</option><option>Out of Service</option><option>Sold</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Make
+                <input type="text" name="make" placeholder="e.g. Tata, Ashok Leyland" />
+              </label>
+              <label>Model
+                <input type="text" name="model" placeholder="e.g. LPT 3118" />
+              </label>
+              <label>Year
+                <input type="number" name="year" min="1980" max="2030" placeholder="e.g. 2021" inputmode="numeric" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Chassis Number (VIN)
+                <input type="text" name="chassisNo" placeholder="17-character chassis no" style="text-transform:uppercase" />
+              </label>
+              <label>Engine Number
+                <input type="text" name="engineNo" style="text-transform:uppercase" />
+              </label>
+              <label>Ownership
+                <select name="ownership">
+                  <option>Owned</option><option>Financed / Loan</option><option>Leased</option><option>Attached</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3 class="av-h">Operation</h3>
+            <div class="form-row">
+              <label>Average Monthly Running (km) <span class="req">*</span>
+                <input type="number" name="kmPerMonth" min="100" placeholder="e.g. 8000" required inputmode="numeric" />
+              </label>
+              <label>Current Odometer (km)
+                <input type="number" name="odo" min="0" placeholder="meter reading today" inputmode="numeric" />
+              </label>
+              <label>Assign Driver
+                <select name="driverId" id="avDriver"><option value="">Not assigned</option></select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Fleet Group
+                <input type="text" name="group" placeholder="e.g. South route, Tipper pool" />
+              </label>
+              <label>Base Depot / City
+                <input type="text" name="depot" placeholder="e.g. Coimbatore" />
+              </label>
+              <label>Emission Norm
+                <select name="emission">
+                  <option value="">—</option><option>BS6</option><option>BS4</option><option>BS3</option><option>EV</option>
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3 class="av-h">Specifications</h3>
+            <div class="form-row">
+              <label>Fuel Type
+                <select name="fuelType">
+                  <option>Diesel</option><option>Petrol</option><option>CNG</option><option>LNG</option><option>Electric</option><option>Hybrid</option>
+                </select>
+              </label>
+              <label>Fuel Tank Capacity (L)
+                <input type="number" name="tankCapacity" min="0" placeholder="e.g. 300" inputmode="numeric" />
+              </label>
+              <label>Colour
+                <input type="text" name="color" placeholder="e.g. White" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Gross Vehicle Weight (kg)
+                <input type="number" name="gvw" min="0" placeholder="e.g. 31000" inputmode="numeric" />
+              </label>
+              <label>Payload Capacity (kg)
+                <input type="number" name="payload" min="0" placeholder="e.g. 21000" inputmode="numeric" />
+              </label>
+              <label>Axle Configuration
+                <select name="axleConfig">
+                  <option value="">—</option><option>4x2</option><option>6x2</option><option>6x4</option><option>8x2</option><option>8x4</option><option>10x2</option><option>12x2</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Front Tyre Pressure (PSI)
+                <input type="number" name="tyreFrontPsi" min="0" placeholder="e.g. 110" inputmode="numeric" />
+              </label>
+              <label>Rear Tyre Pressure (PSI)
+                <input type="number" name="tyreRearPsi" min="0" placeholder="e.g. 100" inputmode="numeric" />
+              </label>
+              <label>Tyre Size
+                <input type="text" name="tyreSize" placeholder="e.g. 10.00R20" />
+              </label>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3 class="av-h">RTO Compliance &amp; Renewals</h3>
+            <p class="muted" style="margin-bottom:10px">FleetWorks warns you before each of these expires, on the dashboard and in Compliance Radar.</p>
+            <div class="form-row">
+              <label>Insurance valid till<input type="date" name="insurance" /></label>
+              <label>PUC valid till<input type="date" name="puc" /></label>
+              <label>Fitness (FC) till<input type="date" name="fitness" /></label>
+            </div>
+            <div class="form-row">
+              <label>National Permit till<input type="date" name="permit" /></label>
+              <label>Road Tax till<input type="date" name="roadtax" /></label>
+              <label>RTO Office
+                <input type="text" name="rto" placeholder="e.g. TN-01 Chennai Central" />
+              </label>
+            </div>
+          </div>
+
+          <div class="chart-card">
+            <h3 class="av-h">Purchase &amp; Life Cycle</h3>
+            <div class="form-row">
+              <label>Purchase Date<input type="date" name="purchaseDate" /></label>
+              <label>Purchase Price (₹)
+                <input type="number" name="purchasePrice" min="0" placeholder="e.g. 3500000" inputmode="numeric" />
+              </label>
+              <label>Purchased From
+                <input type="text" name="purchaseVendor" placeholder="Dealer / seller name" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>In-Service Date<input type="date" name="inServiceDate" /></label>
+              <label>Estimated Service Life (months)
+                <input type="number" name="serviceLifeMonths" min="0" placeholder="e.g. 96" inputmode="numeric" />
+              </label>
+              <label>Estimated Resale Value (₹)
+                <input type="number" name="resaleValue" min="0" placeholder="e.g. 900000" inputmode="numeric" />
+              </label>
+            </div>
+            <label>Notes
+              <input type="text" name="notes" placeholder="Anything else worth remembering about this vehicle" />
+            </label>
+            <div class="settings-actions" style="margin-top:16px">
+              <button type="submit" class="btn btn-primary btn-lg"><i data-icon="check" data-icon-size="18"></i> Save Vehicle</button>
+              <button type="button" class="btn btn-outline" id="avSaveAdd">Save &amp; Add Another</button>
+            </div>
+          </div>
+        </form>
+      </section>
 
       <!-- ======= OVERVIEW (widget dashboard) ======= -->
       <!-- ======= HOME — APP HUB ======= -->
@@ -998,7 +1189,6 @@
             <button class="tab-btn active" data-tab="fuel"><i data-icon="fuel" data-icon-size="16"></i> Diesel</button>
             <button class="tab-btn" data-tab="expense"><i data-icon="receipt" data-icon-size="16"></i> Expense</button>
             <button class="tab-btn" data-tab="issue"><i data-icon="alert" data-icon-size="16"></i> Problem</button>
-            <button class="tab-btn" data-tab="vehicle"><i data-icon="truck" data-icon-size="16"></i> Vehicle</button>
           </div>
 
           <!-- Diesel -->
@@ -1080,30 +1270,6 @@
           </section>
 
           <!-- Vehicle -->
-          <section class="tab-panel" id="qe-vehicle">
-            <div class="chart-card">
-              <div class="chart-head"><div><h2>Add a Vehicle</h2></div></div>
-              <form id="qeVehForm" class="entry-form">
-                <label>Vehicle Number
-                  <input type="text" name="name" placeholder="e.g. TN-01-AB-1234" required style="text-transform:uppercase" />
-                </label>
-                <div class="form-row">
-                  <label>Type
-                    <select name="type" required>
-                      <option value="">Select</option>
-                      <option>Truck (HCV)</option><option>LCV</option><option>Bus</option>
-                      <option>Tipper</option><option>Trailer</option><option>Tanker</option>
-                    </select>
-                  </label>
-                  <label>Monthly Running (km)
-                    <input type="number" name="kmPerMonth" min="100" placeholder="e.g. 8000" required inputmode="numeric" />
-                  </label>
-                </div>
-                <button type="submit" class="btn btn-primary btn-block"><i data-icon="plus" data-icon-size="16"></i> Add Vehicle</button>
-              </form>
-            </div>
-          </section>
-
           <!-- Recent entries -->
           <div class="chart-card">
             <div class="chart-head"><div><h2>Recent Entries</h2></div></div>

@@ -1294,3 +1294,42 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .wf-form .form-row { display: flex; gap: 10px; }
 .wf-fb { font-size: 0.88rem; color: var(--navy); font-weight: 600; }
 .wf-star { font-size: 1rem; color: #e2930f; }
+
+/* ---------- Getting Started (signed-in empty fleet) ---------- */
+.gs-wrap { max-width: 720px; margin: 30px auto; text-align: center; }
+.gs-head h2 { color: var(--navy); font-size: 1.5rem; }
+.gs-head p { margin-top: 6px; }
+.gs-list { margin: 26px 0 22px; text-align: left; display: flex; flex-direction: column; gap: 10px; }
+.gs-item {
+  display: flex; align-items: center; gap: 14px; width: 100%; cursor: pointer;
+  background: #fff; border: 1px solid #e7ebf1; border-radius: 14px; padding: 15px 18px;
+  font-family: inherit; text-align: left; transition: border-color .15s, transform .15s, box-shadow .15s;
+}
+.gs-item:hover { border-color: var(--amber); transform: translateY(-2px); box-shadow: 0 10px 24px rgba(15,30,51,.08); }
+.gs-num {
+  width: 30px; height: 30px; border-radius: 50%; flex: none; display: flex;
+  align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem;
+  background: #eef2f7; color: var(--navy);
+}
+.gs-item.done .gs-num { background: #1baf7a; color: #fff; }
+.gs-item.done .gs-txt strong { text-decoration: line-through; color: #8a94a6; }
+.gs-txt { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.gs-txt strong { color: var(--navy); font-size: 0.95rem; }
+.gs-txt .muted { font-size: 0.82rem; }
+.gs-go { flex: none; font-size: 0.82rem; font-weight: 700; color: var(--amber-dark); }
+.gs-item.done .gs-go { color: #1baf7a; }
+.btn-lg { font-size: 1.02rem; padding: 14px 30px; }
+
+/* Sidebar primary action (Add Vehicle) */
+.side-nav .side-item.side-cta {
+  background: rgba(245,166,35,.14); border: 1px solid rgba(245,166,35,.4);
+  border-radius: 10px; margin: 4px 10px; color: #ffd88f; font-weight: 700;
+}
+.side-nav .side-item.side-cta:hover { background-color: rgba(245,166,35,.24); color: #fff; }
+
+/* Add Vehicle form section headings */
+.av-h {
+  color: var(--navy); font-size: 0.82rem; font-weight: 800; letter-spacing: .07em;
+  text-transform: uppercase; margin: 4px 0 12px; padding-bottom: 8px; border-bottom: 1px solid #eceff3;
+}
+.req { color: #d03b3b; }
