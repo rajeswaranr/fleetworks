@@ -16,7 +16,14 @@ function payrollSignedIn() { return !!(window.fwCloud && fwCloud.user()); }
 async function renderPayroll() {
   const roster = document.getElementById("payrollRoster");
   const sel = document.getElementById("paySalaryDriver");
+  const manualSel = document.getElementById("manualSalaryDriver");
   if (!roster) return; // tab not in DOM yet
+
+  if (manualSel) {
+    manualSel.innerHTML = db.drivers.length
+      ? db.drivers.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("")
+      : `<option value="">Add a driver first</option>`;
+  }
 
   if (!db.drivers.length) {
     roster.innerHTML = "<p class='muted'>Add drivers first — Fleet &rarr; Drivers &amp; Contacts.</p>";
@@ -24,7 +31,7 @@ async function renderPayroll() {
     return;
   }
   if (!payrollSignedIn()) {
-    roster.innerHTML = "<p class='muted'>Sign in to set up driver payouts and send salary payments.</p>";
+    roster.innerHTML = "<p class='muted'>Sign in to set up automated payouts.</p>";
     if (sel) sel.innerHTML = "";
     return;
   }
@@ -67,13 +74,14 @@ async function renderPayrollHistory(org) {
   const el = document.getElementById("payrollHistory");
   if (!el) return;
   const rows = await fwCloud.authGet("salary_payments", `select=*&org_id=eq.${org}&order=initiated_at.desc&limit=50`);
-  if (!rows || !rows.length) { el.innerHTML = "<p class='muted'>No salary payments sent yet.</p>"; return; }
-  el.innerHTML = `<table class="chart-table-el"><thead><tr><th>Date</th><th>Driver</th><th>Period</th><th>Amount</th><th>Method</th><th>Status</th><th>Ref</th></tr></thead><tbody>` +
+  if (!rows || !rows.length) { el.innerHTML = "<p class='muted'>No salary payments logged yet.</p>"; return; }
+  el.innerHTML = `<table class="chart-table-el"><thead><tr><th>Date</th><th>Driver</th><th>Period</th><th>Amount</th><th>Method</th><th>Source</th><th>Status</th><th>Ref</th></tr></thead><tbody>` +
     rows.map(r => {
       const d = db.drivers.find(x => x.id === r.driver_ext_id);
       const cls = r.status === "success" ? "ok" : r.status === "failed" ? "overdue" : "soon";
       return `<tr><td>${fmtDate(r.initiated_at)}</td><td>${esc(d ? d.name : r.driver_ext_id)}</td><td>${esc(r.period || "")}</td>
         <td>${fmtINR(r.amount)}</td><td>${esc(r.method || "")}</td>
+        <td>${r.source === "manual" ? "<span class='fw-badge upcoming'>Manual</span>" : "<span class='fw-badge ok'>Cashfree</span>"}</td>
         <td><span class="fw-badge ${cls}">${esc(r.status)}</span></td>
         <td title="${esc(r.failure_reason || "")}">${esc(r.utr || r.transfer_ref)}</td></tr>`;
     }).join("") + "</tbody></table>";
@@ -116,6 +124,29 @@ document.getElementById("payoutForm")?.addEventListener("submit", async e => {
     errEl.textContent = ex.message || "Could not save payout details.";
     errEl.hidden = false;
   }
+  btn.disabled = false;
+});
+
+document.getElementById("manualSalaryForm")?.addEventListener("submit", async e => {
+  e.preventDefault();
+  const errEl = document.getElementById("manualSalaryErr");
+  errEl.hidden = true;
+  if (!payrollSignedIn()) { errEl.textContent = "Sign in first."; errEl.hidden = false; return; }
+  const fd = Object.fromEntries(new FormData(e.target));
+  if (!fd.driverExtId) { errEl.textContent = "Add a driver first."; errEl.hidden = false; return; }
+  const org = await (window.getMyOrgId ? getMyOrgId() : null);
+  if (!org) { errEl.textContent = "No organization found yet — save something once while signed in, then retry."; errEl.hidden = false; return; }
+  const btn = e.target.querySelector("button[type=submit]");
+  btn.disabled = true;
+  const ok = await fwCloud.authInsert("salary_payments", {
+    org_id: org, driver_ext_id: fd.driverExtId, period: fd.period, amount: +fd.amount,
+    method: fd.method, source: "manual", status: "success",
+    utr: (fd.utr || "").trim() || null, notes: (fd.notes || "").trim() || null,
+    transfer_ref: "man" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    initiated_by: fwCloud.uid(),
+  });
+  if (ok) { e.target.reset(); renderPayroll(); }
+  else { errEl.textContent = "Could not save this payment — check your connection and try again."; errEl.hidden = false; }
   btn.disabled = false;
 });
 

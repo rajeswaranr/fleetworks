@@ -718,19 +718,65 @@
         </div>
       </section>
 
-      <!-- ======= PAYROLL (salary payouts via Cashfree) ======= -->
+      <!-- ======= PAYROLL (salary payouts — manual log + optional Cashfree automation) ======= -->
       <section class="tab-panel" id="tab-payroll">
         <div class="chart-card">
           <div class="chart-head">
             <div>
               <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="rupee" data-icon-size="22"></i></span> Payroll — Pay Drivers</h2>
-              <p class="muted">Salary transfers go out via Cashfree Payouts — bank transfer or UPI, real money movement. Requires sign-in and <code>db/schema-payroll.sql</code> run once in Supabase.</p>
+              <p class="muted">Pay drivers however you already do — your own UPI app, bank transfer, or cash — and log it here for GST-ready books. Or turn on automated payouts via Cashfree below. Requires sign-in and <code>db/schema-payroll.sql</code> run once in Supabase.</p>
             </div>
           </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head"><div>
+            <h2>Log a Payment You Already Made</h2>
+            <p class="muted">Paid a driver yourself via your own UPI app, bank transfer, or cash? Record it here — works immediately, no gateway setup needed.</p>
+          </div></div>
+          <form id="manualSalaryForm" class="entry-form">
+            <div class="form-row">
+              <label>Driver
+                <select name="driverExtId" id="manualSalaryDriver" required></select>
+              </label>
+              <label>Period
+                <input type="month" name="period" required />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Amount (₹)
+                <input type="number" name="amount" min="1" placeholder="e.g. 25000" required />
+              </label>
+              <label>Paid via
+                <select name="method">
+                  <option value="upi">Your UPI app</option>
+                  <option value="bank">Bank transfer</option>
+                  <option value="cash">Cash</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>UPI Ref / UTR (optional)
+                <input type="text" name="utr" placeholder="e.g. 402816123456" />
+              </label>
+              <label>Notes (optional)
+                <input type="text" name="notes" placeholder="e.g. July salary" maxlength="200" />
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Save to Books</button>
+            <p class="field-error" id="manualSalaryErr" hidden></p>
+          </form>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head"><div>
+            <h2>Automated Payouts via Cashfree <span class="fw-badge upcoming">Optional</span></h2>
+            <p class="muted">Let FleetWorks move the money for you — set up each driver's bank/UPI once below, then send payments without leaving the app.</p>
+          </div></div>
           <div class="chart-scroll"><div id="payrollRoster"></div></div>
         </div>
         <div class="chart-card">
-          <div class="chart-head"><div><h2>Send a Salary Payment</h2></div></div>
+          <div class="chart-head"><div><h2>Send an Automated Payment</h2></div></div>
           <form id="paySalaryForm" class="entry-form">
             <div class="form-row">
               <label>Driver
