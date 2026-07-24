@@ -1338,3 +1338,13 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .wa-btn { color: #1a8f4c !important; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
 .wa-btn:hover { color: #12703b !important; }
 .wa-btn svg { color: #25d366; }
+
+/* ---------- Copilot LLM typing indicator ---------- */
+.cp-typing { display: inline-flex; gap: 4px; align-items: center; }
+.cp-typing span {
+  width: 6px; height: 6px; border-radius: 50%; background: #9aa4b2;
+  animation: cpBlink 1.2s infinite both;
+}
+.cp-typing span:nth-child(2) { animation-delay: 0.2s; }
+.cp-typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes cpBlink { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }

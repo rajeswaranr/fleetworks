@@ -27,8 +27,8 @@
     // ---------- How-to: Copilot knows the tool itself ----------
     const hasQ = (...w) => w.some(x => q.includes(x));
     const HOWTO = [
-      { p: ["add vehicle", "add a vehicle", "new vehicle", "register vehicle", "create vehicle"], t: "Add a vehicle", go: "account",
-        s: "Sidebar → <strong>My Account</strong> → <strong>Vehicle</strong> tab → enter number, type & monthly km → <em>Add Vehicle</em>. It appears everywhere instantly — compliance, health score, analytics." },
+      { p: ["add vehicle", "add a vehicle", "new vehicle", "register vehicle", "create vehicle"], t: "Add a vehicle", go: "addvehicle",
+        s: "FleetOps → <strong>Add Vehicle</strong> (main sidebar item) → enter registration, type & monthly km (rest optional) → <em>Save Vehicle</em>. It appears everywhere instantly — compliance, health score, analytics." },
       { p: ["add driver", "add a driver", "new driver"], t: "Add a driver", go: "drivers",
         s: "FleetOps → <strong>Fleet → Drivers & Contacts</strong> → fill name, DL number, validity & assigned vehicle → save. Use <em>Copy link</em> on his row to give him a no-login phone entry page." },
       { p: ["add expense", "add bill", "upload bill", "scan bill", "add an expense", "enter bill", "upload invoice", "scan a bill"], t: "Add an expense / bill", go: "gstbills",
@@ -220,9 +220,67 @@
     body.appendChild(div);
     body.scrollTop = body.scrollHeight;
   }
+  // How-to / navigation questions stay rule-based — instant, and they carry
+  // the "Take me there" buttons the LLM can't render.
+  function isNav(q) {
+    const s = q.toLowerCase();
+    return ["how to", "how do i", "how can i", "where do i", "where is", "where can",
+      "take me", "guide me", "what can you", "add a ", "add vehicle", "add driver",
+      "add expense", "add bill", "upload", "scan", "delete", "edit ", "log diesel",
+      "book service", "driver link", "export to tally", "what-if", "whatif"].some(t => s.includes(t));
+  }
+
+  // Compact summary of the fleet for the LLM (keeps the token budget small).
+  function fleetSummary() {
+    const d = data();
+    const nowM = nowKey();
+    const daysTo = t => t ? Math.round((new Date(t) - new Date()) / 86400000) : null;
+    return {
+      settings: (() => { try { return (JSON.parse(localStorage.getItem("ff_fleet") || "{}").settings) || {}; } catch { return {}; } })(),
+      vehicles: d.vehicles.map(v => ({
+        name: v.name, type: v.type, kmPerMonth: v.kmPerMonth,
+        make: v.make, model: v.model, year: v.year,
+        compliance: v.compliance ? Object.fromEntries(Object.entries(v.compliance).map(([k, t]) => [k, { till: t, daysLeft: daysTo(t) }])) : undefined
+      })),
+      drivers: d.drivers.map(dr => ({ name: dr.name, phone: dr.phone, dlExpiry: dr.dlExpiry, dlDaysLeft: daysTo(dr.dlExpiry), vehicle: dr.vehicleId ? (d.vehicles.find(v => v.id === dr.vehicleId) || {}).name : null })),
+      openIssues: d.issues.filter(i => i.status !== "Resolved").map(i => ({ vehicle: (d.vehicles.find(v => v.id === i.vehicleId) || {}).name, title: i.title, severity: i.severity, since: i.createdAt })),
+      reminders: d.reminders.map(r => ({ vehicle: (d.vehicles.find(v => v.id === r.vehicleId) || {}).name, task: r.task, everyMonths: r.everyMonths, lastDate: r.lastDate })),
+      thisMonth: {
+        expenses: d.expenses.filter(e => monthKey(e.date) === nowM).reduce((s, e) => s + e.amount, 0),
+        diesel: (d.fuelLogs || []).filter(f => monthKey(f.date) === nowM).reduce((s, f) => s + f.amount, 0)
+      },
+      recentExpenses: [...d.expenses].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 25)
+        .map(e => ({ date: e.date, vehicle: (d.vehicles.find(v => v.id === e.vehicleId) || {}).name, category: e.category, amount: e.amount, title: e.title, gstin: e.gstin })),
+      recentFuel: [...(d.fuelLogs || [])].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20)
+        .map(f => ({ date: f.date, vehicle: (d.vehicles.find(v => v.id === f.vehicleId) || {}).name, litres: f.litres, amount: f.amount, odo: f.odo }))
+    };
+  }
+
+  async function llmAnswer(q) {
+    const url = (window.FW_BACKEND && FW_BACKEND.copilotUrl || "").replace(/\/$/, "");
+    if (!url) return null;
+    const headers = { "Content-Type": "application/json" };
+    if (window.FW_BACKEND && FW_BACKEND.anonKey) { headers.apikey = FW_BACKEND.anonKey; headers.Authorization = "Bearer " + FW_BACKEND.anonKey; }
+    const r = await fetch(url, { method: "POST", headers, body: JSON.stringify({ question: q, fleet: fleetSummary() }) });
+    if (!r.ok) return null;
+    const j = await r.json();
+    return j && j.answer ? j.answer : null;
+  }
+
   function ask(q) {
     addMsg(q, "user");
-    setTimeout(() => addMsg(answer(q), "bot"), 250);
+    // How-to → instant rule answer (with nav buttons). Data question → LLM.
+    if (isNav(q) || !data().vehicles.length) {
+      setTimeout(() => addMsg(answer(q), "bot"), 200);
+      return;
+    }
+    const typing = document.createElement("div");
+    typing.className = "cp-msg cp-bot cp-typing";
+    typing.innerHTML = "<span></span><span></span><span></span>";
+    body.appendChild(typing); body.scrollTop = body.scrollHeight;
+    llmAnswer(q)
+      .then(a => { typing.remove(); addMsg(a || answer(q), "bot"); })
+      .catch(() => { typing.remove(); addMsg(answer(q), "bot"); });
   }
 
   // ---------- Drag to move ----------

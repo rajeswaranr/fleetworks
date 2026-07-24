@@ -11,7 +11,11 @@ window.FW_BACKEND = {
   // PaddleOCR bill-reader service (server/ocr/). Fill in after deploying,
   // e.g. "https://<user>-fleetworks-ocr.hf.space". Blank = on-device
   // Tesseract only (the app auto-falls-back when this is unreachable).
-  ocrUrl: ""
+  ocrUrl: "",
+  // Copilot LLM edge function (supabase/functions/copilot/). Once deployed
+  // it is <project>.supabase.co/functions/v1/copilot. Blank = the built-in
+  // rule-based Copilot only (the app auto-falls-back when unreachable).
+  copilotUrl: "https://crdblxeufbhysglbbtxi.supabase.co/functions/v1/copilot"
 };
 
 window.fwConfigured = function () {
