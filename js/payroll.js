@@ -33,6 +33,7 @@ async function renderPayroll() {
     manualSel.innerHTML = db.drivers.length
       ? db.drivers.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("")
       : `<option value="">Add a driver first</option>`;
+    updatePayNowHint();
   }
 
   if (!db.drivers.length) {
@@ -141,6 +142,37 @@ document.getElementById("payoutForm")?.addEventListener("submit", async e => {
     errEl.hidden = false;
   }
   btn.disabled = false;
+});
+
+// ---------- Pay Now via UPI (opens the owner's own UPI app — GPay/PhonePe/
+// Paytm/BHIM all handle upi:// links — no gateway, no account, the owner
+// just confirms the payment themselves like normal) ----------
+function buildUpiLink(vpa, name, amount, note) {
+  const params = new URLSearchParams({ pa: vpa, pn: name, am: String(amount), cu: "INR" });
+  if (note) params.set("tn", note.slice(0, 50));
+  return "upi://pay?" + params.toString();
+}
+function updatePayNowHint() {
+  const hint = document.getElementById("payNowUpiHint");
+  const sel = document.getElementById("manualSalaryDriver");
+  if (!hint || !sel) return;
+  const driver = db.drivers.find(d => d.id === sel.value);
+  hint.textContent = driver && !driver.upiId
+    ? `${driver.name} has no UPI ID on file — add one in Drivers & Contacts to enable one-tap pay.`
+    : "";
+}
+document.getElementById("manualSalaryDriver")?.addEventListener("change", updatePayNowHint);
+document.getElementById("payNowUpiBtn")?.addEventListener("click", () => {
+  const form = document.getElementById("manualSalaryForm");
+  const hint = document.getElementById("payNowUpiHint");
+  const driver = db.drivers.find(d => d.id === form.driverExtId.value);
+  if (!driver) { hint.textContent = "Pick a driver first."; return; }
+  if (!driver.upiId) { hint.textContent = `${driver.name} has no UPI ID on file — add one in Drivers & Contacts.`; return; }
+  const amount = +form.amount.value || 0;
+  if (!amount) { hint.textContent = "Enter an amount first."; return; }
+  const note = (form.notes.value || "Salary " + (form.period.value || "")).trim();
+  hint.textContent = "Opening your UPI app…";
+  window.location.href = buildUpiLink(driver.upiId, driver.name, amount, note);
 });
 
 document.getElementById("manualSalaryForm")?.addEventListener("submit", async e => {

@@ -1348,8 +1348,9 @@ document.getElementById("driverForm").addEventListener("submit", e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
   const existing = db.drivers.find(d => d.dlNo.toLowerCase() === fd.dlNo.trim().toLowerCase());
-  if (existing) Object.assign(existing, { name: fd.name.trim(), phone: fd.phone, dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId });
-  else db.drivers.push({ id: uid(), name: fd.name.trim(), phone: fd.phone, dlNo: fd.dlNo.trim(), dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId });
+  const upiId = (fd.upiId || "").trim() || undefined;
+  if (existing) Object.assign(existing, { name: fd.name.trim(), phone: fd.phone, dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId });
+  else db.drivers.push({ id: uid(), name: fd.name.trim(), phone: fd.phone, dlNo: fd.dlNo.trim(), dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId });
   saveStore(); e.target.reset(); renderDrivers(); renderVehicles(); renderOverview();
   refreshCrossCutting();
   toast(existing ? "Driver updated." : "Driver added.");

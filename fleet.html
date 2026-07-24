@@ -710,9 +710,14 @@
                 <input type="date" name="dlExpiry" required />
               </label>
             </div>
-            <label>Assigned Vehicle
-              <select name="vehicleId" id="driverVehicle"><option value="">Not assigned</option></select>
-            </label>
+            <div class="form-row">
+              <label>Assigned Vehicle
+                <select name="vehicleId" id="driverVehicle"><option value="">Not assigned</option></select>
+              </label>
+              <label>UPI ID (for one-tap salary pay)
+                <input type="text" name="upiId" placeholder="e.g. driver@okhdfcbank" />
+              </label>
+            </div>
             <button type="submit" class="btn btn-primary">Save Driver</button>
           </form>
         </div>
@@ -763,7 +768,11 @@
                 <input type="text" name="notes" placeholder="e.g. July salary" maxlength="200" />
               </label>
             </div>
-            <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Save to Books</button>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button type="button" class="btn btn-outline" id="payNowUpiBtn"><i data-icon="rupee" data-icon-size="16"></i> Pay Now via UPI</button>
+              <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Save to Books</button>
+            </div>
+            <p class="muted" id="payNowUpiHint" style="margin-top:6px;font-size:0.8rem"></p>
             <p class="field-error" id="manualSalaryErr" hidden></p>
           </form>
         </div>

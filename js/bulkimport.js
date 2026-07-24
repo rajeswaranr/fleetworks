@@ -72,8 +72,9 @@ const DRV_COLS = [
   ["DL Number *", "dlNo", "text"],
   ["DL Valid Till (YYYY-MM-DD)", "dlExpiry", "date"],
   ["Assigned Vehicle Registration Number", "vehicleName", "text"],
+  ["UPI ID (for one-tap salary pay)", "upiId", "text"],
 ];
-const DRV_EXAMPLE = { name: "Suresh Kumar", phone: "9840012345", dlNo: "TN01 20230012345", dlExpiry: "2029-06-30", vehicleName: "TN-01-AB-1234" };
+const DRV_EXAMPLE = { name: "Suresh Kumar", phone: "9840012345", dlNo: "TN01 20230012345", dlExpiry: "2029-06-30", vehicleName: "TN-01-AB-1234", upiId: "suresh@okhdfcbank" };
 
 function excelDateToStr(v) {
   if (v == null || v === "") return "";
@@ -212,9 +213,10 @@ document.getElementById("drvUploadFile")?.addEventListener("change", async e => 
 
     const phone = String(get("phone") || "").trim();
     const dlExpiry = get("dlExpiry");
+    const upiId = String(get("upiId") || "").trim() || undefined;
     const existing = db.drivers.find(d => d.dlNo.toLowerCase() === dlNo.toLowerCase());
-    if (existing) { Object.assign(existing, { name, phone, dlExpiry, vehicleId: vehicleId || existing.vehicleId }); updated++; }
-    else { db.drivers.push({ id: uid(), name, phone, dlNo, dlExpiry, vehicleId }); added++; }
+    if (existing) { Object.assign(existing, { name, phone, dlExpiry, vehicleId: vehicleId || existing.vehicleId, upiId: upiId || existing.upiId }); updated++; }
+    else { db.drivers.push({ id: uid(), name, phone, dlNo, dlExpiry, vehicleId, upiId }); added++; }
   });
 
   if (added || updated) { saveStore(); renderAll(); }
