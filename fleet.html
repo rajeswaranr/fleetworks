@@ -289,6 +289,23 @@
 
       <!-- ======= ADD VEHICLE (FleetOps main page) ======= -->
       <section class="tab-panel" id="tab-addvehicle">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="document" data-icon-size="22"></i></span> Bulk Upload Vehicles</h2>
+              <p class="muted">Adding many vehicles at once? Download the Excel template, fill it in, and upload it back — only Registration Number and Vehicle Type are required per row.</p>
+            </div>
+          </div>
+          <div class="settings-actions">
+            <button type="button" class="btn btn-outline" id="vehTemplateBtn"><i data-icon="download" data-icon-size="16"></i> Download Excel Template</button>
+            <label class="btn btn-primary" style="cursor:pointer">
+              <i data-icon="check" data-icon-size="16"></i> Upload Filled Template
+              <input type="file" id="vehUploadFile" accept=".xlsx,.xls,.csv" hidden />
+            </label>
+          </div>
+          <div id="vehUploadResult"></div>
+        </div>
+
         <form id="addVehForm">
           <div class="chart-card">
             <div class="chart-head">
@@ -649,6 +666,22 @@
 
       <!-- ======= DRIVERS ======= -->
       <section class="tab-panel" id="tab-drivers">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="document" data-icon-size="22"></i></span> Bulk Upload Drivers</h2>
+              <p class="muted">Download the Excel template, fill it in, and upload it back — Driver Name and DL Number are required per row. "Assigned Vehicle Reg No" must match an existing vehicle exactly.</p>
+            </div>
+          </div>
+          <div class="settings-actions">
+            <button type="button" class="btn btn-outline" id="drvTemplateBtn"><i data-icon="download" data-icon-size="16"></i> Download Excel Template</button>
+            <label class="btn btn-primary" style="cursor:pointer">
+              <i data-icon="check" data-icon-size="16"></i> Upload Filled Template
+              <input type="file" id="drvUploadFile" accept=".xlsx,.xls,.csv" hidden />
+            </label>
+          </div>
+          <div id="drvUploadResult"></div>
+        </div>
         <div class="chart-card">
           <div class="chart-head">
             <div>
@@ -1410,6 +1443,7 @@
   <script src="js/analytics.js"></script>
   <script src="js/account.js"></script>
   <script src="js/payroll.js"></script>
+  <script src="js/bulkimport.js"></script>
   <script src="js/workflow.js"></script>
   <script src="js/copilot.js"></script>
   <script>
