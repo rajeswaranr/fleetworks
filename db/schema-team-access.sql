@@ -150,10 +150,16 @@ end $$;
 -- change a role label) without another edge function — membership creation
 -- for a brand-new team member still goes through team-invite (it needs the
 -- service-role key to create the auth.users row itself).
+-- NOTE: this must go through is_org_admin() (security definer, bypasses RLS
+-- internally), never a raw `select ... from memberships` here — a policy ON
+-- memberships that itself queries memberships triggers RLS recursively on
+-- every read of this table (Postgres re-evaluates this same policy for the
+-- subquery's own scan), which Postgres rejects and PostgREST surfaces as a
+-- flat 500 on every single memberships request, however innocuous.
 drop policy if exists membership_admin_manage on memberships;
 create policy membership_admin_manage on memberships for all to authenticated
-  using (exists (select 1 from memberships me where me.org_id = memberships.org_id and me.user_id = auth.uid() and me.role in ('owner','manager')))
-  with check (exists (select 1 from memberships me where me.org_id = memberships.org_id and me.user_id = auth.uid() and me.role in ('owner','manager')));
+  using (is_org_admin(org_id))
+  with check (is_org_admin(org_id));
 grant insert, update, delete on memberships to authenticated;
 
 -- ========================= 5. TEAM ROSTER VIEW (for the owner) =========================

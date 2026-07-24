@@ -1,5 +1,5 @@
 /* FleetWorks service worker — network-first with offline fallback cache */
-const CACHE = "fleetworks-v55";
+const CACHE = "fleetworks-v56";
 const CORE = [
   "./",
   "./index.html",
@@ -48,6 +48,7 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
+  if (!e.request.url.startsWith("http")) return; // browser-extension requests (chrome-extension://) aren't cacheable
   e.respondWith(
     fetch(e.request)
       .then((res) => {
