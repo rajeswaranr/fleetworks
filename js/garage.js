@@ -23,6 +23,21 @@ let G = loadG();
 
 // ---------- Utils ----------
 const esc = s => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+// garage.html doesn't load fleet.js, so this page needs its own copy of the
+// save-confirmation toast (same #fwToast element/CSS as the rest of the
+// app, shared via css/style.css) — workflow.js (loaded after this file,
+// here and in fleet.html) calls toast() too, so the signature matches.
+let toastTimer = null;
+function toast(msg, tone) {
+  let el = document.getElementById("fwToast");
+  if (!el) { el = document.createElement("div"); el.id = "fwToast"; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.className = tone || "ok";
+  void el.offsetHeight;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+}
 const uid = () => "g" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const fmtINR = v => v >= 100000 ? "₹" + (v / 100000).toFixed(1) + "L" : v >= 1000 ? "₹" + (v / 1000).toFixed(1) + "K" : "₹" + Math.round(v);
 const fmtFull = v => "₹" + Math.round(v).toLocaleString("en-IN");
@@ -162,15 +177,16 @@ document.getElementById("gPhotoFile").addEventListener("change", e => {
     job.photos = job.photos || [];
     job.photos.push({ src: c.toDataURL("image/jpeg", 0.55), at: iso(new Date()) });
     saveG(); renderAllG();
+    toast("Photo added.");
   };
   img.src = URL.createObjectURL(f);
   e.target.value = "";
 });
 
 // ---------- Job workflow actions ----------
-function gApprove(id) { const j = G.jobs.find(x => x.id === id); if (!j || !j.estimate) return; j.estimate.status = "Approved"; j.status = "Approved"; saveG(); renderAllG(); }
-function gReject(id) { const j = G.jobs.find(x => x.id === id); if (!j || !j.estimate) return; j.estimate.status = "Rejected"; j.status = "Planned"; saveG(); renderAllG(); }
-function gStart(id) { const j = G.jobs.find(x => x.id === id); if (!j) return; j.status = "In Progress"; saveG(); renderAllG(); }
+function gApprove(id) { const j = G.jobs.find(x => x.id === id); if (!j || !j.estimate) return; j.estimate.status = "Approved"; j.status = "Approved"; saveG(); renderAllG(); toast("Estimate approved."); }
+function gReject(id) { const j = G.jobs.find(x => x.id === id); if (!j || !j.estimate) return; j.estimate.status = "Rejected"; j.status = "Planned"; saveG(); renderAllG(); toast("Estimate rejected."); }
+function gStart(id) { const j = G.jobs.find(x => x.id === id); if (!j) return; j.status = "In Progress"; saveG(); renderAllG(); toast("Job started."); }
 function gComplete(id) {
   const j = G.jobs.find(x => x.id === id);
   if (!j) return;
@@ -181,14 +197,15 @@ function gComplete(id) {
   j.status = "Completed";
   j.completedAt = iso(new Date());
   saveG(); renderAllG();
+  toast("Job marked complete.");
 }
-function gDeliver(id) { const j = G.jobs.find(x => x.id === id); if (!j) return; j.status = "Delivered"; saveG(); renderAllG(); }
+function gDeliver(id) { const j = G.jobs.find(x => x.id === id); if (!j) return; j.status = "Delivered"; saveG(); renderAllG(); toast("Vehicle marked delivered."); }
 function gEstimateFor(id) {
   document.querySelector('#gTabBar .tab-btn[data-tab="quotes"]')?.click();
   const sel = document.getElementById("gQuoteJob");
   if ([...sel.options].some(o => o.value === id)) sel.value = id;
 }
-function gResolve(id) { const c = G.complaints.find(x => x.id === id); if (c) { c.status = "Resolved"; saveG(); renderAllG(); } }
+function gResolve(id) { const c = G.complaints.find(x => x.id === id); if (c) { c.status = "Resolved"; saveG(); renderAllG(); toast("Complaint marked resolved."); } }
 
 // ---------- Renderers ----------
 function jobCardHTML(j) {
@@ -446,6 +463,7 @@ document.getElementById("gInspForm").addEventListener("submit", e => {
   saveG(); e.target.reset();
   document.querySelectorAll("#gInspItems input").forEach(c => { c.checked = true; });
   renderAllG();
+  toast("Inspection saved.");
 });
 
 document.getElementById("gStockForm").addEventListener("submit", e => {
@@ -455,6 +473,7 @@ document.getElementById("gStockForm").addEventListener("submit", e => {
   if (existing) { existing.qty = +fd.qty; existing.minQty = +fd.minQty; if (fd.unitCost) existing.unitCost = +fd.unitCost; }
   else G.stock.push({ id: uid(), name: fd.name.trim(), partNo: (fd.partNo || "").trim(), qty: +fd.qty, minQty: +fd.minQty, unitCost: fd.unitCost ? +fd.unitCost : null });
   saveG(); e.target.reset(); renderAllG();
+  toast(existing ? "Stock updated." : "Stock item added.");
 });
 
 document.getElementById("gProfileForm").addEventListener("submit", e => {
@@ -462,6 +481,7 @@ document.getElementById("gProfileForm").addEventListener("submit", e => {
   const fd = Object.fromEntries(new FormData(e.target));
   G.profile = { ...G.profile, name: fd.name.trim(), city: fd.city.trim(), phone: fd.phone.trim(), gstin: fd.gstin.trim().toUpperCase() };
   saveG(); renderAllG();
+  toast("Profile saved.");
 });
 
 // ---------- Tabs, gate, boot ----------

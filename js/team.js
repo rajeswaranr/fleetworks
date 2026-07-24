@@ -111,13 +111,27 @@ window.openVehicle = async function (vehId, extId, name, access) {
 
 function tvErr(msg) { const e = document.getElementById("tvErr"); if (e) { e.textContent = msg; e.hidden = false; } }
 
+// team.html doesn't load fleet.js, so this portal needs its own copy of the
+// save-confirmation toast (same #fwToast element/CSS, shared via css/style.css).
+let toastTimer = null;
+function toast(msg, tone) {
+  let el = document.getElementById("fwToast");
+  if (!el) { el = document.createElement("div"); el.id = "fwToast"; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.className = tone || "ok";
+  void el.offsetHeight;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
+}
+
 window.tvSaveFuel = async function (vehId) {
   const litres = +document.getElementById("tvLitres").value || 0;
   const amount = +document.getElementById("tvFuelAmt").value || 0;
   const odo = +document.getElementById("tvOdo").value || 0;
   if (!amount) return tvErr("Enter the amount.");
   const ok = await fwCloud.authInsert("fuel_logs", { org_id: ORG, vehicle_id: vehId, log_date: today(), litres, amount, odometer: odo || null });
-  if (ok) { alert("Diesel entry saved."); document.getElementById("teamVehModal").style.display = "none"; }
+  if (ok) { toast("Diesel entry saved."); document.getElementById("teamVehModal").style.display = "none"; }
   else tvErr("Could not save — check your access for this vehicle.");
 };
 window.tvSaveExpense = async function (vehId) {
@@ -125,7 +139,7 @@ window.tvSaveExpense = async function (vehId) {
   const amount = +document.getElementById("tvExpAmt").value || 0;
   if (!category || !amount) return tvErr("Enter category and amount.");
   const ok = await fwCloud.authInsert("expenses", { org_id: ORG, vehicle_id: vehId, expense_date: today(), category, amount });
-  if (ok) { alert("Expense saved."); document.getElementById("teamVehModal").style.display = "none"; }
+  if (ok) { toast("Expense saved."); document.getElementById("teamVehModal").style.display = "none"; }
   else tvErr("Could not save — check your access for this vehicle.");
 };
 window.tvSaveIssue = async function (vehId) {
@@ -133,7 +147,7 @@ window.tvSaveIssue = async function (vehId) {
   const severity = document.getElementById("tvIssSev").value;
   if (!title) return tvErr("Describe the problem.");
   const ok = await fwCloud.authInsert("issues", { org_id: ORG, vehicle_id: vehId, title, severity, status: "Open", reported_at: today(), source: "Team portal" });
-  if (ok) { alert("Problem reported."); document.getElementById("teamVehModal").style.display = "none"; }
+  if (ok) { toast("Problem reported."); document.getElementById("teamVehModal").style.display = "none"; }
   else tvErr("Could not save — check your access for this vehicle.");
 };
 

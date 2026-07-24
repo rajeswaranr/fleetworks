@@ -66,6 +66,7 @@ function wfAdvance(id, toIdx, by, note, patch) {
   }
   wfSave();
   wfRender();
+  if (typeof toast === "function") toast(note || WF_STAGES[toIdx].label);
 }
 
 function wfRaise(vehicle, issue, severity) {
