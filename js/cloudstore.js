@@ -11,6 +11,7 @@
   const SKEY = "fw_session";
   const debounceMs = 1500;
   let timer = null;
+  let pendingPush = null; // last db object queued for the debounced push, flushed on logout
 
   function cfg() { return window.FW_BACKEND || { url: "", anonKey: "" }; }
   function session() {
@@ -101,7 +102,20 @@
       return true;
     },
 
-    logout() { setSession(null); location.reload(); },
+    // Flushes any pending debounced push first (otherwise the last save
+    // before logout can be silently lost — the reload tears down the JS
+    // context before the 1.5s debounce timer ever fires), THEN wipes the
+    // local blob (otherwise stale real data from this account survives in
+    // localStorage after sign-out — visible e.g. via "View Demo", which
+    // only loads fresh demo data when db.vehicles is empty, so it was
+    // showing the previous owner's real data mislabeled as a demo).
+    async logout() {
+      clearTimeout(timer);
+      if (pendingPush) { const d = pendingPush; pendingPush = null; try { await fwCloud.pushNow(d); } catch { } }
+      setSession(null);
+      localStorage.removeItem("ff_fleet");
+      location.reload();
+    },
 
     /* Signed-in user's uuid (null when signed out) — used to build
        owner-scoped rows like driver_entries. */
@@ -194,16 +208,21 @@
       return r.ok;
     },
 
-    /* Pull cloud fleet -> localStorage (cloud wins if it has data). */
+    /* Pull cloud fleet -> localStorage (cloud wins whenever a row exists at
+       all — checking rows.length here, NOT rows[0].data.vehicles.length:
+       a real account with an existing-but-currently-empty cloud row (no
+       vehicles added yet, or just wiped by clearDemoForOwner) was being
+       misread as "no cloud data", which pushed whatever stale/demo blob
+       was sitting in local storage up over the correct empty cloud state. */
     async pull() {
       const r = await authFetch("/rest/v1/fleets?select=data&limit=1", {});
       if (!r.ok) return false;
       const rows = await r.json();
-      if (rows.length && rows[0].data && (rows[0].data.vehicles || []).length) {
+      if (rows.length && rows[0].data) {
         localStorage.setItem("ff_fleet", JSON.stringify(rows[0].data));
         return true;
       }
-      // no cloud data yet: push local up if present
+      // genuinely no cloud row yet (brand new account): push local up if present
       const local = localStorage.getItem("ff_fleet");
       if (local) await fwCloud.pushNow(JSON.parse(local));
       return false;
@@ -212,8 +231,9 @@
     /* Debounced push — call after every local save. */
     push(dbObj) {
       if (!session()) return;
+      pendingPush = dbObj;
       clearTimeout(timer);
-      timer = setTimeout(() => fwCloud.pushNow(dbObj).catch(() => {}), debounceMs);
+      timer = setTimeout(() => { pendingPush = null; fwCloud.pushNow(dbObj).catch(() => {}); }, debounceMs);
     },
 
     async pushNow(dbObj) {
