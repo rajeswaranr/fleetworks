@@ -492,11 +492,32 @@ async function loadCoreFromDb() {
   return true;
 }
 
+// ---------- Demo purge: a signed-in account must never contain demo data.
+// Demo rows are precisely identifiable (fixed vehicle ext_ids, fixed driver
+// DL numbers, fixed part numbers — real rows always get random uids), so
+// every sign-in/page load deletes any that exist before fetching. RLS
+// scopes the deletes to this account's own org. Deleting the demo vehicles
+// cascades to their fuel logs, expenses, issues, work orders, reminders,
+// inspections, tyre readings and documents. Idempotent and cheap (3
+// DELETEs matching nothing once clean). ----------
+const DEMO_DRIVER_DL_NOS = ["TN01 20180012345", "UP32 20150098765", "TN22 20190045678", "KA05 20170034567", "TN45 20200056789"];
+const DEMO_PART_NUMBERS = ["CAS-15W40-210L", "TML-AF-1613X", "BL-HCV-450", "FF-BS6-220", "WN-M22-100", "ALT-12V90-BL"];
+async function dbPurgeDemoRows() {
+  if (!coreDbBacked()) return;
+  try {
+    await fwCloud.authDelete("vehicles", "ext_id=in.(v1,v2,v3,v4,v5)");
+    await fwCloud.authDelete("drivers", "dl_no=in.(" + DEMO_DRIVER_DL_NOS.map(s => encodeURIComponent('"' + s + '"')).join(",") + ")");
+    await fwCloud.authDelete("parts", "part_number=in.(" + DEMO_PART_NUMBERS.map(s => encodeURIComponent('"' + s + '"')).join(",") + ")");
+  } catch { /* purge is best-effort — next load retries */ }
+}
+
 // Runs once per page load. If signed in, DB is authoritative for all 12
 // arrays from the moment this resolves — whatever loadStore() put there
-// from localStorage a moment earlier gets replaced outright.
+// from localStorage a moment earlier gets replaced outright. Demo rows are
+// purged BEFORE fetching so they can never be shown, even once.
 (async function bootCoreFromDb() {
   if (!coreDbBacked()) return;
+  await dbPurgeDemoRows();
   const ok = await loadCoreFromDb();
   if (ok && typeof renderAll === "function") renderAll();
 })();
