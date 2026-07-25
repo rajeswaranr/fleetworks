@@ -1920,7 +1920,9 @@ function buildDynamicPanels() {
             <option value="">Select</option>
             <option>Tyres</option><option>Battery</option><option>Brakes</option>
             <option>Clutch</option><option>Engine Oil &amp; Filters</option><option>Suspension</option>
-            <option>Electrical</option><option>Body &amp; Paint</option><option>Other</option>
+            <option>Electrical</option><option>Body &amp; Paint</option>
+            <option>Insurance</option><option>Permit &amp; Road Tax</option><option>Fitness &amp; PUC</option>
+            <option>Other</option>
           </select>
         </label>
         <label>Amount (&#8377;)<input type="number" name="amount" min="1" required inputmode="numeric" /></label>

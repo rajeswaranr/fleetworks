@@ -90,6 +90,108 @@ function filteredExpenses() {
   );
 }
 
+// ---------- Total Cost of Ownership (pie: where the money goes) ----------
+// Buckets every rupee the fleet spends: Maintenance (repair/parts expense
+// categories), Fuel (diesel logs), Driver (salaries + net khata advances),
+// Compliance (insurance/permit/tax/fitness categories), Other. Driver
+// salaries come from salary_payments (fetched once per load when signed
+// in); khata advances/settlements from db.driverLedger.
+const COMPLIANCE_CATS = new Set(["Insurance", "Permit & Road Tax", "Fitness & PUC"]);
+const FUEL_CATS = new Set(["Fuel", "Diesel"]);
+let SALARY_ROWS = [];
+async function loadSalaryRows() {
+  if (!(window.fwCloud && fwCloud.user() && typeof dbOrgId === "function")) return;
+  const org = await dbOrgId();
+  if (!org) return;
+  const rows = await fwCloud.authGet("salary_payments",
+    `select=driver_ext_id,amount,initiated_at,status&org_id=eq.${org}&status=eq.success&limit=1000`).catch(() => null);
+  if (Array.isArray(rows)) { SALARY_ROWS = rows; renderTco(); renderStats(); }
+}
+// driver -> vehicle attribution uses the driver's CURRENT assignment; when a
+// specific vehicle is filtered, unassigned drivers' pay stays out of view
+// (it still counts in the All-vehicles view).
+function driverVehicle(driverExtId) {
+  const d = db.drivers.find(x => x.id === driverExtId);
+  return d ? (d.vehicleId || "") : "";
+}
+function driverSpend(veh, cutoff) {
+  let total = 0;
+  SALARY_ROWS.forEach(r => {
+    const k = (r.initiated_at || "").slice(0, 7);
+    if (k >= cutoff && (veh === "all" || driverVehicle(r.driver_ext_id) === veh)) total += +r.amount || 0;
+  });
+  (db.driverLedger || []).forEach(l => {
+    if (monthKey(l.date) < cutoff) return;
+    if (veh !== "all" && driverVehicle(l.driverId) !== veh) return;
+    if (l.type === "advance") total += l.amount;
+    else if (l.type === "settlement") total -= l.amount;
+  });
+  return Math.max(0, total);
+}
+function tcoBuckets() {
+  const veh = document.getElementById("vehicleFilter").value;
+  const months = +document.getElementById("periodFilter").value;
+  const cutoff = addMonths(todayKey(), -(months - 1));
+  const b = { maintenance: 0, fuel: 0, driver: 0, compliance: 0, other: 0 };
+  db.expenses.forEach(e => {
+    if (monthKey(e.date) < cutoff || (veh !== "all" && e.vehicleId !== veh)) return;
+    if (COMPLIANCE_CATS.has(e.category)) b.compliance += e.amount;
+    else if (FUEL_CATS.has(e.category)) b.fuel += e.amount;
+    else if (e.category === "Other") b.other += e.amount;
+    else b.maintenance += e.amount;
+  });
+  (db.fuelLogs || []).forEach(f => {
+    if (monthKey(f.date) < cutoff || (veh !== "all" && f.vehicleId !== veh)) return;
+    b.fuel += f.amount || 0;
+  });
+  b.driver = driverSpend(veh, cutoff);
+  return b;
+}
+const TCO_META = [
+  ["maintenance", "Maintenance & repairs", "#2a78d6"],
+  ["fuel", "Diesel / fuel", "#ec835a"],
+  ["driver", "Driver salaries & advances", "#1baf7a"],
+  ["compliance", "Compliance (insurance / permit / tax)", "#eda100"],
+  ["other", "Other expenses", "#898781"],
+];
+function renderTco() {
+  const wrap = document.getElementById("tcoWrap");
+  if (!wrap) return;
+  const b = tcoBuckets();
+  const total = Object.values(b).reduce((s, v) => s + v, 0);
+  if (!total) { wrap.innerHTML = "<p class='muted'>No spend recorded in this period yet.</p>"; return; }
+  // donut: one circle segment per bucket via pathLength=100 dash arithmetic
+  let cum = 0;
+  const segs = TCO_META.filter(([k]) => b[k] > 0).map(([k, label, color]) => {
+    const pct = b[k] / total * 100;
+    const seg = `<circle r="15.9155" cx="21" cy="21" fill="none" stroke="${color}" stroke-width="7"
+      pathLength="100" stroke-dasharray="${pct.toFixed(2)} ${(100 - pct).toFixed(2)}" stroke-dashoffset="${(-cum + 25).toFixed(2)}"></circle>`;
+    cum += pct;
+    return seg;
+  }).join("");
+  const legend = TCO_META.map(([k, label, color]) => {
+    const pct = total ? (b[k] / total * 100) : 0;
+    return `<div style="display:flex;align-items:center;gap:8px;margin:5px 0">
+      <span style="width:11px;height:11px;border-radius:3px;background:${color};flex:none"></span>
+      <span style="flex:1">${label}</span>
+      <strong style="white-space:nowrap">${fmtINR(b[k])}</strong>
+      <span class="muted" style="width:44px;text-align:right">${pct.toFixed(0)}%</span>
+    </div>`;
+  }).join("");
+  const signedIn = !!(window.fwCloud && fwCloud.user());
+  wrap.innerHTML = `
+    <div style="position:relative;width:190px;height:190px;flex:none">
+      <svg viewBox="0 0 42 42" style="width:100%;height:100%">${segs}</svg>
+      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">
+        <span class="muted" style="font-size:0.72rem">Total spend</span>
+        <strong style="font-size:1.05rem">${fmtINR(total)}</strong>
+      </div>
+    </div>
+    <div style="flex:1;min-width:260px;font-size:0.88rem">${legend}
+      ${signedIn ? "" : "<p class='muted' style='font-size:0.76rem;margin-top:8px'>Sign in to include salary payments made through Payroll.</p>"}
+    </div>`;
+}
+
 function monthlySeries(expenses) {
   const map = {};
   expenses.forEach(e => { const k = monthKey(e.date); map[k] = (map[k] || 0) + e.amount; });
@@ -218,20 +320,24 @@ function renderStats() {
   const nowK = todayKey();
   const thisMonth = db.expenses.filter(e => monthKey(e.date) === nowK).reduce((s, e) => s + e.amount, 0);
   const fuelMonth = (db.fuelLogs || []).filter(f => monthKey(f.date) === nowK).reduce((s, f) => s + f.amount, 0);
+  const driverMonth = driverSpend("all", nowK);
+  const allInMonth = thisMonth + fuelMonth + driverMonth;
   const revMonth = (db.trips || []).filter(t => monthKey(t.date) === nowK).reduce((s, t) => s + t.freight, 0);
-  const profMonth = revMonth - thisMonth - fuelMonth;
+  const profMonth = revMonth - allInMonth;
   const vs = vehicleStats();
   const fleetCpk = mean(vs.filter(v => v.costPerKm > 0).map(v => v.costPerKm));
   const indCpk = mean(vs.map(v => v.industry));
   const deltaPct = indCpk ? ((fleetCpk - indCpk) / indCpk) * 100 : 0;
   const deltaGood = deltaPct <= 0;
   el.innerHTML = `
+    <div class="stat-tile"><span class="stat-label">Total expenses this month</span><span class="stat-value">${fmtINR(allInMonth)}</span><span class="stat-sub">maintenance + diesel + driver pay</span></div>
     <div class="stat-tile"><span class="stat-label">Maintenance this month</span><span class="stat-value">${fmtINR(thisMonth)}</span><span class="stat-sub">${nowK ? monthLabel(nowK) : ""}</span></div>
     <div class="stat-tile"><span class="stat-label">Diesel this month</span><span class="stat-value">${fmtINR(fuelMonth)}</span><span class="stat-sub">from fuel logs</span></div>
+    <div class="stat-tile"><span class="stat-label">Driver pay this month</span><span class="stat-value">${fmtINR(driverMonth)}</span><span class="stat-sub">salaries + net khata advances</span></div>
     <div class="stat-tile"><span class="stat-label">Fleet cost per km</span><span class="stat-value">₹${fleetCpk.toFixed(2)}</span>
       <span class="stat-sub" style="color:${deltaGood ? "#006300" : DASH_PAL.critical}">${deltaGood ? "▼" : "▲"} ${Math.abs(deltaPct).toFixed(0)}% vs industry ₹${indCpk.toFixed(2)}</span></div>
     <div class="stat-tile"><span class="stat-label">Freight this month</span><span class="stat-value">${fmtINR(revMonth)}</span><span class="stat-sub">from logged trips</span></div>
-    <div class="stat-tile"><span class="stat-label">Profit this month</span><span class="stat-value" style="color:${profMonth >= 0 ? "#006300" : DASH_PAL.critical}">${profMonth < 0 ? "−" : ""}${fmtINR(Math.abs(profMonth))}</span><span class="stat-sub">freight − diesel − maintenance</span></div>
+    <div class="stat-tile"><span class="stat-label">Profit this month</span><span class="stat-value" style="color:${profMonth >= 0 ? "#006300" : DASH_PAL.critical}">${profMonth < 0 ? "−" : ""}${fmtINR(Math.abs(profMonth))}</span><span class="stat-sub">freight − all expenses</span></div>
     <div class="stat-tile"><span class="stat-label">GST credit, this quarter</span><span class="stat-value" style="color:#006300">${fmtINR(itcQuarter())}</span><span class="stat-sub">ITC from captured GST bills</span></div>`;
 }
 
@@ -1104,7 +1210,7 @@ function initWhatIf() {
 }
 
 // ---------- Filters & orchestration ----------
-function renderCharts() { renderMonthly(); renderAnalyticsVehicles(); renderAnalyticsParts(); }
+function renderCharts() { renderTco(); renderMonthly(); renderAnalyticsVehicles(); renderAnalyticsParts(); }
 
 function renderAnalyticsAll() {
   // vehicle filter (preserve selection across refreshes)
@@ -1135,5 +1241,6 @@ document.getElementById("periodFilter").addEventListener("change", renderCharts)
 renderAnalyticsAll();
 initWhatIf();
 initBillScan();
+loadSalaryRows();
 // re-score health & inbox now that vehicleStats/predictParts/fuelTheftFlags exist
 if (typeof renderHealth === "function") { renderHealth(); renderActionInbox(); }
