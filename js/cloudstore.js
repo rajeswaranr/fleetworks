@@ -56,7 +56,25 @@
     return true;
   }
 
+  /* When a DB write fails, surface the server's ACTUAL reason (missing
+     table, missing column, RLS rejection...) instead of leaving the user
+     with a generic "could not save" — one toast here turns any user report
+     into an actionable message. Also kept on fwCloud.lastError() and logged
+     to the console for remote debugging. */
+  async function reportDbError(what, r) {
+    let detail = "HTTP " + r.status;
+    try {
+      const j = await r.json();
+      detail = j.message || j.error_description || j.error || detail;
+      if (j.code === "PGRST205") detail = "table missing — run the latest db/*.sql in Supabase";
+    } catch { }
+    fwCloud._lastErr = "Could not " + what + ": " + detail;
+    console.error("[FleetWorks]", fwCloud._lastErr);
+    if (typeof window.toast === "function") window.toast(fwCloud._lastErr.slice(0, 160), "err");
+  }
+
   const fwCloud = {
+    lastError() { return fwCloud._lastErr || null; },
     user() { const s = session(); return s && s.user ? s.user.email : null; },
 
     /* Profile fields captured at signup (name, transport name, mobile,
@@ -129,6 +147,7 @@
         headers: { "Prefer": "return=minimal" },
         body: JSON.stringify(body)
       });
+      if (!r.ok) await reportDbError("update " + path.split("?")[0], r);
       return r.ok;
     },
 
@@ -171,6 +190,7 @@
     /* Authenticated delete — query is a PostgREST filter, e.g. "id=eq.<uuid>". */
     async authDelete(table, query) {
       const r = await authFetch("/rest/v1/" + table + "?" + query, { method: "DELETE" });
+      if (!r.ok) await reportDbError("delete from " + table, r);
       return r.ok;
     },
 
@@ -182,7 +202,7 @@
         headers: { "Prefer": "return=representation" },
         body: JSON.stringify(row)
       });
-      if (!r.ok) return null;
+      if (!r.ok) { await reportDbError("save " + table, r); return null; }
       const rows = await r.json();
       return rows && rows[0];
     },
@@ -205,6 +225,7 @@
         headers: { "Prefer": "return=minimal" },
         body: JSON.stringify(row)
       });
+      if (!r.ok) await reportDbError("save " + table, r);
       return r.ok;
     },
 
