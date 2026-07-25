@@ -24,6 +24,18 @@ function loadStore() {
   } catch { return { vehicles: [], expenses: [], fuelLogs: [], inspections: [], issues: [], reminders: [], parts: [], drivers: [], workOrders: [], documents: [], tyreReadings: [], settings: {}, trips: [], driverLedger: [], demo: false }; }
 }
 function saveStore() {
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    // vehicles/drivers/expenses/fuelLogs are DB-direct now — never persist
+    // them into the blob (local storage OR the cloud push) once signed in,
+    // so a stale copy can never linger to contaminate the next load or
+    // silently overwrite fresh DB data. Everything else (issues, reminders,
+    // inspections, parts, documents, tyres, trips, khata, settings) still
+    // goes through the blob exactly as before.
+    const { vehicles, drivers, expenses, fuelLogs, ...rest } = db;
+    localStorage.setItem(STORE_KEY, JSON.stringify(rest));
+    if (window.fwCloud) window.fwCloud.push(rest);
+    return;
+  }
   localStorage.setItem(STORE_KEY, JSON.stringify(db));
   if (window.fwCloud) window.fwCloud.push(db);
 }
@@ -457,10 +469,10 @@ function renderOverview() {
 }
 
 // ---------- Add Vehicle (FleetOps main page) ----------
-function saveNewVehicle(form) {
+async function saveNewVehicle(form) {
   const fd = Object.fromEntries(new FormData(form));
   const v = {
-    id: "v" + Date.now(),
+    id: uid(),
     name: (fd.name || "").trim().toUpperCase(),
     type: fd.type,
     kmPerMonth: +fd.kmPerMonth || 0,
@@ -498,10 +510,27 @@ function saveNewVehicle(form) {
   };
   if (!v.name || !v.type) { alert("Registration number and vehicle type are required."); return null; }
   if (db.vehicles.some(x => x.name === v.name)) { alert(v.name + " is already in your fleet."); return null; }
-  db.vehicles.push(v);
-  // opening odometer becomes the first meter reading
-  if (fd.odo) db.fuelLogs.push({ id: uid(), vehicleId: v.id, date: new Date().toISOString().slice(0, 10), litres: 0, amount: 0, odo: +fd.odo, opening: true });
-  if (fd.driverId) { const d = db.drivers.find(x => x.id === fd.driverId); if (d) d.vehicleId = v.id; }
+
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateVehicle(v);
+    if (!saved) { alert("Could not save this vehicle — check your connection and try again."); return null; }
+    Object.assign(v, saved); // picks up dbId; id stays the same (we sent it as ext_id)
+    db.vehicles.push(v);
+    // opening odometer becomes the first meter reading
+    if (fd.odo) {
+      const fl = { vehicleId: v.id, date: new Date().toISOString().slice(0, 10), litres: 0, amount: 0, odo: +fd.odo, opening: true };
+      const savedFl = await dbCreateFuelLog(fl);
+      if (savedFl) db.fuelLogs.push(savedFl);
+    }
+    if (fd.driverId) {
+      const d = db.drivers.find(x => x.id === fd.driverId);
+      if (d) { d.vehicleId = v.id; if (d.dbId && v.dbId) await dbAssignVehicleToDriver(d.dbId, v.dbId); }
+    }
+  } else {
+    db.vehicles.push(v);
+    if (fd.odo) db.fuelLogs.push({ id: uid(), vehicleId: v.id, date: new Date().toISOString().slice(0, 10), litres: 0, amount: 0, odo: +fd.odo, opening: true });
+    if (fd.driverId) { const d = db.drivers.find(x => x.id === fd.driverId); if (d) d.vehicleId = v.id; }
+  }
   saveStore();
   renderAll();
   return v;
@@ -776,7 +805,7 @@ function createWorkOrder(issueId) {
   saveStore(); renderIssues(); renderWorkOrders(); renderOverview();
 }
 
-function completeWorkOrder(id) {
+async function completeWorkOrder(id) {
   const w = db.workOrders.find(x => x.id === id);
   if (!w) return;
   const cost = prompt("Final bill amount (₹):", w.estCost || "");
@@ -784,7 +813,13 @@ function completeWorkOrder(id) {
   const cat = prompt("Expense category (Tyres / Battery / Brakes / Clutch / Engine Oil & Filters / Suspension / Electrical / Body & Paint / Other):", "Other");
   if (cat === null) return;
   w.status = "Completed"; w.completedAt = new Date().toISOString().slice(0, 10); w.finalCost = +cost;
-  db.expenses.push({ vehicleId: w.vehicleId, date: w.completedAt, category: cat.trim() || "Other", amount: +cost });
+  const ex = { vehicleId: w.vehicleId, date: w.completedAt, category: cat.trim() || "Other", amount: +cost };
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateExpense(ex);
+    if (saved) db.expenses.push(saved);
+  } else {
+    db.expenses.push(ex);
+  }
   const i = db.issues.find(x => x.id === w.issueId);
   if (i) { i.status = "Resolved"; i.resolvedAt = w.completedAt; }
   saveStore(); renderIssues(); renderWorkOrders(); renderVehicles(); renderOverview();
@@ -1352,32 +1387,61 @@ function toast(msg, tone) {
   toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
 }
 
-document.getElementById("driverForm").addEventListener("submit", e => {
+document.getElementById("driverForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
   const existing = db.drivers.find(d => d.dlNo.toLowerCase() === fd.dlNo.trim().toLowerCase());
   const upiId = (fd.upiId || "").trim() || undefined;
   const bankAccount = (fd.bankAccount || "").replace(/\s+/g, "") || undefined;
   const bankIfsc = (fd.bankIfsc || "").trim().toUpperCase() || undefined;
-  if (existing) Object.assign(existing, { name: fd.name.trim(), phone: fd.phone, dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId, bankAccount, bankIfsc });
-  else db.drivers.push({ id: uid(), name: fd.name.trim(), phone: fd.phone, dlNo: fd.dlNo.trim(), dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId, bankAccount, bankIfsc });
+  const patch = { name: fd.name.trim(), phone: fd.phone, dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId, bankAccount, bankIfsc };
+
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    if (existing) {
+      const ok = await dbUpdateDriver(existing.id, patch);
+      if (!ok) { toast("Could not save this driver — check your connection and try again.", "err"); return; }
+      Object.assign(existing, patch);
+    } else {
+      const d = { id: uid(), dlNo: fd.dlNo.trim(), ...patch };
+      const saved = await dbCreateDriver(d);
+      if (!saved) { toast("Could not save this driver — check your connection and try again.", "err"); return; }
+      Object.assign(d, saved);
+      db.drivers.push(d);
+    }
+  } else {
+    if (existing) Object.assign(existing, { ...patch, dlExpiry: fd.dlExpiry });
+    else db.drivers.push({ id: uid(), dlNo: fd.dlNo.trim(), ...patch });
+  }
   saveStore(); e.target.reset(); renderDrivers(); renderVehicles(); renderOverview();
   refreshCrossCutting();
   toast(existing ? "Driver updated." : "Driver added.");
 });
 
-document.getElementById("complianceForm").addEventListener("submit", e => {
+document.getElementById("complianceForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
   const v = db.vehicles.find(x => x.id === fd.vehicleId);
-  if (v) { v.compliance = v.compliance || {}; v.compliance[fd.doc] = fd.validTill; saveStore(); renderVehicles(); renderOverview(); refreshCrossCutting(); toast("Compliance date saved."); }
+  if (v) {
+    v.compliance = v.compliance || {};
+    v.compliance[fd.doc] = fd.validTill;
+    if (typeof coreDbBacked === "function" && coreDbBacked()) await dbUpdateVehicleCompliance(v.id, fd.doc, fd.validTill);
+    else saveStore();
+    renderVehicles(); renderOverview(); refreshCrossCutting(); toast("Compliance date saved.");
+  }
   e.target.reset();
 });
 
-document.getElementById("fuelForm").addEventListener("submit", e => {
+document.getElementById("fuelForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
-  db.fuelLogs.push({ id: uid(), vehicleId: fd.vehicleId, date: fd.date, litres: +fd.litres, amount: +fd.amount, odo: +fd.odo });
+  const f = { vehicleId: fd.vehicleId, date: fd.date, litres: +fd.litres, amount: +fd.amount, odo: +fd.odo };
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateFuelLog(f);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.fuelLogs.push(saved);
+  } else {
+    db.fuelLogs.push({ id: uid(), ...f });
+  }
   saveStore(); e.target.reset(); renderFuel(); renderOverview();
   refreshCrossCutting();
   toast("Fuel entry saved.");
@@ -1866,12 +1930,17 @@ function fwGoEditBill(i) {
   document.querySelector('#tabBar .tab-btn[data-tab="gstbills"]')?.click();
   if (window.fwEditBill) fwEditBill(i);
 }
-function fwDeleteBill(i) {
+async function fwDeleteBill(i) {
   const e = db.expenses[i];
   if (!e) return;
   if (!confirm(`Delete this expense?\n\n${fmtDate(e.date)} · ${vName(e.vehicleId)} · ${e.title || e.category} · ${fmtINR(e.amount)}\n\nThis cannot be undone.`)) return;
+  if (typeof coreDbBacked === "function" && coreDbBacked() && e.id) {
+    const ok = await dbDeleteExpense(e.id);
+    if (!ok) { toast("Could not delete — check your connection and try again.", "err"); return; }
+  }
   db.expenses.splice(i, 1);
   saveStore(); renderAll();
+  toast("Expense deleted.");
 }
 function renderReplacement() {
   const el = document.getElementById("replTable");
@@ -2048,18 +2117,18 @@ document.getElementById("khataForm")?.addEventListener("submit", e => {
 });
 
 // Add Vehicle page (FleetOps main)
-document.getElementById("addVehForm")?.addEventListener("submit", e => {
+document.getElementById("addVehForm")?.addEventListener("submit", async e => {
   e.preventDefault();
-  const v = saveNewVehicle(e.target);
+  const v = await saveNewVehicle(e.target);
   if (!v) return;
   e.target.reset();
   alert(v.name + " added to your fleet.\n\nNext: log a diesel fill or an expense and FleetWorks AI starts learning immediately.");
   document.querySelector('#tabBar .tab-btn[data-tab="vehicles"]')?.click();
 });
-document.getElementById("avSaveAdd")?.addEventListener("click", () => {
+document.getElementById("avSaveAdd")?.addEventListener("click", async () => {
   const form = document.getElementById("addVehForm");
   if (!form.reportValidity()) return;
-  const v = saveNewVehicle(form);
+  const v = await saveNewVehicle(form);
   if (!v) return;
   form.reset();
   const s = document.createElement("p");

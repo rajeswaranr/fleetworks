@@ -143,18 +143,20 @@ document.getElementById("vehUploadFile")?.addEventListener("change", async e => 
 
   let added = 0;
   const errors = [];
-  rows.forEach((row, i) => {
+  const dbBacked = typeof coreDbBacked === "function" && coreDbBacked();
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
     const rowNum = i + 2; // header is row 1
     const get = buildGetter(row, VEH_COLS);
     const name = String(get("name") || "").trim().toUpperCase();
     const type = String(get("type") || "").trim();
-    if (!name || !type) { if (Object.values(row).some(v => String(v).trim())) errors.push({ row: rowNum, msg: "Registration Number and Vehicle Type are required." }); return; }
-    if (db.vehicles.some(x => x.name === name)) { errors.push({ row: rowNum, msg: name + " is already in your fleet." }); return; }
+    if (!name || !type) { if (Object.values(row).some(v => String(v).trim())) errors.push({ row: rowNum, msg: "Registration Number and Vehicle Type are required." }); continue; }
+    if (db.vehicles.some(x => x.name === name)) { errors.push({ row: rowNum, msg: name + " is already in your fleet." }); continue; }
 
     const num = key => { const v = get(key); return v !== "" && v != null ? +v : undefined; };
     const txt = key => { const v = String(get(key) || "").trim(); return v || undefined; };
     const v = {
-      id: "v" + Date.now() + i, name, type,
+      id: uid(), name, type,
       kmPerMonth: num("kmPerMonth") || 0,
       status: txt("status") || "Active",
       make: txt("make"), model: txt("model"), year: num("year"),
@@ -177,11 +179,23 @@ document.getElementById("vehUploadFile")?.addEventListener("change", async e => 
         roadtax: get("roadtax"),
       },
     };
-    db.vehicles.push(v);
     const odo = get("odo");
-    if (odo) db.fuelLogs.push({ id: uid(), vehicleId: v.id, date: new Date().toISOString().slice(0, 10), litres: 0, amount: 0, odo: +odo, opening: true });
+
+    if (dbBacked) {
+      const saved = await dbCreateVehicle(v);
+      if (!saved) { errors.push({ row: rowNum, msg: "Could not save " + name + " — check your connection." }); continue; }
+      Object.assign(v, saved);
+      db.vehicles.push(v);
+      if (odo) {
+        const savedFl = await dbCreateFuelLog({ vehicleId: v.id, date: new Date().toISOString().slice(0, 10), litres: 0, amount: 0, odo: +odo, opening: true });
+        if (savedFl) db.fuelLogs.push(savedFl);
+      }
+    } else {
+      db.vehicles.push(v);
+      if (odo) db.fuelLogs.push({ id: uid(), vehicleId: v.id, date: new Date().toISOString().slice(0, 10), litres: 0, amount: 0, odo: +odo, opening: true });
+    }
     added++;
-  });
+  }
 
   if (added) { saveStore(); renderAll(); }
   resEl.innerHTML = resultsHtml(added, 0, errors);
@@ -198,12 +212,14 @@ document.getElementById("drvUploadFile")?.addEventListener("change", async e => 
 
   let added = 0, updated = 0;
   const errors = [];
-  rows.forEach((row, i) => {
+  const dbBacked = typeof coreDbBacked === "function" && coreDbBacked();
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
     const rowNum = i + 2;
     const get = buildGetter(row, DRV_COLS);
     const name = String(get("name") || "").trim();
     const dlNo = String(get("dlNo") || "").trim();
-    if (!name || !dlNo) { if (Object.values(row).some(v => String(v).trim())) errors.push({ row: rowNum, msg: "Driver Name and DL Number are required." }); return; }
+    if (!name || !dlNo) { if (Object.values(row).some(v => String(v).trim())) errors.push({ row: rowNum, msg: "Driver Name and DL Number are required." }); continue; }
 
     const vehName = String(get("vehicleName") || "").trim().toUpperCase();
     let vehicleId = "";
@@ -219,9 +235,25 @@ document.getElementById("drvUploadFile")?.addEventListener("change", async e => 
     const bankAccount = String(get("bankAccount") || "").replace(/\s+/g, "") || undefined;
     const bankIfsc = String(get("bankIfsc") || "").trim().toUpperCase() || undefined;
     const existing = db.drivers.find(d => d.dlNo.toLowerCase() === dlNo.toLowerCase());
-    if (existing) { Object.assign(existing, { name, phone, dlExpiry, vehicleId: vehicleId || existing.vehicleId, upiId: upiId || existing.upiId, bankAccount: bankAccount || existing.bankAccount, bankIfsc: bankIfsc || existing.bankIfsc }); updated++; }
-    else { db.drivers.push({ id: uid(), name, phone, dlNo, dlExpiry, vehicleId, upiId, bankAccount, bankIfsc }); added++; }
-  });
+
+    if (dbBacked) {
+      if (existing) {
+        const patch = { name, phone, dlExpiry, vehicleId: vehicleId || existing.vehicleId, upiId: upiId || existing.upiId, bankAccount: bankAccount || existing.bankAccount, bankIfsc: bankIfsc || existing.bankIfsc };
+        const ok = await dbUpdateDriver(existing.id, patch);
+        if (!ok) { errors.push({ row: rowNum, msg: "Could not save " + name + " — check your connection." }); continue; }
+        Object.assign(existing, patch); updated++;
+      } else {
+        const d = { id: uid(), name, phone, dlNo, dlExpiry, vehicleId, upiId, bankAccount, bankIfsc };
+        const saved = await dbCreateDriver(d);
+        if (!saved) { errors.push({ row: rowNum, msg: "Could not save " + name + " — check your connection." }); continue; }
+        Object.assign(d, saved);
+        db.drivers.push(d); added++;
+      }
+    } else {
+      if (existing) { Object.assign(existing, { name, phone, dlExpiry, vehicleId: vehicleId || existing.vehicleId, upiId: upiId || existing.upiId, bankAccount: bankAccount || existing.bankAccount, bankIfsc: bankIfsc || existing.bankIfsc }); updated++; }
+      else { db.drivers.push({ id: uid(), name, phone, dlNo, dlExpiry, vehicleId, upiId, bankAccount, bankIfsc }); added++; }
+    }
+  }
 
   if (added || updated) { saveStore(); renderAll(); }
   resEl.innerHTML = resultsHtml(added, updated, errors);

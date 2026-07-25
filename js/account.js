@@ -221,20 +221,34 @@ function afterQuickSave(form) {
 
 // Vehicles are added on the FleetOps → Add Vehicle page, not here.
 
-document.getElementById("qeFuelForm").addEventListener("submit", e => {
+document.getElementById("qeFuelForm").addEventListener("submit", async e => {
   e.preventDefault();
   if (needVehicle()) return;
   const fd = Object.fromEntries(new FormData(e.target));
-  db.fuelLogs = db.fuelLogs || [];
-  db.fuelLogs.push({ id: uid(), vehicleId: selVehicle, date: fd.date, litres: +fd.litres, amount: +fd.amount, odo: +fd.odo });
+  const f = { vehicleId: selVehicle, date: fd.date, litres: +fd.litres, amount: +fd.amount, odo: +fd.odo };
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateFuelLog(f);
+    if (!saved) { alert("Could not save — check your connection and try again."); return; }
+    db.fuelLogs.push(saved);
+  } else {
+    db.fuelLogs = db.fuelLogs || [];
+    db.fuelLogs.push({ id: uid(), ...f });
+  }
   afterQuickSave(e.target);
 });
 
-document.getElementById("qeExpForm").addEventListener("submit", e => {
+document.getElementById("qeExpForm").addEventListener("submit", async e => {
   e.preventDefault();
   if (needVehicle()) return;
   const fd = Object.fromEntries(new FormData(e.target));
-  db.expenses.push({ vehicleId: selVehicle, date: fd.date, category: fd.category, amount: +fd.amount, odo: fd.odo ? +fd.odo : undefined });
+  const ex = { vehicleId: selVehicle, date: fd.date, category: fd.category, amount: +fd.amount, odo: fd.odo ? +fd.odo : undefined };
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateExpense(ex);
+    if (!saved) { alert("Could not save — check your connection and try again."); return; }
+    db.expenses.push(saved);
+  } else {
+    db.expenses.push(ex);
+  }
   afterQuickSave(e.target);
 });
 
@@ -262,7 +276,11 @@ async function syncDriverEntries() {
     if (!v) continue; // unknown vehicle name: leave pending so the owner can fix the assignment
     const p = r.payload || {};
     const day = (p.date || r.created_at || "").slice(0, 10);
-    if (r.kind === "fuel") db.fuelLogs.push({ id: uid(), vehicleId: v.id, date: day, litres: +p.litres || 0, amount: +p.amount || 0, odo: +p.odo || 0 });
+    if (r.kind === "fuel") {
+      const f = { vehicleId: v.id, date: day, litres: +p.litres || 0, amount: +p.amount || 0, odo: +p.odo || 0 };
+      const saved = await dbCreateFuelLog(f); // syncDriverEntries only runs signed-in, so this is always DB-backed
+      if (saved) db.fuelLogs.push(saved); else continue; // couldn't save — leave the entry pending, don't mark consumed
+    }
     else if (r.kind === "issue") db.issues.push({ id: uid(), vehicleId: v.id, title: String(p.title || "Reported by driver"), severity: p.severity || "Medium", status: "Open", createdAt: day, source: "Driver: " + (r.driver_name || "link") });
     else if (r.kind === "inspection") db.inspections.push({ id: uid(), vehicleId: v.id, date: day, odo: +p.odo || 0, results: Array.isArray(p.results) ? p.results : [], passed: !!p.passed, notes: "Driver check — " + (r.driver_name || "link") });
     else continue;

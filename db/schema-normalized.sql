@@ -378,38 +378,22 @@ begin
     where id = v_org;
   end if;
 
-  -- clear this org's rows (child -> parent order), then re-project
+  -- clear this org's rows (child -> parent order), then re-project.
+  -- vehicles/drivers/expenses/fuel_logs are DELIBERATELY EXCLUDED as of the
+  -- DB-direct migration: the client now writes those 4 tables straight to
+  -- Postgres (never through the blob at all when signed in), so this
+  -- function must never delete or recreate them — doing so would wipe out
+  -- DB-direct rows the instant the owner saves any OTHER still-blob-based
+  -- entity (a reminder, an inspection, ...), since every blob save fires
+  -- this whole function. The ext_id-based joins below still resolve
+  -- correctly against whatever vehicles/drivers rows already exist.
   delete from documents     where org_id = v_org;
   delete from tyre_readings where org_id = v_org;
-  delete from fuel_logs     where org_id = v_org;
-  delete from expenses      where org_id = v_org;
   delete from inspections   where org_id = v_org;
   delete from reminders     where org_id = v_org;
   delete from work_orders   where org_id = v_org;
   delete from issues        where org_id = v_org;
   delete from parts         where org_id = v_org;
-  delete from drivers       where org_id = v_org;
-  delete from vehicles      where org_id = v_org;
-
-  -- vehicles
-  insert into vehicles (org_id, ext_id, name, type, km_per_month,
-                        insurance_till, puc_till, fitness_till, permit_till, roadtax_till)
-  select v_org, v ->> 'id', v ->> 'name', v ->> 'type',
-         (nullif(v ->> 'kmPerMonth',''))::numeric,
-         (nullif(v -> 'compliance' ->> 'insurance',''))::date,
-         (nullif(v -> 'compliance' ->> 'puc',''))::date,
-         (nullif(v -> 'compliance' ->> 'fitness',''))::date,
-         (nullif(v -> 'compliance' ->> 'permit',''))::date,
-         (nullif(v -> 'compliance' ->> 'roadtax',''))::date
-  from jsonb_array_elements(coalesce(p_data -> 'vehicles', '[]'::jsonb)) v;
-
-  -- drivers (resolve assigned vehicle by ext_id)
-  insert into drivers (org_id, ext_id, name, phone, dl_no, dl_expiry, vehicle_id)
-  select v_org, d ->> 'id', d ->> 'name', d ->> 'phone', d ->> 'dlNo',
-         (nullif(d ->> 'dlExpiry',''))::date,
-         veh.id
-  from jsonb_array_elements(coalesce(p_data -> 'drivers', '[]'::jsonb)) d
-  left join vehicles veh on veh.org_id = v_org and veh.ext_id = d ->> 'vehicleId';
 
   -- issues (before work_orders, which reference them)
   insert into issues (org_id, ext_id, vehicle_id, title, severity, status, reported_at, resolved_at, source)
@@ -448,19 +432,6 @@ begin
          (nullif(t ->> 'odo',''))::numeric, (nullif(t ->> 'date',''))::date
   from jsonb_array_elements(coalesce(p_data -> 'tyreReadings', '[]'::jsonb)) t
   left join vehicles veh on veh.org_id = v_org and veh.ext_id = t ->> 'vehicleId';
-
-  -- fuel logs
-  insert into fuel_logs (org_id, vehicle_id, log_date, litres, amount, odometer)
-  select v_org, veh.id, (nullif(fl ->> 'date',''))::date,
-         (nullif(fl ->> 'litres',''))::numeric, (nullif(fl ->> 'amount',''))::numeric, (nullif(fl ->> 'odo',''))::numeric
-  from jsonb_array_elements(coalesce(p_data -> 'fuelLogs', '[]'::jsonb)) fl
-  left join vehicles veh on veh.org_id = v_org and veh.ext_id = fl ->> 'vehicleId';
-
-  -- expenses
-  insert into expenses (org_id, vehicle_id, expense_date, category, amount)
-  select v_org, veh.id, (nullif(e ->> 'date',''))::date, e ->> 'category', (nullif(e ->> 'amount',''))::numeric
-  from jsonb_array_elements(coalesce(p_data -> 'expenses', '[]'::jsonb)) e
-  left join vehicles veh on veh.org_id = v_org and veh.ext_id = e ->> 'vehicleId';
 
   -- parts
   insert into parts (org_id, name, part_number, make, category, sourcing, vendor, vendor_contact,

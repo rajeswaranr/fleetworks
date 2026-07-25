@@ -906,7 +906,7 @@ function initBillScan() {
   }
   cam.addEventListener("change", onBillPick);
   file.addEventListener("change", onBillPick);
-  form.addEventListener("submit", e => {
+  form.addEventListener("submit", async e => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(e.target));
     const confirmed = [...document.querySelectorAll("#billItems .bi-row")]
@@ -924,15 +924,24 @@ function initBillScan() {
       billNo: (fd.billNo || "").trim() || undefined,
       items: confirmed.length ? confirmed : undefined
     };
+    const dbBacked = typeof coreDbBacked === "function" && coreDbBacked();
     let exp;
     if (billEditIdx !== null && db.expenses[billEditIdx]) {
-      exp = Object.assign(db.expenses[billEditIdx], fields);   // edit keeps billThumb/billPath
+      exp = db.expenses[billEditIdx];   // edit keeps billThumb/billPath
+      if (dbBacked && exp.id) { const ok = await dbUpdateExpense(exp.id, fields); if (!ok) { st.textContent = "Could not save — check your connection and try again."; return; } }
+      Object.assign(exp, fields);
       billEditIdx = null;
+    } else if (dbBacked) {
+      const saved = await dbCreateExpense(fields);
+      if (!saved) { st.textContent = "Could not save — check your connection and try again."; return; }
+      exp = saved;
+      db.expenses.push(exp);
     } else {
       exp = fields;
       db.expenses.push(exp);
     }
-    // store the bill itself: on-device thumbnail + original to Supabase Storage
+    // store the bill itself: on-device thumbnail (local-only, never DB-persisted
+    // — just a fast preview) + original to Supabase Storage (billPath IS persisted)
     const bill = lastBillFile; lastBillFile = null;
     if (bill && bill.type.indexOf("image/") === 0) {
       const img = new Image();
@@ -943,16 +952,24 @@ function initBillScan() {
         c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
         URL.revokeObjectURL(img.src);
         exp.billThumb = c.toDataURL("image/jpeg", 0.6);
-        saveStore(); renderGST();
+        if (!dbBacked) saveStore();
+        renderGST();
       };
       img.src = URL.createObjectURL(bill);
     }
     if (bill && window.fwCloud && fwCloud.user() && fwCloud.uploadFile) {
       const path = fwCloud.uid() + "/" + Date.now() + (bill.type === "application/pdf" ? ".pdf" : ".jpg");
-      fwCloud.uploadFile("bills", path, bill).then(ok => { if (ok) { exp.billPath = path; saveStore(); renderGST(); } });
+      fwCloud.uploadFile("bills", path, bill).then(async ok => {
+        if (!ok) return;
+        exp.billPath = path;
+        if (dbBacked && exp.id) await dbUpdateExpense(exp.id, { billPath: path });
+        else saveStore();
+        renderGST();
+      });
     }
     const bx = document.getElementById("billItems"); if (bx) bx.innerHTML = "";
-    saveStore(); e.target.reset(); e.target.hidden = true;
+    if (!dbBacked) saveStore();
+    e.target.reset(); e.target.hidden = true;
     st.textContent = "Saved ✓ — it's in your books, Tally export and ITC tracker.";
     renderAll();
   });
