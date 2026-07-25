@@ -222,9 +222,19 @@
         localStorage.setItem("ff_fleet", JSON.stringify(rows[0].data));
         return true;
       }
-      // genuinely no cloud row yet (brand new account): push local up if present
+      // Genuinely no cloud row yet (brand new account): push local up if
+      // present — but NEVER a demo blob. A demo fleet loaded while signed
+      // out must not leak into a real account's cloud data (this was
+      // exactly how demo vehicles/drivers ended up in real accounts).
       const local = localStorage.getItem("ff_fleet");
-      if (local) await fwCloud.pushNow(JSON.parse(local));
+      if (local) {
+        try {
+          const d = JSON.parse(local);
+          const isDemo = d.demo === true || (d.vehicles && d.vehicles[0] && d.vehicles[0].id === "v1");
+          if (isDemo) localStorage.removeItem("ff_fleet");
+          else await fwCloud.pushNow(d);
+        } catch { localStorage.removeItem("ff_fleet"); }
+      }
       return false;
     },
 

@@ -25,13 +25,12 @@ function loadStore() {
 }
 function saveStore() {
   if (typeof coreDbBacked === "function" && coreDbBacked()) {
-    // vehicles/drivers/expenses/fuelLogs are DB-direct now — never persist
-    // them into the blob (local storage OR the cloud push) once signed in,
-    // so a stale copy can never linger to contaminate the next load or
-    // silently overwrite fresh DB data. Everything else (issues, reminders,
-    // inspections, parts, documents, tyres, trips, khata, settings) still
-    // goes through the blob exactly as before.
-    const { vehicles, drivers, expenses, fuelLogs, ...rest } = db;
+    // All 12 core entities are DB-direct now — never persist them into the
+    // blob (local storage OR the cloud push) once signed in, so a stale
+    // copy can never linger to contaminate the next load or silently
+    // overwrite fresh DB data. Only settings/demo still go through the blob.
+    const { vehicles, drivers, expenses, fuelLogs, issues, workOrders, reminders,
+      inspections, parts, documents, tyreReadings, trips, driverLedger, ...rest } = db;
     localStorage.setItem(STORE_KEY, JSON.stringify(rest));
     if (window.fwCloud) window.fwCloud.push(rest);
     return;
@@ -794,13 +793,21 @@ function renderWorkOrders() {
       done.map(w => `<p class="muted" style="margin:6px 0">${FWIcon("checkCircle", { size: 14, cls: "ic-success" })} ${esc(vName(w.vehicleId))} — ${esc(w.title)} · ${fmtINR(w.finalCost || 0)} (${fmtDate(w.completedAt)})</p>`).join("") + "</details>" : "");
 }
 
-function createWorkOrder(issueId) {
+async function createWorkOrder(issueId) {
   const i = db.issues.find(x => x.id === issueId);
   if (!i) return;
   const vendor = prompt("Workshop / mechanic name for this job card:", "FleetWorks partner workshop");
   if (vendor === null) return;
   const est = prompt("Estimated cost (₹, optional):", "");
-  db.workOrders.push({ id: uid(), issueId, vehicleId: i.vehicleId, title: i.title, vendor: vendor.trim(), estCost: est ? +est : null, status: "Open", createdAt: new Date().toISOString().slice(0, 10) });
+  const w = { issueId, vehicleId: i.vehicleId, title: i.title, vendor: vendor.trim(), estCost: est ? +est : null, status: "Open", createdAt: new Date().toISOString().slice(0, 10) };
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateWorkOrder(w);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.workOrders.push(saved);
+    await dbUpdateIssue(i.id, { status: "In Progress" });
+  } else {
+    db.workOrders.push({ id: uid(), ...w });
+  }
   i.status = "In Progress";
   saveStore(); renderIssues(); renderWorkOrders(); renderOverview();
 }
@@ -814,13 +821,15 @@ async function completeWorkOrder(id) {
   if (cat === null) return;
   w.status = "Completed"; w.completedAt = new Date().toISOString().slice(0, 10); w.finalCost = +cost;
   const ex = { vehicleId: w.vehicleId, date: w.completedAt, category: cat.trim() || "Other", amount: +cost };
+  const i = db.issues.find(x => x.id === w.issueId);
   if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateExpense(ex);
     if (saved) db.expenses.push(saved);
+    await dbUpdateWorkOrder(w.id, { status: w.status, completedAt: w.completedAt, finalCost: w.finalCost });
+    if (i) await dbUpdateIssue(i.id, { status: "Resolved", resolvedAt: w.completedAt });
   } else {
     db.expenses.push(ex);
   }
-  const i = db.issues.find(x => x.id === w.issueId);
   if (i) { i.status = "Resolved"; i.resolvedAt = w.completedAt; }
   saveStore(); renderIssues(); renderWorkOrders(); renderVehicles(); renderOverview();
   alert("Job card closed. The expense has been added to your books automatically — it will appear in the AI Dashboard and Tally export.");
@@ -918,9 +927,15 @@ function renderIssues() {
     (resolved.length ? `<details class="chart-table"><summary>Recently resolved (${resolved.length})</summary>` +
       resolved.map(i => `<p class="muted" style="margin:6px 0">${FWIcon("checkCircle", { size: 14, cls: "ic-success" })} ${esc(vName(i.vehicleId))} — ${esc(i.title)} (${fmtDate(i.resolvedAt)})</p>`).join("") + "</details>" : "");
 }
-function resolveIssue(id) {
+async function resolveIssue(id) {
   const i = db.issues.find(x => x.id === id);
-  if (i) { i.status = "Resolved"; i.resolvedAt = new Date().toISOString().slice(0, 10); saveStore(); renderIssues(); renderOverview(); }
+  if (!i) return;
+  i.status = "Resolved"; i.resolvedAt = new Date().toISOString().slice(0, 10);
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const ok = await dbUpdateIssue(i.id, { status: i.status, resolvedAt: i.resolvedAt });
+    if (!ok) { toast("Could not save — check your connection and try again.", "err"); return; }
+  }
+  saveStore(); renderIssues(); renderOverview();
 }
 
 // ---------- Render: reminders ----------
@@ -939,9 +954,15 @@ function renderReminders() {
     </div>`;
   }).join("") : "<p class='muted'>No PM schedules yet — add one below.</p>";
 }
-function completeReminder(id) {
+async function completeReminder(id) {
   const r = db.reminders.find(x => x.id === id);
-  if (r) { r.lastDate = new Date().toISOString().slice(0, 10); saveStore(); renderReminders(); renderOverview(); }
+  if (!r) return;
+  r.lastDate = new Date().toISOString().slice(0, 10);
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const ok = await fwCloud.authPatch(`reminders?id=eq.${r.id}`, { last_date: r.lastDate });
+    if (!ok) { toast("Could not save — check your connection and try again.", "err"); return; }
+  }
+  saveStore(); renderReminders(); renderOverview();
 }
 
 // ---------- Render: parts ----------
@@ -1086,8 +1107,12 @@ function renderDocuments() {
     }).join("") + "</tbody></table>"
     : "<p class='muted'>No documents stored yet. Add your first RC, insurance or permit below — expiries will show on the Compliance Radar.</p>";
 }
-function deleteDocument(id) {
+async function deleteDocument(id) {
   if (!confirm("Delete this document?")) return;
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const ok = await dbDeleteDocument(id);
+    if (!ok) { toast("Could not delete — check your connection and try again.", "err"); return; }
+  }
   db.documents = db.documents.filter(d => d.id !== id);
   saveStore(); renderDocuments(); renderRadar(); renderOverview();
 }
@@ -1160,6 +1185,12 @@ function mulberry32(a) {
   };
 }
 function loadDemoFleet() {
+  // Hard guard: demo data must never exist in a signed-in session — it would
+  // get written to the real database. Signed-in accounts start clean.
+  if (window.fwCloud && fwCloud.user()) {
+    alert("Demo data is not available on a signed-in account — add your real vehicles instead.");
+    return;
+  }
   const rnd = mulberry32(42);
   const now = new Date();
   const iso = d => d.toISOString().slice(0, 10);
@@ -1447,39 +1478,64 @@ document.getElementById("fuelForm").addEventListener("submit", async e => {
   toast("Fuel entry saved.");
 });
 
-document.getElementById("inspectionForm").addEventListener("submit", e => {
+document.getElementById("inspectionForm").addEventListener("submit", async e => {
   e.preventDefault();
   const vid = document.getElementById("inspVehicle").value;
   const results = INSPECTION_ITEMS.map((item, i) => ({ item, ok: e.target["item" + i].value === "ok" }));
   const passed = results.every(r => r.ok);
-  db.inspections.push({ id: uid(), vehicleId: vid, date: new Date().toISOString().slice(0, 10), passed, results });
-  results.filter(r => !r.ok).forEach(r => {
-    db.issues.push({ id: uid(), vehicleId: vid, title: r.item + " — inspection fault", severity: r.item.includes("Brake") || r.item.includes("Tyre") ? "High" : "Medium", status: "Open", createdAt: new Date().toISOString().slice(0, 10), source: "Inspection" });
-  });
+  const ins = { vehicleId: vid, date: new Date().toISOString().slice(0, 10), passed, results };
+  const faults = results.filter(r => !r.ok).map(r => ({
+    vehicleId: vid, title: r.item + " — inspection fault",
+    severity: r.item.includes("Brake") || r.item.includes("Tyre") ? "High" : "Medium",
+    status: "Open", createdAt: new Date().toISOString().slice(0, 10), source: "Inspection"
+  }));
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateInspection(ins);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.inspections.push(saved);
+    for (const f of faults) { const s = await dbCreateIssue(f); if (s) db.issues.push(s); }
+  } else {
+    db.inspections.push({ id: uid(), ...ins });
+    faults.forEach(f => db.issues.push({ id: uid(), ...f }));
+  }
   saveStore(); renderInspectionForm(); renderInspectionHistory(); renderIssues(); renderOverview();
   refreshCrossCutting();
   alert(passed ? "Inspection passed — all 10 points OK" : "Inspection recorded. Failed items have been added to Issues for AI prioritisation.");
 });
 
-document.getElementById("issueForm").addEventListener("submit", e => {
+document.getElementById("issueForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
-  db.issues.push({ id: uid(), vehicleId: fd.vehicleId, title: fd.title.trim(), severity: fd.severity, status: "Open", createdAt: new Date().toISOString().slice(0, 10), source: "Manual" });
+  const i = { vehicleId: fd.vehicleId, title: fd.title.trim(), severity: fd.severity, status: "Open", createdAt: new Date().toISOString().slice(0, 10), source: "Manual" };
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateIssue(i);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.issues.push(saved);
+  } else {
+    db.issues.push({ id: uid(), ...i });
+  }
   saveStore(); e.target.reset(); renderIssues(); renderOverview();
   refreshCrossCutting();
   toast("Issue logged.");
 });
 
-document.getElementById("reminderForm").addEventListener("submit", e => {
+document.getElementById("reminderForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
-  db.reminders.push({ id: uid(), vehicleId: fd.vehicleId, task: fd.task, everyMonths: +fd.everyMonths, lastDate: fd.lastDate });
+  const r = { vehicleId: fd.vehicleId, task: fd.task, everyMonths: +fd.everyMonths, lastDate: fd.lastDate };
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateReminder(r);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.reminders.push(saved);
+  } else {
+    db.reminders.push({ id: uid(), ...r });
+  }
   saveStore(); e.target.reset(); renderReminders(); renderOverview();
   refreshCrossCutting();
   toast("Reminder saved.");
 });
 
-document.getElementById("partForm").addEventListener("submit", e => {
+document.getElementById("partForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
   const partData = {
@@ -1490,15 +1546,26 @@ document.getElementById("partForm").addEventListener("submit", e => {
     qty: +fd.qty, minQty: +fd.minQty, location: fd.location.trim(),
     purchaseDate: fd.purchaseDate || null, warrantyExpiry: fd.warrantyExpiry || null
   };
+  const dbBacked = typeof coreDbBacked === "function" && coreDbBacked();
   const existing = db.parts.find(p => p.name.toLowerCase() === partData.name.toLowerCase());
   if (existing) {
     // Restocking (qty/minQty/name) always applies; other fields only overwrite
     // if actually filled in this time, so a quick re-add doesn't wipe vendor/
     // warranty/etc. already on file.
+    const patch = {};
     Object.entries(partData).forEach(([k, v]) => {
-      if (k === "qty" || k === "minQty" || k === "name") existing[k] = v;
-      else if (v !== "" && v !== null) existing[k] = v;
+      if (k === "qty" || k === "minQty" || k === "name") patch[k] = v;
+      else if (v !== "" && v !== null) patch[k] = v;
     });
+    if (dbBacked) {
+      const ok = await dbUpdatePart(existing.id, patch);
+      if (!ok) { toast("Could not save — check your connection and try again.", "err"); return; }
+    }
+    Object.assign(existing, patch);
+  } else if (dbBacked) {
+    const saved = await dbCreatePart(partData);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.parts.push(saved);
   } else {
     db.parts.push({ id: uid(), ...partData });
   }
@@ -1511,15 +1578,22 @@ document.getElementById("demoBtn").addEventListener("click", loadDemoFleet);
 
 // ---- Documents ----
 document.getElementById("docEntityType").addEventListener("change", fillDocEntitySelect);
-document.getElementById("documentForm").addEventListener("submit", e => {
+document.getElementById("documentForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
   if (!fd.entityId) { alert("Add a " + fd.entityType + " first, then attach the document."); return; }
-  db.documents.push({
-    id: uid(), entityType: fd.entityType, entityId: fd.entityId,
+  const d = {
+    entityType: fd.entityType, entityId: fd.entityId,
     docType: fd.docType, number: fd.number.trim(),
     issueDate: fd.issueDate || null, expiryDate: fd.expiryDate, note: fd.note.trim()
-  });
+  };
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateDocument(d);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.documents.push(saved);
+  } else {
+    db.documents.push({ id: uid(), ...d });
+  }
   saveStore(); e.target.reset(); fillDocEntitySelect();
   renderDocuments(); renderRadar(); renderOverview();
   refreshCrossCutting();
@@ -1529,14 +1603,21 @@ document.getElementById("documentForm").addEventListener("submit", e => {
 // ---- Tyre Health ----
 document.getElementById("tyreVehicleFilter").addEventListener("change", renderTyres);
 document.getElementById("tyreFormVehicle").addEventListener("change", fillTyrePositions);
-document.getElementById("tyreForm").addEventListener("submit", e => {
+document.getElementById("tyreForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
-  db.tyreReadings.push({
-    id: uid(), vehicleId: fd.vehicleId, position: fd.position,
+  const t = {
+    vehicleId: fd.vehicleId, position: fd.position,
     treadDepth: +fd.treadDepth, pressure: fd.pressure ? +fd.pressure : null,
     odo: fd.odo ? +fd.odo : null, date: fd.date
-  });
+  };
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateTyreReading(t);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.tyreReadings.push(saved);
+  } else {
+    db.tyreReadings.push({ id: uid(), ...t });
+  }
   saveStore(); e.target.reset();
   document.getElementById("tyreVehicleFilter").value = fd.vehicleId;
   renderTyres(); renderOverview();
@@ -1610,10 +1691,14 @@ document.getElementById("tabBar").addEventListener("click", e => {
   // switch workspace to wherever the clicked tab lives (hub, deep link, or sidebar)
   if (btn.dataset.tab === "home") setWorkspace("home");
   else { const w = btn.closest("[data-ws]"); if (w) setWorkspace(w.dataset.ws); }
-  // Home & My Account work even with an empty fleet
+  // Home & My Account work even with an empty fleet. Signed-in owners never
+  // see the demo prompt — they get the Getting Started landing instead.
   if (!db.vehicles.length) {
     const exempt = btn.dataset.tab === "account" || btn.dataset.tab === "home";
-    document.getElementById("emptyState").hidden = exempt;
+    const signedIn = !!(window.fwCloud && fwCloud.user());
+    document.getElementById("emptyState").hidden = exempt || signedIn;
+    const startEl = document.getElementById("startState");
+    if (startEl) startEl.hidden = exempt || !signedIn;
     document.getElementById("fleetContent").hidden = !exempt;
   }
   if (btn.dataset.tab === "account" && window.renderAuthState) renderAuthState();
@@ -2074,7 +2159,7 @@ function renderAll() {
   fillDriverSelect();
   if (!has) { renderGettingStarted(); return; }
   // demo store from the dashboard may lack fleet-manager collections — extend it once
-  if (db.demo !== true && db.vehicles.length && !db.fuelLogs.length && db.expenses.length && db.vehicles[0].id === "v1" && !db.vehicles[0].compliance) {
+  if (!signedIn && db.demo !== true && db.vehicles.length && !db.fuelLogs.length && db.expenses.length && db.vehicles[0].id === "v1" && !db.vehicles[0].compliance) {
     loadDemoFleet(); return;
   }
   fillVehicleSelects();
@@ -2101,17 +2186,31 @@ buildDynamicPanels();
 initListToolbars();
 
 // Trips & khata entry forms (panels are built dynamically above)
-document.getElementById("tripForm")?.addEventListener("submit", e => {
+document.getElementById("tripForm")?.addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
-  db.trips.push({ id: uid(), vehicleId: fd.vehicleId, date: fd.date, from: fd.from.trim(), to: fd.to.trim(), freight: +fd.freight, km: fd.km ? +fd.km : null });
+  const t = { vehicleId: fd.vehicleId, date: fd.date, from: fd.from.trim(), to: fd.to.trim(), freight: +fd.freight, km: fd.km ? +fd.km : null };
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateTrip(t);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.trips.push(saved);
+  } else {
+    db.trips.push({ id: uid(), ...t });
+  }
   saveStore(); e.target.reset(); renderAll();
   toast("Trip saved.");
 });
-document.getElementById("khataForm")?.addEventListener("submit", e => {
+document.getElementById("khataForm")?.addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
-  db.driverLedger.push({ id: uid(), driverId: fd.driverId, date: fd.date, type: fd.type, amount: +fd.amount, note: (fd.note || "").trim() });
+  const l = { driverId: fd.driverId, date: fd.date, type: fd.type, amount: +fd.amount, note: (fd.note || "").trim() };
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateLedgerEntry(l);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.driverLedger.push(saved);
+  } else {
+    db.driverLedger.push({ id: uid(), ...l });
+  }
   saveStore(); e.target.reset(); renderAll();
   toast("Khata entry saved.");
 });
@@ -2191,14 +2290,24 @@ function openSOS() {
   document.body.appendChild(wrap);
   wrap.addEventListener("click", e => { if (e.target === wrap) wrap.remove(); });
   document.getElementById("sosClose").addEventListener("click", () => wrap.remove());
-  document.getElementById("sosSend").addEventListener("click", () => {
+  document.getElementById("sosSend").addEventListener("click", async () => {
     const vid = document.getElementById("sosVeh").value;
     const what = document.getElementById("sosWhat").value.trim() || "Breakdown on road";
     const today = new Date().toISOString().slice(0, 10);
     if (vid) {
-      const issueId = uid();
-      db.issues.push({ id: issueId, vehicleId: vid, title: "Breakdown: " + what, severity: "High", status: "In Progress", createdAt: today, source: "Breakdown SOS" });
-      db.workOrders.push({ id: uid(), issueId, vehicleId: vid, title: "Breakdown: " + what, vendor: "FleetWorks partner network", estCost: null, status: "Open", createdAt: today });
+      const iss = { vehicleId: vid, title: "Breakdown: " + what, severity: "High", status: "In Progress", createdAt: today, source: "Breakdown SOS" };
+      if (typeof coreDbBacked === "function" && coreDbBacked()) {
+        const savedIss = await dbCreateIssue(iss);
+        if (savedIss) {
+          db.issues.push(savedIss);
+          const savedWo = await dbCreateWorkOrder({ issueId: savedIss.id, vehicleId: vid, title: "Breakdown: " + what, vendor: "FleetWorks partner network", estCost: null, status: "Open", createdAt: today });
+          if (savedWo) db.workOrders.push(savedWo);
+        }
+      } else {
+        const issueId = uid();
+        db.issues.push({ id: issueId, ...iss });
+        db.workOrders.push({ id: uid(), issueId, vehicleId: vid, title: "Breakdown: " + what, vendor: "FleetWorks partner network", estCost: null, status: "Open", createdAt: today });
+      }
       saveStore(); renderAll();
     }
     const msg = "BREAKDOWN SOS\nVehicle: " + (vid ? vName(vid) : "—") + "\nIssue: " + what +

@@ -1,28 +1,33 @@
 /* ============ FleetWorks — dbcore.js ============
-   DB-direct data layer for vehicles, drivers, expenses, and fuel logs.
-   When signed in, these 4 entities are read and written straight to
-   Supabase — never through the localStorage blob. saveStore() (fleet.js)
-   excludes them from what gets persisted to ff_fleet/pushed to the fleets
-   blob once signed in, and sync_fleet_from_blob() (Supabase side) no
-   longer touches these 4 tables at all, so nothing can silently overwrite
-   a direct write with stale blob content.
+   DB-direct data layer for all 12 core entities: vehicles, drivers,
+   expenses, fuel logs, issues, work orders, reminders, inspections, parts,
+   documents, tyre readings, trips, and driver ledger (khata). When signed
+   in, every one of these is read and written straight to Supabase — never
+   through the localStorage blob. saveStore() (fleet.js) excludes all of
+   them from what gets persisted to ff_fleet/pushed to the fleets blob once
+   signed in, and sync_fleet_from_blob() (Supabase side) no longer touches
+   any of these tables at all, so nothing can silently overwrite a direct
+   write with stale blob content. Settings remains blob-based (projected
+   into the organizations table by sync_fleet_from_blob(), as before).
 
    Local object shape is UNCHANGED from the blob era on purpose — every
    existing render function, dropdown populator, and search/filter in
    fleet.js/analytics.js/account.js keeps working untouched, because
-   db.vehicles/db.drivers/db.expenses/db.fuelLogs are still plain in-memory
-   arrays of the same shape; only WHERE they're populated from and WHERE
-   writes go changed.
+   db.vehicles/db.drivers/... are still plain in-memory arrays of the same
+   shape; only WHERE they're populated from and WHERE writes go changed.
 
    id convention:
-     vehicles/drivers — local .id stays the blob-stable ext_id (Payroll and
-       Team & Access already key driver_payout_details/vehicle_assignments
-       on this exact value — changing it would break those live features).
-       .dbId holds the real Postgres uuid, needed for FK columns and for
+     vehicles/drivers/issues — local .id stays the blob-stable ext_id.
+       Vehicles/drivers because Payroll and Team & Access already key
+       driver_payout_details/vehicle_assignments on this exact value
+       (changing it would break those live features); issues because
+       work_orders reference an issue by its local id. .dbId holds the real
+       Postgres uuid on all three, needed for FK columns and for
        authPatch/authDelete calls.
-     expenses/fuel_logs — nothing else references these by id (no other
-       table points at them), so local .id is just the real Postgres uuid
-       directly. No separate .dbId needed. */
+     everything else (expenses, fuel_logs, work_orders, reminders,
+       inspections, parts, documents, tyre_readings, trips, driver_ledger)
+       — nothing else references these by id, so local .id is just the real
+       Postgres uuid directly. No separate .dbId needed. */
 
 "use strict";
 
@@ -32,7 +37,12 @@ let _dbOrgId = null;
 async function dbOrgId() {
   if (_dbOrgId) return _dbOrgId;
   if (!coreDbBacked()) return null;
-  const rows = await fwCloud.authGet("memberships", "select=org_id&limit=1").catch(() => null);
+  // Must match sync_fleet_from_blob()'s own org lookup (role = 'owner') —
+  // an unfiltered query here can pick a DIFFERENT membership row (e.g. a
+  // supervisor/driver membership picked up via Team & Access) and silently
+  // point every fetch at the wrong org, making a real fleet look empty.
+  let rows = await fwCloud.authGet("memberships", "select=org_id&role=eq.owner&limit=1").catch(() => null);
+  if (!rows || !rows[0]) rows = await fwCloud.authGet("memberships", "select=org_id&limit=1").catch(() => null);
   _dbOrgId = rows && rows[0] ? rows[0].org_id : null;
   return _dbOrgId;
 }
@@ -198,28 +208,291 @@ async function dbCreateFuelLog(f) {
   return row ? dbRowToFuelLog(row, f.vehicleId || "") : null;
 }
 
-// ---------- Bulk fetch: replaces db.vehicles/drivers/expenses/fuelLogs with
-// live DB content. Called on every page load while already signed in, and
-// right after sign-in — never trusts whatever was last in localStorage. ----------
+// ---------- Driver uuid lookup (mirrors dbVehicleUuid) ----------
+function dbDriverUuid(extId) {
+  const d = db.drivers.find(x => x.id === extId);
+  return d ? d.dbId : null;
+}
+function dbIssueUuid(extId) {
+  const i = db.issues.find(x => x.id === extId);
+  return i ? i.dbId : null;
+}
+
+// ---------- Issues (ext_id needed — work_orders reference an issue by id) ----------
+function dbRowToIssue(row, vehicleExtId) {
+  return {
+    id: row.ext_id, dbId: row.id,
+    vehicleId: vehicleExtId !== undefined ? vehicleExtId : (row.vehicles ? row.vehicles.ext_id : "") || "",
+    title: row.title, severity: row.severity, status: row.status,
+    createdAt: row.reported_at || undefined, resolvedAt: row.resolved_at || undefined, source: row.source || undefined,
+  };
+}
+function issueToDbRow(i, orgId) {
+  return {
+    org_id: orgId, ext_id: i.id, vehicle_id: i.vehicleId ? dbVehicleUuid(i.vehicleId) : null,
+    title: i.title, severity: i.severity, status: i.status,
+    reported_at: i.createdAt || null, resolved_at: i.resolvedAt || null, source: i.source || null,
+  };
+}
+async function dbCreateIssue(i) {
+  const org = await dbOrgId(); if (!org) return null;
+  if (!i.id) i.id = uid(); // local id IS the ext_id — must exist before insert (work_orders reference it)
+  const row = await fwCloud.authInsertRet("issues", issueToDbRow(i, org));
+  return row ? dbRowToIssue(row, i.vehicleId || "") : null;
+}
+async function dbUpdateIssue(extId, patch) {
+  const i = db.issues.find(x => x.id === extId);
+  if (!i || !i.dbId) return false;
+  const p = {};
+  if ("status" in patch) p.status = patch.status;
+  if ("resolvedAt" in patch) p.resolved_at = patch.resolvedAt || null;
+  return fwCloud.authPatch(`issues?id=eq.${i.dbId}`, p);
+}
+
+// ---------- Work orders (no ext_id needed — nothing else references these by id) ----------
+function dbRowToWorkOrder(row, vehicleExtId, issueExtId) {
+  return {
+    id: row.id,
+    issueId: issueExtId !== undefined ? issueExtId : (row.issues ? row.issues.ext_id : "") || "",
+    vehicleId: vehicleExtId !== undefined ? vehicleExtId : (row.vehicles ? row.vehicles.ext_id : "") || "",
+    title: row.title, vendor: row.vendor || undefined,
+    estCost: row.est_cost || undefined, finalCost: row.final_cost || undefined,
+    status: row.status, createdAt: row.opened_at || undefined, completedAt: row.completed_at || undefined,
+  };
+}
+function workOrderToDbRow(w, orgId) {
+  return {
+    org_id: orgId, vehicle_id: w.vehicleId ? dbVehicleUuid(w.vehicleId) : null,
+    issue_id: w.issueId ? dbIssueUuid(w.issueId) : null,
+    title: w.title, vendor: w.vendor || null,
+    est_cost: w.estCost || null, final_cost: w.finalCost || null,
+    status: w.status, opened_at: w.createdAt || null, completed_at: w.completedAt || null,
+  };
+}
+async function dbCreateWorkOrder(w) {
+  const org = await dbOrgId(); if (!org) return null;
+  const row = await fwCloud.authInsertRet("work_orders", workOrderToDbRow(w, org));
+  return row ? dbRowToWorkOrder(row, w.vehicleId || "", w.issueId || "") : null;
+}
+async function dbUpdateWorkOrder(id, patch) {
+  const p = {};
+  if ("status" in patch) p.status = patch.status;
+  if ("completedAt" in patch) p.completed_at = patch.completedAt || null;
+  if ("finalCost" in patch) p.final_cost = patch.finalCost;
+  return fwCloud.authPatch(`work_orders?id=eq.${id}`, p);
+}
+
+// ---------- Reminders (no ext_id needed) ----------
+function dbRowToReminder(row, vehicleExtId) {
+  return {
+    id: row.id, vehicleId: vehicleExtId !== undefined ? vehicleExtId : (row.vehicles ? row.vehicles.ext_id : "") || "",
+    task: row.task, everyMonths: row.every_months || 0, lastDate: row.last_date || undefined,
+  };
+}
+function reminderToDbRow(r, orgId) {
+  return {
+    org_id: orgId, vehicle_id: r.vehicleId ? dbVehicleUuid(r.vehicleId) : null,
+    task: r.task, every_months: r.everyMonths || null, last_date: r.lastDate || null,
+  };
+}
+async function dbCreateReminder(r) {
+  const org = await dbOrgId(); if (!org) return null;
+  const row = await fwCloud.authInsertRet("reminders", reminderToDbRow(r, org));
+  return row ? dbRowToReminder(row, r.vehicleId || "") : null;
+}
+
+// ---------- Inspections (no ext_id needed) ----------
+function dbRowToInspection(row, vehicleExtId) {
+  return {
+    id: row.id, vehicleId: vehicleExtId !== undefined ? vehicleExtId : (row.vehicles ? row.vehicles.ext_id : "") || "",
+    date: row.inspection_date || undefined, passed: !!row.passed, results: row.results || [],
+    odo: row.odo || undefined, notes: row.notes || undefined,
+  };
+}
+function inspectionToDbRow(ins, orgId) {
+  return {
+    org_id: orgId, vehicle_id: ins.vehicleId ? dbVehicleUuid(ins.vehicleId) : null,
+    inspection_date: ins.date || null, passed: !!ins.passed,
+    results: ins.results && ins.results.length ? ins.results : null,
+    odo: ins.odo || null, notes: ins.notes || null,
+  };
+}
+async function dbCreateInspection(ins) {
+  const org = await dbOrgId(); if (!org) return null;
+  const row = await fwCloud.authInsertRet("inspections", inspectionToDbRow(ins, org));
+  return row ? dbRowToInspection(row, ins.vehicleId || "") : null;
+}
+
+// ---------- Parts (no vehicle reference — plain inventory) ----------
+function dbRowToPart(row) {
+  return {
+    id: row.id, name: row.name, partNumber: row.part_number || undefined, make: row.make || undefined,
+    category: row.category || undefined, sourcing: row.sourcing || undefined,
+    vendor: row.vendor || undefined, vendorContact: row.vendor_contact || undefined,
+    unitCost: row.unit_cost || undefined, qty: row.qty || 0, minQty: row.min_qty || 0,
+    location: row.location || undefined, purchaseDate: row.purchase_date || undefined, warrantyExpiry: row.warranty_expiry || undefined,
+  };
+}
+function partToDbRow(p, orgId) {
+  return {
+    org_id: orgId, name: p.name, part_number: p.partNumber || null, make: p.make || null,
+    category: p.category || null, sourcing: p.sourcing || null,
+    vendor: p.vendor || null, vendor_contact: p.vendorContact || null,
+    unit_cost: p.unitCost || null, qty: p.qty || 0, min_qty: p.minQty || 0,
+    location: p.location || null, purchase_date: p.purchaseDate || null, warranty_expiry: p.warrantyExpiry || null,
+  };
+}
+async function dbCreatePart(p) {
+  const org = await dbOrgId(); if (!org) return null;
+  const row = await fwCloud.authInsertRet("parts", partToDbRow(p, org));
+  return row ? dbRowToPart(row) : null;
+}
+async function dbUpdatePart(id, patch) {
+  const p = {};
+  if ("name" in patch) p.name = patch.name;
+  if ("partNumber" in patch) p.part_number = patch.partNumber || null;
+  if ("make" in patch) p.make = patch.make || null;
+  if ("category" in patch) p.category = patch.category || null;
+  if ("sourcing" in patch) p.sourcing = patch.sourcing || null;
+  if ("vendor" in patch) p.vendor = patch.vendor || null;
+  if ("vendorContact" in patch) p.vendor_contact = patch.vendorContact || null;
+  if ("unitCost" in patch) p.unit_cost = patch.unitCost;
+  if ("qty" in patch) p.qty = patch.qty;
+  if ("minQty" in patch) p.min_qty = patch.minQty;
+  if ("location" in patch) p.location = patch.location || null;
+  if ("purchaseDate" in patch) p.purchase_date = patch.purchaseDate || null;
+  if ("warrantyExpiry" in patch) p.warranty_expiry = patch.warrantyExpiry || null;
+  return fwCloud.authPatch(`parts?id=eq.${id}`, p);
+}
+
+// ---------- Documents (polymorphic: vehicle or driver) ----------
+function dbRowToDocument(row, entityExtId) {
+  const entityType = row.entity_type;
+  return {
+    id: row.id, entityType,
+    entityId: entityExtId !== undefined ? entityExtId :
+      ((entityType === "vehicle" ? (row.vehicles ? row.vehicles.ext_id : "") : (row.drivers ? row.drivers.ext_id : "")) || ""),
+    docType: row.doc_type, number: row.number || undefined,
+    issueDate: row.issue_date || undefined, expiryDate: row.expiry_date || undefined, note: row.note || undefined,
+  };
+}
+function documentToDbRow(d, orgId) {
+  return {
+    org_id: orgId, entity_type: d.entityType,
+    vehicle_id: d.entityType === "vehicle" ? dbVehicleUuid(d.entityId) : null,
+    driver_id: d.entityType === "driver" ? dbDriverUuid(d.entityId) : null,
+    doc_type: d.docType, number: d.number || null,
+    issue_date: d.issueDate || null, expiry_date: d.expiryDate || null, note: d.note || null,
+  };
+}
+async function dbCreateDocument(d) {
+  const org = await dbOrgId(); if (!org) return null;
+  const row = await fwCloud.authInsertRet("documents", documentToDbRow(d, org));
+  return row ? dbRowToDocument(row, d.entityId || "") : null;
+}
+async function dbDeleteDocument(id) { return fwCloud.authDelete("documents", `id=eq.${id}`); }
+
+// ---------- Tyre readings (no ext_id needed) ----------
+function dbRowToTyreReading(row, vehicleExtId) {
+  return {
+    id: row.id, vehicleId: vehicleExtId !== undefined ? vehicleExtId : (row.vehicles ? row.vehicles.ext_id : "") || "",
+    position: row.position, treadDepth: row.tread_depth_mm || undefined, pressure: row.pressure_psi || undefined,
+    odo: row.odometer || undefined, date: row.reading_date || undefined,
+  };
+}
+function tyreReadingToDbRow(t, orgId) {
+  return {
+    org_id: orgId, vehicle_id: t.vehicleId ? dbVehicleUuid(t.vehicleId) : null,
+    position: t.position, tread_depth_mm: t.treadDepth || null, pressure_psi: t.pressure || null,
+    odometer: t.odo || null, reading_date: t.date || null,
+  };
+}
+async function dbCreateTyreReading(t) {
+  const org = await dbOrgId(); if (!org) return null;
+  const row = await fwCloud.authInsertRet("tyre_readings", tyreReadingToDbRow(t, org));
+  return row ? dbRowToTyreReading(row, t.vehicleId || "") : null;
+}
+
+// ---------- Trips (no ext_id needed) ----------
+function dbRowToTrip(row, vehicleExtId) {
+  return {
+    id: row.id, vehicleId: vehicleExtId !== undefined ? vehicleExtId : (row.vehicles ? row.vehicles.ext_id : "") || "",
+    date: row.trip_date || undefined, from: row.from_loc || "", to: row.to_loc || "",
+    freight: row.freight || 0, km: row.km || undefined,
+  };
+}
+function tripToDbRow(t, orgId) {
+  return {
+    org_id: orgId, vehicle_id: t.vehicleId ? dbVehicleUuid(t.vehicleId) : null,
+    trip_date: t.date || null, from_loc: t.from || null, to_loc: t.to || null,
+    freight: t.freight || 0, km: t.km || null,
+  };
+}
+async function dbCreateTrip(t) {
+  const org = await dbOrgId(); if (!org) return null;
+  const row = await fwCloud.authInsertRet("trips", tripToDbRow(t, org));
+  return row ? dbRowToTrip(row, t.vehicleId || "") : null;
+}
+
+// ---------- Driver ledger / khata (no ext_id needed) ----------
+function dbRowToLedgerEntry(row, driverExtId) {
+  return {
+    id: row.id, driverId: driverExtId !== undefined ? driverExtId : (row.drivers ? row.drivers.ext_id : "") || "",
+    date: row.entry_date || undefined, type: row.type, amount: row.amount || 0, note: row.note || undefined,
+  };
+}
+function ledgerEntryToDbRow(l, orgId) {
+  return {
+    org_id: orgId, driver_id: l.driverId ? dbDriverUuid(l.driverId) : null,
+    entry_date: l.date || null, type: l.type, amount: l.amount || 0, note: l.note || null,
+  };
+}
+async function dbCreateLedgerEntry(l) {
+  const org = await dbOrgId(); if (!org) return null;
+  const row = await fwCloud.authInsertRet("driver_ledger", ledgerEntryToDbRow(l, org));
+  return row ? dbRowToLedgerEntry(row, l.driverId || "") : null;
+}
+
+// ---------- Bulk fetch: replaces all 12 DB-direct arrays with live DB
+// content. Called on every page load while already signed in, and right
+// after sign-in — never trusts whatever was last in localStorage. ----------
 async function loadCoreFromDb() {
   if (!coreDbBacked()) return false;
   const org = await dbOrgId();
   if (!org) return false;
-  const [vehRows, drvRows, expRows, fuelRows] = await Promise.all([
+  const [vehRows, drvRows, expRows, fuelRows, issRows, woRows, remRows, insRows, partRows, docRows, tyreRows, tripRows, ledgerRows] = await Promise.all([
     fwCloud.authGet("vehicles", `select=*&org_id=eq.${org}&order=name.asc`),
     fwCloud.authGet("drivers", `select=*,vehicles(ext_id)&org_id=eq.${org}&order=name.asc`),
     fwCloud.authGet("expenses", `select=*,vehicles(ext_id)&org_id=eq.${org}&order=expense_date.desc`),
     fwCloud.authGet("fuel_logs", `select=*,vehicles(ext_id)&org_id=eq.${org}&order=log_date.desc`),
+    fwCloud.authGet("issues", `select=*,vehicles(ext_id)&org_id=eq.${org}&order=reported_at.desc`),
+    fwCloud.authGet("work_orders", `select=*,vehicles(ext_id),issues(ext_id)&org_id=eq.${org}&order=opened_at.desc`),
+    fwCloud.authGet("reminders", `select=*,vehicles(ext_id)&org_id=eq.${org}`),
+    fwCloud.authGet("inspections", `select=*,vehicles(ext_id)&org_id=eq.${org}&order=inspection_date.desc`),
+    fwCloud.authGet("parts", `select=*&org_id=eq.${org}&order=name.asc`),
+    fwCloud.authGet("documents", `select=*,vehicles(ext_id),drivers(ext_id)&org_id=eq.${org}`),
+    fwCloud.authGet("tyre_readings", `select=*,vehicles(ext_id)&org_id=eq.${org}&order=reading_date.desc`),
+    fwCloud.authGet("trips", `select=*,vehicles(ext_id)&org_id=eq.${org}&order=trip_date.desc`),
+    fwCloud.authGet("driver_ledger", `select=*,drivers(ext_id)&org_id=eq.${org}&order=entry_date.desc`),
   ]);
   if (vehRows) db.vehicles = vehRows.map(dbRowToVehicle);
   if (drvRows) db.drivers = drvRows.map(r => dbRowToDriver(r));
   if (expRows) db.expenses = expRows.map(r => dbRowToExpense(r));
   if (fuelRows) db.fuelLogs = fuelRows.map(r => dbRowToFuelLog(r));
+  if (issRows) db.issues = issRows.map(r => dbRowToIssue(r));
+  if (woRows) db.workOrders = woRows.map(r => dbRowToWorkOrder(r));
+  if (remRows) db.reminders = remRows.map(r => dbRowToReminder(r));
+  if (insRows) db.inspections = insRows.map(r => dbRowToInspection(r));
+  if (partRows) db.parts = partRows.map(dbRowToPart);
+  if (docRows) db.documents = docRows.map(r => dbRowToDocument(r));
+  if (tyreRows) db.tyreReadings = tyreRows.map(r => dbRowToTyreReading(r));
+  if (tripRows) db.trips = tripRows.map(r => dbRowToTrip(r));
+  if (ledgerRows) db.driverLedger = ledgerRows.map(r => dbRowToLedgerEntry(r));
   db.demo = false;
   return true;
 }
 
-// Runs once per page load. If signed in, DB is authoritative for these 4
+// Runs once per page load. If signed in, DB is authoritative for all 12
 // arrays from the moment this resolves — whatever loadStore() put there
 // from localStorage a moment earlier gets replaced outright.
 (async function bootCoreFromDb() {

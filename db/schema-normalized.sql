@@ -1,38 +1,35 @@
--- ============ FleetWorks — normalized multi-tenant core (Phase 5 / Migration Phase 1) ============
--- Run in Supabase: SQL Editor -> New query -> paste -> Run.
+-- ============ FleetWorks — normalized multi-tenant core ============
+-- Run in Supabase: SQL Editor -> New query -> paste -> Run. Idempotent —
+-- safe to re-run any time.
 -- Prerequisite: schema-fleet.sql (the `fleets` blob table) must already exist.
--- Safe to run on the live product: it only ADDS tables + a read-model
--- projection. The current app keeps writing the fleets.data blob exactly as
--- before; a trigger fans each write out into these normalized tables.
 --
 -- ---------------------------------------------------------------------------
 -- WHAT THIS DOES
 --   1. Tenancy: organizations + memberships (user <-> org, with a role).
---   2. Normalized entity tables (vehicles, drivers, documents, tyre_readings,
---      fuel_logs, expenses, issues, work_orders, parts, reminders,
---      inspections) — every row carries org_id and is RLS-scoped.
+--   2. Entity tables (vehicles, drivers, documents, tyre_readings, fuel_logs,
+--      expenses, issues, work_orders, parts, reminders, inspections) — every
+--      row carries org_id and is RLS-scoped.
 --   3. is_org_member(): the single RLS predicate (member of the org, or a
 --      global admin via app_metadata.role = 'admin').
---   4. sync_fleet_from_blob(): projects one owner's fleets.data blob into the
---      tables (create-org-if-missing, then replace that org's rows).
---   5. A trigger on `fleets` that calls it on every insert/update — the
---      DUAL-WRITE BRIDGE. No frontend change needed in this phase.
---   6. FK indexes, an updated_at trigger (for Phase-2 direct writes) and
---      explicit grants to `authenticated` (RLS still decides which rows).
---   7. A one-time backfill for every existing fleet.
+--   4. sync_fleet_from_blob(): upserts one owner's organization row from the
+--      settings in their fleets.data blob (business name, GSTIN, city, etc).
+--   5. A trigger on `fleets` that calls it on every insert/update.
+--   6. FK indexes, an updated_at trigger, explicit grants to `authenticated`
+--      (RLS still decides which rows).
 --
--- MIGRATION SHAPE
---   Phase 1 (this file): blob is still the source of truth; tables are a live,
---     always-consistent read-model. Nothing user-facing changes.
---   Phase 2 (later): point the new app's READS at these tables.
---   Phase 3 (later): switch WRITES to these tables, drop the trigger + blob.
+-- STATUS (as of the DB-direct core migration, see js/dbcore.js)
+--   All 12 entity types (vehicles, drivers, expenses, fuel_logs, issues,
+--   work_orders, reminders, inspections, parts, documents, tyre_readings,
+--   plus trips/driver_ledger from schema-db-direct-remaining.sql) are now
+--   written straight to these tables by the client when signed in — never
+--   through the blob. sync_fleet_from_blob() no longer deletes or
+--   re-projects any of them; its only remaining job is the organizations
+--   upsert from settings, since Settings itself is still blob-based.
 --
 -- VALIDATION
 --   Executed and iterated against Postgres 16 (PGlite/WASM): schema runs
---   clean, projection fidelity (counts, dates, numerics, jsonb, FK links)
---   verified, tenant isolation proven (no cross-org leakage, non-member
---   blocked, admin sees all), nasty inputs handled, and the whole file is
---   idempotent (safe to re-run). See db/tests/.
+--   clean, tenant isolation proven (no cross-org leakage, non-member
+--   blocked, admin sees all), nasty inputs handled. See db/tests/.
 -- ---------------------------------------------------------------------------
 
 -- ========================= 1. TENANCY =========================
@@ -378,82 +375,12 @@ begin
     where id = v_org;
   end if;
 
-  -- clear this org's rows (child -> parent order), then re-project.
-  -- vehicles/drivers/expenses/fuel_logs are DELIBERATELY EXCLUDED as of the
-  -- DB-direct migration: the client now writes those 4 tables straight to
-  -- Postgres (never through the blob at all when signed in), so this
-  -- function must never delete or recreate them — doing so would wipe out
-  -- DB-direct rows the instant the owner saves any OTHER still-blob-based
-  -- entity (a reminder, an inspection, ...), since every blob save fires
-  -- this whole function. The ext_id-based joins below still resolve
-  -- correctly against whatever vehicles/drivers rows already exist.
-  delete from documents     where org_id = v_org;
-  delete from tyre_readings where org_id = v_org;
-  delete from inspections   where org_id = v_org;
-  delete from reminders     where org_id = v_org;
-  delete from work_orders   where org_id = v_org;
-  delete from issues        where org_id = v_org;
-  delete from parts         where org_id = v_org;
-
-  -- issues (before work_orders, which reference them)
-  insert into issues (org_id, ext_id, vehicle_id, title, severity, status, reported_at, resolved_at, source)
-  select v_org, i ->> 'id', veh.id, i ->> 'title', i ->> 'severity', i ->> 'status',
-         (nullif(i ->> 'createdAt',''))::date, (nullif(i ->> 'resolvedAt',''))::date, i ->> 'source'
-  from jsonb_array_elements(coalesce(p_data -> 'issues', '[]'::jsonb)) i
-  left join vehicles veh on veh.org_id = v_org and veh.ext_id = i ->> 'vehicleId';
-
-  -- work orders (resolve vehicle + issue by ext_id)
-  insert into work_orders (org_id, ext_id, vehicle_id, issue_id, title, vendor, est_cost, final_cost, status, opened_at, completed_at)
-  select v_org, w ->> 'id', veh.id, iss.id, w ->> 'title', w ->> 'vendor',
-         (nullif(w ->> 'estCost',''))::numeric, (nullif(w ->> 'finalCost',''))::numeric,
-         w ->> 'status', (nullif(w ->> 'createdAt',''))::date, (nullif(w ->> 'completedAt',''))::date
-  from jsonb_array_elements(coalesce(p_data -> 'workOrders', '[]'::jsonb)) w
-  left join vehicles veh on veh.org_id = v_org and veh.ext_id = w ->> 'vehicleId'
-  left join issues   iss on iss.org_id = v_org and iss.ext_id = w ->> 'issueId';
-
-  -- documents (polymorphic: vehicle or driver, resolved by ext_id)
-  insert into documents (org_id, entity_type, vehicle_id, driver_id, doc_type, number, issue_date, expiry_date, note)
-  select v_org, d ->> 'entityType',
-         case when d ->> 'entityType' = 'vehicle'
-              then (select id from vehicles where org_id = v_org and ext_id = d ->> 'entityId') end,
-         case when d ->> 'entityType' = 'driver'
-              then (select id from drivers  where org_id = v_org and ext_id = d ->> 'entityId') end,
-         d ->> 'docType', d ->> 'number',
-         (nullif(d ->> 'issueDate',''))::date, (nullif(d ->> 'expiryDate',''))::date, d ->> 'note'
-  from jsonb_array_elements(coalesce(p_data -> 'documents', '[]'::jsonb)) d
-  -- skip rows whose entity could not be resolved (keeps the CHECK constraint happy)
-  where ( d ->> 'entityType' = 'vehicle' and exists (select 1 from vehicles where org_id = v_org and ext_id = d ->> 'entityId') )
-     or ( d ->> 'entityType' = 'driver'  and exists (select 1 from drivers  where org_id = v_org and ext_id = d ->> 'entityId') );
-
-  -- tyre readings
-  insert into tyre_readings (org_id, vehicle_id, position, tread_depth_mm, pressure_psi, odometer, reading_date)
-  select v_org, veh.id, t ->> 'position',
-         (nullif(t ->> 'treadDepth',''))::numeric, (nullif(t ->> 'pressure',''))::numeric,
-         (nullif(t ->> 'odo',''))::numeric, (nullif(t ->> 'date',''))::date
-  from jsonb_array_elements(coalesce(p_data -> 'tyreReadings', '[]'::jsonb)) t
-  left join vehicles veh on veh.org_id = v_org and veh.ext_id = t ->> 'vehicleId';
-
-  -- parts
-  insert into parts (org_id, name, part_number, make, category, sourcing, vendor, vendor_contact,
-                     unit_cost, qty, min_qty, location, purchase_date, warranty_expiry)
-  select v_org, p ->> 'name', p ->> 'partNumber', p ->> 'make', p ->> 'category', p ->> 'sourcing',
-         p ->> 'vendor', p ->> 'vendorContact',
-         (nullif(p ->> 'unitCost',''))::numeric, (nullif(p ->> 'qty',''))::numeric, (nullif(p ->> 'minQty',''))::numeric,
-         p ->> 'location', (nullif(p ->> 'purchaseDate',''))::date, (nullif(p ->> 'warrantyExpiry',''))::date
-  from jsonb_array_elements(coalesce(p_data -> 'parts', '[]'::jsonb)) p;
-
-  -- reminders
-  insert into reminders (org_id, vehicle_id, task, every_months, last_date)
-  select v_org, veh.id, r ->> 'task', (nullif(r ->> 'everyMonths',''))::int, (nullif(r ->> 'lastDate',''))::date
-  from jsonb_array_elements(coalesce(p_data -> 'reminders', '[]'::jsonb)) r
-  left join vehicles veh on veh.org_id = v_org and veh.ext_id = r ->> 'vehicleId';
-
-  -- inspections
-  insert into inspections (org_id, vehicle_id, inspection_date, passed, results)
-  select v_org, veh.id, (nullif(ins ->> 'date',''))::date, (ins ->> 'passed')::boolean, ins -> 'results'
-  from jsonb_array_elements(coalesce(p_data -> 'inspections', '[]'::jsonb)) ins
-  left join vehicles veh on veh.org_id = v_org and veh.ext_id = ins ->> 'vehicleId';
-
+  -- Every entity table this function used to project (documents,
+  -- tyre_readings, inspections, reminders, work_orders, issues, parts) is now
+  -- DB-direct as of the full core migration — the client writes all 12
+  -- entities straight to Postgres, never through the blob at all when signed
+  -- in. This function's only remaining job is the organizations upsert from
+  -- settings above; there is nothing left to delete or re-project.
   return v_org;
 end;
 $$;

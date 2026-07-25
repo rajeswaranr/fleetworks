@@ -252,11 +252,18 @@ document.getElementById("qeExpForm").addEventListener("submit", async e => {
   afterQuickSave(e.target);
 });
 
-document.getElementById("qeIssForm").addEventListener("submit", e => {
+document.getElementById("qeIssForm").addEventListener("submit", async e => {
   e.preventDefault();
   if (needVehicle()) return;
   const fd = Object.fromEntries(new FormData(e.target));
-  db.issues.push({ id: uid(), vehicleId: selVehicle, title: fd.title.trim(), severity: fd.severity, status: "Open", createdAt: today(), source: "Owner portal" });
+  const iss = { vehicleId: selVehicle, title: fd.title.trim(), severity: fd.severity, status: "Open", createdAt: today(), source: "Owner portal" };
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const saved = await dbCreateIssue(iss);
+    if (!saved) { alert("Could not save — check your connection and try again."); return; }
+    db.issues.push(saved);
+  } else {
+    db.issues.push({ id: uid(), ...iss });
+  }
   afterQuickSave(e.target);
 });
 
@@ -281,8 +288,16 @@ async function syncDriverEntries() {
       const saved = await dbCreateFuelLog(f); // syncDriverEntries only runs signed-in, so this is always DB-backed
       if (saved) db.fuelLogs.push(saved); else continue; // couldn't save — leave the entry pending, don't mark consumed
     }
-    else if (r.kind === "issue") db.issues.push({ id: uid(), vehicleId: v.id, title: String(p.title || "Reported by driver"), severity: p.severity || "Medium", status: "Open", createdAt: day, source: "Driver: " + (r.driver_name || "link") });
-    else if (r.kind === "inspection") db.inspections.push({ id: uid(), vehicleId: v.id, date: day, odo: +p.odo || 0, results: Array.isArray(p.results) ? p.results : [], passed: !!p.passed, notes: "Driver check — " + (r.driver_name || "link") });
+    else if (r.kind === "issue") {
+      const iss = { vehicleId: v.id, title: String(p.title || "Reported by driver"), severity: p.severity || "Medium", status: "Open", createdAt: day, source: "Driver: " + (r.driver_name || "link") };
+      const saved = await dbCreateIssue(iss); // syncDriverEntries only runs signed-in, so always DB-backed
+      if (saved) db.issues.push(saved); else continue;
+    }
+    else if (r.kind === "inspection") {
+      const ins = { vehicleId: v.id, date: day, odo: +p.odo || 0, results: Array.isArray(p.results) ? p.results : [], passed: !!p.passed, notes: "Driver check — " + (r.driver_name || "link") };
+      const saved = await dbCreateInspection(ins);
+      if (saved) db.inspections.push(saved); else continue;
+    }
     else continue;
     merged++;
     await fwCloud.authPatch("driver_entries?id=eq." + r.id, { consumed: true });
