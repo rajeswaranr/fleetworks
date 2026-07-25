@@ -29,6 +29,8 @@ async function renderPayroll() {
   const manualSel = document.getElementById("manualSalaryDriver");
   if (!roster) return; // tab not in DOM yet
 
+  renderApprovals(); // independent of the Cashfree roster below — never blocked by its early returns
+
   if (manualSel) {
     manualSel.innerHTML = db.drivers.length
       ? db.drivers.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("")
@@ -225,6 +227,131 @@ async function renderBankInfo() {
     catch { toast("Could not copy — select the text above manually.", "err"); }
   });
 }
+// ---------- Payment Approvals (owner-UPI flow) ----------
+// Queue a payment -> owner sees it pending -> "Approve & Pay" opens the
+// owner's own UPI app pre-filled (driver's UPI + amount) -> owner authorises
+// with their UPI PIN -> "Mark Paid" closes the request and logs it to the
+// books. FleetWorks never moves money itself here — the owner's UPI app is
+// the payment rail AND the approval step, which is why no gateway/KYC is
+// needed. Requires db/schema-payment-approvals.sql run once.
+async function renderApprovals() {
+  const list = document.getElementById("payApprovalsList");
+  const sel = document.getElementById("payReqDriver");
+  if (!list) return;
+  if (sel) {
+    sel.innerHTML = db.drivers.length
+      ? db.drivers.map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("")
+      : `<option value="">Add a driver first</option>`;
+  }
+  if (!payrollSignedIn()) { list.innerHTML = "<p class='muted'>Sign in to use payment approvals.</p>"; return; }
+  const org = await (window.getMyOrgId ? getMyOrgId() : null);
+  if (!org) { list.innerHTML = "<p class='muted'>No organization found yet.</p>"; return; }
+  const rows = await fwCloud.authGet("payment_requests", `select=*&org_id=eq.${org}&status=eq.pending&order=created_at.asc`);
+  if (rows === null) { list.innerHTML = "<p class='muted'>Payment approvals need <code>db/schema-payment-approvals.sql</code> run once in Supabase.</p>"; return; }
+  const ownerUpi = (db.settings && db.settings.ownerUpi) || "";
+  const head = ownerUpi
+    ? `<p class="muted" style="font-size:0.8rem">Approvals are paid from your UPI: <strong>${esc(ownerUpi)}</strong></p>`
+    : `<p class="muted" style="font-size:0.8rem">Tip: set your Owner UPI ID in Settings so payment records carry it.</p>`;
+  if (!rows.length) { list.innerHTML = head + "<p class='muted'>No payments waiting for approval.</p>"; return; }
+  list.innerHTML = head + `<table class="chart-table-el"><thead><tr><th>Driver</th><th>Period</th><th>Amount</th><th>Note</th><th></th></tr></thead><tbody>` +
+    rows.map(r => {
+      const d = db.drivers.find(x => x.id === r.driver_ext_id);
+      const name = d ? d.name : r.driver_ext_id;
+      const noUpi = d && !d.upiId;
+      return `<tr><td>${esc(name)}</td><td>${esc(r.period || "")}</td><td><strong>${fmtINR(r.amount)}</strong></td>
+        <td>${esc(r.note || "")}</td>
+        <td style="white-space:nowrap">
+          <button type="button" class="link-btn" onclick="approveAndPay(${escAttr(JSON.stringify(r.id))})" ${noUpi ? `title="${esc(name)} has no UPI ID on file — add one in Drivers & Contacts"` : ""}>${FWIcon("rupee", { size: 14 })} Approve &amp; Pay</button>
+          <button type="button" class="link-btn" onclick="markRequestPaid(${escAttr(JSON.stringify(r.id))})">${FWIcon("check", { size: 14 })} Mark Paid</button>
+          <button type="button" class="link-btn" style="color:#b91c1c" onclick="rejectRequest(${escAttr(JSON.stringify(r.id))})">Reject</button>
+        </td></tr>`;
+    }).join("") + "</tbody></table>";
+  list.dataset.rows = JSON.stringify(rows);
+}
+
+function findRequest(id) {
+  const list = document.getElementById("payApprovalsList");
+  try { return (JSON.parse(list.dataset.rows || "[]")).find(r => r.id === id) || null; } catch { return null; }
+}
+
+// Opens the owner's UPI app (mobile) with the payment pre-filled — the
+// approve + PIN step happens there — and renders a scan QR for desktop.
+window.approveAndPay = async function (id) {
+  const r = findRequest(id);
+  if (!r) return;
+  const d = db.drivers.find(x => x.id === r.driver_ext_id);
+  if (!d) { toast("Driver not found.", "err"); return; }
+  if (!d.upiId) { toast(`${d.name} has no UPI ID on file — add one in Drivers & Contacts.`, "err"); return; }
+  const note = (r.note || `Salary ${r.period || ""}`).trim();
+  const link = buildUpiLink(d.upiId, d.name, r.amount, note);
+  const qrBox = document.getElementById("payApproveQr");
+  if (qrBox) {
+    try {
+      await loadQrCode();
+      qrBox.innerHTML = `<div class="chart-card" style="padding:12px;max-width:260px">
+        <p style="font-size:0.85rem;margin-bottom:8px"><strong>${esc(d.name)}</strong> · ${fmtINR(r.amount)}<br>
+        <span class="muted" style="font-size:0.78rem">Approve in your UPI app — or scan from your phone:</span></p>
+        <div id="payApproveQrImg" style="width:180px;height:180px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0"></div>
+        <button type="button" class="btn btn-primary btn-sm" style="margin-top:10px" onclick="markRequestPaid(${escAttr(JSON.stringify(r.id))})">${FWIcon("check", { size: 14 })} Paid — record it</button>
+        <button type="button" class="link-btn" style="margin-left:8px" onclick="document.getElementById('payApproveQr').innerHTML=''">Close</button>
+      </div>`;
+      new QRCode(document.getElementById("payApproveQrImg"), { text: link, width: 178, height: 178, correctLevel: QRCode.CorrectLevel.M });
+    } catch { /* QR optional — the intent link below still fires */ }
+  }
+  window.location.href = link; // no-op on desktop without a UPI handler; opens the app chooser on mobile
+};
+
+window.markRequestPaid = async function (id) {
+  const r = findRequest(id);
+  if (!r) return;
+  const utr = prompt("UPI Ref / UTR from your UPI app (optional — OK to leave blank):", "") || "";
+  const ok = await fwCloud.authPatch(`payment_requests?id=eq.${id}`, {
+    status: "paid", utr: utr.trim() || null, decided_at: new Date().toISOString(),
+  });
+  if (!ok) { toast("Could not update — check your connection and try again.", "err"); return; }
+  // Best-effort books entry: salary_payments exists only once schema-payroll.sql has been run.
+  const org = await (window.getMyOrgId ? getMyOrgId() : null);
+  if (org) {
+    await fwCloud.authInsert("salary_payments", {
+      org_id: org, driver_ext_id: r.driver_ext_id, period: r.period, amount: +r.amount,
+      method: "upi", source: "manual", status: "success",
+      utr: utr.trim() || null, notes: r.note || null,
+      transfer_ref: "apr" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      initiated_by: fwCloud.uid(),
+    }).catch(() => {});
+  }
+  const qrBox = document.getElementById("payApproveQr");
+  if (qrBox) qrBox.innerHTML = "";
+  toast("Payment recorded.");
+  renderPayroll();
+};
+
+window.rejectRequest = async function (id) {
+  if (!confirm("Reject this payment request?")) return;
+  const ok = await fwCloud.authPatch(`payment_requests?id=eq.${id}`, { status: "rejected", decided_at: new Date().toISOString() });
+  if (!ok) { toast("Could not update — check your connection and try again.", "err"); return; }
+  toast("Request rejected.");
+  renderPayroll();
+};
+
+document.getElementById("payReqForm")?.addEventListener("submit", async e => {
+  e.preventDefault();
+  const errEl = document.getElementById("payReqErr");
+  errEl.hidden = true;
+  if (!payrollSignedIn()) { errEl.textContent = "Sign in first."; errEl.hidden = false; return; }
+  const fd = Object.fromEntries(new FormData(e.target));
+  if (!fd.driverExtId) { errEl.textContent = "Add a driver first."; errEl.hidden = false; return; }
+  const org = await (window.getMyOrgId ? getMyOrgId() : null);
+  if (!org) { errEl.textContent = "No organization found yet — save something once while signed in, then retry."; errEl.hidden = false; return; }
+  const ok = await fwCloud.authInsert("payment_requests", {
+    org_id: org, driver_ext_id: fd.driverExtId, amount: +fd.amount,
+    period: fd.period, note: (fd.note || "").trim() || null,
+    requested_by: fwCloud.uid(),
+  });
+  if (ok) { e.target.reset(); toast("Queued — approve it from the list below (or your phone)."); renderPayroll(); }
+  else { errEl.textContent = "Could not queue — has db/schema-payment-approvals.sql been run in Supabase?"; errEl.hidden = false; }
+});
+
 document.getElementById("manualSalaryDriver")?.addEventListener("change", updatePayNowHint);
 document.getElementById("manualSalaryForm")?.addEventListener("input", e => {
   if (["amount", "notes", "period"].includes(e.target.name)) renderUpiQr();

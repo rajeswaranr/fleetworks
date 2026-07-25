@@ -1154,6 +1154,7 @@ function renderSettings() {
   f.businessName.value = s.businessName || "";
   f.gstin.value = s.gstin || "";
   if (f.ownerPhone) f.ownerPhone.value = s.ownerPhone || "";
+  if (f.ownerUpi) f.ownerUpi.value = s.ownerUpi || "";
   f.city.value = s.city || "";
   f.warnDays.value = s.warnDays || "30";
   f.minTread.value = s.minTread || "";
@@ -1632,6 +1633,7 @@ document.getElementById("settingsForm").addEventListener("submit", e => {
   db.settings = {
     businessName: fd.businessName.trim(), gstin: fd.gstin.trim(), city: fd.city.trim(),
     ownerPhone: (fd.ownerPhone || "").replace(/\D/g, "").slice(0, 10) || undefined,
+    ownerUpi: (fd.ownerUpi || "").trim() || undefined,
     warnDays: +fd.warnDays, minTread: fd.minTread ? +fd.minTread : null,
     mileageDropPct: fd.mileageDropPct ? +fd.mileageDropPct : null
   };

@@ -791,6 +791,35 @@
 
         <div class="chart-card">
           <div class="chart-head"><div>
+            <h2>Payment Approvals <span class="fw-badge ok">Owner UPI</span></h2>
+            <p class="muted">Queue salary payments here — the owner approves each one from their phone, and the actual payment happens inside the owner's own UPI app (GPay / PhonePe / Paytm) with their UPI PIN. Set your Owner UPI ID in Settings.</p>
+          </div></div>
+          <form id="payReqForm" class="entry-form">
+            <div class="form-row">
+              <label>Driver
+                <select name="driverExtId" id="payReqDriver" required></select>
+              </label>
+              <label>Period
+                <input type="month" name="period" required />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Amount (₹)
+                <input type="number" name="amount" min="1" placeholder="e.g. 25000" required />
+              </label>
+              <label>Note (optional)
+                <input type="text" name="note" placeholder="e.g. July salary + trip bonus" maxlength="200" />
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary"><i data-icon="plus" data-icon-size="16"></i> Queue for Approval</button>
+            <p class="field-error" id="payReqErr" hidden></p>
+          </form>
+          <div id="payApprovalsList" style="margin-top:14px"></div>
+          <div id="payApproveQr" style="margin-top:10px"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head"><div>
             <h2>Automated Payouts via Cashfree <span class="fw-badge upcoming">Optional</span></h2>
             <p class="muted">Let FleetWorks move the money for you — set up each driver's bank/UPI once below, then send payments without leaving the app.</p>
           </div></div>
@@ -1278,6 +1307,11 @@
               </label>
               <label>Base City / Depot
                 <input type="text" name="city" placeholder="e.g. Coimbatore" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Owner UPI ID
+                <input type="text" name="ownerUpi" placeholder="e.g. owner@okhdfcbank" />
               </label>
             </div>
             <div class="form-row">
