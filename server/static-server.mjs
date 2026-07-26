@@ -4,8 +4,8 @@ import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const port = Number(process.env.PORT || 8080);
-const host = process.env.HOST || "127.0.0.1";
+const defaultPort = Number(process.env.PORT || 8080);
+const defaultHost = process.env.HOST || "127.0.0.1";
 
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
@@ -24,7 +24,7 @@ const mimeTypes = {
   ".woff2": "font/woff2"
 };
 
-function resolveRequestPath(url) {
+export function resolveRequestPath(url) {
   const requestedPath = decodeURIComponent(new URL(url, "http://localhost").pathname);
   const relativePath = requestedPath === "/" ? "index.html" : requestedPath.slice(1);
   const filePath = normalize(join(root, relativePath));
@@ -36,35 +36,57 @@ function resolveRequestPath(url) {
   return filePath;
 }
 
-const server = createServer((request, response) => {
-  const filePath = resolveRequestPath(request.url || "/");
+export function createStaticServer(options = {}) {
+  const port = options.port ?? defaultPort;
+  const host = options.host ?? defaultHost;
+  const server = createServer((request, response) => {
+    const filePath = resolveRequestPath(request.url || "/");
 
-  if (!filePath || !existsSync(filePath) || !statSync(filePath).isFile()) {
-    response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
-    response.end("404 Not Found");
-    return;
-  }
+    if (!filePath || !existsSync(filePath) || !statSync(filePath).isFile()) {
+      response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+      response.end("404 Not Found");
+      return;
+    }
 
-  response.writeHead(200, {
-    "Content-Type": mimeTypes[extname(filePath).toLowerCase()] || "application/octet-stream"
+    response.writeHead(200, {
+      "Content-Type": mimeTypes[extname(filePath).toLowerCase()] || "application/octet-stream"
+    });
+    createReadStream(filePath).pipe(response);
   });
-  createReadStream(filePath).pipe(response);
-});
 
-server.on("error", (error) => {
-  if (error.code === "EADDRINUSE") {
-    console.error(`Port ${port} is already in use. Try: PORT=8090 npm start`);
+  server.on("error", (error) => {
+    if (error.code === "EADDRINUSE") {
+      console.error(`Port ${port} is already in use. Try: PORT=8090 npm start`);
+      process.exit(1);
+    }
+
+    if (error.code === "EACCES" || error.code === "EPERM") {
+      console.error(`Cannot open ${host}:${port}. Try a different port: PORT=8090 npm start`);
+      process.exit(1);
+    }
+
+    throw error;
+  });
+
+  return server;
+}
+
+export function startServer(options = {}) {
+  return new Promise((resolve) => {
+    const port = options.port ?? defaultPort;
+    const host = options.host ?? defaultHost;
+    const server = createStaticServer({ port, host });
+    server.listen(port, host, () => {
+      const actualPort = server.address().port;
+      console.log(`FleetWorks is running at http://localhost:${actualPort}/`);
+      resolve(server);
+    });
+  });
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  startServer().catch((error) => {
+    console.error(error);
     process.exit(1);
-  }
-
-  if (error.code === "EACCES" || error.code === "EPERM") {
-    console.error(`Cannot open ${host}:${port}. Try a different port: PORT=8090 npm start`);
-    process.exit(1);
-  }
-
-  throw error;
-});
-
-server.listen(port, host, () => {
-  console.log(`FleetWorks is running at http://localhost:${port}/`);
-});
+  });
+}

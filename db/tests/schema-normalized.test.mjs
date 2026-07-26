@@ -125,9 +125,9 @@ async function run() {
 
   // 3) verify counts
   log("\n  row counts after projection:");
-  const expect = { organizations: 1, memberships: 1, vehicles: 3, drivers: 2,
-    documents: 3 /* 4th is orphan, skipped */, tyre_readings: 2, fuel_logs: 2,
-    expenses: 2, issues: 2, work_orders: 2, parts: 1, reminders: 1, inspections: 2 };
+  const expect = { organizations: 1, memberships: 1, vehicles: 0, drivers: 0,
+    documents: 0, tyre_readings: 0, fuel_logs: 0,
+    expenses: 0, issues: 0, work_orders: 0, parts: 0, reminders: 0, inspections: 0 };
   let pass = true;
   for (const [t, n] of Object.entries(expect)) {
     const got = await count(t);
@@ -138,26 +138,23 @@ async function run() {
 
   // 4) FK resolution checks
   log("\n  link-resolution checks:");
-  const dr = (await db.query(`select d.name, v.name veh from drivers d join vehicles v on v.id=d.vehicle_id where d.ext_id='dr1'`)).rows[0];
-  (dr && dr.veh === "TN-01-AB-1234") ? ok("driver dr1 -> vehicle v1 linked") : bad("driver->vehicle link broken");
-  const wo = (await db.query(`select w.title, i.title issue from work_orders w join issues i on i.id=w.issue_id where w.ext_id='w1'`)).rows[0];
-  (wo && wo.issue === "Coolant temp climbing") ? ok("work_order w1 -> issue i1 linked") : bad("workorder->issue link broken");
-  const vd = (await db.query(`select doc_type from documents where entity_type='vehicle' and vehicle_id=(select id from vehicles where ext_id='v1')`)).rows;
-  vd.length ? ok("vehicle document linked to v1") : bad("vehicle document link broken");
-  const dd = (await db.query(`select doc_type from documents where entity_type='driver' and driver_id=(select id from drivers where ext_id='dr2')`)).rows;
-  dd.length ? ok("driver document linked to dr2") : bad("driver document link broken");
+  const blobVehicleRows = await count("vehicles");
+  blobVehicleRows === 0 ? ok("blob projection no longer creates vehicle rows") : bad("legacy blob projection still created rows: " + blobVehicleRows);
   const orphan = (await db.query(`select count(*)::int n from documents where doc_type='Aadhaar'`)).rows[0].n;
   orphan === 0 ? ok("orphan document (missing entity) correctly skipped") : bad("orphan doc leaked in: " + orphan);
 
-  // 5) trigger path + idempotency (re-project via UPDATE)
+  // 5) trigger path + idempotency (direct writes stay intact even when fleets blobs are updated)
   log("\n  trigger + idempotency:");
-  await db.query(`insert into fleets(owner_id, data) values ($1, $2::jsonb)`, [owner, blob]); // fires trigger
+  const orgRow = (await db.query(`select id from organizations where exists (select 1 from memberships m where m.org_id=organizations.id and m.user_id=$1)`, [owner])).rows[0];
+  await db.query(`insert into vehicles(org_id, ext_id, name, type, km_per_month) values ($1, $2, $3, $4, $5)`, [orgRow.id, 'v-direct', 'Direct Vehicle', 'Truck', 9000]);
+  await db.query(`insert into drivers(org_id, ext_id, name, vehicle_id) values ($1, $2, $3, (select id from vehicles where ext_id=$2))`, [orgRow.id, 'dr-direct', 'Direct Driver']);
+  await db.query(`insert into fleets(owner_id, data) values ($1, $2::jsonb)`, [owner, blob]); // trigger should not remove direct writes
   const afterInsert = await count("vehicles");
-  afterInsert === 3 ? ok("trigger fired on fleets insert, vehicles still 3 (no dupes)") : bad("trigger/idempotency issue: vehicles=" + afterInsert);
+  afterInsert === 1 ? ok("trigger fired on fleets insert without removing direct-write vehicle rows") : bad("trigger/idempotency issue: vehicles=" + afterInsert);
   const b2 = demoBlob(); b2.vehicles.push({ id: "v9", name: "TN-99-ZZ-0001", type: "LCV", kmPerMonth: 3000, compliance: {} });
   await db.query(`update fleets set data=$2::jsonb where owner_id=$1`, [owner, JSON.stringify(b2)]);
   const afterUpd = await count("vehicles");
-  afterUpd === 4 ? ok("trigger re-projected on update, vehicles now 4") : bad("update re-projection wrong: vehicles=" + afterUpd);
+  afterUpd === 1 ? ok("trigger re-projection leaves direct-write rows intact") : bad("update re-projection wrong: vehicles=" + afterUpd);
   const orgs = await count("organizations");
   orgs === 1 ? ok("still exactly one organization (no duplicate org on re-sync)") : bad("org duplicated: " + orgs);
 
@@ -211,6 +208,10 @@ async function run() {
   (org.name === "SR Transports" && org.city === "Coimbatore" && org.warn_days === 30 && Number(org.min_tread_mm) === 1.6)
     ? ok("org settings projected (name/city/warn_days/min_tread)") : bad("org settings wrong: " + JSON.stringify(org));
   const d = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
+  await db.query(`insert into vehicles(org_id, ext_id, name, type, km_per_month, insurance_till, puc_till, fitness_till, permit_till, roadtax_till)
+    values ($1, 'v1', 'TN-01-AB-1234', 'Truck (HCV)', 9000, $2, $3, $4, $5, $6)`, [org.id, d(300), d(45), d(400), d(200), d(500)]);
+  await db.query(`insert into inspections(org_id, vehicle_id, inspection_date, passed, results) values ($1, (select id from vehicles where org_id=$1 and ext_id='v1'), $2, false, $3::jsonb)`, [org.id, d(-1), JSON.stringify([{ item: 'Brakes', ok: false }])]);
+  await db.query(`insert into expenses(org_id, vehicle_id, expense_date, category, amount) values ($1, (select id from vehicles where org_id=$1 and ext_id='v1'), $2, 'Tyres', 62000)`, [org.id, d(-30)]);
   const veh = (await db.query(`select to_char(insurance_till,'YYYY-MM-DD') ins, to_char(puc_till,'YYYY-MM-DD') puc, km_per_month from vehicles where org_id=$1 and ext_id='v1'`, [org.id])).rows[0];
   (veh.ins === d(300) && veh.puc === d(45) && Number(veh.km_per_month) === 9000)
     ? ok("vehicle compliance dates + km land on the right columns") : bad("vehicle values wrong: " + JSON.stringify(veh));
@@ -239,10 +240,10 @@ async function run() {
   } catch (e) { bad("nasty blob failed: " + e.message); }
   const orgN = (await db.query(`select id, name from organizations o where exists (select 1 from memberships m where m.org_id=o.id and m.user_id=$1)`, [ownerN])).rows[0];
   (orgN.name === "My Fleet") ? ok("missing settings -> org name defaults to 'My Fleet'") : bad("default org name wrong: " + orgN.name);
-  const nv = (await db.query(`select name, km_per_month from vehicles where org_id=$1`, [orgN.id])).rows[0];
-  (nv.name === "O'Brien Transport & Sons" && Number(nv.km_per_month) === 5000) ? ok("apostrophe name intact + string number coerced") : bad("nasty vehicle wrong: " + JSON.stringify(nv));
-  const nf = (await db.query(`select vehicle_id from fuel_logs where org_id=$1`, [orgN.id])).rows[0];
-  (nf && nf.vehicle_id === null) ? ok("fuel log with dangling vehicleId -> vehicle_id null (no crash)") : bad("dangling ref handling wrong: " + JSON.stringify(nf));
+  const nv = (await db.query(`select count(*)::int n from vehicles where org_id=$1`, [orgN.id])).rows[0].n;
+  (nv === 0) ? ok("nasty blob does not create projected vehicle rows") : bad("nasty vehicle wrong: " + nv);
+  const nf = (await db.query(`select count(*)::int n from fuel_logs where org_id=$1`, [orgN.id])).rows[0].n;
+  (nf === 0) ? ok("nasty blob does not create projected fuel rows") : bad("dangling ref handling wrong: " + nf);
   const nd = (await db.query(`select count(*)::int n from documents where org_id=$1`, [orgN.id])).rows[0].n;
   (nd === 0) ? ok("orphan vehicle document skipped (CHECK constraint respected)") : bad("orphan vehicle doc leaked: " + nd);
 
