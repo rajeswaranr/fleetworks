@@ -468,10 +468,8 @@ function renderOverview() {
 }
 
 // ---------- Add Vehicle (FleetOps main page) ----------
-async function saveNewVehicle(form) {
-  const fd = Object.fromEntries(new FormData(form));
-  const v = {
-    id: uid(),
+function vehicleFieldsFromForm(fd) {
+  return {
     name: (fd.name || "").trim().toUpperCase(),
     type: fd.type,
     kmPerMonth: +fd.kmPerMonth || 0,
@@ -507,6 +505,10 @@ async function saveNewVehicle(form) {
       permit: fd.permit || "", roadtax: fd.roadtax || ""
     }
   };
+}
+async function saveNewVehicle(form) {
+  const fd = Object.fromEntries(new FormData(form));
+  const v = { id: uid(), ...vehicleFieldsFromForm(fd) };
   if (!v.name || !v.type) { alert("Registration number and vehicle type are required."); return null; }
   if (db.vehicles.some(x => x.name === v.name)) { alert(v.name + " is already in your fleet."); return null; }
 
@@ -534,11 +536,92 @@ async function saveNewVehicle(form) {
   renderAll();
   return v;
 }
-function fillDriverSelect() {
+
+// ---------- Vehicle edit (reuses the Add Vehicle form) ----------
+let vehicleEditId = null;
+async function updateVehicleInPlace(form, id) {
+  const v = db.vehicles.find(x => x.id === id);
+  if (!v) return null;
+  const fd = Object.fromEntries(new FormData(form));
+  const fields = vehicleFieldsFromForm(fd);
+  if (!fields.name || !fields.type) { alert("Registration number and vehicle type are required."); return null; }
+  if (db.vehicles.some(x => x.id !== id && x.name === fields.name)) { alert(fields.name + " is already used by another vehicle."); return null; }
+
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const ok = await dbUpdateVehicleFields(v.id, fields);
+    if (!ok) { alert("Could not save this vehicle — check your connection and try again."); return null; }
+  }
+  Object.assign(v, fields);
+
+  // driver (re)assignment, mirroring saveNewVehicle's create-time logic
+  const currentDriver = db.drivers.find(d => d.vehicleId === v.id);
+  const newDriverId = fd.driverId || "";
+  if (newDriverId !== (currentDriver ? currentDriver.id : "")) {
+    if (currentDriver) {
+      currentDriver.vehicleId = "";
+      if (typeof coreDbBacked === "function" && coreDbBacked() && currentDriver.dbId) await dbUpdateDriver(currentDriver.id, { vehicleId: "" });
+    }
+    if (newDriverId) {
+      const d = db.drivers.find(x => x.id === newDriverId);
+      if (d) {
+        d.vehicleId = v.id;
+        if (typeof coreDbBacked === "function" && coreDbBacked() && d.dbId && v.dbId) await dbAssignVehicleToDriver(d.dbId, v.dbId);
+      }
+    }
+  }
+  saveStore();
+  renderAll();
+  return v;
+}
+function openEditVehicle(id) {
+  const v = db.vehicles.find(x => x.id === id);
+  if (!v) return;
+  vehicleEditId = id;
+  const form = document.getElementById("addVehForm");
+  form.reset();
+  form.name.value = v.name || ""; form.type.value = v.type || ""; form.status.value = v.status || "Active";
+  form.make.value = v.make || ""; form.model.value = v.model || ""; form.year.value = v.year || "";
+  form.chassisNo.value = v.chassisNo || ""; form.engineNo.value = v.engineNo || ""; form.ownership.value = v.ownership || "";
+  form.kmPerMonth.value = v.kmPerMonth || "";
+  const currentDriver = db.drivers.find(d => d.vehicleId === v.id);
+  fillDriverSelect(currentDriver ? currentDriver.id : "");
+  if (currentDriver) form.driverId.value = currentDriver.id;
+  form.group.value = v.group || ""; form.depot.value = v.depot || ""; form.emission.value = v.emission || "";
+  form.fuelType.value = v.fuelType || "Diesel"; form.tankCapacity.value = v.tankCapacity || ""; form.color.value = v.color || "";
+  form.gvw.value = v.gvw || ""; form.payload.value = v.payload || ""; form.axleConfig.value = v.axleConfig || "";
+  form.tyreFrontPsi.value = v.tyreFrontPsi || ""; form.tyreRearPsi.value = v.tyreRearPsi || ""; form.tyreSize.value = v.tyreSize || "";
+  const c = v.compliance || {};
+  form.insurance.value = c.insurance || ""; form.puc.value = c.puc || ""; form.fitness.value = c.fitness || "";
+  form.permit.value = c.permit || ""; form.roadtax.value = c.roadtax || ""; form.rto.value = v.rto || "";
+  form.purchaseDate.value = v.purchaseDate || ""; form.purchasePrice.value = v.purchasePrice || ""; form.purchaseVendor.value = v.purchaseVendor || "";
+  form.inServiceDate.value = v.inServiceDate || ""; form.serviceLifeMonths.value = v.serviceLifeMonths || ""; form.resaleValue.value = v.resaleValue || "";
+  form.notes.value = v.notes || "";
+  // odo is an opening-meter-reading field, meaningful only when a vehicle is
+  // first created — leave blank and out of the way during edit.
+  form.odo.value = ""; form.odo.disabled = true; form.odo.placeholder = "Only set when a vehicle is first added";
+
+  document.getElementById("addVehSubmitBtn").innerHTML = `${FWIcon("check", { size: 18 })} Save Changes`;
+  document.getElementById("avSaveAdd").hidden = true;
+  document.getElementById("addVehCancelEdit").hidden = false;
+  document.querySelector('#tabBar .tab-btn[data-tab="addvehicle"]')?.click();
+  form.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+function resetVehicleFormToAddMode() {
+  vehicleEditId = null;
+  const form = document.getElementById("addVehForm");
+  form.reset();
+  form.odo.disabled = false; form.odo.placeholder = "meter reading today";
+  document.getElementById("addVehSubmitBtn").innerHTML = `${FWIcon("check", { size: 18 })} Save Vehicle`;
+  document.getElementById("avSaveAdd").hidden = false;
+  document.getElementById("addVehCancelEdit").hidden = true;
+}
+document.getElementById("addVehCancelEdit")?.addEventListener("click", resetVehicleFormToAddMode);
+
+function fillDriverSelect(includeAssignedToId) {
   const sel = document.getElementById("avDriver");
   if (!sel) return;
   sel.innerHTML = '<option value="">Not assigned</option>' +
-    db.drivers.filter(d => !d.vehicleId).map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join("");
+    db.drivers.filter(d => !d.vehicleId || d.id === includeAssignedToId).map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join("");
 }
 
 // ---------- Getting Started (signed-in, empty fleet) ----------
@@ -568,8 +651,8 @@ function renderTrips() {
   if (!tbl || !pt) return;
   const trips = [...(db.trips || [])].sort((a, b) => b.date.localeCompare(a.date));
   tbl.innerHTML = trips.length ?
-    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Route</th><th>Freight</th></tr></thead><tbody>` +
-    trips.slice(0, 50).map(t => `<tr><td>${fmtDate(t.date)}</td><td><strong>${esc(vName(t.vehicleId))}</strong></td><td>${esc(t.from)} &rarr; ${esc(t.to)}</td><td><strong>${fmtINR(t.freight)}</strong></td></tr>`).join("") + "</tbody></table>"
+    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Route</th><th>Freight</th><th></th></tr></thead><tbody>` +
+    trips.slice(0, 50).map(t => `<tr><td>${fmtDate(t.date)}</td><td><strong>${esc(vName(t.vehicleId))}</strong></td><td>${esc(t.from)} &rarr; ${esc(t.to)}</td><td><strong>${fmtINR(t.freight)}</strong></td><td><button class="link-btn" onclick="openEditTrip('${t.id}')">Edit</button></td></tr>`).join("") + "</tbody></table>"
     : "<p class='muted'>No trips yet — log your first load above and profit-per-vehicle lights up.</p>";
   const rows = db.vehicles.map(v => {
     const vt = (db.trips || []).filter(t => t.vehicleId === v.id);
@@ -590,6 +673,35 @@ function renderTrips() {
         <td>${m === null ? "—" : `<span class="fw-badge ${m >= 25 ? "ok" : m >= 0 ? "soon" : "overdue"}">${m}%</span>`}</td></tr>`;
     }).join("") + "</tbody></table>"
     : "<p class='muted'>Nothing to compare yet.</p>";
+}
+function openEditTrip(id) {
+  const t = (db.trips || []).find(x => x.id === id);
+  if (!t) return;
+  openEditModal("Edit Trip", `
+    <div class="form-row">
+      <label>Vehicle<select name="vehicleId" required>${vehicleOptionsHtml(t.vehicleId)}</select></label>
+      <label>Date<input type="date" name="date" value="${t.date || ""}" required /></label>
+    </div>
+    <div class="form-row">
+      <label>From<input type="text" name="from" value="${escAttr(t.from || "")}" required /></label>
+      <label>To<input type="text" name="to" value="${escAttr(t.to || "")}" required /></label>
+    </div>
+    <div class="form-row">
+      <label>Freight (&#8377;)<input type="number" name="freight" min="0" value="${t.freight}" required /></label>
+      <label>KM (optional)<input type="number" name="km" min="0" value="${t.km != null ? t.km : ""}" /></label>
+    </div>`, async fd => {
+    const patch = {
+      vehicleId: fd.vehicleId, date: fd.date, from: fd.from.trim(), to: fd.to.trim(),
+      freight: +fd.freight, km: fd.km ? +fd.km : undefined,
+    };
+    if (typeof coreDbBacked === "function" && coreDbBacked()) {
+      const ok = await dbUpdateTrip(t.id, patch);
+      if (!ok) throw new Error("Could not save — check your connection and try again.");
+    }
+    Object.assign(t, patch);
+    saveStore(); renderTrips(); renderOverview();
+    closeEditModal(); toast("Trip updated.");
+  });
 }
 
 // ---------- Render: driver khata ----------
@@ -617,12 +729,41 @@ function renderKhata() {
     : "<p class='muted'>Add drivers first — the khata tracks advances against each driver.</p>";
   const rows = [...ledger].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 60);
   tbl.innerHTML = rows.length ?
-    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Driver</th><th>Type</th><th>Amount</th><th>Note</th></tr></thead><tbody>` +
+    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Driver</th><th>Type</th><th>Amount</th><th>Note</th><th></th></tr></thead><tbody>` +
     rows.map(l => {
       const d = db.drivers.find(x => x.id === l.driverId);
-      return `<tr><td>${fmtDate(l.date)}</td><td><strong>${d ? esc(d.name) : "—"}</strong></td><td>${KHATA_LABEL[l.type] || l.type}</td><td>${fmtINR(l.amount)}</td><td>${esc(l.note || "")}</td></tr>`;
+      return `<tr><td>${fmtDate(l.date)}</td><td><strong>${d ? esc(d.name) : "—"}</strong></td><td>${KHATA_LABEL[l.type] || l.type}</td><td>${fmtINR(l.amount)}</td><td>${esc(l.note || "")}</td><td><button class="link-btn" onclick="openEditKhata('${l.id}')">Edit</button></td></tr>`;
     }).join("") + "</tbody></table>"
     : "<p class='muted'>No khata entries yet.</p>";
+}
+function openEditKhata(id) {
+  const l = (db.driverLedger || []).find(x => x.id === id);
+  if (!l) return;
+  openEditModal("Edit Khata Entry", `
+    <div class="form-row">
+      <label>Driver<select name="driverId" required>${driverOptionsHtml(l.driverId)}</select></label>
+      <label>Entry type
+        <select name="type" required>
+          <option value="advance" ${l.type === "advance" ? "selected" : ""}>Advance given to driver</option>
+          <option value="expense" ${l.type === "expense" ? "selected" : ""}>Trip expense (from advance)</option>
+          <option value="settlement" ${l.type === "settlement" ? "selected" : ""}>Cash returned / settled</option>
+        </select>
+      </label>
+    </div>
+    <div class="form-row">
+      <label>Amount (&#8377;)<input type="number" name="amount" min="1" value="${l.amount}" required /></label>
+      <label>Date<input type="date" name="date" value="${l.date || ""}" required /></label>
+    </div>
+    <label>Note<input type="text" name="note" value="${escAttr(l.note || "")}" /></label>`, async fd => {
+    const patch = { driverId: fd.driverId, type: fd.type, amount: +fd.amount, date: fd.date, note: fd.note.trim() || undefined };
+    if (typeof coreDbBacked === "function" && coreDbBacked()) {
+      const ok = await dbUpdateLedgerEntry(l.id, patch);
+      if (!ok) throw new Error("Could not save — check your connection and try again.");
+    }
+    Object.assign(l, patch);
+    saveStore(); renderKhata(); renderOverview();
+    closeEditModal(); toast("Khata entry updated.");
+  });
 }
 
 // ---------- Vehicle Health Score (0–100) ----------
@@ -729,14 +870,15 @@ function renderVehicles() {
   const rows = db.vehicles.map(v => {
     const c = v.compliance || {};
     const driver = db.drivers.find(d => d.vehicleId === v.id);
-    return `<tr class="veh-row" data-vid="${v.id}" style="cursor:pointer">
-      <td><strong>${esc(v.name)}</strong><br /><span class="muted">${esc(v.type)} · ${v.kmPerMonth.toLocaleString("en-IN")} km/mo${driver ? " · " + FWIcon("driver", { size: 13, cls: "ic-muted" }) + " " + esc(driver.name) : ""}</span></td>
-      <td>${healthBadge(healthScore(v))}</td>
-      ${complianceCell(c.insurance)}${complianceCell(c.puc)}${complianceCell(c.fitness)}${complianceCell(c.permit)}${complianceCell(c.roadtax)}</tr>
-      <tr class="veh-history" data-hist="${v.id}" hidden><td colspan="7" style="background:#f8fafc">${serviceHistoryHTML(v.id)}</td></tr>`;
+    return `<tr class="veh-row" data-vid="${v.id}">
+      <td style="cursor:pointer"><strong>${esc(v.name)}</strong><br /><span class="muted">${esc(v.type)} · ${v.kmPerMonth.toLocaleString("en-IN")} km/mo${driver ? " · " + FWIcon("driver", { size: 13, cls: "ic-muted" }) + " " + esc(driver.name) : ""}</span></td>
+      <td style="cursor:pointer">${healthBadge(healthScore(v))}</td>
+      ${complianceCell(c.insurance)}${complianceCell(c.puc)}${complianceCell(c.fitness)}${complianceCell(c.permit)}${complianceCell(c.roadtax)}
+      <td><button class="link-btn" onclick="event.stopPropagation();openEditVehicle('${v.id}')">Edit</button></td></tr>
+      <tr class="veh-history" data-hist="${v.id}" hidden><td colspan="8" style="background:#f8fafc">${serviceHistoryHTML(v.id)}</td></tr>`;
   }).join("");
   document.getElementById("vehicleComplianceTable").innerHTML =
-    `<table class="chart-table-el"><thead><tr><th>Vehicle</th><th>Health</th><th>Insurance</th><th>PUC</th><th>Fitness</th><th>Permit</th><th>Road Tax</th></tr></thead><tbody>${rows}</tbody></table>`;
+    `<table class="chart-table-el"><thead><tr><th>Vehicle</th><th>Health</th><th>Insurance</th><th>PUC</th><th>Fitness</th><th>Permit</th><th>Road Tax</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   document.querySelectorAll(".veh-row").forEach(r => r.addEventListener("click", () => {
     const hist = document.querySelector(`[data-hist="${r.dataset.vid}"]`);
     hist.hidden = !hist.hidden;
@@ -757,7 +899,7 @@ function serviceHistoryHTML(vid) {
 // ---------- Render: drivers ----------
 function renderDrivers() {
   document.getElementById("driversTable").innerHTML = db.drivers.length ?
-    `<table class="chart-table-el"><thead><tr><th>Driver</th><th>DL Number</th><th>DL Validity</th><th>Assigned Vehicle</th><th>Message</th><th>Driver Link</th></tr></thead><tbody>` +
+    `<table class="chart-table-el"><thead><tr><th>Driver</th><th>DL Number</th><th>DL Validity</th><th>Assigned Vehicle</th><th>Message</th><th>Driver Link</th><th></th></tr></thead><tbody>` +
     db.drivers.map(d => {
       const days = d.dlExpiry ? daysUntil(d.dlExpiry) : null;
       const pill = days === null ? '<span class="fw-badge upcoming">Not set</span>' :
@@ -772,7 +914,8 @@ function renderDrivers() {
       return `<tr><td><strong>${esc(d.name)}</strong>${d.phone ? "<br /><span class='muted'>" + FWIcon("phone", { size: 13, cls: "ic-muted" }) + " " + esc(d.phone) + "</span>" : ""}</td>
         <td>${esc(d.dlNo)}</td><td>${pill}</td><td>${d.vehicleId ? esc(vName(d.vehicleId)) : "<span class='muted'>—</span>"}</td>
         <td>${d.phone ? waBtn(d.phone, msg, "WhatsApp") : "<span class='muted'>No number</span>"}</td>
-        <td><button class="link-btn" onclick="copyDriverLink('${d.id}')">${FWIcon("link", { size: 13 })} Copy link</button></td></tr>`;
+        <td><button class="link-btn" onclick="copyDriverLink('${d.id}')">${FWIcon("link", { size: 13 })} Copy link</button></td>
+        <td><button class="link-btn" onclick="openEditDriver('${d.id}')">Edit</button></td></tr>`;
     }).join("") + "</tbody></table>"
     : "<p class='muted'>No drivers added yet.</p>";
 }
@@ -787,10 +930,31 @@ function renderWorkOrders() {
       <div class="pred-detail">
         <span>${w.vendor ? esc(w.vendor) + " · " : ""}opened ${fmtDate(w.createdAt)}${w.estCost ? " · est. " + fmtINR(w.estCost) : ""}</span>
         <button class="link-btn" onclick="completeWorkOrder('${w.id}')">${FWIcon("check", { size: 14 })} Complete &amp; Bill</button>
+        <button class="link-btn" onclick="openEditWorkOrder('${w.id}')">${FWIcon("document", { size: 14 })} Edit</button>
       </div>
     </div>`).join("") : "<p class='muted'>No open job cards.</p>") +
     (done.length ? `<details class="chart-table"><summary>Completed job cards (${done.length})</summary>` +
       done.map(w => `<p class="muted" style="margin:6px 0">${FWIcon("checkCircle", { size: 14, cls: "ic-success" })} ${esc(vName(w.vehicleId))} — ${esc(w.title)} · ${fmtINR(w.finalCost || 0)} (${fmtDate(w.completedAt)})</p>`).join("") + "</details>" : "");
+}
+function openEditWorkOrder(id) {
+  const w = db.workOrders.find(x => x.id === id);
+  if (!w) return;
+  openEditModal("Edit Job Card", `
+    <label>Vehicle<select name="vehicleId" required>${vehicleOptionsHtml(w.vehicleId)}</select></label>
+    <label>Title<input type="text" name="title" value="${escAttr(w.title || "")}" required /></label>
+    <div class="form-row">
+      <label>Vendor / Workshop<input type="text" name="vendor" value="${escAttr(w.vendor || "")}" /></label>
+      <label>Estimated Cost (&#8377;)<input type="number" name="estCost" min="0" value="${w.estCost != null ? w.estCost : ""}" /></label>
+    </div>`, async fd => {
+    const patch = { vehicleId: fd.vehicleId, title: fd.title.trim(), vendor: fd.vendor.trim() || undefined, estCost: fd.estCost ? +fd.estCost : undefined };
+    if (typeof coreDbBacked === "function" && coreDbBacked()) {
+      const ok = await dbUpdateWorkOrder(w.id, patch);
+      if (!ok) throw new Error("Could not save — check your connection and try again.");
+    }
+    Object.assign(w, patch);
+    saveStore(); renderWorkOrders(); renderOverview();
+    closeEditModal(); toast("Job card updated.");
+  });
 }
 
 async function createWorkOrder(issueId) {
@@ -817,7 +981,7 @@ async function completeWorkOrder(id) {
   if (!w) return;
   const cost = prompt("Final bill amount (₹):", w.estCost || "");
   if (cost === null || !+cost) return;
-  const cat = prompt("Expense category (Tyres / Battery / Brakes / Clutch / Engine Oil & Filters / Suspension / Electrical / Body & Paint / Other):", "Other");
+  const cat = prompt("Expense category (Tyres / Battery / Brakes / Clutch / Engine Oil & Filters / Suspension / Electrical / Body & Paint / DEF / Greasing / Water Wash / RTO / Police / Other — or type your own):", "Other");
   if (cat === null) return;
   w.status = "Completed"; w.completedAt = new Date().toISOString().slice(0, 10); w.finalCost = +cost;
   const ex = { vehicleId: w.vehicleId, date: w.completedAt, category: cat.trim() || "Other", amount: +cost };
@@ -880,9 +1044,9 @@ function renderFuel() {
   }
 
   document.getElementById("fuelTable").innerHTML =
-    `<table><thead><tr><th>Date</th><th>Vehicle</th><th>Litres</th><th>Amount</th><th>Odometer</th></tr></thead><tbody>` +
+    `<table><thead><tr><th>Date</th><th>Vehicle</th><th>Litres</th><th>Amount</th><th>Odometer</th><th></th></tr></thead><tbody>` +
     [...db.fuelLogs].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 30)
-      .map(f => `<tr><td>${fmtDate(f.date)}</td><td>${esc(vName(f.vehicleId))}</td><td>${f.litres}</td><td>${fmtINR(f.amount)}</td><td>${f.odo.toLocaleString("en-IN")} km</td></tr>`).join("") +
+      .map(f => `<tr><td>${fmtDate(f.date)}</td><td>${esc(vName(f.vehicleId))}</td><td>${f.litres}</td><td>${fmtINR(f.amount)}</td><td>${f.odo.toLocaleString("en-IN")} km</td><td><button class="link-btn" onclick="openEditFuelLog('${f.id}')">Edit</button></td></tr>`).join("") +
     "</tbody></table>";
 }
 
@@ -922,10 +1086,34 @@ function renderIssues() {
         <span>Reported ${fmtDate(i.createdAt)}${i.source ? " · via " + esc(i.source) : ""}${i.status === "In Progress" ? " · <em>job card open</em>" : ""}</span>
         ${i.status !== "In Progress" ? `<button class="link-btn" onclick="createWorkOrder('${i.id}')">${FWIcon("wrench", { size: 14 })} Open Job Card</button>` : ""}
         <button class="link-btn" onclick="resolveIssue('${i.id}')">${FWIcon("check", { size: 14 })} Mark Resolved</button>
+        <button class="link-btn" onclick="openEditIssue('${i.id}')">${FWIcon("document", { size: 14 })} Edit</button>
       </div>
     </div>`).join("") : "<p class='muted'>No open issues.</p>") +
     (resolved.length ? `<details class="chart-table"><summary>Recently resolved (${resolved.length})</summary>` +
       resolved.map(i => `<p class="muted" style="margin:6px 0">${FWIcon("checkCircle", { size: 14, cls: "ic-success" })} ${esc(vName(i.vehicleId))} — ${esc(i.title)} (${fmtDate(i.resolvedAt)})</p>`).join("") + "</details>" : "");
+}
+function openEditIssue(id) {
+  const i = db.issues.find(x => x.id === id);
+  if (!i) return;
+  openEditModal("Edit Issue", `
+    <label>Vehicle<select name="vehicleId" required>${vehicleOptionsHtml(i.vehicleId)}</select></label>
+    <label>Title<input type="text" name="title" value="${escAttr(i.title || "")}" required /></label>
+    <label>Severity
+      <select name="severity" required>
+        <option value="High" ${i.severity === "High" ? "selected" : ""}>High</option>
+        <option value="Medium" ${i.severity === "Medium" ? "selected" : ""}>Medium</option>
+        <option value="Low" ${i.severity === "Low" ? "selected" : ""}>Low</option>
+      </select>
+    </label>`, async fd => {
+    const patch = { vehicleId: fd.vehicleId, title: fd.title.trim(), severity: fd.severity };
+    if (typeof coreDbBacked === "function" && coreDbBacked()) {
+      const ok = await dbUpdateIssue(i.id, patch);
+      if (!ok) throw new Error("Could not save — check your connection and try again.");
+    }
+    Object.assign(i, patch);
+    saveStore(); renderIssues(); renderOverview();
+    closeEditModal(); toast("Issue updated.");
+  });
 }
 async function resolveIssue(id) {
   const i = db.issues.find(x => x.id === id);
@@ -950,7 +1138,8 @@ function renderReminders() {
       <div class="pred-main"><span><strong>${esc(vName(r.vehicleId))}</strong> — ${esc(r.task)}</span>
         <span class="fw-badge ${cls}">${FWIcon(bic, { size: 13 })}${label}</span></div>
       <div class="pred-detail"><span>Every ${r.everyMonths} months · last done ${fmtDate(r.lastDate)} · next ${fmtDate(r.nextDate)}</span>
-        <button class="link-btn" onclick="completeReminder('${r.id}')">${FWIcon("check", { size: 14 })} Done Today</button></div>
+        <button class="link-btn" onclick="completeReminder('${r.id}')">${FWIcon("check", { size: 14 })} Done Today</button>
+        <button class="link-btn" onclick="openEditReminder('${r.id}')">${FWIcon("document", { size: 14 })} Edit</button></div>
     </div>`;
   }).join("") : "<p class='muted'>No PM schedules yet — add one below.</p>";
 }
@@ -963,6 +1152,26 @@ async function completeReminder(id) {
     if (!ok) { toast("Could not save — check your connection and try again.", "err"); return; }
   }
   saveStore(); renderReminders(); renderOverview();
+}
+function openEditReminder(id) {
+  const r = db.reminders.find(x => x.id === id);
+  if (!r) return;
+  openEditModal("Edit Reminder", `
+    <label>Vehicle<select name="vehicleId" required>${vehicleOptionsHtml(r.vehicleId)}</select></label>
+    <label>Task<input type="text" name="task" value="${escAttr(r.task)}" required /></label>
+    <div class="form-row">
+      <label>Every (months)<input type="number" name="everyMonths" min="1" value="${r.everyMonths}" required /></label>
+      <label>Last done<input type="date" name="lastDate" value="${r.lastDate || ""}" required /></label>
+    </div>`, async fd => {
+    const patch = { vehicleId: fd.vehicleId, task: fd.task.trim(), everyMonths: +fd.everyMonths, lastDate: fd.lastDate };
+    if (typeof coreDbBacked === "function" && coreDbBacked()) {
+      const ok = await dbUpdateReminder(r.id, patch);
+      if (!ok) throw new Error("Could not save — check your connection and try again.");
+    }
+    Object.assign(r, patch);
+    saveStore(); renderReminders(); renderOverview();
+    closeEditModal(); toast("Reminder updated.");
+  });
 }
 
 // ---------- Render: parts ----------
@@ -980,20 +1189,21 @@ function renderParts() {
     const stockPill = p.qty <= p.minQty
       ? '<span class="comp-pill" style="background:#fde2e2;color:#991b1b">Reorder</span>'
       : '<span class="comp-pill" style="background:#dcf5e3;color:#166534">OK</span>';
-    return `<tr class="veh-row" data-pid="${p.id}" style="cursor:pointer">
-        <td><strong>${esc(p.name)}</strong>${p.partNumber ? "<br /><span class='muted'>#" + esc(p.partNumber) + "</span>" : ""}</td>
-        <td>${esc(p.make || "—")}</td>
-        <td>${esc(p.category || "—")}</td>
-        <td>${esc(p.vendor || "—")}</td>
-        <td>${p.qty} <span class="muted">/ min ${p.minQty}</span></td>
-        <td>${p.unitCost != null ? fmtINR(p.unitCost) : "—"}</td>
-        <td>${stockPill}</td>
-        <td>${warrantyPill(p.warrantyExpiry)}</td>
+    return `<tr class="veh-row" data-pid="${p.id}">
+        <td style="cursor:pointer"><strong>${esc(p.name)}</strong>${p.partNumber ? "<br /><span class='muted'>#" + esc(p.partNumber) + "</span>" : ""}</td>
+        <td style="cursor:pointer">${esc(p.make || "—")}</td>
+        <td style="cursor:pointer">${esc(p.category || "—")}</td>
+        <td style="cursor:pointer">${esc(p.vendor || "—")}</td>
+        <td style="cursor:pointer">${p.qty} <span class="muted">/ min ${p.minQty}</span></td>
+        <td style="cursor:pointer">${p.unitCost != null ? fmtINR(p.unitCost) : "—"}</td>
+        <td style="cursor:pointer">${stockPill}</td>
+        <td style="cursor:pointer">${warrantyPill(p.warrantyExpiry)}</td>
+        <td><button class="link-btn" onclick="event.stopPropagation();openEditPart('${p.id}')">Edit</button></td>
       </tr>
-      <tr class="veh-history" data-hist="${p.id}" hidden><td colspan="8" style="background:#f8fafc">${partDetailHTML(p)}</td></tr>`;
+      <tr class="veh-history" data-hist="${p.id}" hidden><td colspan="9" style="background:#f8fafc">${partDetailHTML(p)}</td></tr>`;
   }).join("");
   box.innerHTML = `<table class="chart-table-el"><thead><tr>
-      <th>Part</th><th>Make</th><th>Category</th><th>Vendor</th><th>Qty</th><th>Unit Cost</th><th>Stock</th><th>Warranty</th>
+      <th>Part</th><th>Make</th><th>Category</th><th>Vendor</th><th>Qty</th><th>Unit Cost</th><th>Stock</th><th>Warranty</th><th></th>
     </tr></thead><tbody>${rows}</tbody></table>`;
   document.querySelectorAll("#partsTable .veh-row").forEach(r => r.addEventListener("click", () => {
     const hist = document.querySelector(`[data-hist="${r.dataset.pid}"]`);
@@ -1001,6 +1211,42 @@ function renderParts() {
   }));
 }
 
+function openEditPart(id) {
+  const p = db.parts.find(x => x.id === id);
+  if (!p) return;
+  openEditModal("Edit Part", `
+    <label>Part Name<input type="text" name="name" value="${escAttr(p.name)}" required /></label>
+    <div class="form-row">
+      <label>Part Number<input type="text" name="partNumber" value="${escAttr(p.partNumber || "")}" /></label>
+      <label>Make / Brand<input type="text" name="make" value="${escAttr(p.make || "")}" /></label>
+    </div>
+    <div class="form-row">
+      <label>Category<input type="text" name="category" value="${escAttr(p.category || "")}" /></label>
+      <label>Vendor<input type="text" name="vendor" value="${escAttr(p.vendor || "")}" /></label>
+    </div>
+    <div class="form-row">
+      <label>Qty<input type="number" name="qty" min="0" value="${p.qty}" required /></label>
+      <label>Min Qty<input type="number" name="minQty" min="0" value="${p.minQty}" required /></label>
+    </div>
+    <div class="form-row">
+      <label>Unit Cost (&#8377;)<input type="number" name="unitCost" min="0" value="${p.unitCost != null ? p.unitCost : ""}" /></label>
+      <label>Warranty Expiry<input type="date" name="warrantyExpiry" value="${p.warrantyExpiry || ""}" /></label>
+    </div>`, async fd => {
+    const patch = {
+      name: fd.name.trim(), partNumber: fd.partNumber.trim() || undefined, make: fd.make.trim() || undefined,
+      category: fd.category.trim() || undefined, vendor: fd.vendor.trim() || undefined,
+      qty: +fd.qty, minQty: +fd.minQty,
+      unitCost: fd.unitCost ? +fd.unitCost : undefined, warrantyExpiry: fd.warrantyExpiry || undefined,
+    };
+    if (typeof coreDbBacked === "function" && coreDbBacked()) {
+      const ok = await dbUpdatePart(p.id, patch);
+      if (!ok) throw new Error("Could not save — check your connection and try again.");
+    }
+    Object.assign(p, patch);
+    saveStore(); renderParts(); renderOverview();
+    closeEditModal(); toast("Part updated.");
+  });
+}
 function partDetailHTML(p) {
   const rows = [
     ["Sourcing", p.sourcing],
@@ -1103,12 +1349,57 @@ function renderDocuments() {
         <td>${esc(d.docType)}</td>
         <td>${d.number ? esc(d.number) : "<span class='muted'>—</span>"}</td>
         <td>${d.expiryDate ? fmtDate(d.expiryDate) + " " : ""}${badge}</td>
-        <td><button class="icon-btn" title="Delete" onclick="deleteDocument('${d.id}')">${FWIcon("trash", { size: 16, cls: "ic-danger" })}</button></td></tr>`;
+        <td><button class="link-btn" onclick="openEditDocument('${d.id}')">Edit</button> <button class="icon-btn" title="Delete" onclick="deleteDocument('${d.id}')">${FWIcon("trash", { size: 16, cls: "ic-danger" })}</button></td></tr>`;
     }).join("") + "</tbody></table>"
     : "<p class='muted'>No documents stored yet. Add your first RC, insurance or permit below — expiries will show on the Compliance Radar.</p>";
 }
+function openEditDocument(id) {
+  const d = db.documents.find(x => x.id === id);
+  if (!d) return;
+  const entityListHtml = type => (type === "driver" ? db.drivers : db.vehicles)
+    .map(x => `<option value="${x.id}" ${x.id === d.entityId ? "selected" : ""}>${esc(x.name)}</option>`).join("");
+  const docTypeListHtml = type => (DOC_TYPES[type] || DOC_TYPES.vehicle)
+    .map(t => `<option ${t === d.docType ? "selected" : ""}>${t}</option>`).join("");
+  openEditModal("Edit Document", `
+    <div class="form-row">
+      <label>Attached to
+        <select name="entityType" id="editDocEntityType">
+          <option value="vehicle" ${d.entityType === "vehicle" ? "selected" : ""}>Vehicle</option>
+          <option value="driver" ${d.entityType === "driver" ? "selected" : ""}>Driver</option>
+        </select>
+      </label>
+      <label>${d.entityType === "driver" ? "Driver" : "Vehicle"}
+        <select name="entityId" id="editDocEntityId">${entityListHtml(d.entityType)}</select>
+      </label>
+    </div>
+    <label>Document Type<select name="docType" id="editDocType">${docTypeListHtml(d.entityType)}</select></label>
+    <div class="form-row">
+      <label>Number<input type="text" name="number" value="${escAttr(d.number || "")}" /></label>
+      <label>Valid Till<input type="date" name="expiryDate" value="${d.expiryDate || ""}" /></label>
+    </div>
+    <label>Issue Date<input type="date" name="issueDate" value="${d.issueDate || ""}" /></label>
+    <label>Note<input type="text" name="note" value="${escAttr(d.note || "")}" /></label>`, async fd => {
+    const patch = {
+      entityType: fd.entityType, entityId: fd.entityId, docType: fd.docType,
+      number: fd.number.trim() || undefined, issueDate: fd.issueDate || undefined,
+      expiryDate: fd.expiryDate || undefined, note: fd.note.trim() || undefined,
+    };
+    if (typeof coreDbBacked === "function" && coreDbBacked()) {
+      const ok = await dbUpdateDocument(d.id, patch);
+      if (!ok) throw new Error("Could not save — check your connection and try again.");
+    }
+    Object.assign(d, patch);
+    saveStore(); renderDocuments(); renderRadar(); renderOverview();
+    closeEditModal(); toast("Document updated.");
+  });
+  document.getElementById("editDocEntityType").addEventListener("change", e => {
+    document.getElementById("editDocEntityId").innerHTML = entityListHtml(e.target.value);
+    document.getElementById("editDocType").innerHTML = docTypeListHtml(e.target.value);
+  });
+}
 async function deleteDocument(id) {
-  if (!confirm("Delete this document?")) return;
+  const doc = db.documents.find(x => x.id === id);
+  if (!confirmDestructive(`Delete this document?${doc ? `\n\n${doc.docType}${doc.number ? " · " + doc.number : ""}` : ""}`)) return;
   if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const ok = await dbDeleteDocument(id);
     if (!ok) { toast("Could not delete — check your connection and try again.", "err"); return; }
@@ -1136,15 +1427,42 @@ function renderTyres() {
   const cards = positions.map(pos => {
     const r = latest[pos];
     const cls = !r ? "empty" : r.treadDepth <= minTread() ? "bad" : r.treadDepth <= minTread() + 1.5 ? "warn" : "good";
-    return `<div class="tyre-cell ${cls}">
+    return `<div class="tyre-cell ${cls}" ${r ? `style="cursor:pointer" onclick="openEditTyreReading('${r.id}')" title="Edit this reading"` : ""}>
       <span class="tyre-pos">${FWIcon("tire", { size: 16 })} ${esc(pos)}</span>
       ${r ? `<span class="tyre-read">${r.treadDepth}mm${r.pressure ? " · " + r.pressure + " psi" : ""}</span>
              <span class="tyre-date">${fmtDate(r.date)}</span>` : `<span class="tyre-read muted">No reading</span>`}
     </div>`;
   }).join("");
   box.innerHTML = `
-    <div class="tyre-summary">${worn ? `<span class="fw-badge overdue">${FWIcon("alert", { size: 13 })}${worn} tyre(s) at/under ${minTread()}mm — replace</span>` : `<span class="fw-badge ok">${FWIcon("shieldCheck", { size: 13 })}All tyres above the ${minTread()}mm safe limit</span>`} <span class="muted">Safe limit is set in Settings.</span></div>
+    <div class="tyre-summary">${worn ? `<span class="fw-badge overdue">${FWIcon("alert", { size: 13 })}${worn} tyre(s) at/under ${minTread()}mm — replace</span>` : `<span class="fw-badge ok">${FWIcon("shieldCheck", { size: 13 })}All tyres above the ${minTread()}mm safe limit</span>`} <span class="muted">Safe limit is set in Settings. Click a tyre with a reading to edit it.</span></div>
     <div class="tyre-grid">${cards}</div>`;
+}
+function openEditTyreReading(id) {
+  const t = db.tyreReadings.find(x => x.id === id);
+  if (!t) return;
+  openEditModal("Edit Tyre Reading", `
+    <label>Vehicle<select name="vehicleId" required>${vehicleOptionsHtml(t.vehicleId)}</select></label>
+    <label>Position<input type="text" name="position" value="${escAttr(t.position)}" required /></label>
+    <div class="form-row">
+      <label>Tread Depth (mm)<input type="number" name="treadDepth" step="0.1" min="0" value="${t.treadDepth}" required /></label>
+      <label>Pressure (psi)<input type="number" name="pressure" value="${t.pressure != null ? t.pressure : ""}" /></label>
+    </div>
+    <div class="form-row">
+      <label>Odometer (km)<input type="number" name="odo" value="${t.odo != null ? t.odo : ""}" /></label>
+      <label>Date<input type="date" name="date" value="${t.date || ""}" required /></label>
+    </div>`, async fd => {
+    const patch = {
+      vehicleId: fd.vehicleId, position: fd.position.trim(), treadDepth: +fd.treadDepth,
+      pressure: fd.pressure ? +fd.pressure : undefined, odo: fd.odo ? +fd.odo : undefined, date: fd.date,
+    };
+    if (typeof coreDbBacked === "function" && coreDbBacked()) {
+      const ok = await dbUpdateTyreReading(t.id, patch);
+      if (!ok) throw new Error("Could not save — check your connection and try again.");
+    }
+    Object.assign(t, patch);
+    saveStore(); renderTyres(); renderOverview();
+    closeEditModal(); toast("Tyre reading updated.");
+  });
 }
 
 // ---------- Render: Settings ----------
@@ -1391,6 +1709,30 @@ function fillTyrePositions() {
   if ([...psel.options].some(o => o.value === keep)) psel.value = keep;
 }
 
+// Suggested expense categories, shown in every expense-category field's
+// datalist (both are free-text inputs, not a fixed <select> — anyone can
+// type a new type). Presets first, then every category any expense has
+// ever actually used, so a custom type typed once shows up as a suggestion
+// everywhere from then on — no separate "manage categories" list to keep.
+const DEFAULT_EXPENSE_CATEGORIES = [
+  "Tyres", "Tyre Puncture", "Tyre Change", "Battery", "Brakes", "Clutch",
+  "Engine Oil & Filters", "Suspension", "Electrical", "Body & Paint",
+  "DEF", "Greasing", "Water Wash", "RTO", "Police",
+  "Insurance", "Permit & Road Tax", "Fitness & PUC", "Other",
+];
+function renderExpenseCategoryList() {
+  const el = document.getElementById("expenseCategoryList");
+  if (!el) return;
+  const seen = new Set();
+  const cats = [];
+  DEFAULT_EXPENSE_CATEGORIES.concat(db.expenses.map(e => e.category)).forEach(c => {
+    const t = (c || "").trim();
+    const key = t.toLowerCase();
+    if (t && !seen.has(key)) { seen.add(key); cats.push(t); }
+  });
+  el.innerHTML = cats.map(c => `<option value="${esc(c)}"></option>`).join("");
+}
+
 // ---------- Save confirmation + cross-cutting refresh ----------
 // Every entry form below saves into `db` (localStorage + debounced cloud
 // push, both already handled by saveStore()) and re-renders its own tab —
@@ -1406,8 +1748,51 @@ function refreshCrossCutting() {
   if (window.renderPayroll) renderPayroll();
   if (window.renderTeamPicker) renderTeamPicker();
   if (window.renderAccountPortal) renderAccountPortal();
+  if (typeof renderExpenseApprovals === "function") renderExpenseApprovals();
 }
 let toastTimer = null;
+// Double confirmation for every destructive action — nothing in any table
+// is deleted or replaced on a single click, app-wide.
+function confirmDestructive(summary) {
+  return confirm(summary)
+    && confirm("Please confirm once more — this permanently changes your records and cannot be undone.");
+}
+
+// ---------- Shared Edit-Entry modal ----------
+// One modal DOM shell, reused by every small entity's Edit action. Each
+// openEditX() below sets the title, fills #editEntryBody with its own
+// fields, and sets editEntrySave to its own async (form) => {...} callback
+// — the single submit handler just reads the current form and calls it.
+let editEntrySave = null;
+function vehicleOptionsHtml(selectedId) {
+  return db.vehicles.map(v => `<option value="${v.id}" ${v.id === selectedId ? "selected" : ""}>${esc(v.name)}</option>`).join("");
+}
+function driverOptionsHtml(selectedId) {
+  return db.drivers.map(d => `<option value="${d.id}" ${d.id === selectedId ? "selected" : ""}>${esc(d.name)}</option>`).join("");
+}
+function openEditModal(title, bodyHtml, saveFn) {
+  document.getElementById("editEntryTitle").textContent = title;
+  document.getElementById("editEntryBody").innerHTML = bodyHtml;
+  document.getElementById("editEntryErr").hidden = true;
+  editEntrySave = saveFn;
+  document.getElementById("editEntryModal").style.display = "flex";
+}
+function closeEditModal() { document.getElementById("editEntryModal").style.display = "none"; editEntrySave = null; }
+document.getElementById("editEntryClose").addEventListener("click", closeEditModal);
+document.getElementById("editEntryForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const errEl = document.getElementById("editEntryErr");
+  errEl.hidden = true;
+  if (!editEntrySave) return;
+  try {
+    const fd = Object.fromEntries(new FormData(e.target));
+    await editEntrySave(fd);
+  } catch (ex) {
+    errEl.textContent = ex.message || "Could not save — check your connection and try again.";
+    errEl.hidden = false;
+  }
+});
+
 function toast(msg, tone) {
   let el = document.getElementById("fwToast");
   if (!el) { el = document.createElement("div"); el.id = "fwToast"; document.body.appendChild(el); }
@@ -1419,30 +1804,73 @@ function toast(msg, tone) {
   toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
 }
 
+let driverEditId = null;
+function openEditDriver(id) {
+  const d = db.drivers.find(x => x.id === id);
+  if (!d) return;
+  driverEditId = id;
+  const form = document.getElementById("driverForm");
+  form.name.value = d.name || ""; form.phone.value = d.phone || "";
+  form.dlNo.value = d.dlNo || ""; form.dlExpiry.value = d.dlExpiry || "";
+  form.vehicleId.value = d.vehicleId || "";
+  form.upiId.value = d.upiId || ""; form.bankAccount.value = d.bankAccount || ""; form.bankIfsc.value = d.bankIfsc || "";
+  document.getElementById("driverFormSubmit").textContent = "Save Changes";
+  document.getElementById("driverFormCancel").hidden = false;
+  const card = form.closest(".form-card") || form.closest(".chart-card");
+  if (card) { card.classList.remove("collapsed"); card.scrollIntoView({ behavior: "smooth", block: "center" }); }
+}
+document.getElementById("driverFormCancel").addEventListener("click", () => {
+  driverEditId = null;
+  document.getElementById("driverForm").reset();
+  document.getElementById("driverFormSubmit").textContent = "Save Driver";
+  document.getElementById("driverFormCancel").hidden = true;
+});
+
 document.getElementById("driverForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
-  const existing = db.drivers.find(d => d.dlNo.toLowerCase() === fd.dlNo.trim().toLowerCase());
   const upiId = (fd.upiId || "").trim() || undefined;
   const bankAccount = (fd.bankAccount || "").replace(/\s+/g, "") || undefined;
   const bankIfsc = (fd.bankIfsc || "").trim().toUpperCase() || undefined;
-  const patch = { name: fd.name.trim(), phone: fd.phone, dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId, bankAccount, bankIfsc };
+  const patch = { name: fd.name.trim(), phone: fd.phone, dlNo: fd.dlNo.trim(), dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId, bankAccount, bankIfsc };
 
+  // Editing an existing driver by id — works even if the DL number itself
+  // was changed, since matching by the (possibly stale) old DL number
+  // would otherwise silently create a duplicate instead of updating.
+  if (driverEditId) {
+    const existing = db.drivers.find(d => d.id === driverEditId);
+    driverEditId = null;
+    document.getElementById("driverFormSubmit").textContent = "Save Driver";
+    document.getElementById("driverFormCancel").hidden = true;
+    if (existing) {
+      if (typeof coreDbBacked === "function" && coreDbBacked()) {
+        const ok = await dbUpdateDriver(existing.id, patch);
+        if (!ok) { toast("Could not save this driver — check your connection and try again.", "err"); return; }
+      }
+      Object.assign(existing, patch);
+      saveStore(); e.target.reset(); renderDrivers(); renderVehicles(); renderOverview();
+      refreshCrossCutting();
+      toast("Driver updated.");
+      return;
+    }
+  }
+
+  const existing = db.drivers.find(d => d.dlNo.toLowerCase() === patch.dlNo.toLowerCase());
   if (typeof coreDbBacked === "function" && coreDbBacked()) {
     if (existing) {
       const ok = await dbUpdateDriver(existing.id, patch);
       if (!ok) { toast("Could not save this driver — check your connection and try again.", "err"); return; }
       Object.assign(existing, patch);
     } else {
-      const d = { id: uid(), dlNo: fd.dlNo.trim(), ...patch };
+      const d = { id: uid(), ...patch };
       const saved = await dbCreateDriver(d);
       if (!saved) { toast("Could not save this driver — check your connection and try again.", "err"); return; }
       Object.assign(d, saved);
       db.drivers.push(d);
     }
   } else {
-    if (existing) Object.assign(existing, { ...patch, dlExpiry: fd.dlExpiry });
-    else db.drivers.push({ id: uid(), dlNo: fd.dlNo.trim(), ...patch });
+    if (existing) Object.assign(existing, patch);
+    else db.drivers.push({ id: uid(), ...patch });
   }
   saveStore(); e.target.reset(); renderDrivers(); renderVehicles(); renderOverview();
   refreshCrossCutting();
@@ -1650,7 +2078,7 @@ document.getElementById("exportDataBtn").addEventListener("click", () => {
 });
 document.getElementById("clearDemoBtn").addEventListener("click", () => {
   if (!db.demo) { alert("No demo data loaded — your own records are untouched."); return; }
-  if (!confirm("Remove the sample demo fleet? Your own added records stay.")) return;
+  if (!confirmDestructive("Remove the sample demo fleet? Your own added records stay.")) return;
   localStorage.removeItem(STORE_KEY);
   db = loadStore(); renderAll();
 });
@@ -1857,7 +2285,13 @@ function buildDynamicPanels() {
   </div>`);
   mk("assignments", panelCard("Vehicle Assignments", "Which driver operates which vehicle right now", "assignTable"));
   mk("meters", panelCard("Meter History", "Odometer readings captured with every fuel fill, newest first", "meterTable"));
-  mk("expensehistory", panelCard("Expense History", "Every expense entry across the fleet, newest first", "expHistTable"));
+  mk("expensehistory", `<div class="chart-card">
+    <div class="chart-head"><div>
+      <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="shieldCheck" data-icon-size="22"></i></span> Expense Approvals</h2>
+      <p class="muted">Expenses submitted by your team (Team &amp; Access) wait here — nothing posts to your books until you approve it.</p>
+    </div></div>
+    <div class="chart-scroll"><div id="expenseApprovalsTable"></div></div>
+  </div>` + panelCard("Expense History", "Every expense entry across the fleet, newest first", "expHistTable"));
   mk("replacement", panelCard("Replacement Analysis", "Lifetime running cost per vehicle — spot the vehicles costing more than they earn", "replTable"));
   mk("itemfailures", panelCard("Inspection Item Failures", "Checklist items that failed, across all inspections", "failTable"));
   mk("forms", panelCard("Inspection Forms", "The daily 10-point check every driver runs before rolling out", "formsList"));
@@ -1935,14 +2369,8 @@ function buildDynamicPanels() {
       </div>
       <div class="form-row">
         <label>Category
-          <select name="category" required>
-            <option value="">Select</option>
-            <option>Tyres</option><option>Battery</option><option>Brakes</option>
-            <option>Clutch</option><option>Engine Oil &amp; Filters</option><option>Suspension</option>
-            <option>Electrical</option><option>Body &amp; Paint</option>
-            <option>Insurance</option><option>Permit &amp; Road Tax</option><option>Fitness &amp; PUC</option>
-            <option>Other</option>
-          </select>
+          <input type="text" name="category" list="expenseCategoryList" required maxlength="60"
+            placeholder="e.g. Tyre Puncture, DEF, RTO — or type a new one" />
         </label>
         <label>Amount (&#8377;)<input type="number" name="amount" min="1" required inputmode="numeric" /></label>
       </div>
@@ -2009,14 +2437,98 @@ function renderMeters() {
   if (!el) return;
   const rows = [...db.fuelLogs].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 40);
   el.innerHTML = rows.length ?
-    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Odometer</th><th>Since last</th></tr></thead><tbody>` +
+    `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Odometer</th><th>Since last</th><th></th></tr></thead><tbody>` +
     rows.map(f => {
       const fills = vehicleFills(f.vehicleId);
       const i = fills.findIndex(x => x.id === f.id);
       const delta = i > 0 ? f.odo - fills[i - 1].odo : null;
-      return `<tr><td>${fmtDate(f.date)}</td><td><strong>${esc(vName(f.vehicleId))}</strong></td><td>${f.odo.toLocaleString("en-IN")} km</td><td>${delta ? "+" + delta.toLocaleString("en-IN") + " km" : "<span class='muted'>—</span>"}</td></tr>`;
+      return `<tr><td>${fmtDate(f.date)}</td><td><strong>${esc(vName(f.vehicleId))}</strong></td><td>${f.odo.toLocaleString("en-IN")} km</td><td>${delta ? "+" + delta.toLocaleString("en-IN") + " km" : "<span class='muted'>—</span>"}</td><td><button class="link-btn" onclick="openEditFuelLog('${f.id}')">Edit</button></td></tr>`;
     }).join("") + "</tbody></table>" : "<p class='muted'>Meter readings appear as you log fuel fills.</p>";
 }
+function openEditFuelLog(id) {
+  const f = db.fuelLogs.find(x => x.id === id);
+  if (!f) return;
+  openEditModal("Edit Fuel Entry", `
+    <div class="form-row">
+      <label>Vehicle<select name="vehicleId" required>${vehicleOptionsHtml(f.vehicleId)}</select></label>
+      <label>Date<input type="date" name="date" value="${f.date || ""}" required /></label>
+    </div>
+    <div class="form-row">
+      <label>Litres<input type="number" name="litres" min="0" step="0.01" value="${f.litres}" required /></label>
+      <label>Amount (&#8377;)<input type="number" name="amount" min="0" value="${f.amount}" required /></label>
+    </div>
+    <label>Odometer (km)<input type="number" name="odo" min="0" value="${f.odo}" required /></label>`, async fd => {
+    const patch = { vehicleId: fd.vehicleId, date: fd.date, litres: +fd.litres, amount: +fd.amount, odo: +fd.odo };
+    if (typeof coreDbBacked === "function" && coreDbBacked()) {
+      const ok = await dbUpdateFuelLog(f.id, patch);
+      if (!ok) throw new Error("Could not save — check your connection and try again.");
+    }
+    Object.assign(f, patch);
+    saveStore(); renderFuel(); renderMeters(); renderOverview();
+    closeEditModal(); toast("Fuel entry updated.");
+  });
+}
+// ---------- Expense Approvals (Team & Access submissions) ----------
+// Supervisors/managers/drivers can no longer write expenses directly
+// (db/schema-expense-approvals.sql) — every submission lands in
+// expense_change_requests as 'pending'. Only the owner can approve (which
+// creates the real expense row) or reject (discards it, nothing posted).
+async function renderExpenseApprovals() {
+  const el = document.getElementById("expenseApprovalsTable");
+  if (!el) return;
+  if (!(window.fwCloud && fwCloud.user())) { el.innerHTML = "<p class='muted'>Sign in to review team submissions.</p>"; return; }
+  const org = await (window.getMyOrgId ? getMyOrgId() : null);
+  if (!org) { el.innerHTML = "<p class='muted'>No organization found yet.</p>"; return; }
+  const rows = await fwCloud.authGet("expense_change_requests", `select=*&org_id=eq.${org}&status=eq.pending&order=created_at.asc&limit=200`);
+  if (rows === null) { el.innerHTML = "<p class='muted'>Needs <code>db/schema-expense-approvals.sql</code> run once in Supabase.</p>"; return; }
+  if (!rows.length) { el.innerHTML = "<p class='muted'>Nothing pending — your team's submissions will appear here.</p>"; return; }
+  el.dataset.rows = JSON.stringify(rows);
+  el.innerHTML = `<table class="chart-table-el"><thead><tr><th>Submitted</th><th>Vehicle</th><th>Category</th><th>Amount</th><th></th></tr></thead><tbody>` +
+    rows.map(r => {
+      const v = db.vehicles.find(x => x.dbId === r.vehicle_id);
+      const p = r.patch || {};
+      return `<tr><td>${fmtDate(r.created_at)}</td><td><strong>${esc(v ? v.name : "—")}</strong></td>
+        <td>${esc(p.category || "")}</td><td>${fmtINR(p.amount || 0)}</td>
+        <td style="white-space:nowrap">
+          <button class="link-btn" onclick="approveExpenseRequest('${r.id}')">${FWIcon("check", { size: 14 })} Approve</button>
+          <button class="link-btn" style="color:#b91c1c" onclick="rejectExpenseRequest('${r.id}')">Reject</button>
+        </td></tr>`;
+    }).join("") + "</tbody></table>";
+}
+function findExpenseRequest(id) {
+  const el = document.getElementById("expenseApprovalsTable");
+  try { return JSON.parse(el.dataset.rows || "[]").find(r => r.id === id) || null; } catch { return null; }
+}
+window.approveExpenseRequest = async function (id) {
+  const r = findExpenseRequest(id);
+  if (!r) return;
+  if (!confirmDestructive("Approve this expense? It will post to your books and cannot be un-approved.")) return;
+  const v = db.vehicles.find(x => x.dbId === r.vehicle_id);
+  const p = r.patch || {};
+  const row = {
+    org_id: r.org_id, vehicle_id: r.vehicle_id, expense_date: p.expense_date || new Date().toISOString().slice(0, 10),
+    category: p.category, amount: p.amount, title: p.title || null, vendor: p.vendor || null,
+    gstin: p.gstin || null, bill_no: p.billNo || null, items: p.items && p.items.length ? p.items : null,
+  };
+  const created = await fwCloud.authInsertRet("expenses", row);
+  if (!created) { toast("Could not approve — check your connection and try again.", "err"); return; }
+  const ok = await fwCloud.authPatch(`expense_change_requests?id=eq.${id}`, { status: "approved", decided_by: fwCloud.uid(), decided_at: new Date().toISOString() });
+  if (!ok) { toast("Expense posted, but could not mark the request approved — check your connection.", "err"); }
+  db.expenses.push({
+    id: created.id, vehicleId: v ? v.id : "", date: created.expense_date, category: created.category, amount: created.amount,
+    title: created.title || undefined, vendor: created.vendor || undefined, gstin: created.gstin || undefined, billNo: created.bill_no || undefined,
+  });
+  saveStore(); renderExpenseApprovals(); renderExpenseHistory(); renderOverview();
+  toast("Expense approved and posted.");
+};
+window.rejectExpenseRequest = async function (id) {
+  if (!confirmDestructive("Reject this expense submission? It will not be posted, and cannot be undone.")) return;
+  const ok = await fwCloud.authPatch(`expense_change_requests?id=eq.${id}`, { status: "rejected", decided_by: fwCloud.uid(), decided_at: new Date().toISOString() });
+  if (!ok) { toast("Could not reject — check your connection and try again.", "err"); return; }
+  renderExpenseApprovals();
+  toast("Submission rejected.");
+};
+
 function renderExpenseHistory() {
   const el = document.getElementById("expHistTable");
   if (!el) return;
@@ -2041,7 +2553,7 @@ function fwGoEditBill(i) {
 async function fwDeleteBill(i) {
   const e = db.expenses[i];
   if (!e) return;
-  if (!confirm(`Delete this expense?\n\n${fmtDate(e.date)} · ${vName(e.vehicleId)} · ${e.title || e.category} · ${fmtINR(e.amount)}\n\nThis cannot be undone.`)) return;
+  if (!confirmDestructive(`Delete this expense?\n\n${fmtDate(e.date)} · ${vName(e.vehicleId)} · ${e.title || e.category} · ${fmtINR(e.amount)}`)) return;
   if (typeof coreDbBacked === "function" && coreDbBacked() && e.id) {
     const ok = await dbDeleteExpense(e.id);
     if (!ok) { toast("Could not delete — check your connection and try again.", "err"); return; }
@@ -2186,11 +2698,12 @@ function renderAll() {
     loadDemoFleet(); return;
   }
   fillVehicleSelects();
+  renderExpenseCategoryList();
   renderOverview(); renderVehicles(); renderDrivers(); renderFuel();
   renderInspectionForm(); renderInspectionHistory();
   renderIssues(); renderWorkOrders(); renderReminders(); renderParts();
   renderRadar(); renderDocuments(); renderTyres(); renderSettings();
-  renderAssignments(); renderMeters(); renderExpenseHistory(); renderReplacement();
+  renderAssignments(); renderMeters(); renderExpenseHistory(); renderExpenseApprovals(); renderReplacement();
   renderItemFailures(); renderForms(); renderServiceHistory(); renderServiceTasks();
   renderVendors(); renderIntegrations(); renderReports();
   if (window.renderAnalyticsAll) renderAnalyticsAll();
@@ -2241,6 +2754,15 @@ document.getElementById("khataForm")?.addEventListener("submit", async e => {
 // Add Vehicle page (FleetOps main)
 document.getElementById("addVehForm")?.addEventListener("submit", async e => {
   e.preventDefault();
+  if (vehicleEditId) {
+    const id = vehicleEditId;
+    const v = await updateVehicleInPlace(e.target, id);
+    resetVehicleFormToAddMode();
+    if (!v) return;
+    toast("Vehicle updated.");
+    document.querySelector('#tabBar .tab-btn[data-tab="vehicles"]')?.click();
+    return;
+  }
   const v = await saveNewVehicle(e.target);
   if (!v) return;
   e.target.reset();
@@ -2248,6 +2770,7 @@ document.getElementById("addVehForm")?.addEventListener("submit", async e => {
   document.querySelector('#tabBar .tab-btn[data-tab="vehicles"]')?.click();
 });
 document.getElementById("avSaveAdd")?.addEventListener("click", async () => {
+  if (vehicleEditId) return; // "Save & Add Another" is hidden during edit; this is a defensive no-op
   const form = document.getElementById("addVehForm");
   if (!form.reportValidity()) return;
   const v = await saveNewVehicle(form);

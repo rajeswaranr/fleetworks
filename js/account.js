@@ -241,7 +241,7 @@ document.getElementById("qeExpForm").addEventListener("submit", async e => {
   e.preventDefault();
   if (needVehicle()) return;
   const fd = Object.fromEntries(new FormData(e.target));
-  const ex = { vehicleId: selVehicle, date: fd.date, category: fd.category, amount: +fd.amount, odo: fd.odo ? +fd.odo : undefined };
+  const ex = { vehicleId: selVehicle, date: fd.date, category: (fd.category || "").trim(), amount: +fd.amount, odo: fd.odo ? +fd.odo : undefined };
   if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateExpense(ex);
     if (!saved) { alert("Could not save — check your connection and try again."); return; }
@@ -249,6 +249,7 @@ document.getElementById("qeExpForm").addEventListener("submit", async e => {
   } else {
     db.expenses.push(ex);
   }
+  if (typeof renderExpenseCategoryList === "function") renderExpenseCategoryList();
   afterQuickSave(e.target);
 });
 
@@ -351,7 +352,7 @@ async function renderTeamRoster() {
 }
 
 window.teamRevoke = async function (membershipId) {
-  if (!confirm("Revoke this person's FleetWorks access? They will no longer be able to sign in to your fleet.")) return;
+  if (!confirmDestructive("Revoke this person's FleetWorks access? They will no longer be able to sign in to your fleet.")) return;
   const ok = await fwCloud.authDelete("memberships", "id=eq." + membershipId);
   if (ok) renderTeamRoster(); else alert("Could not revoke — check your connection and try again.");
 };

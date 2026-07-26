@@ -521,7 +521,8 @@ document.getElementById("gLogout").addEventListener("click", () => {
   if (window.fwCloud && fwCloud.user()) fwCloud.logout(); else location.reload();
 });
 document.getElementById("gDemoReset").addEventListener("click", () => {
-  if (confirm("Reload the demo garage? Your local changes will be replaced.")) loadDemoGarage();
+  if (confirm("Reload the demo garage? Your local changes will be replaced.")
+    && confirm("Please confirm once more — your current garage entries will be replaced with fresh demo data. This cannot be undone.")) loadDemoGarage();
 });
 
 document.body.classList.add("auth-locked");

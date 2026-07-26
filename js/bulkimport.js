@@ -124,41 +124,63 @@ function buildGetter(row, cols) {
   };
 }
 
-function resultsHtml(added, updated, errors) {
+function resultsHtml(added, updated, untouched, errors) {
   let html = `<p style="margin-top:12px"><strong>${added}</strong> added`;
   if (updated) html += `, <strong>${updated}</strong> updated`;
+  if (untouched) html += `, <strong>${untouched}</strong> left untouched`;
   if (errors.length) html += `, <strong>${errors.length}</strong> skipped`;
   html += ".</p>";
   if (errors.length) html += "<ul style='margin:6px 0 0 18px;color:#b91c1c;font-size:0.85rem'>" + errors.map(e => `<li>Row ${e.row}: ${esc(e.msg)}</li>`).join("") + "</ul>";
   return html;
 }
 
-document.getElementById("vehUploadFile")?.addEventListener("change", async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const resEl = document.getElementById("vehUploadResult");
-  resEl.innerHTML = "<p class='muted' style='margin-top:12px'>Reading file…</p>";
-  let rows;
-  try { rows = await readRows(file); } catch (err) { resEl.innerHTML = `<p style="color:#b91c1c;margin-top:12px">${esc(err.message || "Could not read this file.")}</p>`; e.target.value = ""; return; }
+// Confirmation panel shown BEFORE anything is written, whenever the file
+// contains rows matching records already on file. Three choices: add only
+// the new rows (existing untouched), add new + update existing with the
+// file's values, or cancel. Imports never delete anything — that promise
+// is stated right on the panel.
+function confirmImport(resEl, kind, newCount, dupNames, onChoice) {
+  const shown = dupNames.slice(0, 6).map(esc).join(", ") + (dupNames.length > 6 ? ` +${dupNames.length - 6} more` : "");
+  resEl.innerHTML = `<div class="chart-card" style="padding:14px;margin-top:12px;border:1.5px solid #eda100">
+    <p style="font-size:0.9rem"><strong>${newCount}</strong> new ${kind}${newCount === 1 ? "" : "s"} to add ·
+      <strong>${dupNames.length}</strong> already in your fleet: <span class="muted">${shown}</span></p>
+    <p class="muted" style="font-size:0.8rem;margin:6px 0 10px">How should the existing ${dupNames.length === 1 ? "record" : "records"} be handled?
+      Nothing is ever deleted by an import — your expenses, fuel logs and every other record stay as they are.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="btn btn-primary btn-sm" data-mode="add-only">Add new only — leave existing untouched</button>
+      <button type="button" class="btn btn-outline btn-sm" data-mode="update">Add new + update existing from file</button>
+      <button type="button" class="btn btn-outline btn-sm" data-mode="cancel" style="color:#b91c1c">Cancel import</button>
+    </div>
+  </div>`;
+  resEl.querySelectorAll("button[data-mode]").forEach(b =>
+    b.addEventListener("click", () => {
+      // replacing existing values needs a second, explicit confirmation
+      if (b.dataset.mode === "update"
+        && !confirm(`Update ${dupNames.length} existing ${kind}${dupNames.length === 1 ? "" : "s"} with the file's values? Only fields filled in the file overwrite what's on record — empty cells never blank out existing data. This cannot be undone.`)) return;
+      onChoice(b.dataset.mode);
+    }, { once: true }));
+}
 
-  let added = 0;
-  const errors = [];
-  const dbBacked = typeof coreDbBacked === "function" && coreDbBacked();
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
+// Parse every vehicle row up-front (no writes): returns {news, dups, errors}.
+// Each entry carries `full` (complete object for create) and `patch` (only
+// the fields actually filled in the file — used in update mode so an empty
+// Excel cell can never blank out data already on record).
+function parseVehicleRows(rows) {
+  const news = [], dups = [], errors = [];
+  const seenInFile = new Set();
+  rows.forEach((row, i) => {
     const rowNum = i + 2; // header is row 1
     const get = buildGetter(row, VEH_COLS);
     const name = String(get("name") || "").trim().toUpperCase();
     const type = String(get("type") || "").trim();
-    if (!name || !type) { if (Object.values(row).some(v => String(v).trim())) errors.push({ row: rowNum, msg: "Registration Number and Vehicle Type are required." }); continue; }
-    if (db.vehicles.some(x => x.name === name)) { errors.push({ row: rowNum, msg: name + " is already in your fleet." }); continue; }
+    if (!name || !type) { if (Object.values(row).some(v => String(v).trim())) errors.push({ row: rowNum, msg: "Registration Number and Vehicle Type are required." }); return; }
+    if (seenInFile.has(name)) { errors.push({ row: rowNum, msg: name + " appears more than once in this file — only the first row is used." }); return; }
+    seenInFile.add(name);
 
     const num = key => { const v = get(key); return v !== "" && v != null ? +v : undefined; };
     const txt = key => { const v = String(get(key) || "").trim(); return v || undefined; };
-    const v = {
-      id: uid(), name, type,
-      kmPerMonth: num("kmPerMonth") || 0,
-      status: txt("status") || "Active",
+    const fields = {
+      type, kmPerMonth: num("kmPerMonth"), status: txt("status"),
       make: txt("make"), model: txt("model"), year: num("year"),
       chassisNo: get("chassisNo") ? String(get("chassisNo")).trim().toUpperCase() : undefined,
       engineNo: get("engineNo") ? String(get("engineNo")).trim().toUpperCase() : undefined,
@@ -173,53 +195,92 @@ document.getElementById("vehUploadFile")?.addEventListener("change", async e => 
       inServiceDate: txt("inServiceDate"),
       serviceLifeMonths: num("serviceLifeMonths"), resaleValue: num("resaleValue"),
       notes: txt("notes"),
-      compliance: {
-        insurance: get("insurance"), puc: get("puc"),
-        fitness: get("fitness"), permit: get("permit"),
-        roadtax: get("roadtax"),
-      },
     };
-    const odo = get("odo");
+    // patch = only what the file actually filled in
+    const patch = {};
+    Object.entries(fields).forEach(([k, v]) => { if (v !== undefined) patch[k] = v; });
+    const compliancePatch = {};
+    ["insurance", "puc", "fitness", "permit", "roadtax"].forEach(doc => { if (get(doc)) compliancePatch[doc] = get(doc); });
+    if (Object.keys(compliancePatch).length) patch.compliance = compliancePatch;
 
+    const full = {
+      id: uid(), name, ...fields,
+      kmPerMonth: fields.kmPerMonth || 0, status: fields.status || "Active",
+      compliance: { insurance: get("insurance"), puc: get("puc"), fitness: get("fitness"), permit: get("permit"), roadtax: get("roadtax") },
+    };
+    const entry = { rowNum, name, full, patch, odo: get("odo") };
+    const existing = db.vehicles.find(x => x.name === name);
+    if (existing) dups.push({ ...entry, existing }); else news.push(entry);
+  });
+  return { news, dups, errors };
+}
+
+async function applyVehicleImport(news, dups, mode, errors, resEl) {
+  const dbBacked = typeof coreDbBacked === "function" && coreDbBacked();
+  let added = 0, updated = 0;
+  resEl.innerHTML = "<p class='muted' style='margin-top:12px'>Importing…</p>";
+  for (const n of news) {
+    const v = n.full;
     if (dbBacked) {
       const saved = await dbCreateVehicle(v);
-      if (!saved) { errors.push({ row: rowNum, msg: "Could not save " + name + " — check your connection." }); continue; }
+      if (!saved) { errors.push({ row: n.rowNum, msg: "Could not save " + n.name + " — check your connection." }); continue; }
       Object.assign(v, saved);
       db.vehicles.push(v);
-      if (odo) {
-        const savedFl = await dbCreateFuelLog({ vehicleId: v.id, date: new Date().toISOString().slice(0, 10), litres: 0, amount: 0, odo: +odo, opening: true });
+      if (n.odo) {
+        const savedFl = await dbCreateFuelLog({ vehicleId: v.id, date: new Date().toISOString().slice(0, 10), litres: 0, amount: 0, odo: +n.odo, opening: true });
         if (savedFl) db.fuelLogs.push(savedFl);
       }
     } else {
       db.vehicles.push(v);
-      if (odo) db.fuelLogs.push({ id: uid(), vehicleId: v.id, date: new Date().toISOString().slice(0, 10), litres: 0, amount: 0, odo: +odo, opening: true });
+      if (n.odo) db.fuelLogs.push({ id: uid(), vehicleId: v.id, date: new Date().toISOString().slice(0, 10), litres: 0, amount: 0, odo: +n.odo, opening: true });
     }
     added++;
   }
+  if (mode === "update") {
+    for (const d of dups) {
+      if (dbBacked) {
+        const ok = await dbUpdateVehicleFields(d.existing.id, d.patch);
+        if (!ok) { errors.push({ row: d.rowNum, msg: "Could not update " + d.name + " — check your connection." }); continue; }
+      }
+      const { compliance, ...rest } = d.patch;
+      Object.assign(d.existing, rest);
+      if (compliance) { d.existing.compliance = d.existing.compliance || {}; Object.assign(d.existing.compliance, compliance); }
+      updated++;
+    }
+  }
+  if (added || updated) { saveStore(); renderAll(); }
+  resEl.innerHTML = resultsHtml(added, updated, mode === "update" ? 0 : dups.length, errors);
+}
 
-  if (added) { saveStore(); renderAll(); }
-  resEl.innerHTML = resultsHtml(added, 0, errors);
-  e.target.value = "";
-});
-
-document.getElementById("drvUploadFile")?.addEventListener("change", async e => {
+document.getElementById("vehUploadFile")?.addEventListener("change", async e => {
   const file = e.target.files[0];
   if (!file) return;
-  const resEl = document.getElementById("drvUploadResult");
+  const resEl = document.getElementById("vehUploadResult");
   resEl.innerHTML = "<p class='muted' style='margin-top:12px'>Reading file…</p>";
   let rows;
   try { rows = await readRows(file); } catch (err) { resEl.innerHTML = `<p style="color:#b91c1c;margin-top:12px">${esc(err.message || "Could not read this file.")}</p>`; e.target.value = ""; return; }
+  e.target.value = "";
 
-  let added = 0, updated = 0;
-  const errors = [];
-  const dbBacked = typeof coreDbBacked === "function" && coreDbBacked();
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
+  const { news, dups, errors } = parseVehicleRows(rows);
+  if (!news.length && !dups.length) { resEl.innerHTML = resultsHtml(0, 0, 0, errors); return; }
+  if (!dups.length) { await applyVehicleImport(news, [], "add-only", errors, resEl); return; }
+  confirmImport(resEl, "vehicle", news.length, dups.map(d => d.name), async mode => {
+    if (mode === "cancel") { resEl.innerHTML = "<p class='muted' style='margin-top:12px'>Import cancelled — nothing was changed.</p>"; return; }
+    await applyVehicleImport(news, dups, mode, errors, resEl);
+  });
+});
+
+function parseDriverRows(rows) {
+  const news = [], dups = [], errors = [];
+  const seenInFile = new Set();
+  rows.forEach((row, i) => {
     const rowNum = i + 2;
     const get = buildGetter(row, DRV_COLS);
     const name = String(get("name") || "").trim();
     const dlNo = String(get("dlNo") || "").trim();
-    if (!name || !dlNo) { if (Object.values(row).some(v => String(v).trim())) errors.push({ row: rowNum, msg: "Driver Name and DL Number are required." }); continue; }
+    if (!name || !dlNo) { if (Object.values(row).some(v => String(v).trim())) errors.push({ row: rowNum, msg: "Driver Name and DL Number are required." }); return; }
+    if (seenInFile.has(dlNo.toLowerCase())) { errors.push({ row: rowNum, msg: dlNo + " appears more than once in this file — only the first row is used." }); return; }
+    seenInFile.add(dlNo.toLowerCase());
 
     const vehName = String(get("vehicleName") || "").trim().toUpperCase();
     let vehicleId = "";
@@ -228,34 +289,66 @@ document.getElementById("drvUploadFile")?.addEventListener("change", async e => 
       if (veh) vehicleId = veh.id;
       else errors.push({ row: rowNum, msg: `Vehicle "${vehName}" not found — driver saved without an assignment.` });
     }
-
-    const phone = String(get("phone") || "").trim();
-    const dlExpiry = get("dlExpiry");
-    const upiId = String(get("upiId") || "").trim() || undefined;
-    const bankAccount = String(get("bankAccount") || "").replace(/\s+/g, "") || undefined;
-    const bankIfsc = String(get("bankIfsc") || "").trim().toUpperCase() || undefined;
+    const fields = {
+      name, phone: String(get("phone") || "").trim(), dlExpiry: get("dlExpiry"), vehicleId,
+      upiId: String(get("upiId") || "").trim() || undefined,
+      bankAccount: String(get("bankAccount") || "").replace(/\s+/g, "") || undefined,
+      bankIfsc: String(get("bankIfsc") || "").trim().toUpperCase() || undefined,
+    };
     const existing = db.drivers.find(d => d.dlNo.toLowerCase() === dlNo.toLowerCase());
+    if (existing) dups.push({ rowNum, name, dlNo, fields, existing });
+    else news.push({ rowNum, name, dlNo, fields });
+  });
+  return { news, dups, errors };
+}
 
+async function applyDriverImport(news, dups, mode, errors, resEl) {
+  const dbBacked = typeof coreDbBacked === "function" && coreDbBacked();
+  let added = 0, updated = 0;
+  resEl.innerHTML = "<p class='muted' style='margin-top:12px'>Importing…</p>";
+  for (const n of news) {
+    const d = { id: uid(), dlNo: n.dlNo, ...n.fields };
     if (dbBacked) {
-      if (existing) {
-        const patch = { name, phone, dlExpiry, vehicleId: vehicleId || existing.vehicleId, upiId: upiId || existing.upiId, bankAccount: bankAccount || existing.bankAccount, bankIfsc: bankIfsc || existing.bankIfsc };
-        const ok = await dbUpdateDriver(existing.id, patch);
-        if (!ok) { errors.push({ row: rowNum, msg: "Could not save " + name + " — check your connection." }); continue; }
-        Object.assign(existing, patch); updated++;
-      } else {
-        const d = { id: uid(), name, phone, dlNo, dlExpiry, vehicleId, upiId, bankAccount, bankIfsc };
-        const saved = await dbCreateDriver(d);
-        if (!saved) { errors.push({ row: rowNum, msg: "Could not save " + name + " — check your connection." }); continue; }
-        Object.assign(d, saved);
-        db.drivers.push(d); added++;
+      const saved = await dbCreateDriver(d);
+      if (!saved) { errors.push({ row: n.rowNum, msg: "Could not save " + n.name + " — check your connection." }); continue; }
+      Object.assign(d, saved);
+    }
+    db.drivers.push(d); added++;
+  }
+  if (mode === "update") {
+    for (const du of dups) {
+      const f = du.fields;
+      // file values win only where actually filled — blanks never erase
+      const patch = {
+        name: f.name, phone: f.phone || du.existing.phone, dlExpiry: f.dlExpiry || du.existing.dlExpiry,
+        vehicleId: f.vehicleId || du.existing.vehicleId,
+        upiId: f.upiId || du.existing.upiId, bankAccount: f.bankAccount || du.existing.bankAccount, bankIfsc: f.bankIfsc || du.existing.bankIfsc,
+      };
+      if (dbBacked) {
+        const ok = await dbUpdateDriver(du.existing.id, patch);
+        if (!ok) { errors.push({ row: du.rowNum, msg: "Could not update " + du.name + " — check your connection." }); continue; }
       }
-    } else {
-      if (existing) { Object.assign(existing, { name, phone, dlExpiry, vehicleId: vehicleId || existing.vehicleId, upiId: upiId || existing.upiId, bankAccount: bankAccount || existing.bankAccount, bankIfsc: bankIfsc || existing.bankIfsc }); updated++; }
-      else { db.drivers.push({ id: uid(), name, phone, dlNo, dlExpiry, vehicleId, upiId, bankAccount, bankIfsc }); added++; }
+      Object.assign(du.existing, patch); updated++;
     }
   }
-
   if (added || updated) { saveStore(); renderAll(); }
-  resEl.innerHTML = resultsHtml(added, updated, errors);
+  resEl.innerHTML = resultsHtml(added, updated, mode === "update" ? 0 : dups.length, errors);
+}
+
+document.getElementById("drvUploadFile")?.addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const resEl = document.getElementById("drvUploadResult");
+  resEl.innerHTML = "<p class='muted' style='margin-top:12px'>Reading file…</p>";
+  let rows;
+  try { rows = await readRows(file); } catch (err) { resEl.innerHTML = `<p style="color:#b91c1c;margin-top:12px">${esc(err.message || "Could not read this file.")}</p>`; e.target.value = ""; return; }
   e.target.value = "";
+
+  const { news, dups, errors } = parseDriverRows(rows);
+  if (!news.length && !dups.length) { resEl.innerHTML = resultsHtml(0, 0, 0, errors); return; }
+  if (!dups.length) { await applyDriverImport(news, [], "add-only", errors, resEl); return; }
+  confirmImport(resEl, "driver", news.length, dups.map(d => d.name + " (" + d.dlNo + ")"), async mode => {
+    if (mode === "cancel") { resEl.innerHTML = "<p class='muted' style='margin-top:12px'>Import cancelled — nothing was changed.</p>"; return; }
+    await applyDriverImport(news, dups, mode, errors, resEl);
+  });
 });

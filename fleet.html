@@ -469,8 +469,9 @@
               <input type="text" name="notes" placeholder="Anything else worth remembering about this vehicle" />
             </label>
             <div class="settings-actions" style="margin-top:16px">
-              <button type="submit" class="btn btn-primary btn-lg"><i data-icon="check" data-icon-size="18"></i> Save Vehicle</button>
+              <button type="submit" class="btn btn-primary btn-lg" id="addVehSubmitBtn"><i data-icon="check" data-icon-size="18"></i> Save Vehicle</button>
               <button type="button" class="btn btn-outline" id="avSaveAdd">Save &amp; Add Another</button>
+              <button type="button" class="btn btn-outline" id="addVehCancelEdit" hidden>Cancel Edit</button>
             </div>
           </div>
         </form>
@@ -736,7 +737,10 @@
                 <input type="text" name="bankIfsc" style="text-transform:uppercase" maxlength="11" placeholder="e.g. HDFC0000123" />
               </label>
             </div>
-            <button type="submit" class="btn btn-primary">Save Driver</button>
+            <div style="display:flex;gap:10px">
+              <button type="submit" class="btn btn-primary" id="driverFormSubmit">Save Driver</button>
+              <button type="button" class="btn btn-outline" id="driverFormCancel" hidden>Cancel Edit</button>
+            </div>
           </form>
         </div>
       </section>
@@ -897,6 +901,26 @@
               <button type="button" class="btn btn-outline" id="payoutModalClose">Cancel</button>
             </div>
             <p class="field-error" id="payoutErr" hidden></p>
+          </form>
+        </div>
+      </div>
+
+      <!-- ======= SHARED EDIT-ENTRY MODAL ======= -->
+      <!-- One modal reused by every small entity's Edit action (reminders,
+           tyre readings, trips, khata, documents, fuel logs, parts, issues,
+           work orders). Each openEditX() function fills #editEntryBody with
+           its own fields and sets window.editEntrySave to its own async
+           save callback — the form's submit handler just calls it. -->
+      <div id="editEntryModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:center;justify-content:center;padding:16px">
+        <div class="chart-card" style="max-width:460px;width:100%">
+          <h2 id="editEntryTitle">Edit</h2>
+          <form id="editEntryForm" class="entry-form">
+            <div id="editEntryBody"></div>
+            <div style="display:flex;gap:10px;margin-top:6px">
+              <button type="submit" class="btn btn-primary">Save Changes</button>
+              <button type="button" class="btn btn-outline" id="editEntryClose">Cancel</button>
+            </div>
+            <p class="field-error" id="editEntryErr" hidden></p>
           </form>
         </div>
       </div>
@@ -1483,20 +1507,20 @@
 
           <!-- Expense -->
           <section class="tab-panel" id="qe-expense">
+            <!-- Shared across every expense-category field in the app (this
+                 form + the bill-capture form below) — renderExpenseCategoryList()
+                 in fleet.js keeps it filled with presets + every category
+                 anyone has ever typed, so a custom type saved once shows up
+                 as a suggestion everywhere from then on. -->
+            <datalist id="expenseCategoryList"></datalist>
             <div class="chart-card">
               <div class="chart-head"><div><h2>Add Expense</h2><p class="muted">Every entry strengthens your AI predictions and Tally export</p></div></div>
               <div class="veh-chips" id="qeExpChips"></div>
               <form id="qeExpForm" class="entry-form">
                 <div class="form-row">
                   <label>What was it for?
-                    <select name="category" required>
-                      <option value="">Select</option>
-                      <option>Tyres</option><option>Battery</option><option>Brakes</option>
-                      <option>Clutch</option><option>Engine Oil &amp; Filters</option><option>Suspension</option>
-                      <option>Electrical</option><option>Body &amp; Paint</option>
-                      <option>Insurance</option><option>Permit &amp; Road Tax</option><option>Fitness &amp; PUC</option>
-                      <option>Other</option>
-                    </select>
+                    <input type="text" name="category" list="expenseCategoryList" required maxlength="60"
+                      placeholder="e.g. Tyre Puncture, DEF, RTO — or type a new one" />
                   </label>
                   <label>Amount (₹)
                     <input type="number" name="amount" min="1" placeholder="e.g. 12500" required inputmode="numeric" />

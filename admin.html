@@ -49,6 +49,27 @@
 
       <div class="chart-card">
         <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="driver" data-icon-size="18"></i></span> Business Development Team</h2><p class="muted">Staff who leads and vendor applications can be assigned to</p></div>
+        </div>
+        <form id="staffForm" class="entry-form" style="margin-bottom:14px">
+          <div class="form-row">
+            <label>Name<input type="text" name="name" required placeholder="e.g. Priya Sharma" /></label>
+            <label>Email (optional)<input type="email" name="email" placeholder="priya@fleetworks.in" /></label>
+            <button type="submit" class="btn btn-primary" style="align-self:end">+ Add BDM</button>
+          </div>
+        </form>
+        <div class="chart-scroll"><div id="staffTable"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="truck" data-icon-size="18"></i></span> Live Transporters</h2><p class="muted">Every signed-up fleet owner account</p></div>
+        </div>
+        <div class="chart-scroll"><div id="transportersTable"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
           <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="phone" data-icon-size="18"></i></span> Customer Booking Leads</h2><p class="muted">Newest first — call within 15 minutes!</p></div>
           <button class="btn btn-outline btn-sm" onclick="loadAll()">↻ Refresh</button>
         </div>
@@ -61,6 +82,32 @@
         </div>
         <div class="chart-scroll"><div id="vendorsTable"></div></div>
       </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="search" data-icon-size="18"></i></span> Vendor Leads (Sourced)</h2><p class="muted">Scraped candidates awaiting a BDM call before they become real partners — upload the JSON output from a Google Maps scrape</p></div>
+        </div>
+        <form id="leadUploadForm" class="entry-form" style="margin-bottom:14px">
+          <div class="form-row">
+            <label>Service Category
+              <select name="serviceCategory" required>
+                <option value="mechanic">Mechanic</option>
+                <option value="electrician">Electrician</option>
+                <option value="battery">Battery</option>
+                <option value="tyre">Tyre</option>
+                <option value="puncture">Puncture Repair</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label>City<input type="text" name="city" required placeholder="e.g. Coimbatore" /></label>
+            <label>JSON file<input type="file" name="file" accept=".json" required /></label>
+          </div>
+          <button type="submit" class="btn btn-primary">Upload</button>
+          <p class="field-error" id="leadUploadErr" hidden></p>
+          <p class="muted" id="leadUploadResult" style="font-size:0.85rem;margin-top:6px"></p>
+        </form>
+        <div class="chart-scroll"><div id="vendorLeadsTable"></div></div>
+      </div>
     </div>
   </main>
 
@@ -72,6 +119,10 @@
     let session = JSON.parse(sessionStorage.getItem("fw_admin_session") || "null");
 
     const esc = s => String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    // For values placed inside a single-quoted onclick='...' attribute: pass
+    // JSON.stringify(value) through this so both the JS-string quoting and
+    // any HTML-special characters inside it are safely escaped.
+    const escAttr = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     const fmtDT = d => new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
     function authHeaders() {
@@ -92,43 +143,234 @@
       sessionStorage.setItem("fw_admin_session", JSON.stringify(session));
     }
 
-    async function fetchTable(table, order) {
-      const r = await fetch(FW_BACKEND.url + "/rest/v1/" + table + "?select=*&order=" + order + ".desc&limit=200", { headers: authHeaders() });
+    // query is everything after "table?" — e.g. "select=*&order=created_at.desc&limit=200"
+    async function fetchTable(table, query) {
+      const r = await fetch(FW_BACKEND.url + "/rest/v1/" + table + "?" + query, { headers: authHeaders() });
       if (r.status === 401) { logout(); throw new Error("Session expired — sign in again."); }
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || ("Could not load " + table));
       return r.json();
+    }
+    async function patchRow(table, id, body) {
+      const r = await fetch(FW_BACKEND.url + "/rest/v1/" + table + "?id=eq." + id, {
+        method: "PATCH",
+        headers: { ...authHeaders(), "Content-Type": "application/json", "Prefer": "return=minimal" },
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "Update failed");
+    }
+    async function postRow(table, body) {
+      const r = await fetch(FW_BACKEND.url + "/rest/v1/" + table, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json", "Prefer": "return=representation" },
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "Save failed");
+      return (await r.json())[0];
+    }
+    async function deleteRow(table, id) {
+      const r = await fetch(FW_BACKEND.url + "/rest/v1/" + table + "?id=eq." + id, { method: "DELETE", headers: authHeaders() });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "Delete failed");
+    }
+    // Double confirmation for every destructive action, app-wide policy.
+    function confirmDestructive(summary) {
+      return confirm(summary) && confirm("Please confirm once more — this permanently changes your records and cannot be undone.");
+    }
+
+    let STAFF = [], LEADS = [], VENDORS = [], VENDOR_LEADS = [];
+
+    function bdmOptions(selectedId) {
+      const active = STAFF.filter(s => s.active);
+      return '<option value="">Unassigned</option>' +
+        active.map(s => `<option value="${s.id}" ${s.id === selectedId ? "selected" : ""}>${esc(s.name)}</option>`).join("");
     }
 
     async function loadAll() {
-      const [leads, vendors] = await Promise.all([
-        fetchTable("leads", "created_at"),
-        fetchTable("vendor_applications", "created_at")
+      const [leads, vendors, staff, orgs, vehicles, vendorLeads] = await Promise.all([
+        fetchTable("leads", "select=*&order=created_at.desc&limit=500"),
+        fetchTable("vendor_applications", "select=*&order=created_at.desc&limit=500"),
+        fetchTable("staff_members", "select=*&order=created_at.asc&limit=500"),
+        fetchTable("organizations", "select=id,name,city,gstin,created_at&order=created_at.desc&limit=2000"),
+        fetchTable("vehicles", "select=org_id&limit=20000"),
+        fetchTable("vendor_leads", "select=*&order=created_at.desc&limit=1000"),
       ]);
+      LEADS = leads; VENDORS = vendors; STAFF = staff; VENDOR_LEADS = vendorLeads;
+
       const today = new Date().toDateString();
       const leadsToday = leads.filter(l => new Date(l.created_at).toDateString() === today).length;
+      const unassignedLeads = leads.filter(l => !l.assigned_to).length;
+      const vehiclesByOrg = {};
+      vehicles.forEach(v => { if (v.org_id) vehiclesByOrg[v.org_id] = (vehiclesByOrg[v.org_id] || 0) + 1; });
+      const activeTransporters = Object.keys(vehiclesByOrg).length;
 
       $("adminStats").innerHTML = `
+        <div class="stat-tile"><span class="stat-label">Total transporters</span><span class="stat-value">${orgs.length}</span><span class="stat-sub">signed-up fleet owners</span></div>
+        <div class="stat-tile"><span class="stat-label">Live transporters</span><span class="stat-value" style="color:#0ca30c">${activeTransporters}</span><span class="stat-sub">have added a vehicle</span></div>
+        <div class="stat-tile"><span class="stat-label">Total vehicles</span><span class="stat-value">${vehicles.length}</span><span class="stat-sub">across every fleet</span></div>
         <div class="stat-tile"><span class="stat-label">Leads today</span><span class="stat-value">${leadsToday}</span><span class="stat-sub">call fast!</span></div>
-        <div class="stat-tile"><span class="stat-label">Total leads</span><span class="stat-value">${leads.length}</span><span class="stat-sub">last 200 shown</span></div>
+        <div class="stat-tile"><span class="stat-label">Total leads</span><span class="stat-value">${leads.length}</span><span class="stat-sub">${unassignedLeads} unassigned</span></div>
         <div class="stat-tile"><span class="stat-label">Vendor applications</span><span class="stat-value">${vendors.length}</span><span class="stat-sub">${vendors.filter(v => v.status === "Under Review").length} under review</span></div>
-        <div class="stat-tile"><span class="stat-label">Backend</span><span class="stat-value" style="color:#0ca30c">Live</span><span class="stat-sub">Supabase</span></div>`;
+        <div class="stat-tile"><span class="stat-label">BDMs on team</span><span class="stat-value">${staff.filter(s => s.active).length}</span><span class="stat-sub">active</span></div>`;
+
+      $("staffTable").innerHTML = staff.length ?
+        `<table class="chart-table-el"><thead><tr><th>Name</th><th>Email</th><th>Leads assigned</th><th>Vendors assigned</th><th>Status</th><th></th></tr></thead><tbody>` +
+        staff.map(s => {
+          const leadCount = leads.filter(l => l.assigned_to === s.id).length;
+          const vendorCount = vendors.filter(v => v.assigned_to === s.id).length;
+          return `<tr><td><strong>${esc(s.name)}</strong></td><td>${esc(s.email || "")}</td>
+            <td>${leadCount}</td><td>${vendorCount}</td>
+            <td><span class="status-pill">${s.active ? "Active" : "Inactive"}</span></td>
+            <td style="white-space:nowrap">
+              <button class="link-btn" onclick="toggleStaffActive('${s.id}', ${!s.active})">${s.active ? "Deactivate" : "Reactivate"}</button>
+              <button class="link-btn" style="color:#b91c1c" onclick='removeStaff(${escAttr(JSON.stringify(s.id))},${escAttr(JSON.stringify(s.name))})'>Remove</button>
+            </td></tr>`;
+        }).join("") + "</tbody></table>"
+        : "<p class='muted'>No BDMs added yet — add your first one above.</p>";
+
+      $("transportersTable").innerHTML = orgs.length ?
+        `<table class="chart-table-el"><thead><tr><th>Signed up</th><th>Business</th><th>City</th><th>GSTIN</th><th>Vehicles</th><th>Status</th></tr></thead><tbody>` +
+        orgs.map(o => `<tr><td>${fmtDT(o.created_at)}</td><td><strong>${esc(o.name)}</strong></td>
+          <td>${esc(o.city || "")}</td><td>${esc(o.gstin || "")}</td>
+          <td>${vehiclesByOrg[o.id] || 0}</td>
+          <td><span class="status-pill">${vehiclesByOrg[o.id] ? "Live" : "Signed up"}</span></td></tr>`).join("") + "</tbody></table>"
+        : "<p class='muted'>No transporters signed up yet.</p>";
 
       $("leadsTable").innerHTML = leads.length ?
-        `<table class="chart-table-el"><thead><tr><th>When</th><th>Name</th><th>Phone</th><th>City</th><th>Vehicle</th><th>Service</th><th>Issue</th><th>Ref</th></tr></thead><tbody>` +
+        `<table class="chart-table-el"><thead><tr><th>When</th><th>Name</th><th>Phone</th><th>City</th><th>Vehicle</th><th>Service</th><th>Issue</th><th>Ref</th><th>Assigned to</th></tr></thead><tbody>` +
         leads.map(l => `<tr><td>${fmtDT(l.created_at)}</td><td>${esc(l.name)}</td>
           <td><a href="tel:+91${esc(l.phone)}"><strong>${esc(l.phone)}</strong></a></td>
           <td>${esc(l.city)}</td><td>${esc(l.vehicle)}</td><td>${esc(l.service)}</td>
-          <td>${esc(l.issue)}</td><td>${esc(l.ref)}</td></tr>`).join("") + "</tbody></table>"
+          <td>${esc(l.issue)}</td><td>${esc(l.ref)}</td>
+          <td><select onchange="assignLead('${l.id}', this.value)">${bdmOptions(l.assigned_to)}</select></td></tr>`).join("") + "</tbody></table>"
         : "<p class='muted'>No leads yet. They'll appear here the moment someone books on the website.</p>";
 
       $("vendorsTable").innerHTML = vendors.length ?
-        `<table class="chart-table-el"><thead><tr><th>When</th><th>Business</th><th>Owner</th><th>Phone</th><th>City</th><th>Type</th><th>Services</th><th>Status</th></tr></thead><tbody>` +
+        `<table class="chart-table-el"><thead><tr><th>When</th><th>Business</th><th>Owner</th><th>Phone</th><th>City</th><th>Type</th><th>Services</th><th>Status</th><th>Assigned to</th></tr></thead><tbody>` +
         vendors.map(v => `<tr><td>${fmtDT(v.created_at)}</td><td><strong>${esc(v.business_name)}</strong><br /><span class="muted">${esc(v.ref)}</span></td>
           <td>${esc(v.owner_name)}</td><td><a href="tel:+91${esc(v.phone)}"><strong>${esc(v.phone)}</strong></a></td>
           <td>${esc(v.city)} ${esc(v.pincode)}</td><td>${esc(v.business_type)}</td>
           <td style="max-width:220px">${esc((v.services || []).join(", "))}</td>
-          <td><span class="status-pill">${esc(v.status)}</span></td></tr>`).join("") + "</tbody></table>"
+          <td><span class="status-pill">${esc(v.status)}</span></td>
+          <td><select onchange="assignVendor('${v.id}', this.value)">${bdmOptions(v.assigned_to)}</select></td></tr>`).join("") + "</tbody></table>"
         : "<p class='muted'>No vendor applications yet.</p>";
+
+      const STATUS_ACTIONS = { new: ["contacted", "rejected"], contacted: ["qualified", "rejected"], qualified: ["converted", "rejected"], rejected: ["new"], converted: [] };
+      const STATUS_LABEL = { new: "New", contacted: "Contacted", qualified: "Qualified", rejected: "Rejected", converted: "Converted" };
+      $("vendorLeadsTable").innerHTML = vendorLeads.length ?
+        `<table class="chart-table-el"><thead><tr><th>Business</th><th>Category</th><th>City</th><th>Phone</th><th>Rating</th><th>Status</th><th>Assigned to</th><th></th></tr></thead><tbody>` +
+        vendorLeads.map(l => `<tr><td><strong>${esc(l.business_name)}</strong>${l.website ? `<br /><a href="${esc(l.website)}" target="_blank" rel="noopener" class="muted" style="font-size:0.78rem">${esc(l.website)}</a>` : ""}</td>
+          <td>${esc(l.service_category || "")}</td><td>${esc(l.city || "")}</td>
+          <td>${l.phone ? `<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a>` : "<span class='muted'>—</span>"}</td>
+          <td>${l.rating != null ? `${l.rating}★ (${l.review_count || 0})` : "<span class='muted'>—</span>"}</td>
+          <td><span class="status-pill">${STATUS_LABEL[l.status] || l.status}</span></td>
+          <td><select onchange="assignVendorLead('${l.id}', this.value)">${bdmOptions(l.assigned_to)}</select></td>
+          <td style="white-space:nowrap">${(STATUS_ACTIONS[l.status] || []).map(s => `<button class="link-btn" onclick="setLeadStatus('${l.id}','${s}')">${STATUS_LABEL[s]}</button>`).join(" ")}</td>
+          </tr>`).join("") + "</tbody></table>"
+        : "<p class='muted'>No sourced leads yet — upload a scrape above.</p>";
     }
+
+    window.assignLead = async function (id, staffId) {
+      try { await patchRow("leads", id, { assigned_to: staffId || null }); await loadAll(); }
+      catch (ex) { alert(ex.message); }
+    };
+    window.assignVendor = async function (id, staffId) {
+      try { await patchRow("vendor_applications", id, { assigned_to: staffId || null }); await loadAll(); }
+      catch (ex) { alert(ex.message); }
+    };
+    window.assignVendorLead = async function (id, staffId) {
+      try { await patchRow("vendor_leads", id, { assigned_to: staffId || null }); await loadAll(); }
+      catch (ex) { alert(ex.message); }
+    };
+    window.setLeadStatus = async function (id, status) {
+      try { await patchRow("vendor_leads", id, { status }); await loadAll(); }
+      catch (ex) { alert(ex.message); }
+    };
+
+    // Maps a gosom/google-maps-scraper JSON record onto our vendor_leads
+    // columns. Unmapped fields aren't lost — the whole original record is
+    // kept in `raw` too. serviceCategory/city come from the upload form
+    // (the scraper itself has no concept of either), applied to every row
+    // in that file.
+    function mapScrapedRecord(rec, serviceCategory, city) {
+      return {
+        source: "google_maps_scraper",
+        service_category: serviceCategory,
+        place_id: rec.place_id || rec.data_id || rec.cid || null,
+        business_name: rec.title || rec.name || "Unnamed",
+        google_category: rec.category || null,
+        phone: rec.phone || null,
+        website: rec.website || null,
+        address: rec.complete_address || rec.address || null,
+        city: city,
+        latitude: rec.latitude != null ? rec.latitude : null,
+        longitude: rec.longitude != null ? rec.longitude : null,
+        rating: rec.review_rating != null ? rec.review_rating : null,
+        review_count: rec.review_count != null ? rec.review_count : null,
+        emails: Array.isArray(rec.emails) ? rec.emails : (rec.emails ? [rec.emails] : null),
+        maps_link: rec.link || null,
+        raw: rec,
+      };
+    }
+
+    $("leadUploadForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const errEl = $("leadUploadErr"), resEl = $("leadUploadResult");
+      errEl.hidden = true; resEl.textContent = "";
+      const fd = new FormData(e.target);
+      const file = fd.get("file");
+      const serviceCategory = fd.get("serviceCategory");
+      const city = fd.get("city").trim();
+      if (!file || !file.size) { errEl.textContent = "Choose a JSON file first."; errEl.hidden = false; return; }
+      let records;
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        records = Array.isArray(parsed) ? parsed : (Array.isArray(parsed.results) ? parsed.results : [parsed]);
+      } catch (ex) {
+        errEl.textContent = "Could not read that file as JSON — is it the scraper's -json output?";
+        errEl.hidden = false;
+        return;
+      }
+      if (!records.length) { errEl.textContent = "That file has no records."; errEl.hidden = false; return; }
+      resEl.textContent = `Uploading ${records.length} record(s)…`;
+      const rows = records.map(r => mapScrapedRecord(r, serviceCategory, city));
+      try {
+        // ignore-duplicates: place_id's unique constraint silently skips
+        // anything already in the table instead of erroring the whole batch.
+        const r = await fetch(FW_BACKEND.url + "/rest/v1/vendor_leads", {
+          method: "POST",
+          headers: { ...authHeaders(), "Content-Type": "application/json", "Prefer": "return=representation,resolution=ignore-duplicates" },
+          body: JSON.stringify(rows)
+        });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "Upload failed");
+        const inserted = await r.json();
+        resEl.textContent = `${inserted.length} new lead(s) added, ${records.length - inserted.length} already on file (skipped).`;
+        e.target.reset();
+        await loadAll();
+      } catch (ex) {
+        errEl.textContent = ex.message;
+        errEl.hidden = false;
+        resEl.textContent = "";
+      }
+    });
+    window.toggleStaffActive = async function (id, makeActive) {
+      try { await patchRow("staff_members", id, { active: makeActive }); await loadAll(); }
+      catch (ex) { alert(ex.message); }
+    };
+    window.removeStaff = async function (id, name) {
+      if (!confirmDestructive(`Remove ${name} from the team? Any leads/vendors assigned to them will show as unassigned.`)) return;
+      try { await deleteRow("staff_members", id); await loadAll(); }
+      catch (ex) { alert(ex.message); }
+    };
+
+    $("staffForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const fd = Object.fromEntries(new FormData(e.target));
+      try {
+        await postRow("staff_members", { name: fd.name.trim(), email: (fd.email || "").trim() || null });
+        e.target.reset();
+        await loadAll();
+      } catch (ex) { alert(ex.message); }
+    });
 
     function showConsole() {
       $("loginView").hidden = true;

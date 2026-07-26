@@ -182,6 +182,15 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--amber); box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.18);
 }
 input.invalid, select.invalid { border-color: #dc2626; box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12); }
+
+/* Every option in every dropdown reads bold + brand navy at all times —
+   not just the one item the mouse happens to be over. The native
+   hover/keyboard highlight bar itself is drawn by the OS and can't be
+   restyled, but the option text underneath it can, so nothing looks
+   washed-out next to the highlighted row. Applies site-wide: booking
+   modal, fleet app forms, every <select> everywhere. */
+select option { font-weight: 700; color: var(--navy); }
+select optgroup { font-weight: 800; color: var(--navy); font-style: normal; }
 .form-note { font-size: 0.72rem; color: var(--muted); text-align: center; }
 
 /* ---------- Sections ---------- */
