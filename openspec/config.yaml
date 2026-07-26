@@ -1,0 +1,16 @@
+schema: spec-driven
+
+context: |
+  Project: FleetApp is a web-based fleet operations platform with modules for fleet management, drivers, payroll, garage, and partner workflows.
+  Stack: static HTML/CSS/JavaScript frontend with Supabase integration and a Python OCR service.
+  Conventions: keep planning artifacts concise, preserve existing UI behavior unless a spec explicitly changes it, and prefer repo-local planning artifacts under openspec/.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
