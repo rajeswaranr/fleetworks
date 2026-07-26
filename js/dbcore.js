@@ -107,6 +107,29 @@ async function dbUpdateVehicleCompliance(extId, doc, value) {
   if (!dbId || !col) return false;
   return fwCloud.authPatch(`vehicles?id=eq.${dbId}`, { [col]: value || null });
 }
+// Partial update of any vehicle fields (bulk-import "update existing" mode).
+// patch uses local field names; only the keys present are written.
+const VEHICLE_COL = {
+  type: "type", kmPerMonth: "km_per_month", status: "status", make: "make", model: "model", year: "year",
+  chassisNo: "chassis_no", engineNo: "engine_no", ownership: "ownership", group: "fleet_group", depot: "depot",
+  emission: "emission", fuelType: "fuel_type", tankCapacity: "tank_capacity", color: "color",
+  gvw: "gvw", payload: "payload", axleConfig: "axle_config",
+  tyreFrontPsi: "tyre_front_psi", tyreRearPsi: "tyre_rear_psi", tyreSize: "tyre_size", rto: "rto",
+  purchaseDate: "purchase_date", purchasePrice: "purchase_price", purchaseVendor: "purchase_vendor",
+  inServiceDate: "in_service_date", serviceLifeMonths: "service_life_months", resaleValue: "resale_value",
+  notes: "notes",
+};
+async function dbUpdateVehicleFields(extId, patch) {
+  const dbId = dbVehicleUuid(extId);
+  if (!dbId) return false;
+  const p = {};
+  Object.entries(patch).forEach(([k, v]) => {
+    if (k === "compliance") { Object.entries(v || {}).forEach(([doc, d]) => { if (COMPLIANCE_COL[doc]) p[COMPLIANCE_COL[doc]] = d || null; }); }
+    else if (VEHICLE_COL[k]) p[VEHICLE_COL[k]] = v === undefined ? null : v;
+  });
+  if (!Object.keys(p).length) return true;
+  return fwCloud.authPatch(`vehicles?id=eq.${dbId}`, p);
+}
 
 // ---------- Drivers ----------
 function dbRowToDriver(row, vehicleExtId) {

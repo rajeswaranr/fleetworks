@@ -1108,7 +1108,8 @@ function renderDocuments() {
     : "<p class='muted'>No documents stored yet. Add your first RC, insurance or permit below — expiries will show on the Compliance Radar.</p>";
 }
 async function deleteDocument(id) {
-  if (!confirm("Delete this document?")) return;
+  const doc = db.documents.find(x => x.id === id);
+  if (!confirmDestructive(`Delete this document?${doc ? `\n\n${doc.docType}${doc.number ? " · " + doc.number : ""}` : ""}`)) return;
   if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const ok = await dbDeleteDocument(id);
     if (!ok) { toast("Could not delete — check your connection and try again.", "err"); return; }
@@ -1408,6 +1409,13 @@ function refreshCrossCutting() {
   if (window.renderAccountPortal) renderAccountPortal();
 }
 let toastTimer = null;
+// Double confirmation for every destructive action — nothing in any table
+// is deleted or replaced on a single click, app-wide.
+function confirmDestructive(summary) {
+  return confirm(summary)
+    && confirm("Please confirm once more — this permanently changes your records and cannot be undone.");
+}
+
 function toast(msg, tone) {
   let el = document.getElementById("fwToast");
   if (!el) { el = document.createElement("div"); el.id = "fwToast"; document.body.appendChild(el); }
@@ -1650,7 +1658,7 @@ document.getElementById("exportDataBtn").addEventListener("click", () => {
 });
 document.getElementById("clearDemoBtn").addEventListener("click", () => {
   if (!db.demo) { alert("No demo data loaded — your own records are untouched."); return; }
-  if (!confirm("Remove the sample demo fleet? Your own added records stay.")) return;
+  if (!confirmDestructive("Remove the sample demo fleet? Your own added records stay.")) return;
   localStorage.removeItem(STORE_KEY);
   db = loadStore(); renderAll();
 });
@@ -2022,7 +2030,7 @@ function fwGoEditBill(i) {
 async function fwDeleteBill(i) {
   const e = db.expenses[i];
   if (!e) return;
-  if (!confirm(`Delete this expense?\n\n${fmtDate(e.date)} · ${vName(e.vehicleId)} · ${e.title || e.category} · ${fmtINR(e.amount)}\n\nThis cannot be undone.`)) return;
+  if (!confirmDestructive(`Delete this expense?\n\n${fmtDate(e.date)} · ${vName(e.vehicleId)} · ${e.title || e.category} · ${fmtINR(e.amount)}`)) return;
   if (typeof coreDbBacked === "function" && coreDbBacked() && e.id) {
     const ok = await dbDeleteExpense(e.id);
     if (!ok) { toast("Could not delete — check your connection and try again.", "err"); return; }
