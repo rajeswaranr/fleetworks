@@ -55,11 +55,12 @@ window.openVehicle = async function (vehId, extId, name, access) {
   body.innerHTML = "<p class='muted'>Loading…</p>";
   modal.style.display = "flex";
 
-  const [fuel, exp, iss, insp] = await Promise.all([
+  const [fuel, exp, iss, insp, pendingExp] = await Promise.all([
     fwCloud.authGet("fuel_logs", `select=*&vehicle_id=eq.${vehId}&order=log_date.desc&limit=8`),
     fwCloud.authGet("expenses", `select=*&vehicle_id=eq.${vehId}&order=expense_date.desc&limit=8`),
     fwCloud.authGet("issues", `select=*&vehicle_id=eq.${vehId}&order=reported_at.desc.nullslast&limit=8`),
-    fwCloud.authGet("inspections", `select=*&vehicle_id=eq.${vehId}&order=inspection_date.desc&limit=5`)
+    fwCloud.authGet("inspections", `select=*&vehicle_id=eq.${vehId}&order=inspection_date.desc&limit=5`),
+    fwCloud.authGet("expense_change_requests", `select=*&vehicle_id=eq.${vehId}&status=eq.pending&order=created_at.desc&limit=8`),
   ]);
 
   const listHTML = (rows, empty, fmt) => (rows && rows.length ? rows.map(fmt).join("") : `<p class="muted" style="font-size:0.85rem">${empty}</p>`);
@@ -99,6 +100,7 @@ window.openVehicle = async function (vehId, extId, name, access) {
   html += `<h3 style="font-size:0.85rem;color:var(--navy);margin:14px 0 6px">Recent Fuel</h3>` +
     listHTML(fuel, "No fuel logs yet.", f => `<div class="pred-row" style="padding:8px 4px"><div class="pred-detail" style="font-size:0.85rem">${fmtDate(f.log_date)} · ${f.litres || 0} L · ${fmtINR(f.amount)} · odo ${f.odometer || "—"}</div></div>`) +
     `<h3 style="font-size:0.85rem;color:var(--navy);margin:14px 0 6px">Recent Expenses</h3>` +
+    listHTML(pendingExp, "", r => `<div class="pred-row" style="padding:8px 4px"><div class="pred-detail" style="font-size:0.85rem"><span class="fw-badge soon">Pending approval</span> ${fmtDate(r.patch.expense_date)} · ${esc(r.patch.category || "")} · ${fmtINR(r.patch.amount)}</div></div>`) +
     listHTML(exp, "No expenses yet.", e => `<div class="pred-row" style="padding:8px 4px"><div class="pred-detail" style="font-size:0.85rem">${fmtDate(e.expense_date)} · ${esc(e.category || "")} · ${fmtINR(e.amount)}</div></div>`) +
     `<h3 style="font-size:0.85rem;color:var(--navy);margin:14px 0 6px">Issues</h3>` +
     listHTML(iss, "No issues reported.", i => `<div class="pred-row" style="padding:8px 4px"><div class="pred-detail" style="font-size:0.85rem"><span class="fw-badge ${i.status === "Resolved" ? "ok" : "soon"}">${esc(i.status || "Open")}</span> ${esc(i.title || "")}</div></div>`) +
@@ -134,13 +136,21 @@ window.tvSaveFuel = async function (vehId) {
   if (ok) { toast("Diesel entry saved."); document.getElementById("teamVehModal").style.display = "none"; }
   else tvErr("Could not save — check your access for this vehicle.");
 };
+// Expenses are never written directly by a supervisor/manager/driver — every
+// entry here goes to the owner as a pending request (db/schema-expense-
+// approvals.sql). Only the owner's own edits, made in Fleet Manager, write
+// straight to the expenses table; this portal never does.
 window.tvSaveExpense = async function (vehId) {
   const category = (document.getElementById("tvExpCat").value || "").trim();
   const amount = +document.getElementById("tvExpAmt").value || 0;
   if (!category || !amount) return tvErr("Enter category and amount.");
-  const ok = await fwCloud.authInsert("expenses", { org_id: ORG, vehicle_id: vehId, expense_date: today(), category, amount });
-  if (ok) { toast("Expense saved."); document.getElementById("teamVehModal").style.display = "none"; }
-  else tvErr("Could not save — check your access for this vehicle.");
+  const ok = await fwCloud.authInsert("expense_change_requests", {
+    org_id: ORG, vehicle_id: vehId, action: "create",
+    patch: { expense_date: today(), category, amount },
+    requested_by: fwCloud.uid(),
+  });
+  if (ok) { toast("Submitted — awaiting owner approval."); document.getElementById("teamVehModal").style.display = "none"; }
+  else tvErr("Could not submit — check your access for this vehicle.");
 };
 window.tvSaveIssue = async function (vehId) {
   const title = (document.getElementById("tvIssTitle").value || "").trim();

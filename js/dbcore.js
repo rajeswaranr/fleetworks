@@ -230,6 +230,16 @@ async function dbCreateFuelLog(f) {
   const row = await fwCloud.authInsertRet("fuel_logs", fuelLogToDbRow(f, org));
   return row ? dbRowToFuelLog(row, f.vehicleId || "") : null;
 }
+async function dbUpdateFuelLog(id, patch) {
+  const p = {};
+  if ("vehicleId" in patch) p.vehicle_id = patch.vehicleId ? dbVehicleUuid(patch.vehicleId) : null;
+  if ("date" in patch) p.log_date = patch.date;
+  if ("litres" in patch) p.litres = patch.litres;
+  if ("amount" in patch) p.amount = patch.amount;
+  if ("odo" in patch) p.odometer = patch.odo;
+  return fwCloud.authPatch(`fuel_logs?id=eq.${id}`, p);
+}
+async function dbDeleteFuelLog(id) { return fwCloud.authDelete("fuel_logs", `id=eq.${id}`); }
 
 // ---------- Driver uuid lookup (mirrors dbVehicleUuid) ----------
 function dbDriverUuid(extId) {
@@ -269,6 +279,9 @@ async function dbUpdateIssue(extId, patch) {
   const p = {};
   if ("status" in patch) p.status = patch.status;
   if ("resolvedAt" in patch) p.resolved_at = patch.resolvedAt || null;
+  if ("vehicleId" in patch) p.vehicle_id = patch.vehicleId ? dbVehicleUuid(patch.vehicleId) : null;
+  if ("title" in patch) p.title = patch.title;
+  if ("severity" in patch) p.severity = patch.severity;
   return fwCloud.authPatch(`issues?id=eq.${i.dbId}`, p);
 }
 
@@ -302,6 +315,10 @@ async function dbUpdateWorkOrder(id, patch) {
   if ("status" in patch) p.status = patch.status;
   if ("completedAt" in patch) p.completed_at = patch.completedAt || null;
   if ("finalCost" in patch) p.final_cost = patch.finalCost;
+  if ("vehicleId" in patch) p.vehicle_id = patch.vehicleId ? dbVehicleUuid(patch.vehicleId) : null;
+  if ("title" in patch) p.title = patch.title;
+  if ("vendor" in patch) p.vendor = patch.vendor || null;
+  if ("estCost" in patch) p.est_cost = patch.estCost;
   return fwCloud.authPatch(`work_orders?id=eq.${id}`, p);
 }
 
@@ -323,6 +340,15 @@ async function dbCreateReminder(r) {
   const row = await fwCloud.authInsertRet("reminders", reminderToDbRow(r, org));
   return row ? dbRowToReminder(row, r.vehicleId || "") : null;
 }
+async function dbUpdateReminder(id, patch) {
+  const p = {};
+  if ("vehicleId" in patch) p.vehicle_id = patch.vehicleId ? dbVehicleUuid(patch.vehicleId) : null;
+  if ("task" in patch) p.task = patch.task;
+  if ("everyMonths" in patch) p.every_months = patch.everyMonths;
+  if ("lastDate" in patch) p.last_date = patch.lastDate || null;
+  return fwCloud.authPatch(`reminders?id=eq.${id}`, p);
+}
+async function dbDeleteReminder(id) { return fwCloud.authDelete("reminders", `id=eq.${id}`); }
 
 // ---------- Inspections (no ext_id needed) ----------
 function dbRowToInspection(row, vehicleExtId) {
@@ -413,6 +439,22 @@ async function dbCreateDocument(d) {
   const row = await fwCloud.authInsertRet("documents", documentToDbRow(d, org));
   return row ? dbRowToDocument(row, d.entityId || "") : null;
 }
+async function dbUpdateDocument(id, patch) {
+  const p = {};
+  if ("entityType" in patch) p.entity_type = patch.entityType;
+  if ("entityType" in patch || "entityId" in patch) {
+    // vehicle_id/driver_id must be set together, matching whichever entityType applies
+    const type = patch.entityType, entityId = patch.entityId;
+    p.vehicle_id = type === "vehicle" ? dbVehicleUuid(entityId) : null;
+    p.driver_id = type === "driver" ? dbDriverUuid(entityId) : null;
+  }
+  if ("docType" in patch) p.doc_type = patch.docType;
+  if ("number" in patch) p.number = patch.number || null;
+  if ("issueDate" in patch) p.issue_date = patch.issueDate || null;
+  if ("expiryDate" in patch) p.expiry_date = patch.expiryDate || null;
+  if ("note" in patch) p.note = patch.note || null;
+  return fwCloud.authPatch(`documents?id=eq.${id}`, p);
+}
 async function dbDeleteDocument(id) { return fwCloud.authDelete("documents", `id=eq.${id}`); }
 
 // ---------- Tyre readings (no ext_id needed) ----------
@@ -435,6 +477,17 @@ async function dbCreateTyreReading(t) {
   const row = await fwCloud.authInsertRet("tyre_readings", tyreReadingToDbRow(t, org));
   return row ? dbRowToTyreReading(row, t.vehicleId || "") : null;
 }
+async function dbUpdateTyreReading(id, patch) {
+  const p = {};
+  if ("vehicleId" in patch) p.vehicle_id = patch.vehicleId ? dbVehicleUuid(patch.vehicleId) : null;
+  if ("position" in patch) p.position = patch.position;
+  if ("treadDepth" in patch) p.tread_depth_mm = patch.treadDepth;
+  if ("pressure" in patch) p.pressure_psi = patch.pressure;
+  if ("odo" in patch) p.odometer = patch.odo;
+  if ("date" in patch) p.reading_date = patch.date || null;
+  return fwCloud.authPatch(`tyre_readings?id=eq.${id}`, p);
+}
+async function dbDeleteTyreReading(id) { return fwCloud.authDelete("tyre_readings", `id=eq.${id}`); }
 
 // ---------- Trips (no ext_id needed) ----------
 function dbRowToTrip(row, vehicleExtId) {
@@ -456,6 +509,17 @@ async function dbCreateTrip(t) {
   const row = await fwCloud.authInsertRet("trips", tripToDbRow(t, org));
   return row ? dbRowToTrip(row, t.vehicleId || "") : null;
 }
+async function dbUpdateTrip(id, patch) {
+  const p = {};
+  if ("vehicleId" in patch) p.vehicle_id = patch.vehicleId ? dbVehicleUuid(patch.vehicleId) : null;
+  if ("date" in patch) p.trip_date = patch.date || null;
+  if ("from" in patch) p.from_loc = patch.from || null;
+  if ("to" in patch) p.to_loc = patch.to || null;
+  if ("freight" in patch) p.freight = patch.freight;
+  if ("km" in patch) p.km = patch.km;
+  return fwCloud.authPatch(`trips?id=eq.${id}`, p);
+}
+async function dbDeleteTrip(id) { return fwCloud.authDelete("trips", `id=eq.${id}`); }
 
 // ---------- Driver ledger / khata (no ext_id needed) ----------
 function dbRowToLedgerEntry(row, driverExtId) {
@@ -475,6 +539,16 @@ async function dbCreateLedgerEntry(l) {
   const row = await fwCloud.authInsertRet("driver_ledger", ledgerEntryToDbRow(l, org));
   return row ? dbRowToLedgerEntry(row, l.driverId || "") : null;
 }
+async function dbUpdateLedgerEntry(id, patch) {
+  const p = {};
+  if ("driverId" in patch) p.driver_id = patch.driverId ? dbDriverUuid(patch.driverId) : null;
+  if ("date" in patch) p.entry_date = patch.date || null;
+  if ("type" in patch) p.type = patch.type;
+  if ("amount" in patch) p.amount = patch.amount;
+  if ("note" in patch) p.note = patch.note || null;
+  return fwCloud.authPatch(`driver_ledger?id=eq.${id}`, p);
+}
+async function dbDeleteLedgerEntry(id) { return fwCloud.authDelete("driver_ledger", `id=eq.${id}`); }
 
 // ---------- Bulk fetch: replaces all 12 DB-direct arrays with live DB
 // content. Called on every page load while already signed in, and right
