@@ -1483,20 +1483,20 @@
 
           <!-- Expense -->
           <section class="tab-panel" id="qe-expense">
+            <!-- Shared across every expense-category field in the app (this
+                 form + the bill-capture form below) — renderExpenseCategoryList()
+                 in fleet.js keeps it filled with presets + every category
+                 anyone has ever typed, so a custom type saved once shows up
+                 as a suggestion everywhere from then on. -->
+            <datalist id="expenseCategoryList"></datalist>
             <div class="chart-card">
               <div class="chart-head"><div><h2>Add Expense</h2><p class="muted">Every entry strengthens your AI predictions and Tally export</p></div></div>
               <div class="veh-chips" id="qeExpChips"></div>
               <form id="qeExpForm" class="entry-form">
                 <div class="form-row">
                   <label>What was it for?
-                    <select name="category" required>
-                      <option value="">Select</option>
-                      <option>Tyres</option><option>Battery</option><option>Brakes</option>
-                      <option>Clutch</option><option>Engine Oil &amp; Filters</option><option>Suspension</option>
-                      <option>Electrical</option><option>Body &amp; Paint</option>
-                      <option>Insurance</option><option>Permit &amp; Road Tax</option><option>Fitness &amp; PUC</option>
-                      <option>Other</option>
-                    </select>
+                    <input type="text" name="category" list="expenseCategoryList" required maxlength="60"
+                      placeholder="e.g. Tyre Puncture, DEF, RTO — or type a new one" />
                   </label>
                   <label>Amount (₹)
                     <input type="number" name="amount" min="1" placeholder="e.g. 12500" required inputmode="numeric" />

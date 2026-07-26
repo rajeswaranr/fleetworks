@@ -1023,7 +1023,7 @@ function initBillScan() {
         amount: +r.querySelector(".bi-amt").value || 0
       }));
     const fields = {
-      vehicleId: fd.vehicleId, date: fd.date, category: fd.category, amount: +fd.amount,
+      vehicleId: fd.vehicleId, date: fd.date, category: (fd.category || "").trim(), amount: +fd.amount,
       title: (fd.title || "").trim() || undefined,
       vendor: (fd.vendor || "").trim() || undefined,
       gstin: (fd.gstin || "").trim().toUpperCase() || undefined,

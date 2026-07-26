@@ -817,7 +817,7 @@ async function completeWorkOrder(id) {
   if (!w) return;
   const cost = prompt("Final bill amount (₹):", w.estCost || "");
   if (cost === null || !+cost) return;
-  const cat = prompt("Expense category (Tyres / Battery / Brakes / Clutch / Engine Oil & Filters / Suspension / Electrical / Body & Paint / Other):", "Other");
+  const cat = prompt("Expense category (Tyres / Battery / Brakes / Clutch / Engine Oil & Filters / Suspension / Electrical / Body & Paint / DEF / Greasing / Water Wash / RTO / Police / Other — or type your own):", "Other");
   if (cat === null) return;
   w.status = "Completed"; w.completedAt = new Date().toISOString().slice(0, 10); w.finalCost = +cost;
   const ex = { vehicleId: w.vehicleId, date: w.completedAt, category: cat.trim() || "Other", amount: +cost };
@@ -1392,6 +1392,30 @@ function fillTyrePositions() {
   if ([...psel.options].some(o => o.value === keep)) psel.value = keep;
 }
 
+// Suggested expense categories, shown in every expense-category field's
+// datalist (both are free-text inputs, not a fixed <select> — anyone can
+// type a new type). Presets first, then every category any expense has
+// ever actually used, so a custom type typed once shows up as a suggestion
+// everywhere from then on — no separate "manage categories" list to keep.
+const DEFAULT_EXPENSE_CATEGORIES = [
+  "Tyres", "Tyre Puncture", "Tyre Change", "Battery", "Brakes", "Clutch",
+  "Engine Oil & Filters", "Suspension", "Electrical", "Body & Paint",
+  "DEF", "Greasing", "Water Wash", "RTO", "Police",
+  "Insurance", "Permit & Road Tax", "Fitness & PUC", "Other",
+];
+function renderExpenseCategoryList() {
+  const el = document.getElementById("expenseCategoryList");
+  if (!el) return;
+  const seen = new Set();
+  const cats = [];
+  DEFAULT_EXPENSE_CATEGORIES.concat(db.expenses.map(e => e.category)).forEach(c => {
+    const t = (c || "").trim();
+    const key = t.toLowerCase();
+    if (t && !seen.has(key)) { seen.add(key); cats.push(t); }
+  });
+  el.innerHTML = cats.map(c => `<option value="${esc(c)}"></option>`).join("");
+}
+
 // ---------- Save confirmation + cross-cutting refresh ----------
 // Every entry form below saves into `db` (localStorage + debounced cloud
 // push, both already handled by saveStore()) and re-renders its own tab —
@@ -1924,14 +1948,8 @@ function buildDynamicPanels() {
       </div>
       <div class="form-row">
         <label>Category
-          <select name="category" required>
-            <option value="">Select</option>
-            <option>Tyres</option><option>Battery</option><option>Brakes</option>
-            <option>Clutch</option><option>Engine Oil &amp; Filters</option><option>Suspension</option>
-            <option>Electrical</option><option>Body &amp; Paint</option>
-            <option>Insurance</option><option>Permit &amp; Road Tax</option><option>Fitness &amp; PUC</option>
-            <option>Other</option>
-          </select>
+          <input type="text" name="category" list="expenseCategoryList" required maxlength="60"
+            placeholder="e.g. Tyre Puncture, DEF, RTO — or type a new one" />
         </label>
         <label>Amount (&#8377;)<input type="number" name="amount" min="1" required inputmode="numeric" /></label>
       </div>
@@ -2175,6 +2193,7 @@ function renderAll() {
     loadDemoFleet(); return;
   }
   fillVehicleSelects();
+  renderExpenseCategoryList();
   renderOverview(); renderVehicles(); renderDrivers(); renderFuel();
   renderInspectionForm(); renderInspectionHistory();
   renderIssues(); renderWorkOrders(); renderReminders(); renderParts();

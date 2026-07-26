@@ -241,7 +241,7 @@ document.getElementById("qeExpForm").addEventListener("submit", async e => {
   e.preventDefault();
   if (needVehicle()) return;
   const fd = Object.fromEntries(new FormData(e.target));
-  const ex = { vehicleId: selVehicle, date: fd.date, category: fd.category, amount: +fd.amount, odo: fd.odo ? +fd.odo : undefined };
+  const ex = { vehicleId: selVehicle, date: fd.date, category: (fd.category || "").trim(), amount: +fd.amount, odo: fd.odo ? +fd.odo : undefined };
   if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateExpense(ex);
     if (!saved) { alert("Could not save — check your connection and try again."); return; }
@@ -249,6 +249,7 @@ document.getElementById("qeExpForm").addEventListener("submit", async e => {
   } else {
     db.expenses.push(ex);
   }
+  if (typeof renderExpenseCategoryList === "function") renderExpenseCategoryList();
   afterQuickSave(e.target);
 });
 
