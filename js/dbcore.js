@@ -43,8 +43,24 @@ async function dbOrgId() {
   // point every fetch at the wrong org, making a real fleet look empty.
   let rows = await fwCloud.authGet("memberships", "select=org_id&role=eq.owner&limit=1").catch(() => null);
   if (!rows || !rows[0]) rows = await fwCloud.authGet("memberships", "select=org_id&limit=1").catch(() => null);
-  _dbOrgId = rows && rows[0] ? rows[0].org_id : null;
-  return _dbOrgId;
+  if (rows && rows[0]) {
+    _dbOrgId = rows[0].org_id;
+    return _dbOrgId;
+  }
+  // First-time owners may have an auth user but no organization row yet.
+  // Create the tenant via the same definer function the blob sync path uses.
+  const ownerId = fwCloud.uid ? fwCloud.uid() : null;
+  if (ownerId) {
+    const orgId = await fwCloud.authRpc("sync_fleet_from_blob", {
+      p_owner: ownerId,
+      p_data: { settings: {} }
+    }).catch(() => null);
+    if (orgId) {
+      _dbOrgId = orgId;
+      return _dbOrgId;
+    }
+  }
+  return null;
 }
 // Team & Access / Payroll invalidate nothing here — org id doesn't change
 // for a signed-in owner mid-session, so a simple module-level cache is safe.

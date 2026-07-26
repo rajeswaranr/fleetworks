@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node server/static-server.mjs",
     "serve": "node server/static-server.mjs",
+    "dev": "node server/static-server.mjs",
+    "build": "npm test && node -e \"console.log('Static app assets are ready. Start with npm start or npm run dev.')\"",
     "test": "node --test tests/*.test.mjs && npm --prefix db/tests test"
   }
 }

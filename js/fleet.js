@@ -1670,6 +1670,40 @@ function setWorkspace(ws) {
   document.body.dataset.ws = ws;
 }
 
+function activateTab(tabName, options = {}) {
+  const btn = document.querySelector(`#tabBar .tab-btn[data-tab="${tabName}"]`);
+  if (!btn) return false;
+  // Radar presets (Vehicle/Driver Renewals, Warranties) pre-filter the Radar
+  if (btn.dataset.radar !== undefined) { radarFilter = btn.dataset.radar || "all"; renderRadar(); }
+  // scoped to the sidebar / top-level panels so the My Account inner tabs are untouched
+  document.querySelectorAll("#tabBar .tab-btn").forEach(b => b.classList.toggle("active", b === btn));
+  document.querySelectorAll("#fleetContent > .tab-panel").forEach(p => p.classList.toggle("active", p.id === "tab-" + tabName));
+  const title = document.getElementById("pageTitle");
+  if (title) title.textContent = (btn.textContent || "").trim();
+  document.getElementById("appSide")?.classList.remove("open");
+  clearPageSearch();
+  updateToolbarCounts();
+  const hashTarget = tabName || "home";
+  const method = options.replaceHistory ? "replaceState" : "replaceState";
+  history[method](null, "", "#" + hashTarget);
+  // switch workspace to wherever the clicked tab lives (hub, deep link, or sidebar)
+  if (tabName === "home") setWorkspace("home");
+  else { const w = btn.closest("[data-ws]"); if (w) setWorkspace(w.dataset.ws); }
+  // Home & My Account work even with an empty fleet. Signed-in owners never
+  // see the demo prompt — they get the Getting Started landing instead.
+  if (!db.vehicles.length) {
+    const exempt = tabName === "account" || tabName === "home" || tabName === "addvehicle";
+    const signedIn = !!(window.fwCloud && fwCloud.user());
+    document.getElementById("emptyState").hidden = exempt || signedIn;
+    const startEl = document.getElementById("startState");
+    if (startEl) startEl.hidden = exempt || !signedIn;
+    document.getElementById("fleetContent").hidden = !exempt;
+  }
+  if (tabName === "account" && window.renderAuthState) renderAuthState();
+  if (tabName === "map" && window.renderFleetMap) renderFleetMap();
+  return true;
+}
+
 // Sidebar nav (enterprise shell) — closest() so clicks on the inner SVG icon
 // still resolve to the .tab-btn that carries data-tab. Updates the page title
 // and closes the mobile drawer.
@@ -1679,32 +1713,17 @@ document.getElementById("tabBar").addEventListener("click", e => {
   if (parent) { parent.closest(".side-group")?.classList.toggle("open"); return; }
   const btn = e.target.closest(".tab-btn");
   if (!btn || !btn.dataset.tab) return;
-  // Radar presets (Vehicle/Driver Renewals, Warranties) pre-filter the Radar
-  if (btn.dataset.radar !== undefined) { radarFilter = btn.dataset.radar || "all"; renderRadar(); }
-  // scoped to the sidebar / top-level panels so the My Account inner tabs are untouched
-  document.querySelectorAll("#tabBar .tab-btn").forEach(b => b.classList.toggle("active", b === btn));
-  document.querySelectorAll("#fleetContent > .tab-panel").forEach(p => p.classList.toggle("active", p.id === "tab-" + btn.dataset.tab));
-  const title = document.getElementById("pageTitle");
-  if (title) title.textContent = (btn.textContent || "").trim();
-  document.getElementById("appSide")?.classList.remove("open");
-  clearPageSearch();
-  updateToolbarCounts();
-  history.replaceState(null, "", "#" + btn.dataset.tab);
-  // switch workspace to wherever the clicked tab lives (hub, deep link, or sidebar)
-  if (btn.dataset.tab === "home") setWorkspace("home");
-  else { const w = btn.closest("[data-ws]"); if (w) setWorkspace(w.dataset.ws); }
-  // Home & My Account work even with an empty fleet. Signed-in owners never
-  // see the demo prompt — they get the Getting Started landing instead.
-  if (!db.vehicles.length) {
-    const exempt = btn.dataset.tab === "account" || btn.dataset.tab === "home";
-    const signedIn = !!(window.fwCloud && fwCloud.user());
-    document.getElementById("emptyState").hidden = exempt || signedIn;
-    const startEl = document.getElementById("startState");
-    if (startEl) startEl.hidden = exempt || !signedIn;
-    document.getElementById("fleetContent").hidden = !exempt;
-  }
-  if (btn.dataset.tab === "account" && window.renderAuthState) renderAuthState();
-  if (btn.dataset.tab === "map" && window.renderFleetMap) renderFleetMap();
+  activateTab(btn.dataset.tab, { replaceHistory: true });
+});
+
+function activateTabFromHash() {
+  const hash = (location.hash || "").replace(/^#/, "").trim();
+  if (!hash) return false;
+  return activateTab(hash, { replaceHistory: true });
+}
+
+window.addEventListener("hashchange", () => {
+  activateTabFromHash();
 });
 
 // ---------- Top-bar page search (filters the active panel's lists) ----------
@@ -2261,13 +2280,14 @@ clearDemoForOwner();
 syncDemoButton();
 
 renderAll();
+activateTabFromHash();
 
 // Home hub cards open their workspace and land on its dashboard
 document.querySelectorAll(".hub-card").forEach(c => c.addEventListener("click", () => {
   const target = { ops: "overview", fin: "fin", iq: "analytics" }[c.dataset.hub];
   document.querySelector(`#tabBar .tab-btn[data-tab="${target}"]`)?.click();
 }));
-setWorkspace("home");
+if (!activateTabFromHash()) setWorkspace("home");
 
 // ---------- Breakdown SOS ----------
 // One tap on the road: logs a High issue + open job card, then opens

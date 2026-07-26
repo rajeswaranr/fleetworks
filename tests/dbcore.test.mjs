@@ -42,3 +42,12 @@ test('driverToDbRow and issueToDbRow use the expected DB columns', () => {
   assert.equal(sandbox.driverToDbRow(driver, 'org-1').vehicle_id, 'db-1');
   assert.equal(sandbox.issueToDbRow(issue, 'org-1').ext_id, 'i-1');
 });
+
+test('dbOrgId creates an organization via rpc when the owner has no membership yet', async () => {
+  const sandbox = loadDbcore();
+  sandbox.fwCloud.authGet = async () => [];
+  sandbox.fwCloud.authRpc = async () => 'org-created';
+  sandbox.fwCloud.uid = () => 'owner-1';
+  const orgId = await sandbox.dbOrgId();
+  assert.equal(orgId, 'org-created');
+});
