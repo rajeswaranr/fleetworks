@@ -9,17 +9,75 @@
   "use strict";
 
   const SKEY = "fw_session";
+  const ACTIVE_SKEY = "fw_session:active";
+  const LEGACY_FLEET_KEY = "ff_fleet";
   const debounceMs = 1500;
   let timer = null;
   let pendingPush = null; // last db object queued for the debounced push, flushed on logout
 
   function cfg() { return window.FW_BACKEND || { url: "", anonKey: "" }; }
+  function sessionKeyFor(s) {
+    const user = s && s.user ? s.user : s;
+    const uid = user && (user.email || user.id || s && s.email || s && s.id);
+    return uid ? "fw_session:" + String(uid) : SKEY;
+  }
+  function readSession(key) {
+    try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
+  }
   function session() {
-    try { return JSON.parse(localStorage.getItem(SKEY) || "null"); } catch { return null; }
+    const activeKey = localStorage.getItem(ACTIVE_SKEY);
+    if (activeKey) {
+      const s = readSession(activeKey);
+      if (s) return s;
+    }
+    return null;
   }
   function setSession(s) {
-    if (s) localStorage.setItem(SKEY, JSON.stringify(s));
-    else localStorage.removeItem(SKEY);
+    if (s) {
+      const key = sessionKeyFor(s);
+      localStorage.setItem(key, JSON.stringify(s));
+      localStorage.setItem(ACTIVE_SKEY, key);
+      localStorage.removeItem(SKEY);
+    } else {
+      const activeKey = localStorage.getItem(ACTIVE_SKEY);
+      if (activeKey) localStorage.removeItem(activeKey);
+      localStorage.removeItem(ACTIVE_SKEY);
+      localStorage.removeItem(SKEY);
+      localStorage.removeItem(LEGACY_FLEET_KEY);
+    }
+  }
+  function sessionUserId(s) {
+    const user = s && s.user ? s.user : s;
+    return (user && (user.email || user.id || s && s.email || s && s.id)) || "";
+  }
+  function fleetDataKeyFor(s) {
+    const uid = sessionUserId(s);
+    return uid ? "ff_fleet:" + uid : LEGACY_FLEET_KEY;
+  }
+  function persistFleetData(s, data) {
+    const key = fleetDataKeyFor(s);
+    if (data === null) {
+      localStorage.removeItem(key);
+      localStorage.removeItem(LEGACY_FLEET_KEY);
+      return;
+    }
+    const payload = typeof data === "string" ? data : JSON.stringify(data);
+    localStorage.setItem(key, payload);
+    localStorage.setItem(LEGACY_FLEET_KEY, payload);
+  }
+  function readFleetData() {
+    const active = session();
+    const key = fleetDataKeyFor(active);
+    const raw = localStorage.getItem(key);
+    if (raw != null) {
+      localStorage.setItem(LEGACY_FLEET_KEY, raw);
+      return JSON.parse(raw);
+    }
+    const legacy = localStorage.getItem(LEGACY_FLEET_KEY);
+    if (legacy != null) {
+      try { return JSON.parse(legacy); } catch { return null; }
+    }
+    return null;
   }
 
   async function authFetch(path, opts) {
@@ -115,7 +173,8 @@
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error_description || j.msg || "Login failed");
-      setSession(j);
+      const sessionPayload = { ...j, user: { ...(j.user || {}), email } };
+      setSession(sessionPayload);
       await fwCloud.pull();
       return true;
     },
@@ -130,8 +189,14 @@
     async logout() {
       clearTimeout(timer);
       if (pendingPush) { const d = pendingPush; pendingPush = null; try { await fwCloud.pushNow(d); } catch { } }
+      const activeKey = localStorage.getItem(ACTIVE_SKEY);
+      const activeSession = activeKey ? readSession(activeKey) : null;
       setSession(null);
-      localStorage.removeItem("ff_fleet");
+      if (activeSession) {
+        const fallbackKey = sessionKeyFor(activeSession);
+        localStorage.removeItem(fallbackKey);
+      }
+      pendingPush = null;
       location.reload();
     },
 
@@ -236,25 +301,26 @@
        misread as "no cloud data", which pushed whatever stale/demo blob
        was sitting in local storage up over the correct empty cloud state. */
     async pull() {
+      const s = session();
       const r = await authFetch("/rest/v1/fleets?select=data&limit=1", {});
       if (!r.ok) return false;
       const rows = await r.json();
       if (rows.length && rows[0].data) {
-        localStorage.setItem("ff_fleet", JSON.stringify(rows[0].data));
+        persistFleetData(s, rows[0].data);
         return true;
       }
       // Genuinely no cloud row yet (brand new account): push local up if
       // present — but NEVER a demo blob. A demo fleet loaded while signed
       // out must not leak into a real account's cloud data (this was
       // exactly how demo vehicles/drivers ended up in real accounts).
-      const local = localStorage.getItem("ff_fleet");
+      const local = readFleetData();
       if (local) {
         try {
-          const d = JSON.parse(local);
+          const d = typeof local === "string" ? JSON.parse(local) : local;
           const isDemo = d.demo === true || (d.vehicles && d.vehicles[0] && d.vehicles[0].id === "v1");
-          if (isDemo) localStorage.removeItem("ff_fleet");
+          if (isDemo) persistFleetData(s, null);
           else await fwCloud.pushNow(d);
-        } catch { localStorage.removeItem("ff_fleet"); }
+        } catch { persistFleetData(s, null); }
       }
       return false;
     },
@@ -279,6 +345,7 @@
           updated_at: new Date().toISOString()
         })
       });
+      if (r.ok) persistFleetData(s, dbObj);
       return r.ok;
     }
   };
