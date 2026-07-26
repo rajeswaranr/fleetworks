@@ -519,18 +519,42 @@ async function loadCoreFromDb() {
 // Demo rows are precisely identifiable (fixed vehicle ext_ids, fixed driver
 // DL numbers, fixed part numbers — real rows always get random uids), so
 // every sign-in/page load deletes any that exist before fetching. RLS
-// scopes the deletes to this account's own org. Deleting the demo vehicles
-// cascades to their fuel logs, expenses, issues, work orders, reminders,
-// inspections, tyre readings and documents. Idempotent and cheap (3
-// DELETEs matching nothing once clean). ----------
+// scopes the deletes to this account's own org.
+//
+// Every table linked to a demo vehicle/driver is deleted EXPLICITLY by the
+// real vehicle/driver uuid — maintenance data (issues, work orders,
+// reminders, inspections, tyre readings, documents, trips) is not left to
+// an ON DELETE CASCADE to clean up, since that depends on the exact FK
+// definition being live in this account's database, which this code has no
+// way to verify. Explicit deletes are correct regardless. Idempotent and
+// cheap once clean (the two lookups return nothing, so nothing else runs). ----------
 const DEMO_DRIVER_DL_NOS = ["TN01 20180012345", "UP32 20150098765", "TN22 20190045678", "KA05 20170034567", "TN45 20200056789"];
 const DEMO_PART_NUMBERS = ["CAS-15W40-210L", "TML-AF-1613X", "BL-HCV-450", "FF-BS6-220", "WN-M22-100", "ALT-12V90-BL"];
+const VEHICLE_LINKED_TABLES = ["tyre_readings", "fuel_logs", "expenses", "issues", "work_orders", "reminders", "inspections", "documents", "trips"];
 async function dbPurgeDemoRows() {
   if (!coreDbBacked()) return;
   try {
+    const dlQuoted = DEMO_DRIVER_DL_NOS.map(s => encodeURIComponent('"' + s + '"')).join(",");
+    const partQuoted = DEMO_PART_NUMBERS.map(s => encodeURIComponent('"' + s + '"')).join(",");
+
+    const [demoVehicles, demoDrivers] = await Promise.all([
+      fwCloud.authGet("vehicles", "select=id&ext_id=in.(v1,v2,v3,v4,v5)"),
+      fwCloud.authGet("drivers", "select=id&dl_no=in.(" + dlQuoted + ")"),
+    ]);
+    const vehIds = (demoVehicles || []).map(v => v.id);
+    const drvIds = (demoDrivers || []).map(d => d.id);
+
+    if (vehIds.length) {
+      const vFilter = "vehicle_id=in.(" + vehIds.join(",") + ")";
+      await Promise.all(VEHICLE_LINKED_TABLES.map(t => fwCloud.authDelete(t, vFilter)));
+    }
+    if (drvIds.length) {
+      const dFilter = "driver_id=in.(" + drvIds.join(",") + ")";
+      await Promise.all(["documents", "driver_ledger"].map(t => fwCloud.authDelete(t, dFilter)));
+    }
     await fwCloud.authDelete("vehicles", "ext_id=in.(v1,v2,v3,v4,v5)");
-    await fwCloud.authDelete("drivers", "dl_no=in.(" + DEMO_DRIVER_DL_NOS.map(s => encodeURIComponent('"' + s + '"')).join(",") + ")");
-    await fwCloud.authDelete("parts", "part_number=in.(" + DEMO_PART_NUMBERS.map(s => encodeURIComponent('"' + s + '"')).join(",") + ")");
+    await fwCloud.authDelete("drivers", "dl_no=in.(" + dlQuoted + ")");
+    await fwCloud.authDelete("parts", "part_number=in.(" + partQuoted + ")");
   } catch { /* purge is best-effort — next load retries */ }
 }
 
