@@ -3,3 +3,16 @@
 
 # Supabase CLI local state (which project is linked, auth cache)
 supabase/.temp/
+
+# Environment variables (Supabase credentials, API keys)
+.env
+.env.local
+.env.*.local
+
+# Node dependencies
+node_modules/
+npm-debug.log
+
+# Scraper temp files
+/tmp/
+/server/scraper/node_modules/

@@ -99,7 +99,7 @@
                 <option value="other">Other</option>
               </select>
             </label>
-            <label>City<input type="text" name="city" required placeholder="e.g. Coimbatore" /></label>
+            <label>City (optional — auto-detected from address if left blank)<input type="text" name="city" placeholder="only if you scraped a single city" /></label>
             <label>JSON file<input type="file" name="file" accept=".json" required /></label>
           </div>
           <button type="submit" class="btn btn-primary">Upload</button>
@@ -107,6 +107,38 @@
           <p class="muted" id="leadUploadResult" style="font-size:0.85rem;margin-top:6px"></p>
         </form>
         <div class="chart-scroll"><div id="vendorLeadsTable"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="settings" data-icon-size="18"></i></span> Scraper Configurations</h2><p class="muted">Which vendor types + cities to scrape, and manual trigger for on-demand runs</p></div>
+        </div>
+        <form id="scraperConfigForm" class="entry-form" style="margin-bottom:14px">
+          <div class="form-row">
+            <label>Vendor Type
+              <select name="vendorType" required>
+                <option value="mechanic">Mechanic</option>
+                <option value="electrician">Electrician</option>
+                <option value="battery">Battery</option>
+                <option value="tyre">Tyre</option>
+                <option value="puncture">Puncture Repair</option>
+              </select>
+            </label>
+            <label>City
+              <input type="text" name="city" placeholder="e.g. Chennai" required />
+            </label>
+            <button type="submit" class="btn btn-primary" style="align-self:end">+ Add Config</button>
+          </div>
+        </form>
+        <div class="chart-scroll"><div id="configsTable"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="clock" data-icon-size="18"></i></span> Scraper Runs</h2><p class="muted">Recent scrape history — status, records found, and results</p></div>
+          <button class="btn btn-outline btn-sm" onclick="loadScraperRuns()">↻ Refresh</button>
+        </div>
+        <div class="chart-scroll"><div id="runsTable"></div></div>
       </div>
     </div>
   </main>
@@ -285,12 +317,156 @@
       catch (ex) { alert(ex.message); }
     };
 
+    // ===== Scraper Service Integration =====
+    const SCRAPER_URL = sessionStorage.getItem("fw_scraper_url") || "https://fleetworks-scraper-xxxxx.a.run.app"; // Update after deploy
+
+    let SCRAPER_CONFIGS = [], SCRAPER_RUNS = [];
+
+    async function loadScraperConfigs() {
+      try {
+        const r = await fetch(SCRAPER_URL + "/api/configs");
+        if (!r.ok) throw new Error("Could not load scraper configs — is the service URL correct?");
+        SCRAPER_CONFIGS = await r.json();
+        renderConfigs();
+      } catch (ex) {
+        $("configsTable").innerHTML = `<p class="muted" style="color:#b91c1c">${esc(ex.message)}</p>`;
+      }
+    }
+
+    async function loadScraperRuns() {
+      try {
+        const r = await fetch(FW_BACKEND.url + "/rest/v1/scraper_runs?select=*&order=created_at.desc&limit=50", { headers: authHeaders() });
+        if (!r.ok) throw new Error("Could not load scraper runs");
+        SCRAPER_RUNS = await r.json();
+        renderRuns();
+      } catch (ex) {
+        $("runsTable").innerHTML = `<p class="muted" style="color:#b91c1c">${esc(ex.message)}</p>`;
+      }
+    }
+
+    function renderConfigs() {
+      if (!SCRAPER_CONFIGS.length) {
+        $("configsTable").innerHTML = "<p class='muted'>No configs yet — add one above to start scraping.</p>";
+        return;
+      }
+      $("configsTable").innerHTML = `<table class="chart-table-el"><thead><tr><th>Vendor Type</th><th>City</th><th></th></tr></thead><tbody>` +
+        SCRAPER_CONFIGS.map(c => `<tr><td><strong>${esc(c.vendor_type)}</strong></td>
+          <td>${esc(c.city)}</td>
+          <td style="white-space:nowrap">
+            <button class="link-btn" onclick="triggerScrape('${escAttr(c.id)}', '${escAttr(c.vendor_type)}', '${escAttr(c.city)}')">Scrape Now</button>
+            <button class="link-btn" style="color:#b91c1c" onclick="deleteConfig('${escAttr(c.id)}')">Remove</button>
+          </td></tr>`).join("") + "</tbody></table>";
+    }
+
+    function renderRuns() {
+      if (!SCRAPER_RUNS.length) {
+        $("runsTable").innerHTML = "<p class='muted'>No scrape runs yet.</p>";
+        return;
+      }
+      const STATUS_COLORS = { pending: "#999", running: "#f59e0b", completed: "#10b981", failed: "#ef4444" };
+      $("runsTable").innerHTML = `<table class="chart-table-el"><thead><tr><th>When</th><th>Type</th><th>City</th><th>Status</th><th>Found</th><th>New</th><th>Duped</th><th>Error</th></tr></thead><tbody>` +
+        SCRAPER_RUNS.map(r => {
+          const color = STATUS_COLORS[r.status] || "#666";
+          return `<tr><td>${fmtDT(r.created_at)}</td><td>${esc(r.vendor_type || "—")}</td>
+            <td>${esc(r.city || "—")}</td>
+            <td><span class="status-pill" style="background:${color}20;color:${color};border-color:${color}">${esc(r.status)}</span></td>
+            <td>${r.records_found || 0}</td>
+            <td style="color:#10b981"><strong>${r.records_new || 0}</strong></td>
+            <td style="color:#999">${r.records_duped || 0}</td>
+            <td>${r.error_message ? `<span title="${esc(r.error_message)}" style="color:#ef4444;cursor:help">Error</span>` : "—"}</td></tr>`;
+        }).join("") + "</tbody></table>";
+    }
+
+    window.triggerScrape = async function (configId, vendorType, city) {
+      if (!confirm(`Scrape ${vendorType} in ${city}? This usually takes 1-5 minutes.`)) return;
+      try {
+        const r = await fetch(SCRAPER_URL + "/api/scrape", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ configId, vendorType, city })
+        });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Scrape request failed");
+        const result = await r.json();
+        alert(`Scrape started! Run ID: ${result.runId}\n\nPolling for status…`);
+        // Poll status every 2 seconds for up to 10 minutes
+        pollScrapeStatus(result.runId, 0);
+      } catch (ex) {
+        alert("Scrape error: " + ex.message);
+      }
+    };
+
+    window.deleteConfig = async function (configId) {
+      if (!confirm("Delete this configuration? You can recreate it anytime.")) return;
+      try {
+        const r = await fetch(FW_BACKEND.url + "/rest/v1/scraper_configs?id=eq." + configId, {
+          method: "DELETE",
+          headers: authHeaders()
+        });
+        if (!r.ok) throw new Error("Delete failed");
+        await loadScraperConfigs();
+      } catch (ex) {
+        alert("Error: " + ex.message);
+      }
+    };
+
+    async function pollScrapeStatus(runId, attempts) {
+      if (attempts > 300) { // 10 minutes max
+        alert("Scrape is taking longer than expected. Check the Scraper Runs table for status.");
+        return;
+      }
+      try {
+        const r = await fetch(SCRAPER_URL + "/api/scrape/" + runId);
+        if (!r.ok) throw new Error("Poll failed");
+        const run = await r.json();
+        if (run.status === "completed" || run.status === "failed") {
+          alert(`Scrape ${run.status}!\n\nFound: ${run.records_found}\nNew: ${run.records_new}\nDuplicates: ${run.records_duped}${run.error_message ? "\n\nError: " + run.error_message : ""}`);
+          await loadScraperRuns();
+          return;
+        }
+        // Still running, poll again in 2 seconds
+        setTimeout(() => pollScrapeStatus(runId, attempts + 1), 2000);
+      } catch (ex) {
+        console.error("Poll error:", ex);
+        setTimeout(() => pollScrapeStatus(runId, attempts + 1), 2000);
+      }
+    }
+
+    $("scraperConfigForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const fd = Object.fromEntries(new FormData(e.target));
+      try {
+        const r = await fetch(SCRAPER_URL + "/api/configs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ vendorType: fd.vendorType, city: fd.city.trim() })
+        });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Config save failed");
+        e.target.reset();
+        await loadScraperConfigs();
+      } catch (ex) {
+        alert("Error: " + ex.message);
+      }
+    });
+
+    // Tamil Nadu's main HCV/trucking hubs — checked against each record's
+    // own address text so one scrape covering the whole state can be
+    // uploaded in a single go (category still comes from the upload form,
+    // since that's genuinely one-per-run; city isn't, since a single run
+    // is expected to span many cities).
+    const TN_CITIES = ["Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Trichy", "Salem",
+      "Tirunelveli", "Erode", "Vellore", "Thoothukudi", "Tuticorin", "Dindigul", "Namakkal",
+      "Karur", "Hosur", "Krishnagiri", "Thanjavur", "Nagercoil", "Cuddalore", "Kanchipuram"];
+    function detectCity(address, fallback) {
+      if (address) for (const c of TN_CITIES) if (address.toLowerCase().includes(c.toLowerCase())) return c;
+      return fallback || null;
+    }
     // Maps a gosom/google-maps-scraper JSON record onto our vendor_leads
     // columns. Unmapped fields aren't lost — the whole original record is
-    // kept in `raw` too. serviceCategory/city come from the upload form
-    // (the scraper itself has no concept of either), applied to every row
-    // in that file.
-    function mapScrapedRecord(rec, serviceCategory, city) {
+    // kept in `raw` too. serviceCategory comes from the upload form (one
+    // category per run); city is auto-detected per record from its own
+    // address, falling back to the form's city field only if given.
+    function mapScrapedRecord(rec, serviceCategory, cityFallback) {
+      const address = rec.complete_address || rec.address || null;
       return {
         source: "google_maps_scraper",
         service_category: serviceCategory,
@@ -299,8 +475,8 @@
         google_category: rec.category || null,
         phone: rec.phone || null,
         website: rec.website || null,
-        address: rec.complete_address || rec.address || null,
-        city: city,
+        address,
+        city: detectCity(address, cityFallback),
         latitude: rec.latitude != null ? rec.latitude : null,
         longitude: rec.longitude != null ? rec.longitude : null,
         rating: rec.review_rating != null ? rec.review_rating : null,
@@ -377,6 +553,8 @@
       $("consoleView").hidden = false;
       $("logoutBtn").hidden = false;
       loadAll().catch(err => alert(err.message));
+      loadScraperConfigs().catch(err => console.warn("Scraper configs unavailable:", err.message));
+      loadScraperRuns().catch(err => console.warn("Scraper runs unavailable:", err.message));
     }
     function logout() {
       session = null;
