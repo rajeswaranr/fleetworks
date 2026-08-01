@@ -347,13 +347,34 @@
     const STATUS_ACTIONS = { new: ["contacted", "rejected"], contacted: ["qualified", "rejected"], qualified: ["converted", "rejected"], rejected: ["new"], converted: [] };
     const STATUS_LABEL = { new: "New", contacted: "Contacted", qualified: "Qualified", rejected: "Rejected", converted: "Converted" };
 
+    // Dealerships and franchise outlets, by name. The absence of a website is a
+    // decent proxy for "small independent" but not a reliable one — a live scan
+    // flagged "Tata ace truck showroom" as a local garage purely because it had
+    // no site and few reviews. Names give the signal that metadata doesn't.
+    //
+    // Only unambiguous markers belong here. "service centre" is deliberately
+    // absent: "Sairanjan service center" is exactly the sort of independent shop
+    // we're hunting for, and excluding the phrase would lose it.
+    const CHAIN_MARKERS = [
+      "tata motors", "tata ace", "mahindra", "ashok leyland", "eicher",
+      "bharatbenz", "bharat benz", "volvo", "daimler", "maruti", "hyundai",
+      "bosch car service", "showroom", "authorised", "authorized",
+      "pvt ltd", "pvt. ltd", "private limited", " llp", "dealership",
+    ];
+    const looksLikeChain = name => {
+      const n = String(name || "").toLowerCase();
+      return CHAIN_MARKERS.some(m => n.includes(m));
+    };
+
     // The partners we actually want are the small independent garages: a shed, a
     // phone number, no website, a handful of reviews. Google ranks exactly those
     // last, so the console has to pull them back up — otherwise a BDM works down
     // from the top and spends the day calling Mahindra showrooms.
     // A phone number is non-negotiable; without one there's no way to approach them.
     function isLocalGarage(l) {
-      return !l.website && !!l.phone && (l.review_count == null || l.review_count < 25);
+      return !l.website && !!l.phone
+        && (l.review_count == null || l.review_count < 25)
+        && !looksLikeChain(l.business_name);
     }
 
     function leadIdentity(l) {
