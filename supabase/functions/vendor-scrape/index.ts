@@ -59,12 +59,34 @@ function err(origin: string | null, status: number, message: string) {
 // (Truck-Bus-Radial) and "retreading", both of which are HCV-only by
 // definition. Overlap between phrases costs nothing — results are de-duplicated
 // on place_id before anything is written.
+//
+// Phrases marked "probed" were run against Google Maps in Chennai and confirmed
+// to return that trade's own Google category; the rest follow the same pattern.
 const QUERIES_FOR: Record<string, string[]> = {
-  mechanic: ["truck repair garage", "lorry mechanic workshop", "commercial vehicle service centre"],
+  // --- running repairs ---
+  mechanic: ["truck repair garage", "lorry mechanic workshop", "commercial vehicle service centre"],       // probed -> Truck repair shop
   electrician: ["truck auto electrician", "lorry auto electrical works", "commercial vehicle electrician"],
   battery: ["truck battery shop", "commercial vehicle battery dealer", "lorry battery dealer"],
   tyre: ["truck tyre shop", "TBR tyre dealer", "truck tyre retreading"],
   puncture: ["truck puncture shop", "lorry tyre puncture repair", "highway truck tyre repair"],
+
+  // --- systems ---
+  hydraulic: ["tipper hydraulic repair", "Hyva hydraulic service", "truck hydraulic cylinder repair"],     // probed -> Hydraulic repair service
+  injector: ["diesel injector pump repair", "Bosch diesel service", "fuel injection pump repair lorry"],   // probed -> Diesel engine repair service
+  radiator: ["truck radiator repair", "lorry radiator works", "radiator repair service truck"],            // probed -> Radiator repair service
+  spring: ["truck leaf spring works", "lorry leaf spring repair", "auto spring shop truck"],               // probed -> Auto spring shop
+
+  // --- body trades ---
+  // One category, not two: in India denting and painting is a single shop
+  // ("body works"), and Google has no category for truck body building — it
+  // files them under "Transportation service" or "Auto body parts supplier".
+  // Expect car-shop noise here; the google_category column is how you spot it.
+  bodyshop: ["lorry body works", "truck body building works", "truck denting and painting"],
+  welding: ["truck chassis welding works", "lorry welding shop", "truck body fabrication welding"],        // probed -> Welder
+  windshield: ["truck windshield glass replacement", "lorry windscreen fitting", "commercial vehicle auto glass"], // probed -> Auto glass shop
+
+  // --- supply ---
+  spareparts: ["truck spare parts shop", "commercial vehicle spare parts dealer", "lorry parts supplier"], // probed -> Truck parts supplier
 };
 
 // Tamil Nadu's main HCV/trucking hubs — mirrors the list in admin.html so a lead
@@ -92,6 +114,11 @@ const num = (v: unknown): number | null => {
 function mapPlace(rec: any, vendorType: string, cityFallback: string | null) {
   const address = rec.full_address ?? rec.address ?? null;
   const emails = [rec.email_1, rec.email_2, rec.email_3, rec.email].filter(Boolean);
+  // Outscraper's own `city` is Google's locality string and is often a pair,
+  // e.g. "Chennai, Thiruverkadu" — unusable for filtering or grouping. Match the
+  // address against our canonical hub list first and only fall back to the raw
+  // value when nothing matches, so the column stays one city per row.
+  const city = detectCity(address ?? "", null) ?? rec.city ?? cityFallback ?? null;
   return {
     source: "outscraper",
     service_category: vendorType,
@@ -101,7 +128,7 @@ function mapPlace(rec: any, vendorType: string, cityFallback: string | null) {
     phone: rec.phone ?? rec.phone_1 ?? null,
     website: rec.site ?? rec.website ?? null,
     address,
-    city: rec.city ?? detectCity(address ?? "", cityFallback),
+    city,
     latitude: num(rec.latitude),
     longitude: num(rec.longitude),
     rating: num(rec.rating),
