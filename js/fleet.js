@@ -2098,8 +2098,24 @@ function setWorkspace(ws) {
   document.body.dataset.ws = ws;
 }
 
+function tabButtonFor(tabName, preferredBtn) {
+  if (preferredBtn && preferredBtn.dataset && preferredBtn.dataset.tab === tabName) return preferredBtn;
+  const buttons = [...document.querySelectorAll("#tabBar .tab-btn")].filter(b => b.dataset.tab === tabName);
+  if (!buttons.length) return null;
+  const visibleWorkspaceButtons = buttons.filter(b => {
+    const ws = b.closest("[data-ws]");
+    return !ws || !ws.hidden;
+  });
+  // Deep links should prefer the global nav item when a workspace has a
+  // duplicate data-tab, e.g. FleetFin "Add Entry" and global "My Account".
+  return visibleWorkspaceButtons.find(b => !b.closest("[data-ws]")) ||
+    visibleWorkspaceButtons[0] ||
+    buttons.find(b => !b.closest("[data-ws]")) ||
+    buttons[0];
+}
+
 function activateTab(tabName, options = {}) {
-  const btn = document.querySelector(`#tabBar .tab-btn[data-tab="${tabName}"]`);
+  const btn = tabButtonFor(tabName, options.button);
   if (!btn) return false;
   // Radar presets (Vehicle/Driver Renewals, Warranties) pre-filter the Radar
   if (btn.dataset.radar !== undefined) { radarFilter = btn.dataset.radar || "all"; renderRadar(); }
@@ -2141,7 +2157,7 @@ document.getElementById("tabBar").addEventListener("click", e => {
   if (parent) { parent.closest(".side-group")?.classList.toggle("open"); return; }
   const btn = e.target.closest(".tab-btn");
   if (!btn || !btn.dataset.tab) return;
-  activateTab(btn.dataset.tab, { replaceHistory: true });
+  activateTab(btn.dataset.tab, { replaceHistory: true, button: btn });
 });
 
 function activateTabFromHash() {

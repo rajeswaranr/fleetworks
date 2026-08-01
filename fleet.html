@@ -1589,8 +1589,11 @@
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
     // Deep-link: fleet.html#analytics / #account / #fuel ... activates that tab
     window.fwActivateHashTab = function () {
+      if (typeof activateTabFromHash === "function" && activateTabFromHash()) return;
       const t = location.hash.slice(1);
-      if (t) document.querySelector('#tabBar .tab-btn[data-tab="' + t + '"]')?.click();
+      if (!t) return;
+      const buttons = [...document.querySelectorAll("#tabBar .tab-btn")].filter(b => b.dataset.tab === t);
+      (buttons.find(b => !b.closest("[data-ws]")) || buttons[0])?.click();
     };
     fwActivateHashTab();
   </script>
