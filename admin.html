@@ -40,6 +40,7 @@
         </label>
         <button type="submit" class="btn btn-primary btn-block">Sign In</button>
         <p class="field-error" id="loginError" hidden></p>
+        <p class="muted" style="text-align:center;font-size:0.82rem;margin-top:10px"><a href="reset.html?from=admin">Forgot your password?</a></p>
       </form>
     </div>
 
@@ -290,7 +291,7 @@
       $("vendorLeadsTable").innerHTML = vendorLeads.length ?
         `<table class="chart-table-el"><thead><tr><th>Business</th><th>Category</th><th>City</th><th>Phone</th><th>Rating</th><th>Status</th><th>Assigned to</th><th></th></tr></thead><tbody>` +
         vendorLeads.map(l => `<tr><td><strong>${esc(l.business_name)}</strong>${l.website ? `<br /><a href="${esc(l.website)}" target="_blank" rel="noopener" class="muted" style="font-size:0.78rem">${esc(l.website)}</a>` : ""}</td>
-          <td>${esc(l.service_category || "")}</td><td>${esc(l.city || "")}</td>
+          <td>${esc(l.service_category || "")}${l.google_category ? `<br /><span class="muted" style="font-size:0.72rem">${esc(l.google_category)}</span>` : ""}</td><td>${esc(l.city || "")}</td>
           <td>${l.phone ? `<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a>` : "<span class='muted'>—</span>"}</td>
           <td>${l.rating != null ? `${l.rating}★ (${l.review_count || 0})` : "<span class='muted'>—</span>"}</td>
           <td><span class="status-pill">${STATUS_LABEL[l.status] || l.status}</span></td>
@@ -385,7 +386,7 @@
     // single request rather than polling. That takes ~10-60s, so the button has to
     // show it's working — otherwise the console just looks frozen.
     window.triggerScrape = async function (btn, configId, vendorType, city) {
-      if (!confirm(`Scrape up to ${SCRAPE_LIMIT} ${vendorType} businesses in ${city}?\n\nThis takes up to a minute. New shops are added to Vendor Leads; ones already on file are skipped.`)) return;
+      if (!confirm(`Search Google Maps for ${vendorType} businesses serving trucks/lorries in ${city}?\n\nThree HCV search phrases are used, up to ${SCRAPE_LIMIT} results each. Takes up to a minute. New shops are added to Vendor Leads; ones already on file are skipped.`)) return;
       const label = btn.textContent;
       btn.textContent = "Scraping…";
       btn.disabled = true;
@@ -398,7 +399,8 @@
         const result = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(result.error || `Scrape failed (${r.status})`);
         const noId = result.noPlaceId ? `\n${result.noPlaceId} had no Google place id and were skipped.` : "";
-        alert(`Done — searched "${result.query}".\n\nFound: ${result.found}\nAdded as new leads: ${result.added}\nAlready on file: ${result.skipped}${noId}`);
+        const phrases = (result.queries || []).map(q => "  • " + q).join("\n");
+        alert(`Done.\n\nSearched:\n${phrases}\n\nFound: ${result.found}\nAdded as new leads: ${result.added}\nAlready on file: ${result.skipped}${noId}`);
         await Promise.all([loadScraperRuns(), loadAll()]);
       } catch (ex) {
         alert("Scrape error: " + ex.message);

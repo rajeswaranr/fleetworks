@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reset Password — FleetWorks</title>
+  <meta name="description" content="Reset your FleetWorks password." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" type="image/png" href="icons/icon-96.png" />
+  <meta name="theme-color" content="#0f1e33" />
+</head>
+<body style="background:#f4f6f9">
+
+  <div class="auth-gate">
+    <div class="auth-gate-inner" style="max-width:460px">
+      <div class="auth-gate-logo">
+        <img src="assets/logo-mark.svg" width="44" height="44" alt="" />
+        <span>Fleet<em>Works</em></span>
+      </div>
+
+      <div class="onboard-card auth-gate-card">
+
+        <!-- 1. Ask for the email (no recovery link in the URL yet) -->
+        <div id="requestView" hidden>
+          <h2>Reset your password</h2>
+          <p class="muted" style="margin-bottom:16px">Enter the email you sign in with and we'll send you a link to set a new password.</p>
+          <form id="requestForm" class="entry-form">
+            <label>Email
+              <input type="email" name="email" placeholder="you@example.com" required autocomplete="username" />
+            </label>
+            <button type="submit" class="btn btn-primary btn-block" id="requestBtn">Send Reset Link</button>
+            <p class="field-error" id="requestErr" hidden></p>
+          </form>
+        </div>
+
+        <!-- 2. Link followed — collect the new password -->
+        <div id="setView" hidden>
+          <h2>Choose a new password</h2>
+          <p class="muted" style="margin-bottom:16px">Almost done — pick a password you'll remember.</p>
+          <form id="setForm" class="entry-form">
+            <label>New Password
+              <input type="password" name="password" placeholder="Minimum 6 characters" required minlength="6" autocomplete="new-password" />
+            </label>
+            <label>Confirm New Password
+              <input type="password" name="confirm" placeholder="Type it once more" required minlength="6" autocomplete="new-password" />
+            </label>
+            <button type="submit" class="btn btn-primary btn-block" id="setBtn">Save New Password</button>
+            <p class="field-error" id="setErr" hidden></p>
+          </form>
+        </div>
+
+        <!-- 3. Sent / done confirmations -->
+        <div id="sentView" class="auth-confirm" hidden>
+          <span class="auth-confirm-ic"><i data-icon="mailCheck" data-icon-size="30"></i></span>
+          <h2>Check your email</h2>
+          <p>If <strong id="sentEmail"></strong> has a FleetWorks account, a reset link is on its way. The link works once and expires in an hour.</p>
+          <p class="muted auth-confirm-hint">Nothing after a minute? Check your spam folder, or <button type="button" class="link-btn" id="tryAgain">try a different email</button>.</p>
+        </div>
+
+        <div id="doneView" class="auth-confirm" hidden>
+          <span class="auth-confirm-ic"><i data-icon="shieldCheck" data-icon-size="30"></i></span>
+          <h2>Password updated</h2>
+          <p>You can now sign in with your new password.</p>
+          <a class="btn btn-primary btn-block" id="doneBack" href="signin.html">Go to Sign In</a>
+        </div>
+
+        <!-- 4. Link expired or already used -->
+        <div id="badLinkView" hidden>
+          <h2>That link has expired</h2>
+          <p class="muted" id="badLinkMsg" style="margin-bottom:16px">Reset links work once and last an hour. Request a fresh one and it'll arrive in a moment.</p>
+          <button type="button" class="btn btn-primary btn-block" id="badLinkRetry">Send a New Link</button>
+        </div>
+
+        <hr class="auth-gate-sep" />
+        <p class="muted auth-gate-alt"><a id="backLink" href="signin.html">&larr; Back to sign in</a></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/backend.js"></script>
+  <script>
+    "use strict";
+    const $ = id => document.getElementById(id);
+    const show = id => {
+      ["requestView", "setView", "sentView", "doneView", "badLinkView"]
+        .forEach(v => { $(v).hidden = v !== id; });
+    };
+
+    // Where "back to sign in" points. Whitelisted lookup, never the raw query
+    // value — otherwise ?from= would be an open redirect out of the site.
+    const BACK_TO = {
+      owner: "fleet.html#account",
+      admin: "admin.html",
+      garage: "garage.html",
+      team: "team.html",
+    };
+    const from = new URLSearchParams(location.search).get("from") || "";
+    const backHref = BACK_TO[from] || "signin.html";
+    $("backLink").href = backHref;
+    $("doneBack").href = backHref;
+
+    // Supabase must be told where to send people after they click the emailed
+    // link — this same page, carrying ?from= so we still know which login they
+    // started at. This URL must also be listed under Authentication →
+    // URL Configuration → Redirect URLs in the Supabase dashboard.
+    const redirectTo = location.origin + location.pathname + (from ? "?from=" + encodeURIComponent(from) : "");
+
+    // ---- Which half of the flow are we in? -------------------------------
+    // Supabase hands the recovery session back in the URL *hash*
+    // (#access_token=...&type=recovery), or an error there if the link is
+    // stale (#error=access_denied&error_code=otp_expired).
+    const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+    const accessToken = hash.get("access_token");
+    const hashError = hash.get("error_code") || hash.get("error");
+
+    if (accessToken || hashError) {
+      // Don't leave a live credential sitting in the address bar where it can
+      // be shoulder-read, copied out of history, or pasted into a chat.
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+
+    if (hashError) {
+      const desc = hash.get("error_description");
+      if (desc && !/expired|invalid/i.test(desc)) $("badLinkMsg").textContent = desc.replace(/\+/g, " ");
+      show("badLinkView");
+    } else if (accessToken) {
+      show("setView");
+    } else {
+      show("requestView");
+    }
+
+    function fail(el, message) { el.textContent = message; el.hidden = false; }
+
+    // ---- 1. Request the reset email --------------------------------------
+    $("requestForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const errEl = $("requestErr"), btn = $("requestBtn");
+      errEl.hidden = true;
+      if (!fwConfigured()) return fail(errEl, "Backend not configured yet — add the Supabase URL and key in js/backend.js.");
+      const email = new FormData(e.target).get("email").trim();
+      btn.disabled = true; btn.textContent = "Sending…";
+      try {
+        const r = await fetch(
+          FW_BACKEND.url + "/auth/v1/recover?redirect_to=" + encodeURIComponent(redirectTo),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey },
+            body: JSON.stringify({ email })
+          }
+        );
+        if (r.status === 429) {
+          return fail(errEl, "A link was just sent — please wait a minute before asking for another.");
+        }
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          return fail(errEl, j.msg || j.error_description || "Could not send the reset link. Please try again.");
+        }
+        // Supabase answers 200 whether or not the address has an account, so
+        // the confirmation is deliberately worded not to confirm it exists.
+        $("sentEmail").textContent = email;
+        show("sentView");
+      } catch (ex) {
+        fail(errEl, "Network error — check your connection and try again.");
+      } finally {
+        btn.disabled = false; btn.textContent = "Send Reset Link";
+      }
+    });
+
+    // ---- 2. Set the new password -----------------------------------------
+    $("setForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const errEl = $("setErr"), btn = $("setBtn");
+      errEl.hidden = true;
+      const fd = new FormData(e.target);
+      const password = fd.get("password"), confirm = fd.get("confirm");
+      if (password.length < 6) return fail(errEl, "Password must be at least 6 characters.");
+      if (password !== confirm) return fail(errEl, "Those two passwords don't match.");
+
+      btn.disabled = true; btn.textContent = "Saving…";
+      try {
+        const r = await fetch(FW_BACKEND.url + "/auth/v1/user", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": FW_BACKEND.anonKey,
+            "Authorization": "Bearer " + accessToken
+          },
+          body: JSON.stringify({ password })
+        });
+        if (r.ok) return show("doneView");
+
+        const j = await r.json().catch(() => ({}));
+        // The recovery token is short-lived; if it lapsed while they were
+        // typing, send them back to request a fresh link rather than showing
+        // a dead-end error on a form that can no longer succeed.
+        if (r.status === 401 || r.status === 403) return show("badLinkView");
+        fail(errEl, j.msg || j.error_description || "Could not update the password. Please try again.");
+      } catch (ex) {
+        fail(errEl, "Network error — check your connection and try again.");
+      } finally {
+        btn.disabled = false; btn.textContent = "Save New Password";
+      }
+    });
+
+    $("tryAgain").addEventListener("click", () => { $("requestForm").reset(); show("requestView"); });
+    $("badLinkRetry").addEventListener("click", () => { $("requestForm").reset(); show("requestView"); });
+  </script>
+</body>
+</html>

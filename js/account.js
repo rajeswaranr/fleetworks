@@ -94,6 +94,8 @@ document.getElementById("authToggle").addEventListener("click", () => {
   signupFields.querySelectorAll("input").forEach(i => { i.required = signupMode; });
   document.getElementById("authTitle").textContent = signupMode ? "Create Owner Account" : "Owner Sign In";
   document.getElementById("authSubmit").textContent = signupMode ? "Create Free Account" : "Sign In";
+  // Nothing to recover when you're creating the account.
+  document.getElementById("forgotRow").hidden = signupMode;
   document.getElementById("authToggle").textContent = signupMode ? "Already have an account? Sign in" : "New owner? Create free account";
 });
 

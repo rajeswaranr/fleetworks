@@ -48,15 +48,23 @@ function err(origin: string | null, status: number, message: string) {
   return new Response(JSON.stringify({ error: message }), { status, headers: cors(origin) });
 }
 
-// Our own taxonomy -> the phrasing that actually surfaces these shops on Google
-// Maps in India. "mechanic" alone skews to two-wheeler shops, so the truck words
-// matter for a commercial-vehicle fleet.
-const QUERY_FOR: Record<string, string> = {
-  mechanic: "truck repair garage",
-  electrician: "auto electrician",
-  battery: "battery shop for trucks",
-  tyre: "tyre shop for trucks",
-  puncture: "puncture repair shop",
+// Our own taxonomy -> the phrases that actually surface these shops on Google
+// Maps in India. FleetWorks is a commercial-vehicle platform, so every phrase
+// has to carry an HCV word — bare "mechanic" or "auto electrician" returns car
+// and two-wheeler shops, which are useless as truck-fleet partners.
+//
+// Several phrases per category because the same trade is listed under wildly
+// different names: "lorry" is the everyday word in Tamil Nadu, workshops
+// self-describe as "commercial vehicle service", and the tyre trade uses "TBR"
+// (Truck-Bus-Radial) and "retreading", both of which are HCV-only by
+// definition. Overlap between phrases costs nothing — results are de-duplicated
+// on place_id before anything is written.
+const QUERIES_FOR: Record<string, string[]> = {
+  mechanic: ["truck repair garage", "lorry mechanic workshop", "commercial vehicle service centre"],
+  electrician: ["truck auto electrician", "lorry auto electrical works", "commercial vehicle electrician"],
+  battery: ["truck battery shop", "commercial vehicle battery dealer", "lorry battery dealer"],
+  tyre: ["truck tyre shop", "TBR tyre dealer", "truck tyre retreading"],
+  puncture: ["truck puncture shop", "lorry tyre puncture repair", "highway truck tyre repair"],
 };
 
 // Tamil Nadu's main HCV/trucking hubs — mirrors the list in admin.html so a lead
@@ -120,10 +128,15 @@ Deno.serve(async (req) => {
 
   const vendorType = (body.vendorType || "").trim();
   const city = (body.city || "").trim();
-  if (!QUERY_FOR[vendorType]) return err(origin, 400, "Unknown vendor type.");
+  // hasOwn, not a truthiness check: plain property access would let inherited
+  // names like "constructor" through, and the .map below would then throw.
+  if (!Object.hasOwn(QUERIES_FOR, vendorType)) return err(origin, 400, "Unknown vendor type.");
   if (!city) return err(origin, 400, "City is required.");
+  // The limit is per phrase, so a category's three phrases can return up to
+  // 3x this before de-duplication — which is also 3x the Outscraper spend.
   const limit = Math.min(Math.max(Number(body.limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
-  const query = (body.searchQuery || "").trim() || `${QUERY_FOR[vendorType]} in ${city}`;
+  const custom = (body.searchQuery || "").trim();
+  const queries = custom ? [custom] : QUERIES_FOR[vendorType].map((p) => `${p} in ${city}`);
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -161,7 +174,9 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(OUTSCRAPER_ENDPOINT);
-    url.searchParams.set("query", query);
+    // `query` is repeatable — one entry per phrase, and Outscraper returns a
+    // separate array of places for each.
+    for (const q of queries) url.searchParams.append("query", q);
     url.searchParams.set("organizationsPerQueryLimit", String(limit));
     url.searchParams.set("language", "en");
     url.searchParams.set("region", "IN");
@@ -193,17 +208,23 @@ Deno.serve(async (req) => {
     }
 
     const payload = await res.json();
-    // Sync responses nest one array of places per query; be tolerant of a flat
-    // array in case a plan returns that shape instead.
-    const first = Array.isArray(payload?.data) ? payload.data[0] : payload?.data;
-    const places: unknown[] = Array.isArray(first) ? first : (Array.isArray(payload?.data) ? payload.data : []);
+    // Sync responses nest one array of places per query, so with several phrases
+    // there are several arrays to flatten. Tolerate a flat array too, in case a
+    // plan returns that shape instead.
+    const places: unknown[] = [];
+    if (Array.isArray(payload?.data)) {
+      for (const chunk of payload.data) {
+        if (Array.isArray(chunk)) places.push(...chunk);
+        else if (chunk && typeof chunk === "object") places.push(chunk);
+      }
+    }
 
     if (!places.length) {
       await admin.from("scraper_runs")
         .update({ status: "completed", records_found: 0, records_new: 0, records_duped: 0, completed_at: new Date().toISOString() })
         .eq("id", runId);
       return new Response(
-        JSON.stringify({ runId, query, found: 0, added: 0, skipped: 0, noPlaceId: 0, status: "completed" }),
+        JSON.stringify({ runId, queries, found: 0, added: 0, skipped: 0, noPlaceId: 0, status: "completed" }),
         { headers: cors(origin) },
       );
     }
@@ -251,7 +272,7 @@ Deno.serve(async (req) => {
       .eq("id", runId);
 
     return new Response(
-      JSON.stringify({ runId, query, found: places.length, added, skipped, noPlaceId, status: "completed" }),
+      JSON.stringify({ runId, queries, found: places.length, added, skipped, noPlaceId, status: "completed" }),
       { headers: cors(origin) },
     );
   } catch (e) {
