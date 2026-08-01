@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>FleetWorks Application Architecture Design</title>
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #172033;
+      line-height: 1.45;
+      margin: 40px;
+      background: #ffffff;
+    }
+    h1, h2, h3 {
+      color: #0f1e33;
+      margin-bottom: 8px;
+    }
+    h1 {
+      font-size: 28px;
+      border-bottom: 3px solid #f5a623;
+      padding-bottom: 8px;
+    }
+    h2 {
+      font-size: 20px;
+      margin-top: 28px;
+      border-bottom: 1px solid #d8dee8;
+      padding-bottom: 4px;
+    }
+    h3 {
+      font-size: 16px;
+      margin-top: 20px;
+    }
+    p, li {
+      font-size: 12.5px;
+    }
+    code, pre {
+      font-family: Consolas, "Courier New", monospace;
+    }
+    pre {
+      background: #f6f8fb;
+      border: 1px solid #d8dee8;
+      border-radius: 6px;
+      padding: 12px;
+      overflow: auto;
+      font-size: 10.5px;
+      white-space: pre-wrap;
+    }
+    .meta {
+      color: #536070;
+      font-size: 12px;
+      margin-top: -4px;
+    }
+    .note {
+      border-left: 4px solid #f5a623;
+      padding: 8px 12px;
+      background: #fff8ea;
+      font-size: 12.5px;
+    }
+    .diagram {
+      margin: 18px 0;
+      border: 1px solid #cfd7e3;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .layer {
+      padding: 12px 14px;
+      border-bottom: 1px solid #cfd7e3;
+    }
+    .layer:last-child {
+      border-bottom: none;
+    }
+    .layer-title {
+      font-weight: bold;
+      font-size: 13px;
+      color: #0f1e33;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .boxes {
+      display: table;
+      width: 100%;
+      border-spacing: 8px;
+    }
+    .box {
+      display: table-cell;
+      vertical-align: top;
+      border: 1px solid #b8c4d3;
+      background: #f8fafc;
+      border-radius: 6px;
+      padding: 9px;
+      font-size: 11.5px;
+      width: 25%;
+    }
+    .box strong {
+      display: block;
+      color: #0f1e33;
+      margin-bottom: 4px;
+    }
+    .arrow {
+      text-align: center;
+      color: #536070;
+      font-size: 16px;
+      padding: 2px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 16px;
+      font-size: 11.5px;
+    }
+    th, td {
+      border: 1px solid #cfd7e3;
+      padding: 7px;
+      vertical-align: top;
+    }
+    th {
+      background: #eef3f8;
+      color: #0f1e33;
+      text-align: left;
+    }
+    .small {
+      font-size: 11px;
+      color: #536070;
+    }
+  </style>
+</head>
+<body>
+  <h1>FleetWorks Application Architecture Design</h1>
+  <p class="meta">Prepared on: 2026-08-01</p>
+
+  <h2>1. Executive Summary</h2>
+  <p>FleetWorks is a static, browser-first fleet management application backed by Supabase. The application is built with multi-page HTML, shared CSS, and vanilla JavaScript modules that run directly in the browser. Supabase provides the production backend capabilities: authentication, Postgres database, Row Level Security, REST/RPC APIs, private file storage, and Edge Functions.</p>
+  <p class="note">Current architecture style: static multi-page SaaS/PWA + browser-side business logic + Supabase backend-as-a-service. There is no traditional application server for business logic. The local Node server only serves static files for development and testing.</p>
+
+  <h2>2. Layer-Wise System Architecture</h2>
+  <div class="diagram">
+    <div class="layer">
+      <div class="layer-title">User Channels</div>
+      <div class="boxes">
+        <div class="box"><strong>Fleet Owner</strong>fleet.html<br>index.html<br>dashboard redirects</div>
+        <div class="box"><strong>Supervisor / Driver</strong>team.html<br>driver.html no-login links</div>
+        <div class="box"><strong>Mechanic / Garage</strong>garage.html<br>partner.html</div>
+        <div class="box"><strong>Admin / Staff</strong>admin.html<br>signin.html</div>
+      </div>
+    </div>
+    <div class="arrow">v</div>
+    <div class="layer">
+      <div class="layer-title">Presentation Layer</div>
+      <div class="boxes">
+        <div class="box"><strong>Static HTML</strong>index, fleet, team, driver, garage, admin, partner, signin, reset</div>
+        <div class="box"><strong>Styling</strong>css/style.css<br>css/landing.css</div>
+        <div class="box"><strong>Assets</strong>logos, icons, manifest, service worker</div>
+        <div class="box"><strong>Hosting</strong>Static hosting in production<br>Node static server locally</div>
+      </div>
+    </div>
+    <div class="arrow">v</div>
+    <div class="layer">
+      <div class="layer-title">Client Application Layer</div>
+      <div class="boxes">
+        <div class="box"><strong>Core App</strong>fleet.js<br>dbcore.js<br>cloudstore.js</div>
+        <div class="box"><strong>Operations</strong>workflow.js<br>team.js<br>driver.js<br>garage.js</div>
+        <div class="box"><strong>Finance</strong>payroll.js<br>analytics.js<br>bulkimport.js</div>
+        <div class="box"><strong>Assistants</strong>copilot.js<br>fleetmap.js<br>account.js</div>
+      </div>
+    </div>
+    <div class="arrow">v</div>
+    <div class="layer">
+      <div class="layer-title">Client State And Offline Layer</div>
+      <div class="boxes">
+        <div class="box"><strong>localStorage</strong>ff_fleet<br>ff_fleet:&lt;user&gt;<br>fw_service_requests</div>
+        <div class="box"><strong>Session Cache</strong>fw_session:&lt;user&gt;<br>fw_session:active</div>
+        <div class="box"><strong>Demo Mode</strong>Local data for exploration without login</div>
+        <div class="box"><strong>Hybrid Sync</strong>Core data DB-direct<br>settings blob-backed</div>
+      </div>
+    </div>
+    <div class="arrow">v</div>
+    <div class="layer">
+      <div class="layer-title">Supabase API Layer</div>
+      <div class="boxes">
+        <div class="box"><strong>Auth API</strong>Signup, login, recovery, token refresh</div>
+        <div class="box"><strong>PostgREST</strong>Table CRUD and RPC from browser modules</div>
+        <div class="box"><strong>Storage API</strong>Private bills bucket and signed URLs</div>
+        <div class="box"><strong>Edge Functions</strong>Privileged and secret-bearing operations</div>
+      </div>
+    </div>
+    <div class="arrow">v</div>
+    <div class="layer">
+      <div class="layer-title">Data, Security, And Domain Layer</div>
+      <div class="boxes">
+        <div class="box"><strong>Tenant Core</strong>organizations<br>memberships</div>
+        <div class="box"><strong>Fleet Core</strong>vehicles, drivers, expenses, fuel_logs, issues, work_orders</div>
+        <div class="box"><strong>Operations</strong>reminders, inspections, parts, documents, tyre_readings, trips</div>
+        <div class="box"><strong>Security</strong>Postgres RLS policies are the main authorization boundary</div>
+      </div>
+    </div>
+    <div class="arrow">v</div>
+    <div class="layer">
+      <div class="layer-title">External Service Layer</div>
+      <div class="boxes">
+        <div class="box"><strong>Anthropic Claude</strong>Copilot Edge Function</div>
+        <div class="box"><strong>Cashfree</strong>Payroll payout functions</div>
+        <div class="box"><strong>PaddleOCR</strong>Optional FastAPI OCR service</div>
+        <div class="box"><strong>Client Links</strong>WhatsApp and UPI deep links</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>3. Typical System Context Diagram</h2>
+  <pre>
+                          +-----------------------------+
+                          |       FleetWorks Users      |
+                          | Owner, Driver, Mechanic,    |
+                          | Partner, Admin              |
+                          +--------------+--------------+
+                                         |
+                                         v
+              +---------------------------------------------------+
+              | Static FleetWorks Web App                         |
+              | HTML + CSS + vanilla JS + PWA assets              |
+              +------+----------------------+---------------------+
+                     |                      |
+                     | REST/Auth/RPC        | Function calls
+                     v                      v
+       +----------------------------+   +------------------------------+
+       | Supabase Platform          |   | Supabase Edge Functions      |
+       | Auth, PostgREST, Storage   |   | team-invite, payroll,        |
+       | RLS-secured Postgres       |   | copilot                      |
+       +-------------+--------------+   +---------------+--------------+
+                     |                                  |
+                     v                                  v
+       +----------------------------+   +------------------------------+
+       | FleetWorks Database        |   | External Providers           |
+       | Tenant, fleet, workflow,   |   | Anthropic, Cashfree, OCR     |
+       | payroll, leads, documents  |   | service, WhatsApp, UPI       |
+       +----------------------------+   +------------------------------+
+  </pre>
+
+  <h2>4. Runtime And Deployment Architecture</h2>
+  <pre>
++---------------------------+      +--------------------------------+
+| Developer / Local Machine |      | Production Static Hosting      |
+| npm start                 |      | fleetworks.in                  |
+| server/static-server.mjs  |      | Static HTML/CSS/JS/assets      |
++------------+--------------+      +---------------+----------------+
+             |                                     |
+             | serves static files                 | serves static files
+             v                                     v
++--------------------------------------------------------------------+
+| Browser                                                            |
+| Executes global JS modules, stores local state, calls Supabase APIs |
++-------------------------------+------------------------------------+
+                                |
+                                v
++--------------------------------------------------------------------+
+| Supabase Project                                                   |
+| Auth + PostgREST + Postgres + RLS + Storage + Edge Functions       |
++--------------------------------------------------------------------+
+  </pre>
+
+  <h2>5. Module Breakdown</h2>
+  <table>
+    <tr><th>Area</th><th>Files</th><th>Responsibilities</th></tr>
+    <tr><td>Owner Fleet Manager</td><td>fleet.html, js/fleet.js, js/dbcore.js, js/cloudstore.js</td><td>Auth gate, fleet forms, render orchestration, normalized DB CRUD, local/demo state.</td></tr>
+    <tr><td>Analytics and Reports</td><td>js/analytics.js, js/copilot.js, js/fleetmap.js</td><td>FleetIQ views, assistant, summaries, map-related views.</td></tr>
+    <tr><td>Team Portal</td><td>team.html, js/team.js</td><td>Supervisor/driver login, RLS-scoped vehicle access, fuel/issues/inspection updates, expense requests.</td></tr>
+    <tr><td>No-Login Driver Link</td><td>driver.html, js/driver.js</td><td>Tokenized driver submissions into driver_entries through anonymous insert.</td></tr>
+    <tr><td>Garage Workflow</td><td>garage.html, js/garage.js, js/workflow.js</td><td>Owner-mechanic service request lifecycle and local/cloud workflow state.</td></tr>
+    <tr><td>Payroll</td><td>js/payroll.js, supabase/functions/payroll-*</td><td>Manual salary logs, payment requests, Cashfree payout setup and transfer flow.</td></tr>
+    <tr><td>Public and Admin</td><td>index.html, partner.html, admin.html, signin.html</td><td>Lead capture, vendor applications, staff/admin workflows.</td></tr>
+  </table>
+
+  <h2>6. Data Architecture</h2>
+  <h3>Tenant Model</h3>
+  <pre>
+auth.users
+    |
+    v
+memberships ----> organizations
+    |
+    +-- role: owner, manager, viewer, supervisor, driver
+  </pre>
+
+  <h3>Core Fleet Entity Model</h3>
+  <pre>
+organizations
+    |
+    +-- vehicles
+    |     |
+    |     +-- fuel_logs
+    |     +-- expenses
+    |     +-- issues
+    |     |     |
+    |     |     +-- work_orders
+    |     |
+    |     +-- reminders
+    |     +-- inspections
+    |     +-- tyre_readings
+    |     +-- documents
+    |     +-- trips
+    |
+    +-- drivers
+    |     |
+    |     +-- documents
+    |     +-- driver_ledger
+    |     +-- driver_payout_details
+    |
+    +-- parts
+    +-- memberships
+    +-- vehicle_assignments
+  </pre>
+
+  <h3>Hybrid Storage Model</h3>
+  <pre>
+Signed out:
+  Browser localStorage only
+
+Signed in:
+  Core entities:
+    vehicles, drivers, expenses, fuel_logs, issues, work_orders,
+    reminders, inspections, parts, documents, tyre_readings, trips,
+    driver_ledger
+    -> Supabase normalized tables
+
+  Settings/demo metadata:
+    -> localStorage + fleets.data blob
+    -> projected into organizations by sync_fleet_from_blob
+  </pre>
+
+  <h2>7. Key Data Flows</h2>
+  <table>
+    <tr><th>Flow</th><th>Path</th></tr>
+    <tr><td>Owner sign-in</td><td>fleet.html -> cloudstore.js login -> Supabase Auth -> pull settings blob -> dbcore resolves org -> load normalized tables -> renderAll.</td></tr>
+    <tr><td>Owner saves core record</td><td>Form submit -> fleet.js -> dbcore mapper -> fwCloud REST helper -> PostgREST -> RLS -> Postgres -> local db update -> render affected panels.</td></tr>
+    <tr><td>Team update</td><td>team.html -> login -> membership and assignments -> RLS-scoped vehicle query -> direct writes for fuel/issues -> expense_change_requests for expenses.</td></tr>
+    <tr><td>No-login driver submission</td><td>driver.html URL token -> anonymous insert into driver_entries -> owner imports and merges later.</td></tr>
+    <tr><td>Copilot question</td><td>copilot.js -> compact fleet summary -> Supabase Edge Function -> Anthropic -> response to browser, with rule-based fallback.</td></tr>
+  </table>
+
+  <h2>8. Security Architecture</h2>
+  <ul>
+    <li>The Supabase publishable anon key is public by design.</li>
+    <li>Supabase RLS is the primary authorization boundary.</li>
+    <li>Authenticated browser requests use the signed-in user's JWT.</li>
+    <li>Service role access exists only in Edge Functions.</li>
+    <li>Anthropic and Cashfree secrets stay server-side.</li>
+    <li>Storage files are private and scoped by user id path.</li>
+    <li>Team users see only assigned vehicles through database policy, not client-side filtering.</li>
+    <li>No-login driver links can insert into limited intake tables only.</li>
+  </ul>
+
+  <h2>9. Strengths</h2>
+  <ul>
+    <li>Simple static deployment with low operational overhead.</li>
+    <li>Offline/demo fallback through localStorage.</li>
+    <li>Clear multi-tenant boundary through organizations and memberships.</li>
+    <li>Normalized DB-direct data path for core operational records.</li>
+    <li>RLS-centered security model.</li>
+    <li>Edge Functions isolate privileged writes and integration secrets.</li>
+  </ul>
+
+  <h2>10. Risks And Improvement Areas</h2>
+  <ul>
+    <li>Browser-global script loading order is part of the runtime contract.</li>
+    <li>fleet.js carries many responsibilities and can become hard to maintain.</li>
+    <li>The shared mutable global db object can make state changes difficult to trace.</li>
+    <li>Some behavior remains hybrid between normalized tables, localStorage, and blob sync.</li>
+    <li>Direct PostgREST calls from many modules can duplicate mapping and error handling.</li>
+  </ul>
+
+  <h2>11. Recommended Evolution</h2>
+  <table>
+    <tr><th>Horizon</th><th>Recommendation</th></tr>
+    <tr><td>Short term</td><td>Keep static/Supabase architecture, document feature ownership, continue moving production records to normalized tables, keep authorization in RLS.</td></tr>
+    <tr><td>Medium term</td><td>Extract domain-specific data-access modules, split fleet.js by domain, add a single state facade around db, expand RLS-driven tests.</td></tr>
+    <tr><td>Long term</td><td>Consider a component framework or backend-for-frontend only if UI/state orchestration outgrows the current static model.</td></tr>
+  </table>
+
+  <h2>12. Source Files Referenced</h2>
+  <p class="small">package.json, server/static-server.mjs, fleet.html, team.html, driver.html, garage.html, js/backend.js, js/cloudstore.js, js/dbcore.js, js/fleet.js, js/team.js, js/driver.js, js/workflow.js, js/payroll.js, js/copilot.js, supabase/migrations/*.sql, supabase/functions/*/index.ts, server/ocr/app.py</p>
+</body>
+</html>
