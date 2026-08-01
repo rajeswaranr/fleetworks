@@ -86,7 +86,7 @@
 
       <div class="chart-card">
         <div class="chart-head">
-          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="search" data-icon-size="18"></i></span> Vendor Leads (Sourced)</h2><p class="muted">Scraped candidates awaiting a BDM call before they become real partners — upload the JSON output from a Google Maps scrape</p></div>
+          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="search" data-icon-size="18"></i></span> Unverified — Needs Review</h2><p class="muted">Freshly sourced shops. Check the Google category and rating, then Verify the genuine HCV ones or Reject the car-shop strays. You can also upload a scrape JSON here.</p></div>
         </div>
         <form id="leadUploadForm" class="entry-form" style="margin-bottom:14px">
           <div class="form-row">
@@ -123,7 +123,14 @@
           <p class="field-error" id="leadUploadErr" hidden></p>
           <p class="muted" id="leadUploadResult" style="font-size:0.85rem;margin-top:6px"></p>
         </form>
-        <div class="chart-scroll"><div id="vendorLeadsTable"></div></div>
+        <div class="chart-scroll"><div id="unverifiedTable"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="shieldCheck" data-icon-size="18"></i></span> Verified Vendor Leads</h2><p class="muted">Confirmed HCV shops — assign a BDM and work them through the pipeline</p></div>
+        </div>
+        <div class="chart-scroll"><div id="verifiedTable"></div></div>
       </div>
 
       <div class="chart-card">
@@ -164,6 +171,17 @@
           </div>
         </form>
         <div class="chart-scroll"><div id="configsTable"></div></div>
+        <div id="scrapeProgress" hidden style="margin-top:14px;padding:14px;border:1px solid var(--line,#e3e8ef);border-radius:10px;background:#f8fafc">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <strong id="scrapeStage">Starting…</strong>
+            <span class="muted" id="scrapeElapsed" style="font-size:0.8rem"></span>
+          </div>
+          <div style="height:6px;background:#e3e8ef;border-radius:3px;overflow:hidden">
+            <div id="scrapeBar" style="height:100%;width:30%;background:var(--amber,#f59e0b);border-radius:3px;transition:width .4s ease"></div>
+          </div>
+          <div id="scrapePhrases" class="muted" style="font-size:0.78rem;margin-top:8px"></div>
+          <div id="scrapeResults" style="margin-top:10px"></div>
+        </div>
       </div>
 
       <div class="chart-card">
@@ -242,6 +260,7 @@
     }
 
     let STAFF = [], LEADS = [], VENDORS = [], VENDOR_LEADS = [];
+    let SHOW_REJECTED = false;
 
     function bdmOptions(selectedId) {
       const active = STAFF.filter(s => s.active);
@@ -318,19 +337,72 @@
           <td><select onchange="assignVendor('${v.id}', this.value)">${bdmOptions(v.assigned_to)}</select></td></tr>`).join("") + "</tbody></table>"
         : "<p class='muted'>No vendor applications yet.</p>";
 
-      const STATUS_ACTIONS = { new: ["contacted", "rejected"], contacted: ["qualified", "rejected"], qualified: ["converted", "rejected"], rejected: ["new"], converted: [] };
-      const STATUS_LABEL = { new: "New", contacted: "Contacted", qualified: "Qualified", rejected: "Rejected", converted: "Converted" };
-      $("vendorLeadsTable").innerHTML = vendorLeads.length ?
+      renderLeadTables();
+    }
+
+    // Two tables, one gate. Unverified is a data-quality queue — is this really
+    // an HCV shop? Verified is the BDM pipeline, where status and assignment
+    // start to mean something. Rejected rows leave both and are only counted,
+    // so a bad scrape doesn't bury the good leads.
+    const STATUS_ACTIONS = { new: ["contacted", "rejected"], contacted: ["qualified", "rejected"], qualified: ["converted", "rejected"], rejected: ["new"], converted: [] };
+    const STATUS_LABEL = { new: "New", contacted: "Contacted", qualified: "Qualified", rejected: "Rejected", converted: "Converted" };
+
+    // The partners we actually want are the small independent garages: a shed, a
+    // phone number, no website, a handful of reviews. Google ranks exactly those
+    // last, so the console has to pull them back up — otherwise a BDM works down
+    // from the top and spends the day calling Mahindra showrooms.
+    // A phone number is non-negotiable; without one there's no way to approach them.
+    function isLocalGarage(l) {
+      return !l.website && !!l.phone && (l.review_count == null || l.review_count < 25);
+    }
+
+    function leadIdentity(l) {
+      const badge = isLocalGarage(l)
+        ? ` <span class="fw-badge" style="background:#0ca30c18;color:#0ca30c;font-size:0.68rem;padding:2px 6px;border-radius:4px;white-space:nowrap" title="No website, few reviews — the small independent shops we're after">local garage</span>` : "";
+      return `<td><strong>${esc(l.business_name)}</strong>${badge}${l.website ? `<br /><a href="${esc(l.website)}" target="_blank" rel="noopener" class="muted" style="font-size:0.78rem">${esc(l.website)}</a>` : `<br /><span class="muted" style="font-size:0.72rem">no website</span>`}</td>
+        <td>${esc(l.service_category || "")}${l.google_category ? `<br /><span class="muted" style="font-size:0.72rem">${esc(l.google_category)}</span>` : ""}</td>
+        <td>${esc(l.city || "")}</td>
+        <td>${l.phone ? `<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a>` : "<span class='muted'>—</span>"}</td>
+        <td>${l.rating != null ? `${l.rating}★ (${l.review_count || 0})` : "<span class='muted'>—</span>"}</td>`;
+    }
+
+    function renderLeadTables() {
+      const rejected = VENDOR_LEADS.filter(l => l.status === "rejected");
+      const unverified = VENDOR_LEADS.filter(l => !l.verified && l.status !== "rejected");
+      const verified = VENDOR_LEADS.filter(l => l.verified && l.status !== "rejected");
+
+      const rejectedNote = rejected.length
+        ? `<p class="muted" style="font-size:0.8rem;margin-top:8px">${rejected.length} rejected — <button class="link-btn" onclick="toggleRejected()">${SHOW_REJECTED ? "hide" : "show"} them</button></p>` : "";
+
+      // Small local garages first — they're the target, and Google buried them.
+      const byLocalFirst = (a, b) => (isLocalGarage(b) - isLocalGarage(a));
+      const queue = (SHOW_REJECTED ? unverified.concat(rejected) : unverified.slice()).sort(byLocalFirst);
+      const localCount = unverified.filter(isLocalGarage).length;
+      $("unverifiedTable").innerHTML = (queue.length
+        ? `<table class="chart-table-el"><thead><tr><th>Business</th><th>Category</th><th>City</th><th>Phone</th><th>Rating</th><th>Review</th></tr></thead><tbody>` +
+          queue.map(l => {
+            const id = escAttr(JSON.stringify(l.id));
+            const actions = l.status === "rejected"
+              ? `<span class="status-pill" style="background:#ef444420;color:#ef4444;border-color:#ef4444">Rejected</span>
+                 <button class="link-btn" onclick='setLeadStatus(${id},"new")'>Restore</button>`
+              : `<button class="link-btn" style="color:#0ca30c;font-weight:600" onclick='verifyLead(${id},true)'>✓ Verify</button>
+                 <button class="link-btn" style="color:#b91c1c" onclick='rejectLead(${id},${escAttr(JSON.stringify(l.business_name))})'>Reject</button>`;
+            return `<tr${l.status === "rejected" ? ' style="opacity:.55"' : ""}>${leadIdentity(l)}
+            <td style="white-space:nowrap">${actions}</td></tr>`;
+          }).join("") + "</tbody></table>"
+        : "<p class='muted'>Nothing waiting for review — run a scrape above.</p>")
+        + (unverified.length ? `<p class="muted" style="font-size:0.8rem;margin-top:8px"><strong>${localCount}</strong> of ${unverified.length} look like small local garages (no website, few reviews) — those are listed first.</p>` : "")
+        + rejectedNote;
+
+      $("verifiedTable").innerHTML = verified.length ?
         `<table class="chart-table-el"><thead><tr><th>Business</th><th>Category</th><th>City</th><th>Phone</th><th>Rating</th><th>Status</th><th>Assigned to</th><th></th></tr></thead><tbody>` +
-        vendorLeads.map(l => `<tr><td><strong>${esc(l.business_name)}</strong>${l.website ? `<br /><a href="${esc(l.website)}" target="_blank" rel="noopener" class="muted" style="font-size:0.78rem">${esc(l.website)}</a>` : ""}</td>
-          <td>${esc(l.service_category || "")}${l.google_category ? `<br /><span class="muted" style="font-size:0.72rem">${esc(l.google_category)}</span>` : ""}</td><td>${esc(l.city || "")}</td>
-          <td>${l.phone ? `<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a>` : "<span class='muted'>—</span>"}</td>
-          <td>${l.rating != null ? `${l.rating}★ (${l.review_count || 0})` : "<span class='muted'>—</span>"}</td>
+        verified.map(l => `<tr>${leadIdentity(l)}
           <td><span class="status-pill">${STATUS_LABEL[l.status] || l.status}</span></td>
           <td><select onchange="assignVendorLead('${l.id}', this.value)">${bdmOptions(l.assigned_to)}</select></td>
-          <td style="white-space:nowrap">${(STATUS_ACTIONS[l.status] || []).map(s => `<button class="link-btn" onclick="setLeadStatus('${l.id}','${s}')">${STATUS_LABEL[s]}</button>`).join(" ")}</td>
-          </tr>`).join("") + "</tbody></table>"
-        : "<p class='muted'>No sourced leads yet — upload a scrape above.</p>";
+          <td style="white-space:nowrap">${(STATUS_ACTIONS[l.status] || []).map(s => `<button class="link-btn" onclick="setLeadStatus('${l.id}','${s}')">${STATUS_LABEL[s]}</button>`).join(" ")}
+            <button class="link-btn muted" onclick='verifyLead(${escAttr(JSON.stringify(l.id))},false)' title="Send back to the review queue">↩</button>
+          </td></tr>`).join("") + "</tbody></table>"
+        : "<p class='muted'>No verified leads yet — verify one from the queue above.</p>";
     }
 
     window.assignLead = async function (id, staffId) {
@@ -349,6 +421,27 @@
       try { await patchRow("vendor_leads", id, { status }); await loadAll(); }
       catch (ex) { alert(ex.message); }
     };
+
+    // Verification gate. Moving a lead between the two tables is just this flag
+    // — status and assignment are left alone, so sending one back for a second
+    // look never loses the BDM's work on it.
+    window.verifyLead = async function (id, makeVerified) {
+      try {
+        await patchRow("vendor_leads", id, makeVerified
+          ? { verified: true, verified_at: new Date().toISOString() }
+          : { verified: false, verified_at: null });
+        await loadAll();
+      } catch (ex) { alert(ex.message); }
+    };
+    window.rejectLead = async function (id, name) {
+      // Worth spelling out: because de-duplication is on place_id, a rejected
+      // shop will NOT come back on the next scrape of the same city. That's the
+      // intent — reject once, stay rejected — but it's not obvious.
+      if (!confirm(`Reject "${name}"?\n\nIt leaves the review queue. Future scrapes of this city won't re-add it, and you can restore it from "show rejected".`)) return;
+      try { await patchRow("vendor_leads", id, { status: "rejected" }); await loadAll(); }
+      catch (ex) { alert(ex.message); }
+    };
+    window.toggleRejected = function () { SHOW_REJECTED = !SHOW_REJECTED; renderLeadTables(); };
 
     // ===== Google Maps sourcing (Outscraper, via the vendor-scrape edge function) =====
     // The Outscraper API key lives as a Supabase secret and is only ever read
@@ -389,7 +482,8 @@
           return `<tr><td><strong>${esc(c.vendor_type)}</strong></td>
           <td>${esc(c.city)}</td>
           <td style="white-space:nowrap">
-            <button class="link-btn" onclick='triggerScrape(this,${args})'>Scrape Now</button>
+            <button class="link-btn" onclick='triggerScrape(this,${args},false)'>Scrape Now</button>
+            <button class="link-btn" style="font-weight:600" onclick='triggerScrape(this,${args},true)' title="Searches each locality inside this city separately — much better at finding small independent garages">Deep Scan ⌄</button>
             <button class="link-btn" style="color:#b91c1c" onclick='deleteConfig(${args})'>Remove</button>
           </td></tr>`;
         }).join("") + "</tbody></table>";
@@ -417,27 +511,91 @@
     // The edge function scrapes and ingests in one round trip, so this waits on a
     // single request rather than polling. That takes ~10-60s, so the button has to
     // show it's working — otherwise the console just looks frozen.
-    window.triggerScrape = async function (btn, configId, vendorType, city) {
-      if (!confirm(`Search Google Maps for ${vendorType} businesses serving trucks/lorries in ${city}?\n\nThree HCV search phrases are used, up to ${SCRAPE_LIMIT} results each. Takes up to a minute. New shops are added to Vendor Leads; ones already on file are skipped.`)) return;
+    window.triggerScrape = async function (btn, configId, vendorType, city, deep) {
+      const blurb = deep
+        ? `DEEP SCAN — ${vendorType} in every locality inside ${city}.\n\nSearches each suburb separately instead of the city as a whole, which is how you reach the small independent garages Google ranks below the big workshops.\n\nRuns ~15 searches instead of 3, so it takes longer and costs proportionally more.`
+        : `Search Google Maps for ${vendorType} businesses serving trucks/lorries/buses in ${city}?\n\nThree HCV phrases, up to ${SCRAPE_LIMIT} results each. Takes up to a minute.`;
+      if (!confirm(blurb + "\n\nNew shops go to the review queue; ones already on file are skipped.")) return;
       const label = btn.textContent;
       btn.textContent = "Scraping…";
       btn.disabled = true;
+
+      const panel = $("scrapeProgress");
+      panel.hidden = false;
+      $("scrapeStage").textContent = "Starting…";
+      $("scrapePhrases").textContent = "";
+      $("scrapeResults").innerHTML = "";
+      $("scrapeBar").style.width = "8%";
+      $("scrapeBar").style.background = "var(--amber,#f59e0b)";  // clear the red left by a previous failure
+      panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+
+      const t0 = Date.now();
+      const tick = setInterval(() => {
+        $("scrapeElapsed").textContent = Math.round((Date.now() - t0) / 1000) + "s";
+      }, 500);
+
+      // The scrape is one synchronous request, so the console can't see inside
+      // it. The edge function writes its stage to scraper_runs.progress as it
+      // goes, and this polls that row — what's shown is real server state, not
+      // an animation pretending to be one. runId only arrives with the final
+      // response, so until then match on the most recent running row.
+      let stop = false;
+      (async function pollProgress() {
+        while (!stop) {
+          await new Promise(r => setTimeout(r, 1500));
+          if (stop) break;
+          try {
+            const rows = await fetchTable("scraper_runs",
+              "select=progress,status,records_found&status=eq.running&order=created_at.desc&limit=1");
+            if (rows[0]?.progress && !stop) {
+              $("scrapeStage").textContent = rows[0].progress;
+              if (/saving/i.test(rows[0].progress)) $("scrapeBar").style.width = "75%";
+              else $("scrapeBar").style.width = "40%";
+            }
+          } catch { /* a failed poll must never disturb the scrape itself */ }
+        }
+      })();
+
       try {
         const r = await fetch(SCRAPE_FN_URL, {
           method: "POST",
           headers: { ...authHeaders(), "Content-Type": "application/json" },
-          body: JSON.stringify({ configId, vendorType, city, limit: SCRAPE_LIMIT })
+          body: JSON.stringify({ configId, vendorType, city, limit: SCRAPE_LIMIT, deep: !!deep })
         });
         const result = await r.json().catch(() => ({}));
+        stop = true; clearInterval(tick);
         if (!r.ok) throw new Error(result.error || `Scrape failed (${r.status})`);
-        const noId = result.noPlaceId ? `\n${result.noPlaceId} had no Google place id and were skipped.` : "";
-        const phrases = (result.queries || []).map(q => "  • " + q).join("\n");
-        alert(`Done.\n\nSearched:\n${phrases}\n\nFound: ${result.found}\nAdded as new leads: ${result.added}\nAlready on file: ${result.skipped}${noId}`);
+
+        $("scrapeBar").style.width = "100%";
+        $("scrapeStage").textContent = `Done — ${result.added} new, ${result.skipped} already on file`;
+        $("scrapePhrases").innerHTML = "Searched: " + (result.queries || []).map(q => `<em>${esc(q)}</em>`).join(" · ");
+
+        const noId = (result.noPlaceId
+          ? `<p class="muted" style="font-size:0.78rem">${result.noPlaceId} had no Google place id and were skipped — they can't be de-duplicated.</p>` : "")
+          + (result.droppedLmv
+          ? `<p class="muted" style="font-size:0.78rem">${result.droppedLmv} filtered out as car / two-wheeler shops, not HCV.</p>` : "");
+        const leads = result.leads || [];
+        $("scrapeResults").innerHTML = leads.length
+          ? `<p style="font-size:0.85rem;margin-bottom:6px"><strong>Added to the review queue below:</strong></p>
+             <table class="chart-table-el"><tbody>${leads.map(l => `<tr>
+               <td><strong>${esc(l.business_name)}</strong></td>
+               <td class="muted" style="font-size:0.78rem">${esc(l.google_category || "")}</td>
+               <td>${esc(l.city || "")}</td>
+               <td>${l.phone ? esc(l.phone) : "<span class='muted'>no phone</span>"}</td>
+               <td>${l.rating != null ? l.rating + "★ (" + (l.review_count || 0) + ")" : "<span class='muted'>—</span>"}</td>
+             </tr>`).join("")}</tbody></table>${noId}`
+          : `<p class="muted" style="font-size:0.85rem">No new shops — everything found was already on file.</p>${noId}`;
+
         await Promise.all([loadScraperRuns(), loadAll()]);
       } catch (ex) {
-        alert("Scrape error: " + ex.message);
+        stop = true; clearInterval(tick);
+        $("scrapeBar").style.width = "100%";
+        $("scrapeBar").style.background = "#ef4444";
+        $("scrapeStage").textContent = "Failed";
+        $("scrapeResults").innerHTML = `<p class="field-error">${esc(ex.message)}</p>`;
         await loadScraperRuns();
       } finally {
+        stop = true; clearInterval(tick);
         btn.textContent = label;
         btn.disabled = false;
       }
@@ -474,7 +632,15 @@
     // uploaded in a single go (category still comes from the upload form,
     // since that's genuinely one-per-run; city isn't, since a single run
     // is expected to span many cities).
-    const TN_CITIES = ["Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Trichy", "Salem",
+    // Mirrors TN_LOCALITIES + TN_CITIES in supabase/functions/vendor-scrape, so a
+    // lead gets the same city tag whether it was scraped or uploaded as JSON.
+    // Localities first — first match wins, and for a breakdown network the
+    // suburb beats the metro it sits inside.
+    const TN_CITIES = [
+      "Padiyanallur", "Pullilyon", "Kavanur", "Gerugambakkam", "Mowlivakkam",
+      "Thiruverkadu", "Ambattur", "Avadi", "Poonamallee", "Sriperumbudur",
+      "Tambaram", "Chromepet", "Guduvancheri", "Redhills", "Manali", "Ennore",
+      "Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Trichy", "Salem",
       "Tirunelveli", "Erode", "Vellore", "Thoothukudi", "Tuticorin", "Dindigul", "Namakkal",
       "Karur", "Hosur", "Krishnagiri", "Thanjavur", "Nagercoil", "Cuddalore", "Kanchipuram"];
     function detectCity(address, fallback) {

@@ -27,6 +27,7 @@ const OUTSCRAPER_ENDPOINT = "https://api.app.outscraper.com/maps/search-v2";
 // a wall-clock budget. 100 is the ceiling; 20 is a comfortable default.
 const MAX_LIMIT = 100;
 const DEFAULT_LIMIT = 20;
+const DEEP_LIMIT = 10;   // per locality, and a deep scan runs ~15 of them
 const FETCH_TIMEOUT_MS = 110_000;
 
 const ALLOW_ORIGINS = [
@@ -64,36 +65,92 @@ function err(origin: string | null, status: number, message: string) {
 // to return that trade's own Google category; the rest follow the same pattern.
 const QUERIES_FOR: Record<string, string[]> = {
   // --- running repairs ---
-  mechanic: ["truck repair garage", "lorry mechanic workshop", "commercial vehicle service centre"],       // probed -> Truck repair shop
-  electrician: ["truck auto electrician", "lorry auto electrical works", "commercial vehicle electrician"],
-  battery: ["truck battery shop", "commercial vehicle battery dealer", "lorry battery dealer"],
-  tyre: ["truck tyre shop", "TBR tyre dealer", "truck tyre retreading"],
+  mechanic: ["truck repair garage", "lorry mechanic workshop", "bus and tipper service centre"],           // probed -> Truck repair shop
+  electrician: ["truck auto electrician", "lorry auto electrical works", "bus electrical repair"],
+  battery: ["truck battery shop", "commercial vehicle battery dealer", "bus battery dealer"],
+  tyre: ["truck tyre shop", "TBR truck bus radial tyre dealer", "truck tyre retreading"],
   puncture: ["truck puncture shop", "lorry tyre puncture repair", "highway truck tyre repair"],
 
   // --- systems ---
   hydraulic: ["tipper hydraulic repair", "Hyva hydraulic service", "truck hydraulic cylinder repair"],     // probed -> Hydraulic repair service
-  injector: ["diesel injector pump repair", "Bosch diesel service", "fuel injection pump repair lorry"],   // probed -> Diesel engine repair service
-  radiator: ["truck radiator repair", "lorry radiator works", "radiator repair service truck"],            // probed -> Radiator repair service
-  spring: ["truck leaf spring works", "lorry leaf spring repair", "auto spring shop truck"],               // probed -> Auto spring shop
+  injector: ["diesel injector pump repair truck", "Bosch diesel service", "lorry fuel injection pump repair"], // probed -> Diesel engine repair service
+  radiator: ["truck radiator repair", "lorry radiator works", "bus radiator service"],                     // probed -> Radiator repair service
+  spring: ["truck leaf spring works", "lorry leaf spring repair", "tipper suspension spring"],             // probed -> Auto spring shop
 
   // --- body trades ---
   // One category, not two: in India denting and painting is a single shop
   // ("body works"), and Google has no category for truck body building — it
   // files them under "Transportation service" or "Auto body parts supplier".
   // Expect car-shop noise here; the google_category column is how you spot it.
-  bodyshop: ["lorry body works", "truck body building works", "truck denting and painting"],
-  welding: ["truck chassis welding works", "lorry welding shop", "truck body fabrication welding"],        // probed -> Welder
-  windshield: ["truck windshield glass replacement", "lorry windscreen fitting", "commercial vehicle auto glass"], // probed -> Auto glass shop
+  bodyshop: ["lorry body works", "truck body building", "bus body builder"],
+  welding: ["truck chassis welding works", "lorry welding shop", "tipper body fabrication"],               // probed -> Welder
+  windshield: ["truck windshield glass replacement", "lorry windscreen fitting", "bus windshield glass"],  // probed -> Auto glass shop
 
   // --- supply ---
-  spareparts: ["truck spare parts shop", "commercial vehicle spare parts dealer", "lorry parts supplier"], // probed -> Truck parts supplier
+  spareparts: ["truck spare parts shop", "commercial vehicle spare parts dealer", "bus and lorry parts supplier"], // probed -> Truck parts supplier
 };
 
-// Tamil Nadu's main HCV/trucking hubs — mirrors the list in admin.html so a lead
+// Even with truck/lorry/bus/tipper in every phrase, Google still returns car
+// and two-wheeler shops — a live run for "truck repair garage in Chennai" came
+// back with "Car repair and maintenance service" among the results. These
+// categories are unambiguously not commercial-vehicle trades, so a result
+// carrying one is dropped before it ever reaches the review queue.
+//
+// The list is deliberately narrow. Anything ambiguous ("Auto repair shop",
+// "Mechanic", "Wheel store") is KEPT, because plenty of Indian workshops serve
+// both and Google's category is only ever approximate — that grey zone is what
+// the verify step in the console is for. The number dropped is reported back,
+// so this never silently swallows results.
+const NOT_HCV = [
+  "car repair and maintenance service",
+  "car dealer", "used car dealer", "car wash", "car detailing service",
+  "motorcycle repair shop", "motorcycle dealer", "motor scooter repair shop",
+  "motor scooter dealer", "bicycle repair shop", "bicycle store",
+];
+function isNotHcv(rec: { google_category?: string | null }): boolean {
+  const c = (rec.google_category || "").trim().toLowerCase();
+  return c !== "" && NOT_HCV.includes(c);
+}
+
+// Tamil Nadu's HCV/trucking locations — mirrors the list in admin.html so a lead
 // gets the same city tag whether it arrived by scrape or by JSON upload.
-const TN_CITIES = ["Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Trichy", "Salem",
+//
+// ORDER MATTERS: detectCity returns the first entry found in the address, so
+// localities come before the metros they sit inside. An address reading
+// "…, Gerugambakkam, Chennai, Tamil Nadu" should tag as Gerugambakkam — for a
+// breakdown network the suburb is the useful answer, since a driver stuck there
+// needs a shop nearby, not one 40km away in the city centre.
+const TN_LOCALITIES = [
+  // Chennai-metro localities seen in live scrapes. Extend this as more turn up.
+  "Padiyanallur", "Pullilyon", "Kavanur", "Gerugambakkam", "Mowlivakkam",
+  "Thiruverkadu", "Ambattur", "Avadi", "Poonamallee", "Sriperumbudur",
+  "Tambaram", "Chromepet", "Guduvancheri", "Redhills", "Manali", "Ennore",
+];
+const TN_CITIES = [
+  ...TN_LOCALITIES,
+  "Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Trichy", "Salem",
   "Tirunelveli", "Erode", "Vellore", "Thoothukudi", "Tuticorin", "Dindigul", "Namakkal",
-  "Karur", "Hosur", "Krishnagiri", "Thanjavur", "Nagercoil", "Cuddalore", "Kanchipuram"];
+  "Karur", "Hosur", "Krishnagiri", "Thanjavur", "Nagercoil", "Cuddalore", "Kanchipuram",
+];
+
+// Which localities sit inside which metro. Used by deep scan: searching a metro
+// returns Google's top-ranked (and therefore biggest, most established) shops,
+// while searching each locality separately reaches into entirely different
+// result sets — which is where the small independent garages actually are.
+const LOCALITIES_OF: Record<string, string[]> = {
+  chennai: [
+    "Ambattur", "Avadi", "Poonamallee", "Redhills", "Manali", "Ennore",
+    "Thiruverkadu", "Padiyanallur", "Gerugambakkam", "Tambaram", "Chromepet",
+    "Guduvancheri", "Sriperumbudur", "Kavanur", "Mowlivakkam",
+  ],
+};
+
+// City is typed by hand into the config form, so "chennai" and "Chennai" both
+// arrive. Normalise, or the same city splits into two groups in the table.
+function titleCase(s: string | null): string | null {
+  if (!s) return null;
+  return s.trim().replace(/\S+/g, (w) => w[0].toUpperCase() + w.slice(1).toLowerCase()) || null;
+}
 
 function detectCity(address: string, fallback: string | null): string | null {
   if (address) for (const c of TN_CITIES) if (address.toLowerCase().includes(c.toLowerCase())) return c;
@@ -114,11 +171,13 @@ const num = (v: unknown): number | null => {
 function mapPlace(rec: any, vendorType: string, cityFallback: string | null) {
   const address = rec.full_address ?? rec.address ?? null;
   const emails = [rec.email_1, rec.email_2, rec.email_3, rec.email].filter(Boolean);
-  // Outscraper's own `city` is Google's locality string and is often a pair,
-  // e.g. "Chennai, Thiruverkadu" — unusable for filtering or grouping. Match the
-  // address against our canonical hub list first and only fall back to the raw
-  // value when nothing matches, so the column stays one city per row.
-  const city = detectCity(address ?? "", null) ?? rec.city ?? cityFallback ?? null;
+  // Outscraper's own `city` is Google's locality string: often a pair
+  // ("Chennai, Thiruverkadu") and often an outlying suburb ("Kavanur",
+  // "Gerugambakkam, Mowlivakkam") rather than the metro. Neither is groupable.
+  // So: canonical hub from the address first, then the city that was actually
+  // searched — a shop found by "… in Chennai" belongs under Chennai however
+  // Google files its locality — and only then Google's own string.
+  const city = detectCity(address ?? "", null) ?? titleCase(cityFallback) ?? rec.city ?? null;
   return {
     source: "outscraper",
     service_category: vendorType,
@@ -150,7 +209,7 @@ Deno.serve(async (req) => {
   const jwt = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   if (!jwt) return err(origin, 401, "Sign in first.");
 
-  let body: { vendorType?: string; city?: string; limit?: number; searchQuery?: string; configId?: string };
+  let body: { vendorType?: string; city?: string; limit?: number; searchQuery?: string; configId?: string; deep?: boolean };
   try { body = await req.json(); } catch { return err(origin, 400, "bad_json"); }
 
   const vendorType = (body.vendorType || "").trim();
@@ -161,9 +220,24 @@ Deno.serve(async (req) => {
   if (!city) return err(origin, 400, "City is required.");
   // The limit is per phrase, so a category's three phrases can return up to
   // 3x this before de-duplication — which is also 3x the Outscraper spend.
-  const limit = Math.min(Math.max(Number(body.limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
+  let limit = Math.min(Math.max(Number(body.limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
+  // A deep scan fires ~15 queries instead of 3, so the per-query limit has to
+  // come down or the whole run exceeds the edge function's time budget.
+  if (body.deep) limit = Math.min(limit, DEEP_LIMIT);
   const custom = (body.searchQuery || "").trim();
-  const queries = custom ? [custom] : QUERIES_FOR[vendorType].map((p) => `${p} in ${city}`);
+  // Two shapes of run:
+  //   metro (default) — every phrase for the category, against the city itself.
+  //     Returns Google's top-ranked shops, which skew large and established.
+  //   deep — the category's strongest phrase against each locality inside that
+  //     metro. Far better at surfacing the small independent garages, because a
+  //     locality search returns a different result set rather than a deeper
+  //     slice of the same one.
+  const localities = body.deep ? (LOCALITIES_OF[city.toLowerCase()] ?? []) : [];
+  const queries = custom
+    ? [custom]
+    : localities.length
+      ? localities.map((loc) => `${QUERIES_FOR[vendorType][0]} in ${loc}`)
+      : QUERIES_FOR[vendorType].map((p) => `${p} in ${city}`);
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -185,12 +259,21 @@ Deno.serve(async (req) => {
       vendor_type: vendorType,
       city,
       status: "running",
+      progress: `Searching Google Maps — ${queries.length} phrase${queries.length > 1 ? "s" : ""}…`,
       started_at: new Date().toISOString(),
     })
     .select("id")
     .single();
   if (runErr) return err(origin, 500, "Could not start the run: " + runErr.message);
   const runId = run.id as string;
+
+  // The console polls scraper_runs while its request is in flight, so these
+  // updates are what it displays. Fire-and-forget: a failed progress write must
+  // never take down the scrape itself.
+  const note = (progress: string) => {
+    admin.from("scraper_runs").update({ progress }).eq("id", runId)
+      .then(() => {}, () => {});
+  };
 
   const fail = async (message: string, status = 502) => {
     await admin.from("scraper_runs")
@@ -248,15 +331,21 @@ Deno.serve(async (req) => {
 
     if (!places.length) {
       await admin.from("scraper_runs")
-        .update({ status: "completed", records_found: 0, records_new: 0, records_duped: 0, completed_at: new Date().toISOString() })
+        .update({ status: "completed", progress: "No results", records_found: 0, records_new: 0, records_duped: 0, completed_at: new Date().toISOString() })
         .eq("id", runId);
       return new Response(
-        JSON.stringify({ runId, queries, found: 0, added: 0, skipped: 0, noPlaceId: 0, status: "completed" }),
+        JSON.stringify({ runId, queries, found: 0, added: 0, skipped: 0, noPlaceId: 0, leads: [], status: "completed" }),
         { headers: cors(origin) },
       );
     }
 
-    const mapped = places.map((p) => mapPlace(p, vendorType, city));
+    const all = places.map((p) => mapPlace(p, vendorType, city));
+
+    // FleetWorks partners service trucks, buses and tippers. Drop the car and
+    // two-wheeler shops Google mixes in, so the review queue only ever contains
+    // plausible HCV vendors.
+    const mapped = all.filter((r) => !isNotHcv(r));
+    const droppedLmv = all.length - mapped.length;
 
     // A row with no place_id can't be de-duplicated (Postgres allows many NULLs
     // in a unique column), so it would pile up a fresh copy on every scrape.
@@ -274,23 +363,30 @@ Deno.serve(async (req) => {
       return true;
     });
 
+    note(`Found ${places.length} — saving…`);
+
     // ignoreDuplicates: place_id's unique constraint turns an already-known shop
     // into a silent no-op instead of failing the whole batch. Guard the empty
     // case — every result lacking a place_id would otherwise POST an empty body.
     let added = 0;
+    // Returned to the console so it can list what actually landed, rather than
+    // just quoting a number the user has to go hunting for.
+    let addedLeads: unknown[] = [];
     if (rows.length) {
       const { data: inserted, error: insErr } = await admin
         .from("vendor_leads")
         .upsert(rows, { onConflict: "place_id", ignoreDuplicates: true })
-        .select("id");
+        .select("id,business_name,google_category,city,phone,rating,review_count");
       if (insErr) return await fail("Could not save leads: " + insErr.message, 500);
       added = inserted?.length ?? 0;
+      addedLeads = inserted ?? [];
     }
     const skipped = rows.length - added;
 
     await admin.from("scraper_runs")
       .update({
         status: "completed",
+        progress: `Added ${added}, skipped ${skipped} already on file`,
         records_found: places.length,
         records_new: added,
         records_duped: skipped + noPlaceId,
@@ -299,7 +395,7 @@ Deno.serve(async (req) => {
       .eq("id", runId);
 
     return new Response(
-      JSON.stringify({ runId, queries, found: places.length, added, skipped, noPlaceId, status: "completed" }),
+      JSON.stringify({ runId, queries, found: places.length, added, skipped, noPlaceId, droppedLmv, leads: addedLeads, status: "completed" }),
       { headers: cors(origin) },
     );
   } catch (e) {
