@@ -53,7 +53,14 @@ function loadCloudstore() {
     addEventListener() {}
   };
 
-  const location = { reload() { this.reloaded = true; }, href: 'http://localhost/' };
+  const location = {
+    origin: 'http://localhost',
+    pathname: '/fleet.html',
+    search: '',
+    hash: '',
+    href: 'http://localhost/fleet.html',
+    reload() { this.reloaded = true; },
+  };
   const fetchCalls = [];
   const window = {
     document,
@@ -94,13 +101,23 @@ function loadCloudstore() {
       if (path.endsWith('/rest/v1/fleets') && options.method === 'GET') {
         return { ok: true, status: 200, json: async () => [] };
       }
+      if (path.endsWith('/auth/v1/recover') && options.method === 'POST') {
+        return { ok: true, status: 200, json: async () => ({}) };
+      }
+      if (path.endsWith('/auth/v1/user') && options.method === 'PUT') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ id: 'recovered-user', email: 'recover@example.com' })
+        };
+      }
       return { ok: true, status: 200, json: async () => ({}) };
     }
   };
   window.window = window;
   window.globalThis = window;
 
-  const sandbox = { window, document, localStorage, console, setTimeout, clearTimeout, fetch: window.fetch, location, confirm: window.confirm, globalThis: window };
+  const sandbox = { window, document, localStorage, console, setTimeout, clearTimeout, fetch: window.fetch, location, confirm: window.confirm, URLSearchParams, globalThis: window };
   vm.createContext(sandbox);
   vm.runInContext(cloudstoreSource, sandbox, { filename: 'cloudstore.js' });
 
@@ -132,4 +149,41 @@ test('logout removes only the active session and preserves the previous account'
   assert.equal(localStorage.getItem('fw_session:user2@example.com'), null);
   assert.equal(localStorage.getItem('fw_session:active'), null);
   assert.ok(localStorage.getItem('fw_session:user1@example.com'));
+});
+
+test('requestPasswordReset sends a Supabase recovery email with a FleetWorks redirect', async () => {
+  const { window, fetchCalls } = loadCloudstore();
+
+  await window.fwCloud.requestPasswordReset('recover@example.com');
+
+  const [url, options] = fetchCalls.find(([u]) => u.includes('/auth/v1/recover'));
+  assert.match(url, /\/auth\/v1\/recover\?redirect_to=/);
+  assert.match(decodeURIComponent(url), /http:\/\/localhost\/reset\.html\?email=recover%40example\.com/);
+  assert.equal(options.method, 'POST');
+  assert.deepEqual(JSON.parse(options.body), { email: 'recover@example.com' });
+});
+
+test('recovery links opened on a non-reset page are forwarded to reset.html', () => {
+  const { window } = loadCloudstore();
+  window.location.hash = '#access_token=recovery-access&refresh_token=recovery-refresh&type=recovery&token_type=bearer';
+  window.location.replacedWith = '';
+  window.location.replace = (url) => { window.location.replacedWith = url; };
+
+  assert.equal(window.fwCloud.forwardRecoveryToReset(), true);
+  assert.equal(window.location.replacedWith, 'http://localhost/reset.html#access_token=recovery-access&refresh_token=recovery-refresh&type=recovery&token_type=bearer');
+});
+
+test('updatePasswordFromRecovery uses the recovery access token and stores the session', async () => {
+  const { window, localStorage, fetchCalls } = loadCloudstore();
+  window.location.hash = '#access_token=recovery-access&refresh_token=recovery-refresh&type=recovery&token_type=bearer';
+
+  assert.equal(window.fwCloud.recoveryPending(), true);
+  await window.fwCloud.updatePasswordFromRecovery('new-secret');
+
+  const [, options] = fetchCalls.find(([u]) => u.endsWith('/auth/v1/user'));
+  assert.equal(options.method, 'PUT');
+  assert.equal(options.headers.Authorization, 'Bearer recovery-access');
+  assert.deepEqual(JSON.parse(options.body), { password: 'new-secret' });
+  assert.ok(localStorage.getItem('fw_session:recover@example.com'));
+  assert.equal(window.fwCloud.user(), 'recover@example.com');
 });

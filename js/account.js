@@ -73,6 +73,12 @@ function doLogout() {
 }
 
 function renderAuthState() {
+  if (window.fwCloud && fwCloud.recoveryPending && fwCloud.recoveryPending()) {
+    if (fwCloud.forwardRecoveryToReset && fwCloud.forwardRecoveryToReset()) return;
+    showResetPasswordPanel();
+    updateAuthPill();
+    return;
+  }
   const user = window.fwCloud && fwCloud.user();
   applyAuthGate();
   // a real account never inherits demo data, and never sees the demo loader
@@ -88,6 +94,44 @@ function renderAuthState() {
 }
 
 const signupFields = document.getElementById("signupOnlyFields");
+const authTitle = document.getElementById("authTitle");
+const authSub = document.getElementById("authSub");
+const authForm = document.getElementById("authForm");
+const authConfirm = document.getElementById("authConfirm");
+const forgotPasswordWrap = document.getElementById("forgotPasswordWrap");
+const forgotPasswordPanel = document.getElementById("forgotPasswordPanel");
+const resetPasswordPanel = document.getElementById("resetPasswordPanel");
+
+function setAuthPanel(panel) {
+  authTitle.hidden = panel !== "auth";
+  authSub.hidden = panel !== "auth";
+  authForm.hidden = panel !== "auth";
+  authConfirm.hidden = panel !== "confirm";
+  forgotPasswordPanel.hidden = panel !== "forgot";
+  resetPasswordPanel.hidden = panel !== "reset";
+  forgotPasswordWrap.hidden = panel !== "auth" || signupMode;
+}
+
+function showSignInPanel() {
+  signupMode = false;
+  signupFields.hidden = true;
+  signupFields.querySelectorAll("input").forEach(i => { i.required = false; });
+  authTitle.textContent = "Log in to FleetWorks";
+  document.getElementById("authSubmit").textContent = "Log In";
+  document.getElementById("authToggle").textContent = "Start a free trial";
+  setAuthPanel("auth");
+}
+
+function showResetPasswordPanel() {
+  sessionStorage.removeItem("fwDemo");
+  document.getElementById("authGate").hidden = false;
+  const shell = document.querySelector(".app-shell");
+  if (shell) shell.style.display = "none";
+  document.body.classList.add("auth-locked");
+  setAuthPanel("reset");
+  window.scrollTo(0, 0);
+}
+
 document.getElementById("authToggle").addEventListener("click", () => {
   signupMode = !signupMode;
   signupFields.hidden = !signupMode;
@@ -95,6 +139,7 @@ document.getElementById("authToggle").addEventListener("click", () => {
   document.getElementById("authTitle").textContent = signupMode ? "Create Owner Account" : "Owner Sign In";
   document.getElementById("authSubmit").textContent = signupMode ? "Create Free Account" : "Sign In";
   document.getElementById("authToggle").textContent = signupMode ? "Already have an account? Sign in" : "New owner? Create free account";
+  setAuthPanel("auth");
 });
 
 const mobileInput = document.querySelector('#signupOnlyFields input[name="mobile"]');
@@ -136,11 +181,7 @@ document.getElementById("authForm").addEventListener("submit", async e => {
 // ---------- Email-confirmation panel ----------
 function showEmailConfirm(email) {
   document.getElementById("confirmEmail").textContent = email;
-  document.getElementById("authForm").hidden = true;
-  document.getElementById("authTitle").hidden = true;
-  const sub = document.getElementById("authTitle").nextElementSibling;
-  if (sub) sub.hidden = true;
-  document.getElementById("authConfirm").hidden = false;
+  setAuthPanel("confirm");
 }
 document.getElementById("backToSignIn").addEventListener("click", () => location.reload());
 document.getElementById("resendConfirm").addEventListener("click", async () => {
@@ -149,6 +190,48 @@ document.getElementById("resendConfirm").addEventListener("click", async () => {
   rn.hidden = false; rn.textContent = "Sending…";
   try { await fwCloud.resend(email); rn.textContent = "Link re-sent — check your inbox (and spam)."; }
   catch (ex) { rn.textContent = ex.message; }
+});
+document.getElementById("forgotPasswordBtn").addEventListener("click", () => {
+  const formEmail = authForm.email.value.trim();
+  const forgotForm = document.getElementById("forgotPasswordForm");
+  if (formEmail) forgotForm.email.value = formEmail;
+  setAuthPanel("forgot");
+});
+document.getElementById("forgotBackToSignIn").addEventListener("click", showSignInPanel);
+document.getElementById("forgotPasswordForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  const err = document.getElementById("forgotPasswordErr");
+  const note = document.getElementById("forgotPasswordNote");
+  err.hidden = true; note.hidden = true;
+  try {
+    await fwCloud.requestPasswordReset(fd.email.trim());
+    note.textContent = "Reset link sent. Check your inbox and spam folder, then open the link from this browser.";
+    note.hidden = false;
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+  }
+});
+document.getElementById("resetPasswordForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  const err = document.getElementById("resetPasswordErr");
+  const note = document.getElementById("resetPasswordNote");
+  err.hidden = true; note.hidden = true;
+  if (fd.password !== fd.confirmPassword) { err.textContent = "Passwords do not match."; err.hidden = false; return; }
+  if ((fd.password || "").length < 6) { err.textContent = "Password must be at least 6 characters."; err.hidden = false; return; }
+  try {
+    await fwCloud.updatePasswordFromRecovery(fd.password);
+    history.replaceState(null, "", location.pathname + "#account");
+    note.textContent = "Password updated. Signing you in…";
+    note.hidden = false;
+    if (fwCloud.user()) { await fwCloud.pull(); location.reload(); }
+    else { showSignInPanel(); document.getElementById("authNote").textContent = "Password updated. Sign in with your new password."; document.getElementById("authNote").hidden = false; }
+  } catch (ex) {
+    err.textContent = ex.message;
+    err.hidden = false;
+  }
 });
 
 document.getElementById("accLogoutBtn").addEventListener("click", doLogout);

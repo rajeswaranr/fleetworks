@@ -79,6 +79,44 @@
     }
     return null;
   }
+  function appBaseUrl() {
+    const loc = window.location || location;
+    return (loc.origin || "") + (loc.pathname || "/").replace(/[^/]*$/, "fleet.html");
+  }
+  function resetPasswordUrl() {
+    const loc = window.location || location;
+    return (loc.origin || "") + (loc.pathname || "/").replace(/[^/]*$/, "reset.html");
+  }
+  function recoveryRedirectUrl(email) {
+    const cleanEmail = String(email || "").trim().toLowerCase();
+    return resetPasswordUrl() + (cleanEmail ? "?email=" + encodeURIComponent(cleanEmail) : "");
+  }
+  function isResetPasswordPage() {
+    const loc = window.location || location;
+    return /(^|\/)reset\.html$/i.test(loc.pathname || "");
+  }
+  function recoveryParams() {
+    const loc = window.location || location;
+    const hash = String(loc.hash || "").replace(/^#/, "");
+    const search = String(loc.search || "").replace(/^\?/, "");
+    const params = new URLSearchParams(hash || search);
+    return {
+      type: params.get("type") || "",
+      accessToken: params.get("access_token") || "",
+      refreshToken: params.get("refresh_token") || "",
+      tokenType: params.get("token_type") || "bearer",
+    };
+  }
+  function forwardRecoveryToReset() {
+    const loc = window.location || location;
+    const p = recoveryParams();
+    if (p.type !== "recovery" || !p.accessToken || isResetPasswordPage()) return false;
+    const tokenSuffix = loc.hash || (loc.search || "");
+    const target = resetPasswordUrl() + tokenSuffix;
+    if (loc.replace) loc.replace(target);
+    else loc.href = target;
+    return true;
+  }
 
   async function authFetch(path, opts) {
     const s = session();
@@ -162,6 +200,51 @@
         const j = await r.json().catch(() => ({}));
         throw new Error(j.msg || j.error_description || "Could not resend — please wait a minute and try again.");
       }
+      return true;
+    },
+
+    recoveryPending() {
+      const p = recoveryParams();
+      return p.type === "recovery" && !!p.accessToken;
+    },
+
+    forwardRecoveryToReset,
+
+    async requestPasswordReset(email) {
+      const cleanEmail = String(email || "").trim().toLowerCase();
+      const redirectTo = recoveryRedirectUrl(cleanEmail);
+      const r = await fetch(cfg().url + "/auth/v1/recover?redirect_to=" + encodeURIComponent(redirectTo), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": cfg().anonKey },
+        body: JSON.stringify({ email: cleanEmail })
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.msg || j.error_description || j.error || "Could not send reset email.");
+      }
+      return true;
+    },
+
+    async updatePasswordFromRecovery(password) {
+      const p = recoveryParams();
+      if (p.type !== "recovery" || !p.accessToken) throw new Error("This reset link is missing or expired. Please request a new one.");
+      const r = await fetch(cfg().url + "/auth/v1/user", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": cfg().anonKey,
+          "Authorization": "Bearer " + p.accessToken
+        },
+        body: JSON.stringify({ password })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.msg || j.error_description || j.error || "Could not update password.");
+      if (p.refreshToken) setSession({
+        access_token: p.accessToken,
+        refresh_token: p.refreshToken,
+        token_type: p.tokenType,
+        user: j
+      });
       return true;
     },
 

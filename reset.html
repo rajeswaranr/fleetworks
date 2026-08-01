@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reset Password — FleetWorks</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" href="icons/icon-96.png" />
+  <meta name="theme-color" content="#0f1e33" />
+</head>
+<body>
+  <header class="navbar" id="navbar">
+    <div class="container nav-inner">
+      <a href="index.html" class="logo">
+        <img src="assets/logo-mark.svg" width="34" height="34" alt="" style="display:block" />
+        <span>Fleet<em>Works</em></span>
+      </a>
+      <div class="nav-actions">
+        <a href="fleet.html#account" class="btn btn-outline btn-sm">Back to Sign In</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="auth-page">
+    <section class="onboard-card auth-page-card">
+      <span class="auth-confirm-ic"><i data-icon="shieldCheck" data-icon-size="30"></i></span>
+      <h1>Create a new password</h1>
+      <p class="muted">Enter your account email and choose a new password. This page works only from the secure reset link sent to your email.</p>
+
+      <form id="resetPageForm" class="entry-form">
+        <label>Email
+          <input type="email" name="email" placeholder="you@example.com" required autocomplete="username" />
+        </label>
+        <label>New Password
+          <input type="password" name="password" placeholder="Minimum 6 characters" required minlength="6" autocomplete="new-password" />
+        </label>
+        <label>Confirm Password
+          <input type="password" name="confirmPassword" placeholder="Re-enter password" required minlength="6" autocomplete="new-password" />
+        </label>
+        <button type="submit" class="btn btn-primary btn-block">Update Password</button>
+        <p class="field-error" id="resetPageErr" hidden></p>
+        <p class="muted" id="resetPageNote" hidden></p>
+      </form>
+
+      <div id="resetMissingToken" hidden>
+        <p class="field-error" style="margin-top:14px">This reset link is missing or expired. Request a new reset email from the sign-in page.</p>
+        <a href="fleet.html#account" class="btn btn-outline btn-block" style="margin-top:12px">Go to Sign In</a>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/icons.js"></script>
+  <script src="js/backend.js"></script>
+  <script src="js/reset-password.js"></script>
+</body>
+</html>

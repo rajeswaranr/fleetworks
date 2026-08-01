@@ -171,6 +171,28 @@ h1, h2, h3 { line-height: 1.25; }
 .booking-card h3 { font-size: 1.25rem; margin-bottom: 2px; }
 .booking-card form { margin-top: 16px; display: flex; flex-direction: column; gap: 14px; }
 
+.auth-page {
+  min-height: calc(100vh - 70px);
+  display: grid;
+  place-items: center;
+  padding: 42px 20px;
+  background: var(--bg-alt);
+}
+.auth-page-card {
+  width: min(100%, 460px);
+  padding: 30px;
+  text-align: center;
+}
+.auth-page-card h1 {
+  color: var(--navy);
+  font-size: 1.65rem;
+  margin: 10px 0 8px;
+}
+.auth-page-card .entry-form {
+  margin-top: 18px;
+  text-align: left;
+}
+
 label { display: flex; flex-direction: column; gap: 6px; font-size: 0.82rem; font-weight: 600; color: var(--navy); }
 input, select, textarea {
   font-family: inherit; font-size: 0.92rem; color: var(--ink);

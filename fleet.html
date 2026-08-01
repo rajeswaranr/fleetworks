@@ -25,7 +25,7 @@
       <div class="auth-gate-grid">
         <div class="onboard-card auth-gate-card">
           <h2 id="authTitle">Log in to FleetWorks</h2>
-          <p class="muted" style="margin-bottom:16px">Don't have an account? <button type="button" class="link-btn" id="authToggle">Start a free trial</button></p>
+          <p class="muted" id="authSub" style="margin-bottom:16px">Don't have an account? <button type="button" class="link-btn" id="authToggle">Start a free trial</button></p>
           <form id="authForm" class="entry-form">
             <div id="signupOnlyFields" hidden>
               <label>Your Name
@@ -55,6 +55,43 @@
             <p class="field-error" id="authErr" hidden></p>
             <p class="muted" id="authNote" style="font-size:0.78rem" hidden></p>
           </form>
+          <p class="muted auth-gate-alt" id="forgotPasswordWrap">
+            Forgot your password? <button type="button" class="link-btn" id="forgotPasswordBtn">Reset it by email</button>
+          </p>
+
+          <!-- Password reset request panel -->
+          <div id="forgotPasswordPanel" class="auth-confirm" hidden>
+            <span class="auth-confirm-ic"><i data-icon="mailCheck" data-icon-size="30"></i></span>
+            <h2>Reset your password</h2>
+            <p>Enter your account email. We'll send a secure reset link that opens FleetWorks.</p>
+            <form id="forgotPasswordForm" class="entry-form">
+              <label>Email
+                <input type="email" name="email" placeholder="you@example.com" required autocomplete="username" />
+              </label>
+              <button type="submit" class="btn btn-primary btn-block">Send Reset Link</button>
+              <p class="field-error" id="forgotPasswordErr" hidden></p>
+              <p class="muted" id="forgotPasswordNote" hidden></p>
+            </form>
+            <button type="button" class="btn btn-outline btn-block" id="forgotBackToSignIn">Back to Sign In</button>
+          </div>
+
+          <!-- Password reset completion panel (shown from Supabase recovery email link) -->
+          <div id="resetPasswordPanel" class="auth-confirm" hidden>
+            <span class="auth-confirm-ic"><i data-icon="shieldCheck" data-icon-size="30"></i></span>
+            <h2>Create a new password</h2>
+            <p>Choose a new password for your FleetWorks account.</p>
+            <form id="resetPasswordForm" class="entry-form">
+              <label>New Password
+                <input type="password" name="password" placeholder="Minimum 6 characters" required minlength="6" autocomplete="new-password" />
+              </label>
+              <label>Confirm Password
+                <input type="password" name="confirmPassword" placeholder="Re-enter password" required minlength="6" autocomplete="new-password" />
+              </label>
+              <button type="submit" class="btn btn-primary btn-block">Update Password</button>
+              <p class="field-error" id="resetPasswordErr" hidden></p>
+              <p class="muted" id="resetPasswordNote" hidden></p>
+            </form>
+          </div>
 
           <!-- Email-confirmation panel (shown after Create Account) -->
           <div id="authConfirm" class="auth-confirm" hidden>

@@ -26,7 +26,7 @@ test('serves the main FleetApp HTML pages', async (t) => {
   t.after(() => new Promise((resolve) => server.close(resolve)));
 
   const address = server.address();
-  const pages = ['index.html', 'dashboard.html', 'fleet.html', 'driver.html', 'garage.html', 'partner.html', 'team.html', 'admin.html', 'my.html', 'signin.html', 'why.html', 'privacy.html'];
+  const pages = ['index.html', 'dashboard.html', 'fleet.html', 'driver.html', 'garage.html', 'partner.html', 'team.html', 'admin.html', 'my.html', 'signin.html', 'reset.html', 'why.html', 'privacy.html'];
 
   for (const page of pages) {
     const response = await fetch(`http://127.0.0.1:${address.port}/${page}`);
