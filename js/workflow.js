@@ -49,6 +49,29 @@ const WF_MECHANICS = [
   { name: "Selvam P", exp: "17 yrs · electricals & BS6 diagnostics", phone: "9840033333", shop: "Sri Ganesh Truck Care, Coimbatore", rating: 4.8, km: 2.4 }
 ];
 
+function wfCloudRowToCard(row) {
+  const idx = Math.max(0, WF_ENUM.indexOf(row.stage));
+  const mechanic = WF_MECHANICS[WFD.length % WF_MECHANICS.length];
+  const profile = window.fwCloud && fwCloud.profile ? fwCloud.profile() : {};
+  return {
+    id: "sr" + String(row.id || "").replace(/-/g, "").slice(0, 10),
+    cloudId: row.id,
+    vehicle: (row.vehicles && row.vehicles.name) || row.vehicle_name || "Vehicle",
+    issue: row.issue || "Service request",
+    severity: row.severity || "Medium",
+    createdAt: row.created_at || row.updated_at || wfNow(),
+    stage: idx,
+    mechanic,
+    owner: { name: profile.transport_name || profile.full_name || "FleetWorks owner", phone: profile.mobile || "" },
+    assessment: null, invoice: null, finalAmount: null,
+    photos: [], postReport: null, feedback: null,
+    events: [
+      { stage: 0, at: row.created_at || wfNow(), by: "Owner", note: "Complaint raised: " + (row.issue || "Service request") },
+      { stage: idx, at: row.updated_at || row.created_at || wfNow(), by: "FleetWorks", note: "Synced from cloud — " + (row.stage || "raised") }
+    ]
+  };
+}
+
 function wfAdvance(id, toIdx, by, note, patch) {
   const r = WFD.find(x => x.id === id);
   if (!r || toIdx !== r.stage + 1) return;
@@ -325,13 +348,14 @@ async function wfCloudAdvance(r, toIdx) {
 (async function wfCloudPull() {
   try {
     if (!(await wfCloudCtx())) return;
-    const rows = await fwCloud.authGet("service_requests", "select=id,stage,issue,severity,updated_at&order=created_at.desc&limit=50");
+    const rows = await fwCloud.authGet("service_requests", "select=id,stage,issue,severity,created_at,updated_at,vehicles(name)&order=created_at.desc&limit=50");
     if (!rows) return;
     let changed = false;
     rows.forEach(row => {
       const local = WFD.find(x => x.cloudId === row.id);
       const idx = WF_ENUM.indexOf(row.stage);
-      if (local && idx > local.stage) { local.stage = idx; local.events.push({ stage: idx, at: wfNow(), by: "FleetWorks", note: "Synced from cloud — " + row.stage }); changed = true; }
+      if (!local) { WFD.push(wfCloudRowToCard(row)); changed = true; }
+      else if (idx > local.stage) { local.stage = idx; local.events.push({ stage: idx, at: wfNow(), by: "FleetWorks", note: "Synced from cloud — " + row.stage }); changed = true; }
     });
     if (changed) { wfSave(); wfRender(); }
   } catch { /* offline-first */ }

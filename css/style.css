@@ -678,6 +678,7 @@ input[type="file"] {
   border: 1px solid var(--line);
   display: flex; flex-direction: column; overflow: hidden;
 }
+#cpPanel[hidden] { display: none !important; }
 .cp-head {
   background: var(--navy); color: #fff; font-weight: 700; font-size: 0.84rem;
   padding: 9px 12px; display: flex; justify-content: space-between; align-items: center;

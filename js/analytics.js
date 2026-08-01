@@ -81,9 +81,19 @@ function forecastMonthly(totals, horizon) {
 }
 
 // ---------- Aggregations ----------
+function filterSelect(id) { return document.getElementById(id); }
+function selectedVehicleFilter() {
+  return (filterSelect("vehicleFilter") && filterSelect("vehicleFilter").value) ||
+    (filterSelect("iqVehicleFilter") && filterSelect("iqVehicleFilter").value) || "all";
+}
+function selectedPeriodFilter() {
+  return +(filterSelect("periodFilter") && filterSelect("periodFilter").value ||
+    filterSelect("iqPeriodFilter") && filterSelect("iqPeriodFilter").value || 12);
+}
+
 function filteredExpenses() {
-  const veh = document.getElementById("vehicleFilter").value;
-  const months = +document.getElementById("periodFilter").value;
+  const veh = selectedVehicleFilter();
+  const months = selectedPeriodFilter();
   const cutoff = addMonths(todayKey(), -(months - 1));
   return db.expenses.filter(e =>
     (veh === "all" || e.vehicleId === veh) && monthKey(e.date) >= cutoff
@@ -129,8 +139,8 @@ function driverSpend(veh, cutoff) {
   return Math.max(0, total);
 }
 function tcoBuckets() {
-  const veh = document.getElementById("vehicleFilter").value;
-  const months = +document.getElementById("periodFilter").value;
+  const veh = selectedVehicleFilter();
+  const months = selectedPeriodFilter();
   const cutoff = addMonths(todayKey(), -(months - 1));
   const b = { maintenance: 0, fuel: 0, driver: 0, compliance: 0, other: 0 };
   db.expenses.forEach(e => {
@@ -207,7 +217,7 @@ function monthlySeries(expenses) {
 
 function vehicleStats() {
   // cost/km per vehicle over the filtered window (uses each vehicle's usage rate)
-  const months = +document.getElementById("periodFilter").value;
+  const months = selectedPeriodFilter();
   const cutoff = addMonths(todayKey(), -(months - 1));
   return db.vehicles.map(v => {
     const spend = db.expenses
@@ -1210,15 +1220,36 @@ function initWhatIf() {
 }
 
 // ---------- Filters & orchestration ----------
-function renderCharts() { renderTco(); renderMonthly(); renderAnalyticsVehicles(); renderAnalyticsParts(); }
+function renderCharts() {
+  renderTco();
+  renderMonthly();
+  renderAnalyticsVehicles();
+  renderAnalyticsParts();
+  renderIQStats();
+}
+
+function vehicleFilterControls() {
+  return ["vehicleFilter", "iqVehicleFilter"].map(id => document.getElementById(id)).filter(Boolean);
+}
+function periodFilterControls() {
+  return ["periodFilter", "iqPeriodFilter"].map(id => document.getElementById(id)).filter(Boolean);
+}
+function syncControlsFrom(source, controls) {
+  controls.forEach(el => { if (el !== source && [...el.options].some(o => o.value === source.value)) el.value = source.value; });
+}
 
 function renderAnalyticsAll() {
   // vehicle filter (preserve selection across refreshes)
-  const vf = document.getElementById("vehicleFilter");
-  const keep = vf.value;
-  vf.innerHTML = '<option value="all">All vehicles</option>' +
-    db.vehicles.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
-  if ([...vf.options].some(o => o.value === keep)) vf.value = keep;
+  const keepVehicle = selectedVehicleFilter();
+  vehicleFilterControls().forEach(vf => {
+    vf.innerHTML = '<option value="all">All vehicles</option>' +
+      db.vehicles.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
+    vf.value = [...vf.options].some(o => o.value === keepVehicle) ? keepVehicle : "all";
+  });
+  const keepPeriod = selectedPeriodFilter();
+  periodFilterControls().forEach(pf => {
+    if ([...pf.options].some(o => +o.value === keepPeriod)) pf.value = String(keepPeriod);
+  });
 
   renderStats();
   renderIQStats();
@@ -1235,8 +1266,14 @@ function renderAnalyticsAll() {
   renderBenchmark();
 }
 
-document.getElementById("vehicleFilter").addEventListener("change", renderCharts);
-document.getElementById("periodFilter").addEventListener("change", renderCharts);
+vehicleFilterControls().forEach(el => el.addEventListener("change", () => {
+  syncControlsFrom(el, vehicleFilterControls());
+  renderCharts();
+}));
+periodFilterControls().forEach(el => el.addEventListener("change", () => {
+  syncControlsFrom(el, periodFilterControls());
+  renderCharts();
+}));
 
 renderAnalyticsAll();
 initWhatIf();

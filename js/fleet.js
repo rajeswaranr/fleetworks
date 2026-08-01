@@ -996,6 +996,7 @@ async function completeWorkOrder(id) {
   }
   if (i) { i.status = "Resolved"; i.resolvedAt = w.completedAt; }
   saveStore(); renderIssues(); renderWorkOrders(); renderVehicles(); renderOverview();
+  refreshCrossCutting();
   alert("Job card closed. The expense has been added to your books automatically — it will appear in the AI Dashboard and Tally export.");
 }
 
@@ -1745,6 +1746,15 @@ function renderExpenseCategoryList() {
 function refreshCrossCutting() {
   renderHealth();
   renderActionInbox();
+  renderAssignments();
+  renderMeters();
+  renderRadar();
+  renderExpenseHistory();
+  renderReplacement();
+  renderItemFailures();
+  renderServiceHistory();
+  renderServiceTasks();
+  renderVendors();
   if (window.renderPayroll) renderPayroll();
   if (window.renderTeamPicker) renderTeamPicker();
   if (window.renderAccountPortal) renderAccountPortal();
@@ -1999,6 +2009,7 @@ document.getElementById("partForm").addEventListener("submit", async e => {
     db.parts.push({ id: uid(), ...partData });
   }
   saveStore(); e.target.reset(); renderParts(); renderOverview();
+  refreshCrossCutting();
   toast(existing ? "Part restocked." : "Part added.");
 });
 
