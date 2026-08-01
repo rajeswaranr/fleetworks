@@ -111,7 +111,7 @@
 
       <div class="chart-card">
         <div class="chart-head">
-          <div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="settings" data-icon-size="18"></i></span> Scraper Configurations</h2><p class="muted">Which vendor types + cities to scrape, and manual trigger for on-demand runs</p></div>
+          <div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="settings" data-icon-size="18"></i></span> Google Maps Sourcing</h2><p class="muted">Save a vendor type + city, then hit Scrape Now — results land in Vendor Leads above. Shops already on file are skipped automatically.</p></div>
         </div>
         <form id="scraperConfigForm" class="entry-form" style="margin-bottom:14px">
           <div class="form-row">
@@ -135,7 +135,7 @@
 
       <div class="chart-card">
         <div class="chart-head">
-          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="clock" data-icon-size="18"></i></span> Scraper Runs</h2><p class="muted">Recent scrape history — status, records found, and results</p></div>
+          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="clock" data-icon-size="18"></i></span> Sourcing History</h2><p class="muted">Every scrape run — what was found, how many were new, and why any failed</p></div>
           <button class="btn btn-outline btn-sm" onclick="loadScraperRuns()">↻ Refresh</button>
         </div>
         <div class="chart-scroll"><div id="runsTable"></div></div>
@@ -317,16 +317,19 @@
       catch (ex) { alert(ex.message); }
     };
 
-    // ===== Scraper Service Integration =====
-    const SCRAPER_URL = sessionStorage.getItem("fw_scraper_url") || "https://fleetworks-scraper-xxxxx.a.run.app"; // Update after deploy
+    // ===== Google Maps sourcing (Outscraper, via the vendor-scrape edge function) =====
+    // The Outscraper API key lives as a Supabase secret and is only ever read
+    // inside the edge function — it never reaches this page. Configs and runs are
+    // plain admin-gated tables, so they're read straight over REST like the rest
+    // of this console.
+    const SCRAPE_FN_URL = FW_BACKEND.url + "/functions/v1/vendor-scrape";
+    const SCRAPE_LIMIT = 20;   // places per run; the function caps this at 100
 
     let SCRAPER_CONFIGS = [], SCRAPER_RUNS = [];
 
     async function loadScraperConfigs() {
       try {
-        const r = await fetch(SCRAPER_URL + "/api/configs");
-        if (!r.ok) throw new Error("Could not load scraper configs — is the service URL correct?");
-        SCRAPER_CONFIGS = await r.json();
+        SCRAPER_CONFIGS = await fetchTable("scraper_configs", "select=*&order=created_at.desc&limit=200");
         renderConfigs();
       } catch (ex) {
         $("configsTable").innerHTML = `<p class="muted" style="color:#b91c1c">${esc(ex.message)}</p>`;
@@ -335,9 +338,7 @@
 
     async function loadScraperRuns() {
       try {
-        const r = await fetch(FW_BACKEND.url + "/rest/v1/scraper_runs?select=*&order=created_at.desc&limit=50", { headers: authHeaders() });
-        if (!r.ok) throw new Error("Could not load scraper runs");
-        SCRAPER_RUNS = await r.json();
+        SCRAPER_RUNS = await fetchTable("scraper_runs", "select=*&order=created_at.desc&limit=50");
         renderRuns();
       } catch (ex) {
         $("runsTable").innerHTML = `<p class="muted" style="color:#b91c1c">${esc(ex.message)}</p>`;
@@ -350,12 +351,15 @@
         return;
       }
       $("configsTable").innerHTML = `<table class="chart-table-el"><thead><tr><th>Vendor Type</th><th>City</th><th></th></tr></thead><tbody>` +
-        SCRAPER_CONFIGS.map(c => `<tr><td><strong>${esc(c.vendor_type)}</strong></td>
+        SCRAPER_CONFIGS.map(c => {
+          const args = `${escAttr(JSON.stringify(c.id))},${escAttr(JSON.stringify(c.vendor_type))},${escAttr(JSON.stringify(c.city))}`;
+          return `<tr><td><strong>${esc(c.vendor_type)}</strong></td>
           <td>${esc(c.city)}</td>
           <td style="white-space:nowrap">
-            <button class="link-btn" onclick="triggerScrape('${escAttr(c.id)}', '${escAttr(c.vendor_type)}', '${escAttr(c.city)}')">Scrape Now</button>
-            <button class="link-btn" style="color:#b91c1c" onclick="deleteConfig('${escAttr(c.id)}')">Remove</button>
-          </td></tr>`).join("") + "</tbody></table>";
+            <button class="link-btn" onclick='triggerScrape(this,${args})'>Scrape Now</button>
+            <button class="link-btn" style="color:#b91c1c" onclick='deleteConfig(${args})'>Remove</button>
+          </td></tr>`;
+        }).join("") + "</tbody></table>";
     }
 
     function renderRuns() {
@@ -377,74 +381,57 @@
         }).join("") + "</tbody></table>";
     }
 
-    window.triggerScrape = async function (configId, vendorType, city) {
-      if (!confirm(`Scrape ${vendorType} in ${city}? This usually takes 1-5 minutes.`)) return;
+    // The edge function scrapes and ingests in one round trip, so this waits on a
+    // single request rather than polling. That takes ~10-60s, so the button has to
+    // show it's working — otherwise the console just looks frozen.
+    window.triggerScrape = async function (btn, configId, vendorType, city) {
+      if (!confirm(`Scrape up to ${SCRAPE_LIMIT} ${vendorType} businesses in ${city}?\n\nThis takes up to a minute. New shops are added to Vendor Leads; ones already on file are skipped.`)) return;
+      const label = btn.textContent;
+      btn.textContent = "Scraping…";
+      btn.disabled = true;
       try {
-        const r = await fetch(SCRAPER_URL + "/api/scrape", {
+        const r = await fetch(SCRAPE_FN_URL, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ configId, vendorType, city })
+          headers: { ...authHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ configId, vendorType, city, limit: SCRAPE_LIMIT })
         });
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Scrape request failed");
-        const result = await r.json();
-        alert(`Scrape started! Run ID: ${result.runId}\n\nPolling for status…`);
-        // Poll status every 2 seconds for up to 10 minutes
-        pollScrapeStatus(result.runId, 0);
+        const result = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(result.error || `Scrape failed (${r.status})`);
+        const noId = result.noPlaceId ? `\n${result.noPlaceId} had no Google place id and were skipped.` : "";
+        alert(`Done — searched "${result.query}".\n\nFound: ${result.found}\nAdded as new leads: ${result.added}\nAlready on file: ${result.skipped}${noId}`);
+        await Promise.all([loadScraperRuns(), loadAll()]);
       } catch (ex) {
         alert("Scrape error: " + ex.message);
+        await loadScraperRuns();
+      } finally {
+        btn.textContent = label;
+        btn.disabled = false;
       }
     };
 
-    window.deleteConfig = async function (configId) {
-      if (!confirm("Delete this configuration? You can recreate it anytime.")) return;
+    window.deleteConfig = async function (configId, vendorType, city) {
+      if (!confirmDestructive(`Delete the "${vendorType} — ${city}" scrape configuration? Leads already sourced with it are kept.`)) return;
       try {
-        const r = await fetch(FW_BACKEND.url + "/rest/v1/scraper_configs?id=eq." + configId, {
-          method: "DELETE",
-          headers: authHeaders()
-        });
-        if (!r.ok) throw new Error("Delete failed");
+        await deleteRow("scraper_configs", configId);
         await loadScraperConfigs();
       } catch (ex) {
         alert("Error: " + ex.message);
       }
     };
-
-    async function pollScrapeStatus(runId, attempts) {
-      if (attempts > 300) { // 10 minutes max
-        alert("Scrape is taking longer than expected. Check the Scraper Runs table for status.");
-        return;
-      }
-      try {
-        const r = await fetch(SCRAPER_URL + "/api/scrape/" + runId);
-        if (!r.ok) throw new Error("Poll failed");
-        const run = await r.json();
-        if (run.status === "completed" || run.status === "failed") {
-          alert(`Scrape ${run.status}!\n\nFound: ${run.records_found}\nNew: ${run.records_new}\nDuplicates: ${run.records_duped}${run.error_message ? "\n\nError: " + run.error_message : ""}`);
-          await loadScraperRuns();
-          return;
-        }
-        // Still running, poll again in 2 seconds
-        setTimeout(() => pollScrapeStatus(runId, attempts + 1), 2000);
-      } catch (ex) {
-        console.error("Poll error:", ex);
-        setTimeout(() => pollScrapeStatus(runId, attempts + 1), 2000);
-      }
-    }
 
     $("scraperConfigForm").addEventListener("submit", async e => {
       e.preventDefault();
       const fd = Object.fromEntries(new FormData(e.target));
       try {
-        const r = await fetch(SCRAPER_URL + "/api/configs", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ vendorType: fd.vendorType, city: fd.city.trim() })
-        });
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Config save failed");
+        await postRow("scraper_configs", { vendor_type: fd.vendorType, city: fd.city.trim() });
         e.target.reset();
         await loadScraperConfigs();
       } catch (ex) {
-        alert("Error: " + ex.message);
+        // vendor_type + city is unique, so re-adding the same pair is a no-op
+        // worth naming rather than showing the raw Postgres constraint error.
+        alert(/duplicate key|already exists/i.test(ex.message)
+          ? "That vendor type and city are already configured."
+          : ex.message);
       }
     });
 
