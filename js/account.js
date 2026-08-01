@@ -16,6 +16,10 @@ function ownerDisplayName() {
   const user = window.fwCloud && fwCloud.user();
   return (p && p.full_name) || (user ? user.split("@")[0] : "Owner");
 }
+function ownerSignupRequested() {
+  try { return new URLSearchParams(location.search).get("auth") === "signup"; }
+  catch { return false; }
+}
 
 // ---------- Auth gate (Fleetio-style: signed out = clean login page, no app chrome) ----------
 function authLocked() {
@@ -89,6 +93,8 @@ function renderAuthState() {
   if (user) {
     document.getElementById("ownerName").textContent = ownerDisplayName();
     renderAccountPortal();
+  } else if (ownerSignupRequested()) {
+    showSignupPanel();
   }
   updateAuthPill();
 }
@@ -122,6 +128,16 @@ function showSignInPanel() {
   setAuthPanel("auth");
 }
 
+function showSignupPanel() {
+  signupMode = true;
+  signupFields.hidden = false;
+  signupFields.querySelectorAll("input").forEach(i => { i.required = true; });
+  authTitle.textContent = "Create Owner Account";
+  document.getElementById("authSubmit").textContent = "Create Free Account";
+  document.getElementById("authToggle").textContent = "Already have an account? Sign in";
+  setAuthPanel("auth");
+}
+
 function showResetPasswordPanel() {
   sessionStorage.removeItem("fwDemo");
   document.getElementById("authGate").hidden = false;
@@ -133,13 +149,8 @@ function showResetPasswordPanel() {
 }
 
 document.getElementById("authToggle").addEventListener("click", () => {
-  signupMode = !signupMode;
-  signupFields.hidden = !signupMode;
-  signupFields.querySelectorAll("input").forEach(i => { i.required = signupMode; });
-  document.getElementById("authTitle").textContent = signupMode ? "Create Owner Account" : "Owner Sign In";
-  document.getElementById("authSubmit").textContent = signupMode ? "Create Free Account" : "Sign In";
-  document.getElementById("authToggle").textContent = signupMode ? "Already have an account? Sign in" : "New owner? Create free account";
-  setAuthPanel("auth");
+  if (signupMode) showSignInPanel();
+  else showSignupPanel();
 });
 
 const mobileInput = document.querySelector('#signupOnlyFields input[name="mobile"]');

@@ -1520,6 +1520,17 @@
 
           <section class="stat-row" id="ownerStats" style="margin-bottom:18px"></section>
 
+          <div class="chart-card" id="testDataCard" hidden style="margin-bottom:18px">
+            <div class="chart-head">
+              <div>
+                <h2 class="head-ic"><span class="ic-tile info"><i data-icon="boxes" data-icon-size="20"></i></span> Test Data</h2>
+                <p class="muted">Seed FleetFin and FleetIQ with realistic persisted records for validation.</p>
+              </div>
+              <button type="button" class="btn btn-outline btn-sm" id="seedFinIqBtn"><i data-icon="plus" data-icon-size="15"></i> Add FleetFin / FleetIQ Test Data</button>
+            </div>
+            <p class="muted" id="seedFinIqStatus" style="font-size:0.82rem"></p>
+          </div>
+
           <!-- Entry type tabs -->
           <div class="tab-bar" id="entryTabs">
             <button class="tab-btn active" data-tab="fuel"><i data-icon="fuel" data-icon-size="16"></i> Diesel</button>
@@ -1630,6 +1641,7 @@
   <script src="js/analytics.js"></script>
   <script src="js/account.js"></script>
   <script src="js/payroll.js"></script>
+  <script src="js/testdata.js"></script>
   <script src="js/bulkimport.js"></script>
   <script src="js/fleetmap.js"></script>
   <script src="js/workflow.js"></script>

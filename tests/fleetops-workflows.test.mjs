@@ -516,3 +516,158 @@ test('FleetOps workflow pages save test data through the business DB layer and r
     assert.ok(dbSnapshot.callKinds.includes(expectedCall), `${expectedCall} should be called`);
   }
 });
+
+test('FleetFin and FleetIQ seed data persists through the business DB layer and populates each UI page', async (t) => {
+  const browser = await launchBrowser(t);
+  if (!browser) return;
+
+  const server = await startServer({ port: 0 });
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  t.after(() => browser.close());
+
+  const address = server.address();
+  const context = await browser.newContext();
+  await context.addInitScript(() => {
+    localStorage.clear();
+    sessionStorage.setItem('fwDemo', '1');
+  });
+  const page = await context.newPage();
+  page.on('dialog', async (dialog) => dialog.accept());
+
+  await page.goto(`http://127.0.0.1:${address.port}/fleet.html#account`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => typeof window.activateTab === 'function' && typeof window.dbCreateVehicle === 'function');
+  await installFakeBusinessDb(page);
+  await page.waitForFunction(() => typeof window.seedFleetFinIqTestData === 'function');
+
+  await activate(page, 'account');
+  await page.waitForSelector('#testDataCard:not([hidden])');
+  await page.click('#seedFinIqBtn');
+  await waitForDbCount(page, 'vehicles', 10);
+  await waitForDbCount(page, 'drivers', 10);
+  await waitForDbCount(page, 'fuel_logs', 120);
+  await waitForDbCount(page, 'expenses', 60);
+  await waitForDbCount(page, 'trips', 60);
+  await waitForDbCount(page, 'inspections', 10);
+  await waitForDbCount(page, 'issues', 10);
+  await waitForDbCount(page, 'work_orders', 10);
+  await waitForDbCount(page, 'reminders', 10);
+  await waitForDbCount(page, 'parts', 5);
+  await waitForDbCount(page, 'documents', 10);
+  await waitForDbCount(page, 'tyre_readings', 40);
+  await waitForDbCount(page, 'driver_ledger', 20);
+  await expectUiText(page, '#ownerStats', /My vehicles\s*10/);
+  await expectUiText(page, '#recentList', /TN-88-AA/);
+
+  await activate(page, 'fin');
+  await expectUiText(page, '#finStatRow', /Total expenses this month|Fleet cost per km/);
+  await expectUiText(page, '#monthlyTable', /Spend|actual/i);
+  await expectUiText(page, '#vehicleTable', /TN-88-AA-1001/);
+  await expectUiText(page, '#partTable', /Brakes|Tyres|Engine Oil/);
+  await expectUiText(page, '#fuelWatch', /unaccounted|Mileage steady/i);
+
+  await activate(page, 'khata');
+  await expectUiText(page, '#khataBalances', /Suresh Kumar|Manoj Yadav/);
+  await expectUiText(page, '#khataTable', /FleetFin seed trip advance|FleetFin seed route expense/);
+
+  await activate(page, 'payroll');
+  await expectUiText(page, '#manualSalaryDriver', /Suresh Kumar/);
+  await expectUiText(page, '#payrollHistory', /FleetFin seed salary payment|FWSEED/);
+
+  await activate(page, 'expensehistory');
+  await expectUiText(page, '#expHistTable', /Seed .* bill|FW-SEED/i);
+
+  await activate(page, 'gstbills');
+  await expectUiText(page, '#gstTiles', /ITC this quarter|GST bills captured/);
+  await expectUiText(page, '#gstBillsTable', /FW-SEED|33ABCDE1234F1Z5/);
+
+  await activate(page, 'accounts');
+  await expectUiText(page, '#accountsSummary', /Maintenance|Diesel|Total/);
+
+  await activate(page, 'reports');
+  await expectUiText(page, '#reportGrid', /Compliance Report|Expense Report|Full Backup/);
+
+  await activate(page, 'analytics');
+  await expectUiText(page, '#iqStatRow', /Forecast, next 3 months|AI signals active/);
+  await expectUiText(page, '#iqMonthlyTable', /forecast/i);
+  await expectUiText(page, '#predictions', /Plan ahead|Due soon|Overdue|Healthy/);
+  await expectUiText(page, '#insightsFeed', /Compliance|Fuel anomaly|Issue|Warranty|AI/);
+
+  await activate(page, 'recurrent');
+  await expectUiText(page, '#recurTable', /Repeat repair|Repeat issue/);
+
+  await activate(page, 'deviation');
+  await expectUiText(page, '#devTable', /costlier|cheaper|Within band/i);
+
+  await activate(page, 'benchmark');
+  await expectUiText(page, '#benchTables', /Maintenance cost per km|Diesel mileage|Part cost per job/);
+
+  await activate(page, 'whatif');
+  await expectUiText(page, '#wiOut', /Projected \/ month|Yearly impact/);
+
+  await activate(page, 'forecasting');
+  await expectUiText(page, '#fcastTable', /forecast/i);
+
+  await activate(page, 'anomaly');
+  await expectUiText(page, '#anomTable', /Billed|normal|No anomalies/i);
+
+  await activate(page, 'replacement');
+  await expectUiText(page, '#replTable', /Cost \/ km|Healthy|Review|Watch/);
+
+  await activate(page, 'itemfailures');
+  await expectUiText(page, '#failTable', /Failed Item|Tyres|Brakes|Lights|Horn/i);
+
+  await activate(page, 'recommend');
+  await expectUiText(page, '#recoList', /Plan|Audit|EXPIRED|All clear|Deviation/i);
+
+  const dbSnapshot = await page.evaluate(() => ({
+    callKinds: window.__businessDb.calls.map((call) => call.kind),
+    salaryRows: window.__businessDb.salary_payments?.length || 0,
+    paymentRequests: window.__businessDb.payment_requests?.length || 0,
+  }));
+
+  for (const expectedCall of [
+    'dbCreateVehicle',
+    'dbCreateDriver',
+    'dbCreateFuelLog',
+    'dbCreateExpense',
+    'dbCreateIssue',
+    'dbCreateWorkOrder',
+    'dbCreateReminder',
+    'dbCreateInspection',
+    'dbCreatePart',
+    'dbCreateDocument',
+    'dbCreateTyreReading',
+    'dbCreateTrip',
+    'dbCreateLedgerEntry',
+    'cloud-insert:salary_payments',
+    'cloud-insert:payment_requests',
+  ]) {
+    assert.ok(dbSnapshot.callKinds.includes(expectedCall), `${expectedCall} should be called`);
+  }
+  assert.equal(dbSnapshot.salaryRows, 4);
+  assert.equal(dbSnapshot.paymentRequests, 4);
+});
+
+test('create free owner account link opens the owner registration form', async (t) => {
+  const browser = await launchBrowser(t);
+  if (!browser) return;
+
+  const server = await startServer({ port: 0 });
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  t.after(() => browser.close());
+
+  const address = server.address();
+  const context = await browser.newContext();
+  await context.addInitScript(() => localStorage.clear());
+  const page = await context.newPage();
+
+  await page.goto(`http://127.0.0.1:${address.port}/signin.html`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('link', { name: /Create a free owner account/i }).click();
+  await page.waitForURL(/fleet\.html\?auth=signup#account$/);
+  await page.waitForSelector('#authGate:not([hidden])');
+
+  await expectUiText(page, '#authTitle', /Create Owner Account/);
+  await expectUiText(page, '#authSubmit', /Create Free Account/);
+  assert.equal(await page.locator('#signupOnlyFields').evaluate((el) => el.hidden), false);
+  await expectUiText(page, '#signupOnlyFields', /Transport \/ Company Name|GST Number or PAN|Mobile Number/);
+});
