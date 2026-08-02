@@ -75,6 +75,7 @@
     return {
       db: currentDb(),
       api: window.FWApi || null,
+      hex: window.FWHex || null,
       cloud: window.fwCloud || null,
       platform: window.FWPlatform,
       user: window.fwCloud && fwCloud.user ? fwCloud.user() : null,

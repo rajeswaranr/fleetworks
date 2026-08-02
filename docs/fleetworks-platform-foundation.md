@@ -16,17 +16,33 @@ New platform files were added beside the existing code:
 js/
   platform/
     module-registry.js
+    hexagonal.js
     api-client.js
 
   modules/
     index.js
     fleet-core/
+      domain/
+      ports/
+      adapters/
+      use-cases/
+      view-models/
       fleet-core.module.js
     security/
       security.module.js
     driver-map/
+      domain/
+      ports/
+      adapters/
+      use-cases/
+      view-models/
       driver-map.module.js
     payments/
+      domain/
+      ports/
+      adapters/
+      use-cases/
+      view-models/
       payment.module.js
     llm-gateway/
       llm-gateway.module.js
@@ -58,10 +74,26 @@ Existing app scripts
 
 New platform scripts
   platform/module-registry.js
+  platform/hexagonal.js
   platform/api-client.js
+  modules/fleet-core/domain/fleet-core.domain.js
+  modules/fleet-core/ports/fleet-repository.port.js
+  modules/fleet-core/adapters/legacy-fleet.repository.js
+  modules/fleet-core/use-cases/list-fleet-summary.usecase.js
+  modules/fleet-core/view-models/fleet-core.viewmodel.js
   modules/fleet-core/fleet-core.module.js
   modules/security/security.module.js
+  modules/driver-map/domain/driver-map.domain.js
+  modules/driver-map/ports/driver-map.port.js
+  modules/driver-map/adapters/legacy-driver-map.repository.js
+  modules/driver-map/use-cases/driver-map.usecases.js
+  modules/driver-map/view-models/driver-map.viewmodel.js
   modules/driver-map/driver-map.module.js
+  modules/payments/domain/payment.domain.js
+  modules/payments/ports/payment-repository.port.js
+  modules/payments/adapters/legacy-payment.repository.js
+  modules/payments/use-cases/payment.usecases.js
+  modules/payments/view-models/payment.viewmodel.js
   modules/payments/payment.module.js
   modules/llm-gateway/llm-gateway.module.js
   modules/iot-telemetry/iot-telemetry.module.js
@@ -465,6 +497,32 @@ The module system lets IoT support plug into maps, alerts, maintenance, and anal
 ### Web And Mobile
 
 `FWApi` is a transition point toward a shared client SDK. Today it wraps `fwCloud`. Later it can call a backend-for-frontend API while feature modules keep the same high-level interface.
+
+### `js/platform/hexagonal.js`
+
+Provides `window.FWHex`.
+
+Responsibilities:
+
+- Define ports
+- Register adapters
+- Register use cases
+- Register view models
+- Run use cases through stable names
+- Inspect active architecture wiring
+
+Important APIs:
+
+```js
+FWHex.definePort(name, methods)
+FWHex.registerAdapter(portName, adapter)
+FWHex.adapter(portName)
+FWHex.registerUseCase(name, fn)
+FWHex.run(name, input)
+FWHex.registerViewModel(name, factory)
+FWHex.viewModel(name, input)
+FWHex.inspect()
+```
 
 ### Pluggable Components
 
