@@ -654,7 +654,13 @@
                 <option>EV Charging</option>
                 <option>Washing &amp; Detailing</option>
                 <option>Full HCV Maintenance</option>
-                <option>HCV Insurance Quote</option>
+                <optgroup label="Insurance &amp; Compliance">
+                  <option>HCV Insurance Quote</option>
+                  <option>RTO Work — Fitness / Permit / Transfer</option>
+                  <option>PUC Certificate</option>
+                  <option>FASTag — New / Recharge</option>
+                  <option>GPS / AIS-140 Installation</option>
+                </optgroup>
                 <option>Partner Workshop Enquiry</option>
               </select>
             </label>
@@ -662,6 +668,7 @@
           <label>Describe the Issue (optional)
             <textarea name="issue" rows="3" placeholder="e.g. Engine overheating, brake noise, need 2 new rear tyres..."></textarea>
           </label>
+          <p class="field-error" id="bookingErr" hidden style="color:#f87171"></p>
           <button type="submit" class="btn btn-primary btn-block">Confirm Booking Request</button>
         </form>
       </div>

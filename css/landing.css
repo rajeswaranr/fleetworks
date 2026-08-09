@@ -198,3 +198,11 @@ h1, h2, h3, h4 { color: var(--ai-text); letter-spacing: -0.01em; }
   border: 1px solid var(--ai-line); transition: color .15s, border-color .15s, background .15s;
 }
 .ins-link:hover { color: var(--ai-text); border-color: rgba(168, 85, 247, 0.4); background: var(--ai-surface-hi); }
+
+/* Invalid-field feedback inside the dark modal. style.css's input.invalid rule
+   ties with .modal input on specificity and loses on load order, so without
+   this the red border never rendered here — a blocked submit looked like a
+   dead Confirm button. */
+.modal input.invalid, .modal select.invalid, .modal textarea.invalid {
+  border-color: #f87171 !important; box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18) !important;
+}

@@ -104,7 +104,21 @@ function saveLead(data) {
 // ---------- Modal booking form ----------
 bookingForm.addEventListener("submit", (e) => {
   e.preventDefault();
-  if (!validateForm(bookingForm)) return;
+  const errEl = document.getElementById("bookingErr");
+  if (!validateForm(bookingForm)) {
+    // Never block silently: on the dark modal the red borders alone were
+    // invisible until landing.css got its .invalid override, and a blocked
+    // submit read as a dead Confirm button.
+    if (errEl) {
+      const badPhone = bookingForm.elements.phone.classList.contains("invalid") && bookingForm.elements.phone.value.trim() !== "";
+      errEl.textContent = badPhone
+        ? "Enter a valid 10-digit mobile number (starting 6–9)."
+        : "Please fill the highlighted fields.";
+      errEl.hidden = false;
+    }
+    return;
+  }
+  if (errEl) errEl.hidden = true;
 
   const data = Object.fromEntries(new FormData(bookingForm));
   data.ref = makeRef();
