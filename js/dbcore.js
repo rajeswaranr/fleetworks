@@ -154,6 +154,7 @@ function dbRowToDriver(row, vehicleExtId) {
     name: row.name, phone: row.phone || "", dlNo: row.dl_no, dlExpiry: row.dl_expiry,
     vehicleId: vehicleExtId !== undefined ? vehicleExtId : (row.vehicles ? row.vehicles.ext_id : "") || "",
     upiId: row.upi_id || undefined, bankAccount: row.bank_account || undefined, bankIfsc: row.bank_ifsc || undefined,
+    payBasis: row.pay_basis === "daily" ? "daily" : "monthly",
   };
 }
 function driverToDbRow(d, orgId) {
@@ -161,6 +162,7 @@ function driverToDbRow(d, orgId) {
     org_id: orgId, ext_id: d.id, name: d.name, phone: d.phone || null, dl_no: d.dlNo, dl_expiry: d.dlExpiry || null,
     vehicle_id: d.vehicleId ? dbVehicleUuid(d.vehicleId) : null,
     upi_id: d.upiId || null, bank_account: d.bankAccount || null, bank_ifsc: d.bankIfsc || null,
+    pay_basis: d.payBasis === "daily" ? "daily" : "monthly",
   };
 }
 async function dbCreateDriver(d) {
@@ -179,6 +181,7 @@ async function dbUpdateDriver(extId, patch) {
   if ("upiId" in patch) dbPatch.upi_id = patch.upiId || null;
   if ("bankAccount" in patch) dbPatch.bank_account = patch.bankAccount || null;
   if ("bankIfsc" in patch) dbPatch.bank_ifsc = patch.bankIfsc || null;
+  if ("payBasis" in patch) dbPatch.pay_basis = patch.payBasis === "daily" ? "daily" : "monthly";
   return fwCloud.authPatch(`drivers?id=eq.${d.dbId}`, dbPatch);
 }
 // Used when a vehicle is created with a driver pre-assigned — patches the

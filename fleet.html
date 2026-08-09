@@ -727,6 +727,15 @@
               <label>Assigned Vehicle
                 <select name="vehicleId" id="driverVehicle"><option value="">Not assigned</option></select>
               </label>
+              <label>Salary Basis
+                <select name="payBasis" id="driverPayBasis">
+                  <option value="monthly">Monthly salary</option>
+                  <option value="daily">Daily wage</option>
+                </select>
+                <span class="field-hint">Daily-wage drivers are paid per day worked, so payments are logged against a date instead of a month.</span>
+              </label>
+            </div>
+            <div class="form-row">
               <label>UPI ID (for one-tap salary pay)
                 <input type="text" name="upiId" placeholder="e.g. driver@okhdfcbank" />
               </label>
@@ -768,8 +777,10 @@
               <label>Driver
                 <select name="driverExtId" id="manualSalaryDriver" required></select>
               </label>
-              <label>Period
-                <input type="month" name="period" required />
+              <label id="manualPeriodLabel">Salary for month
+                <!-- label + input type swap to a date picker for daily-wage
+                     drivers — see setPeriodField in js/payroll.js -->
+                <input type="month" name="period" id="manualSalaryPeriod" required />
               </label>
             </div>
             <div class="form-row">
@@ -785,6 +796,14 @@
               </label>
             </div>
             <div class="form-row">
+              <label>Payable on
+                <input type="date" name="payableDate" id="manualPayableDate" />
+                <span class="field-hint">When this salary or wage falls due.</span>
+              </label>
+              <label>Paid on
+                <input type="date" name="paidDate" id="manualPaidDate" required />
+                <span class="field-hint">The day the money actually left — may differ from the payable date.</span>
+              </label>
               <label>UPI Ref / UTR (optional)
                 <input type="text" name="utr" placeholder="e.g. 402816123456" />
               </label>
@@ -815,8 +834,10 @@
               <label>Driver
                 <select name="driverExtId" id="payReqDriver" required></select>
               </label>
-              <label>Period
-                <input type="month" name="period" required />
+              <label id="payReqPeriodLabel">Salary for month
+                <!-- label + input type swap to a date picker for daily-wage
+                     drivers — see setPeriodField in js/payroll.js -->
+                <input type="month" name="period" id="payReqPeriod" required />
               </label>
             </div>
             <div class="form-row">
@@ -848,8 +869,10 @@
               <label>Driver
                 <select name="driverExtId" id="paySalaryDriver" required></select>
               </label>
-              <label>Period
-                <input type="month" name="period" required />
+              <label id="paySalaryPeriodLabel">Salary for month
+                <!-- label + input type swap to a date picker for daily-wage
+                     drivers — see setPeriodField in js/payroll.js -->
+                <input type="month" name="period" id="paySalaryPeriod" required />
               </label>
             </div>
             <div class="form-row">
@@ -871,6 +894,63 @@
       </section>
 
       <!-- ======= PAYOUT SETUP MODAL ======= -->
+      <!-- Correct a manually logged salary payment. Cashfree rows never open
+           this — they mirror the gateway and are read-only. -->
+      <div id="editPayModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:center;justify-content:center;padding:16px">
+        <div class="chart-card" style="max-width:440px;width:100%">
+          <h2>Edit salary payment</h2>
+          <p class="muted" id="editPayWho" style="margin-bottom:12px"></p>
+          <form id="editPayForm" class="entry-form">
+            <input type="hidden" name="id" />
+            <div class="form-row">
+              <label id="editPayPeriodLabel">Salary for month
+                <!-- label + input type swap to a date picker for daily-wage
+                     drivers — see setPeriodField in js/payroll.js -->
+                <input type="month" name="period" id="editPayPeriod" required />
+              </label>
+              <label>Amount (₹)
+                <input type="number" name="amount" min="1" required />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Paid via
+                <select name="method">
+                  <option value="upi">Your UPI app</option>
+                  <option value="bank">Bank transfer</option>
+                  <option value="cash">Cash</option>
+                </select>
+              </label>
+              <label>Status
+                <select name="status">
+                  <option value="success">Success</option>
+                  <option value="reversed">Reversed / bounced</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Payable on
+                <input type="date" name="payableDate" id="editPayableDate" />
+              </label>
+              <label>Paid on
+                <input type="date" name="paidDate" id="editPaidDate" />
+              </label>
+            </div>
+            <label>UPI Ref / UTR (optional)
+              <input type="text" name="utr" />
+            </label>
+            <label>Notes (optional)
+              <input type="text" name="notes" maxlength="200" />
+            </label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+              <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Save Changes</button>
+              <button type="button" class="btn btn-outline" id="editPayCancel">Cancel</button>
+              <button type="button" class="btn btn-outline" id="editPayDelete" style="color:#b91c1c;border-color:#b91c1c;margin-left:auto">Delete</button>
+            </div>
+            <p class="field-error" id="editPayErr" hidden></p>
+          </form>
+        </div>
+      </div>
+
       <div id="payoutModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:center;justify-content:center;padding:16px">
         <div class="chart-card" style="max-width:440px;width:100%">
           <h2 id="payoutModalTitle">Set up payout</h2>

@@ -1814,6 +1814,7 @@ function openEditDriver(id) {
   form.dlNo.value = d.dlNo || ""; form.dlExpiry.value = d.dlExpiry || "";
   form.vehicleId.value = d.vehicleId || "";
   form.upiId.value = d.upiId || ""; form.bankAccount.value = d.bankAccount || ""; form.bankIfsc.value = d.bankIfsc || "";
+  form.payBasis.value = d.payBasis === "daily" ? "daily" : "monthly";
   document.getElementById("driverFormSubmit").textContent = "Save Changes";
   document.getElementById("driverFormCancel").hidden = false;
   const card = form.closest(".form-card") || form.closest(".chart-card");
@@ -1832,7 +1833,8 @@ document.getElementById("driverForm").addEventListener("submit", async e => {
   const upiId = (fd.upiId || "").trim() || undefined;
   const bankAccount = (fd.bankAccount || "").replace(/\s+/g, "") || undefined;
   const bankIfsc = (fd.bankIfsc || "").trim().toUpperCase() || undefined;
-  const patch = { name: fd.name.trim(), phone: fd.phone, dlNo: fd.dlNo.trim(), dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId, bankAccount, bankIfsc };
+  const payBasis = fd.payBasis === "daily" ? "daily" : "monthly";
+  const patch = { name: fd.name.trim(), phone: fd.phone, dlNo: fd.dlNo.trim(), dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId, bankAccount, bankIfsc, payBasis };
 
   // Editing an existing driver by id — works even if the DL number itself
   // was changed, since matching by the (possibly stale) old DL number
