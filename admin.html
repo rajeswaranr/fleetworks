@@ -72,6 +72,27 @@
 
       <div class="chart-card">
         <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="shieldCheck" data-icon-size="18"></i></span> Reset a User's Password</h2><p class="muted">For a locked-out owner, partner or team member who rings in. Issues a temporary password to read out — they can change it after signing in. Every reset is logged below.</p></div>
+        </div>
+        <form id="pwResetForm" class="entry-form" style="margin-bottom:14px">
+          <div class="form-row">
+            <label>User's Email
+              <input type="email" name="email" placeholder="owner@example.com" required autocomplete="off" />
+            </label>
+            <button type="submit" class="btn btn-primary" style="align-self:end">Issue Temporary Password</button>
+          </div>
+          <p class="field-error" id="pwResetErr" hidden></p>
+        </form>
+        <div id="pwResetOut" hidden style="margin-bottom:14px;padding:14px;border:1px solid #0ca30c;border-radius:10px;background:#0ca30c10">
+          <p style="margin:0 0 6px"><strong>Temporary password for <span id="pwResetWho"></span></strong></p>
+          <p style="margin:0 0 8px;font-family:ui-monospace,Consolas,monospace;font-size:1.35rem;letter-spacing:1px" id="pwResetPw"></p>
+          <p class="muted" style="font-size:0.8rem;margin:0">Read this out now — it isn't stored anywhere and can't be shown again. Tell them to change it from their account page after signing in.</p>
+        </div>
+        <div class="chart-scroll"><div id="pwResetLog"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
           <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="phone" data-icon-size="18"></i></span> Customer Booking Leads</h2><p class="muted">Newest first — call within 15 minutes!</p></div>
           <button class="btn btn-outline btn-sm" onclick="loadAll()">↻ Refresh</button>
         </div>
@@ -465,6 +486,54 @@
     };
     window.toggleRejected = function () { SHOW_REJECTED = !SHOW_REJECTED; renderLeadTables(); };
 
+    // ===== Admin-issued password reset =====
+    // Works without SMTP: the admin sets a temporary password and reads it out
+    // over the phone. The service-role work happens inside the edge function —
+    // this page only ever sees the generated password, and only once.
+    const PW_RESET_FN_URL = FW_BACKEND.url + "/functions/v1/admin-reset-password";
+
+    async function loadPwResetLog() {
+      try {
+        const rows = await fetchTable("admin_password_resets", "select=*&order=created_at.desc&limit=25");
+        $("pwResetLog").innerHTML = rows.length
+          ? `<table class="chart-table-el"><thead><tr><th>When</th><th>User</th><th>Reset by</th></tr></thead><tbody>` +
+            rows.map(r => `<tr><td>${fmtDT(r.created_at)}</td><td><strong>${esc(r.target_email)}</strong></td>
+              <td>${esc(r.performed_email || "—")}</td></tr>`).join("") + "</tbody></table>"
+          : "<p class='muted'>No password resets issued yet.</p>";
+      } catch (ex) {
+        $("pwResetLog").innerHTML = `<p class="muted" style="color:#b91c1c">${esc(ex.message)}</p>`;
+      }
+    }
+
+    $("pwResetForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const errEl = $("pwResetErr"), out = $("pwResetOut");
+      errEl.hidden = true; out.hidden = true;
+      const email = new FormData(e.target).get("email").trim();
+      if (!confirmDestructive(`Issue a new temporary password for ${email}?\n\nTheir current password stops working immediately.`)) return;
+      const btn = e.target.querySelector("button[type=submit]");
+      const label = btn.textContent; btn.disabled = true; btn.textContent = "Working…";
+      try {
+        const r = await fetch(PW_RESET_FN_URL, {
+          method: "POST",
+          headers: { ...authHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ email })
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || `Reset failed (${r.status})`);
+        $("pwResetWho").textContent = j.email;
+        $("pwResetPw").textContent = j.password;
+        out.hidden = false;
+        if (j.warning) { errEl.textContent = j.warning; errEl.hidden = false; }
+        e.target.reset();
+        await loadPwResetLog();
+      } catch (ex) {
+        errEl.textContent = ex.message; errEl.hidden = false;
+      } finally {
+        btn.disabled = false; btn.textContent = label;
+      }
+    });
+
     // ===== Google Maps sourcing (Outscraper, via the vendor-scrape edge function) =====
     // The Outscraper API key lives as a Supabase secret and is only ever read
     // inside the edge function — it never reaches this page. Configs and runs are
@@ -764,6 +833,7 @@
       loadAll().catch(err => alert(err.message));
       loadScraperConfigs().catch(err => console.warn("Scraper configs unavailable:", err.message));
       loadScraperRuns().catch(err => console.warn("Scraper runs unavailable:", err.message));
+      loadPwResetLog().catch(err => console.warn("Password reset log unavailable:", err.message));
     }
     function logout() {
       session = null;
