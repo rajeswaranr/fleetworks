@@ -596,13 +596,25 @@
             <label>Mobile Number
               <input type="tel" name="phone" placeholder="10-digit number" maxlength="10" pattern="[6-9][0-9]{9}" required />
             </label>
-            <label>City
-              <select name="city" required>
-                <option value="">Select city</option>
-                <option>Delhi NCR</option><option>Mumbai</option><option>Chennai</option>
-                <option>Bengaluru</option><option>Hyderabad</option><option>Pune</option>
-                <option>Kolkata</option><option>Ahmedabad</option><option>Other</option>
+            <label>State
+              <select name="state" id="bookState" required>
+                <option value="">Select state</option>
               </select>
+            </label>
+          </div>
+          <div class="form-row">
+            <label>District
+              <select name="district" id="bookDistrict" required disabled>
+                <option value="">Select state first</option>
+              </select>
+            </label>
+            <label>Town
+              <!-- Tamil Nadu districts get a town dropdown (with Other); every
+                   other state types the town in — see js/geo-india.js. -->
+              <select name="townSel" id="bookTownSel" required hidden disabled>
+                <option value="">Select district first</option>
+              </select>
+              <input type="text" name="town" id="bookTownText" placeholder="Your town / city" hidden disabled />
             </label>
           </div>
           <div class="form-row">
@@ -684,6 +696,7 @@
 
   <script src="js/icons.js"></script>
   <script src="js/backend.js"></script>
+  <script src="js/geo-india.js"></script>
   <script src="js/main.js"></script>
   <script>
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
