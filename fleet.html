@@ -54,9 +54,9 @@
             <button type="submit" class="btn btn-primary btn-block" id="authSubmit">Log In</button>
             <p class="field-error" id="authErr" hidden></p>
             <p class="muted" id="authNote" style="font-size:0.78rem" hidden></p>
-            <!-- Hidden while the form is in Create-Account mode — see js/account.js -->
-            <p class="muted" id="forgotRow" style="text-align:center;font-size:0.82rem;margin-top:10px"><a href="reset.html?from=owner">Forgot your password?</a></p>
           </form>
+          <!-- Hidden while the form is in Create-Account mode — see js/account.js -->
+          <p class="muted auth-gate-alt" id="forgotRow"><a href="reset.html?from=owner">Forgot your password?</a></p>
 
           <!-- Email-confirmation panel (shown after Create Account) -->
           <div id="authConfirm" class="auth-confirm" hidden>
