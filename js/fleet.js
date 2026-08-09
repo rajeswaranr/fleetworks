@@ -1751,6 +1751,16 @@ function refreshCrossCutting() {
   if (typeof renderExpenseApprovals === "function") renderExpenseApprovals();
 }
 let toastTimer = null;
+// How a driver is paid: monthly salary, weekly wage, or daily wage. Defined
+// here because fleet.js loads before dbcore.js and payroll.js, both of which
+// use it. One place to add a basis — the previous two-way checks scattered
+// across those files silently coerced anything unrecognised to "monthly",
+// which is exactly how "weekly" would have been dropped on save.
+const PAY_BASES = ["monthly", "weekly", "daily", "trip", "tonnage", "custom"];
+function normPayBasis(v) {
+  return PAY_BASES.includes(v) ? v : "monthly";
+}
+
 // Double confirmation for every destructive action — nothing in any table
 // is deleted or replaced on a single click, app-wide.
 function confirmDestructive(summary) {
@@ -1814,7 +1824,7 @@ function openEditDriver(id) {
   form.dlNo.value = d.dlNo || ""; form.dlExpiry.value = d.dlExpiry || "";
   form.vehicleId.value = d.vehicleId || "";
   form.upiId.value = d.upiId || ""; form.bankAccount.value = d.bankAccount || ""; form.bankIfsc.value = d.bankIfsc || "";
-  form.payBasis.value = d.payBasis === "daily" ? "daily" : "monthly";
+  form.payBasis.value = normPayBasis(d.payBasis);
   document.getElementById("driverFormSubmit").textContent = "Save Changes";
   document.getElementById("driverFormCancel").hidden = false;
   const card = form.closest(".form-card") || form.closest(".chart-card");
@@ -1833,7 +1843,7 @@ document.getElementById("driverForm").addEventListener("submit", async e => {
   const upiId = (fd.upiId || "").trim() || undefined;
   const bankAccount = (fd.bankAccount || "").replace(/\s+/g, "") || undefined;
   const bankIfsc = (fd.bankIfsc || "").trim().toUpperCase() || undefined;
-  const payBasis = fd.payBasis === "daily" ? "daily" : "monthly";
+  const payBasis = normPayBasis(fd.payBasis);
   const patch = { name: fd.name.trim(), phone: fd.phone, dlNo: fd.dlNo.trim(), dlExpiry: fd.dlExpiry, vehicleId: fd.vehicleId, upiId, bankAccount, bankIfsc, payBasis };
 
   // Editing an existing driver by id — works even if the DL number itself

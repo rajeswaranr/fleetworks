@@ -730,9 +730,13 @@
               <label>Salary Basis
                 <select name="payBasis" id="driverPayBasis">
                   <option value="monthly">Monthly salary</option>
+                  <option value="weekly">Weekly wage</option>
                   <option value="daily">Daily wage</option>
+                  <option value="trip">Per trip</option>
+                  <option value="tonnage">Per tonne</option>
+                  <option value="custom">Custom arrangement</option>
                 </select>
-                <span class="field-hint">Daily-wage drivers are paid per day worked, so payments are logged against a date instead of a month.</span>
+                <span class="field-hint">Decides how payments are logged for this driver — month, week, day, trips × rate, tonnes × rate, or free-form.</span>
               </label>
             </div>
             <div class="form-row">
@@ -781,6 +785,14 @@
                 <!-- label + input type swap to a date picker for daily-wage
                      drivers — see setPeriodField in js/payroll.js -->
                 <input type="month" name="period" id="manualSalaryPeriod" required />
+              </label>
+            </div>
+            <div class="form-row" id="manualQtyRateRow" hidden>
+              <label id="manualQtyLabel">Number of trips
+                <input type="number" name="qty" id="manualQty" min="0.01" step="any" />
+              </label>
+              <label id="manualRateLabel">Salary per trip (₹)
+                <input type="number" name="rate" id="manualRate" min="0.01" step="any" />
               </label>
             </div>
             <div class="form-row">
@@ -910,6 +922,14 @@
               </label>
               <label>Amount (₹)
                 <input type="number" name="amount" min="1" required />
+              </label>
+            </div>
+            <div class="form-row" id="editQtyRateRow" hidden>
+              <label id="editQtyLabel">Number of trips
+                <input type="number" name="qty" id="editQty" min="0.01" step="any" />
+              </label>
+              <label id="editRateLabel">Salary per trip (₹)
+                <input type="number" name="rate" id="editRate" min="0.01" step="any" />
               </label>
             </div>
             <div class="form-row">
