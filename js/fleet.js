@@ -2005,7 +2005,9 @@ document.getElementById("partForm").addEventListener("submit", async e => {
 });
 
 document.getElementById("fuelVehicleFilter").addEventListener("change", renderFuel);
-document.getElementById("demoBtn").addEventListener("click", loadDemoFleet);
+// The header "Load Demo Fleet" button was removed (2026-08) — loadDemoFleet()
+// itself stays: the auth gate's View Demo path and the old-dashboard store
+// upgrade in renderAll still call it.
 
 // ---- Documents ----
 document.getElementById("docEntityType").addEventListener("change", fillDocEntitySelect);
