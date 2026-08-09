@@ -1751,16 +1751,6 @@ function refreshCrossCutting() {
   if (typeof renderExpenseApprovals === "function") renderExpenseApprovals();
 }
 let toastTimer = null;
-// How a driver is paid: monthly salary, weekly wage, or daily wage. Defined
-// here because fleet.js loads before dbcore.js and payroll.js, both of which
-// use it. One place to add a basis — the previous two-way checks scattered
-// across those files silently coerced anything unrecognised to "monthly",
-// which is exactly how "weekly" would have been dropped on save.
-const PAY_BASES = ["monthly", "weekly", "daily", "trip", "tonnage", "custom"];
-function normPayBasis(v) {
-  return PAY_BASES.includes(v) ? v : "monthly";
-}
-
 // Double confirmation for every destructive action — nothing in any table
 // is deleted or replaced on a single click, app-wide.
 function confirmDestructive(summary) {

@@ -31,6 +31,18 @@
 
 "use strict";
 
+// How a driver is paid. Lives HERE, not in fleet.js, because the unit tests
+// (tests/dbcore.test.mjs) eval this file standalone in a vm sandbox — a
+// definition in another script would make driverToDbRow throw there, even
+// though the browser's load order happens to work. fleet.js and payroll.js
+// only call this from deferred handlers, so them loading first is fine.
+// One place to add a basis — the earlier two-way checks scattered across
+// three files silently coerced anything unrecognised to "monthly".
+const PAY_BASES = ["monthly", "weekly", "daily", "trip", "tonnage", "custom"];
+function normPayBasis(v) {
+  return PAY_BASES.includes(v) ? v : "monthly";
+}
+
 function coreDbBacked() { return !!(window.fwCloud && fwCloud.user()); }
 
 let _dbOrgId = null;
