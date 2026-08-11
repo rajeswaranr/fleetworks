@@ -23,7 +23,7 @@
       driverExtId: data.driverExtId,
       period: data.period,
       amount: amt,
-      notes: (data.notes || "").trim(),
+      note: (data.note || data.notes || "").trim(),
       method: data.method || "upi",
     };
   }

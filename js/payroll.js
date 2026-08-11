@@ -340,16 +340,23 @@ document.getElementById("payReqForm")?.addEventListener("submit", async e => {
   errEl.hidden = true;
   if (!payrollSignedIn()) { errEl.textContent = "Sign in first."; errEl.hidden = false; return; }
   const fd = Object.fromEntries(new FormData(e.target));
-  if (!fd.driverExtId) { errEl.textContent = "Add a driver first."; errEl.hidden = false; return; }
-  const org = await (window.getMyOrgId ? getMyOrgId() : null);
-  if (!org) { errEl.textContent = "No organization found yet — save something once while signed in, then retry."; errEl.hidden = false; return; }
-  const ok = await fwCloud.authInsert("payment_requests", {
-    org_id: org, driver_ext_id: fd.driverExtId, amount: +fd.amount,
-    period: fd.period, note: (fd.note || "").trim() || null,
-    requested_by: fwCloud.uid(),
-  });
-  if (ok) { e.target.reset(); toast("Queued — approve it from the list below (or your phone)."); renderPayroll(); }
-  else { errEl.textContent = "Could not queue — has db/schema-payment-approvals.sql been run in Supabase?"; errEl.hidden = false; }
+  try {
+    const ok = window.FWHex
+      ? await FWHex.run("payments.createPaymentRequest", fd)
+      : await fwCloud.authInsert("payment_requests", {
+        org_id: await (window.getMyOrgId ? getMyOrgId() : null),
+        driver_ext_id: fd.driverExtId,
+        amount: +fd.amount,
+        period: fd.period,
+        note: (fd.note || "").trim() || null,
+        requested_by: fwCloud.uid(),
+      });
+    if (ok) { e.target.reset(); toast("Queued — approve it from the list below (or your phone)."); renderPayroll(); }
+    else { errEl.textContent = "Could not queue — has db/schema-payment-approvals.sql been run in Supabase?"; errEl.hidden = false; }
+  } catch (ex) {
+    errEl.textContent = ex.message || "Could not queue this payment request.";
+    errEl.hidden = false;
+  }
 });
 
 document.getElementById("manualSalaryDriver")?.addEventListener("change", updatePayNowHint);

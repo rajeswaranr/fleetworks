@@ -211,6 +211,9 @@
     forwardRecoveryToReset,
 
     async requestPasswordReset(email) {
+      if (window.FWAuthReset && window.FWAuthReset.requestPasswordReset) {
+        return window.FWAuthReset.requestPasswordReset(email);
+      }
       const cleanEmail = String(email || "").trim().toLowerCase();
       const redirectTo = recoveryRedirectUrl(cleanEmail);
       const r = await fetch(cfg().url + "/auth/v1/recover?redirect_to=" + encodeURIComponent(redirectTo), {

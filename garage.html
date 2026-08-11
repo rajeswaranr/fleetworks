@@ -37,6 +37,23 @@
             <button type="submit" class="btn btn-primary btn-block">Log In</button>
             <p class="field-error" id="gLoginErr" hidden></p>
           </form>
+          <p class="muted auth-gate-alt" id="gForgotPasswordWrap">
+            Forgot your password? <button type="button" class="link-btn" id="gForgotPasswordBtn">Reset it by email</button>
+          </p>
+          <div id="gForgotPasswordPanel" class="auth-confirm" hidden>
+            <span class="auth-confirm-ic"><i data-icon="mailCheck" data-icon-size="30"></i></span>
+            <h2>Reset your password</h2>
+            <p>Enter your account email. We'll send a secure reset link that opens FleetWorks.</p>
+            <form id="gForgotPasswordForm" class="entry-form">
+              <label>Email
+                <input type="email" name="email" placeholder="workshop@example.com" required autocomplete="username" />
+              </label>
+              <button type="submit" class="btn btn-primary btn-block">Send Reset Link</button>
+              <p class="field-error" id="gForgotPasswordErr" hidden></p>
+              <p class="muted" id="gForgotPasswordNote" hidden></p>
+            </form>
+            <button type="button" class="btn btn-outline btn-block" id="gForgotBackToSignIn">Back to Sign In</button>
+          </div>
           <hr class="auth-gate-sep" />
           <p class="muted auth-gate-alt">See how it works? <button type="button" class="link-btn" id="gDemoBtn">Open the demo garage &rarr;</button></p>
           <p class="muted auth-gate-alt">Not a partner yet? <a href="partner.html#register">Register your workshop</a> — free onboarding.</p>
@@ -269,6 +286,7 @@
 
   <script src="js/icons.js"></script>
   <script src="js/backend.js"></script>
+  <script src="js/auth-reset.js"></script>
   <script src="js/cloudstore.js"></script>
   <script src="js/garage.js"></script>
   <script src="js/workflow.js"></script>

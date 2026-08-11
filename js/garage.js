@@ -508,6 +508,17 @@ document.getElementById("gDemoBtn").addEventListener("click", () => {
   sessionStorage.setItem("fwGarageDemo", "1");
   gUnlock();
 });
+window.FWAuthReset?.wire({
+  buttonId: "gForgotPasswordBtn",
+  panelId: "gForgotPasswordPanel",
+  formId: "gForgotPasswordForm",
+  backId: "gForgotBackToSignIn",
+  errorId: "gForgotPasswordErr",
+  noteId: "gForgotPasswordNote",
+  loginFormId: "gLoginForm",
+  hideOnOpen: ["gLoginForm", "gForgotPasswordWrap"],
+  showOnClose: ["gLoginForm", "gForgotPasswordWrap"]
+});
 document.getElementById("gLoginForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));

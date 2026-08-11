@@ -41,7 +41,7 @@
         driver_ext_id: req.driverExtId,
         period: req.period,
         amount: req.amount,
-        note: req.notes || null,
+        note: req.note || null,
         requested_by: FWApi.auth.uid(),
         status: "pending",
       });

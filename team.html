@@ -31,6 +31,23 @@
           <button type="submit" class="btn btn-primary btn-block">Log In</button>
           <p class="field-error" id="teamLoginErr" hidden></p>
         </form>
+        <p class="muted auth-gate-alt" id="teamForgotPasswordWrap">
+          Forgot your password? <button type="button" class="link-btn" id="teamForgotPasswordBtn">Reset it by email</button>
+        </p>
+        <div id="teamForgotPasswordPanel" class="auth-confirm" hidden>
+          <span class="auth-confirm-ic"><i data-icon="mailCheck" data-icon-size="30"></i></span>
+          <h2>Reset your password</h2>
+          <p>Enter your account email. We'll send a secure reset link that opens FleetWorks.</p>
+          <form id="teamForgotPasswordForm" class="entry-form">
+            <label>Email
+              <input type="email" name="email" required autocomplete="username" />
+            </label>
+            <button type="submit" class="btn btn-primary btn-block">Send Reset Link</button>
+            <p class="field-error" id="teamForgotPasswordErr" hidden></p>
+            <p class="muted" id="teamForgotPasswordNote" hidden></p>
+          </form>
+          <button type="button" class="btn btn-outline btn-block" id="teamForgotBackToSignIn">Back to Sign In</button>
+        </div>
       </div>
     </div>
   </div>
@@ -67,6 +84,7 @@
 
   <script src="js/icons.js"></script>
   <script src="js/backend.js"></script>
+  <script src="js/auth-reset.js"></script>
   <script src="js/cloudstore.js"></script>
   <script src="js/team.js"></script>
 </body>

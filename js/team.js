@@ -198,6 +198,17 @@ document.getElementById("teamLoginForm").addEventListener("submit", async e => {
   try { await fwCloud.login(fd.email, fd.password); }
   catch (ex) { err.textContent = ex.message; err.hidden = false; }
 });
+window.FWAuthReset?.wire({
+  buttonId: "teamForgotPasswordBtn",
+  panelId: "teamForgotPasswordPanel",
+  formId: "teamForgotPasswordForm",
+  backId: "teamForgotBackToSignIn",
+  errorId: "teamForgotPasswordErr",
+  noteId: "teamForgotPasswordNote",
+  loginFormId: "teamLoginForm",
+  hideOnOpen: ["teamLoginForm", "teamForgotPasswordWrap"],
+  showOnClose: ["teamLoginForm", "teamForgotPasswordWrap"]
+});
 document.getElementById("teamLogoutBtn").addEventListener("click", () => fwCloud.logout());
 
 if (window.fwCloud && fwCloud.user()) unlock();
