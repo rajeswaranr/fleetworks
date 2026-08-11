@@ -30,6 +30,10 @@
   async function requestPasswordReset(email) {
     const cleanEmail = String(email || "").trim().toLowerCase();
     if (!cleanEmail) throw new Error("Enter your account email.");
+    if (window.FWAuth && window.FWAuth.requestPasswordReset) {
+      await window.FWAuth.requestPasswordReset({ email: cleanEmail, resetUrl: resetPasswordUrl() });
+      return true;
+    }
     if (!cfg().url || !cfg().anonKey) throw new Error("Backend not configured yet.");
     const redirectTo = recoveryRedirectUrl(cleanEmail);
     const r = await fetch(cfg().url + "/auth/v1/recover?redirect_to=" + encodeURIComponent(redirectTo), {

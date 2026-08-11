@@ -257,6 +257,9 @@
   }
 
   async function llmAnswer(q) {
+    if (window.FWLlmGateway && FWLlmGateway.configured && FWLlmGateway.configured()) {
+      return FWLlmGateway.ask(q, fleetSummary()).catch(() => null);
+    }
     const url = (window.FW_BACKEND && FW_BACKEND.copilotUrl || "").replace(/\/$/, "");
     if (!url) return null;
     const headers = { "Content-Type": "application/json" };

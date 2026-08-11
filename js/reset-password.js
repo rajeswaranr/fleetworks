@@ -11,6 +11,7 @@ const SKEY_LEGACY = "fw_session";
 
 function cfg() { return window.FW_BACKEND || { url: "", anonKey: "" }; }
 function tokenParams() {
+  if (window.FWAuth && FWAuth.parseRecoveryParams) return FWAuth.parseRecoveryParams(location.hash, location.search);
   const hash = String(location.hash || "").replace(/^#/, "");
   const search = String(location.search || "").replace(/^\?/, "");
   const params = new URLSearchParams(hash || search);
@@ -81,7 +82,9 @@ form.addEventListener("submit", async e => {
   if (fd.password !== fd.confirmPassword) { err.textContent = "Passwords do not match."; err.hidden = false; return; }
   if (String(fd.password || "").length < 6) { err.textContent = "Password must be at least 6 characters."; err.hidden = false; return; }
   try {
-    const user = await updatePassword(params.accessToken, fd.password);
+    const user = window.FWAuth && FWAuth.updatePasswordFromRecovery
+      ? await FWAuth.updatePasswordFromRecovery({ params, password: fd.password })
+      : await updatePassword(params.accessToken, fd.password);
     let session = null;
     try { session = await login(email, fd.password); }
     catch {

@@ -59,6 +59,7 @@ function mean(a) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0
 
 // ---------- ML: least-squares linear regression forecast ----------
 function forecastMonthly(totals, horizon) {
+  if (window.FWFleetIQ && FWFleetIQ.forecastMonthly) return FWFleetIQ.forecastMonthly({ totals, horizon });
   // totals: [{key, amount}] chronological. Returns horizon forecast points.
   const n = totals.length;
   if (n === 0) return [];
@@ -92,6 +93,9 @@ function selectedPeriodFilter() {
 }
 
 function filteredExpenses() {
+  if (window.FWFleetIQ && FWFleetIQ.filteredExpenses) {
+    return FWFleetIQ.filteredExpenses({ filters: { vehicleId: selectedVehicleFilter(), period: selectedPeriodFilter() } });
+  }
   const veh = selectedVehicleFilter();
   const months = selectedPeriodFilter();
   const cutoff = addMonths(todayKey(), -(months - 1));
@@ -203,6 +207,7 @@ function renderTco() {
 }
 
 function monthlySeries(expenses) {
+  if (window.FWFleetIQ && FWFleetIQ.monthlySeries) return FWFleetIQ.monthlySeries({ expenses });
   const map = {};
   expenses.forEach(e => { const k = monthKey(e.date); map[k] = (map[k] || 0) + e.amount; });
   const keys = Object.keys(map).sort();
@@ -216,6 +221,7 @@ function monthlySeries(expenses) {
 }
 
 function vehicleStats() {
+  if (window.FWFleetIQ && FWFleetIQ.vehicleStats) return FWFleetIQ.vehicleStats({ filters: { vehicleId: selectedVehicleFilter(), period: selectedPeriodFilter() } });
   // cost/km per vehicle over the filtered window (uses each vehicle's usage rate)
   const months = selectedPeriodFilter();
   const cutoff = addMonths(todayKey(), -(months - 1));
@@ -235,6 +241,7 @@ function vehicleStats() {
 }
 
 function partStats(expenses) {
+  if (window.FWFleetIQ && FWFleetIQ.partStats) return FWFleetIQ.partStats({ expenses });
   const map = {};
   expenses.forEach(e => {
     if (!map[e.category]) map[e.category] = { total: 0, count: 0 };
@@ -251,6 +258,7 @@ function partStats(expenses) {
 
 // ---------- ML: part replacement prediction ----------
 function predictParts() {
+  if (window.FWFleetIQ && FWFleetIQ.predictParts) return FWFleetIQ.predictParts();
   const preds = [];
   const now = new Date();
   db.vehicles.forEach(v => {
@@ -355,18 +363,21 @@ function renderStats() {
 function renderIQStats() {
   const el = document.getElementById("iqStatRow");
   if (!el) return;
-  const monthly = monthlySeries(db.expenses);
-  const fc = forecastMonthly(monthly.slice(-12), 3);
-  const fcTotal = fc.reduce((s, f) => s + f.amount, 0);
-  const preds = predictParts();
-  const due = preds.filter(p => p.lifeUsed >= 0.85);
-  const dueCost = due.reduce((s, p) => s + p.estCost, 0);
-  // roadside failure runs ~40% over a planned replacement (towing, downtime, distress pricing)
-  const avoided = dueCost * 0.4;
   const signals = (typeof computeInsights === "function") ? computeInsights().filter(i => i.sev >= 2).length : 0;
+  const iq = window.FWFleetIQ && FWFleetIQ.iqImpact
+    ? FWFleetIQ.iqImpact({ signals })
+    : null;
+  const monthly = iq ? [] : monthlySeries(db.expenses);
+  const fc = iq ? iq.forecast : forecastMonthly(monthly.slice(-12), 3);
+  const fcTotal = iq ? iq.forecastTotal : fc.reduce((s, f) => s + f.amount, 0);
+  const preds = iq ? [] : predictParts();
+  const due = iq ? [] : preds.filter(p => p.lifeUsed >= 0.85);
+  const dueCost = iq ? iq.dueCost : due.reduce((s, p) => s + p.estCost, 0);
+  const avoided = iq ? iq.avoidedCost : dueCost * 0.4;
+  const dueCount = iq ? iq.dueCount : due.length;
   el.innerHTML = `
     <div class="stat-tile"><span class="stat-label">Forecast, next 3 months</span><span class="stat-value">${fmtINR(fcTotal)}</span><span class="stat-sub">ML regression on your history</span></div>
-    <div class="stat-tile"><span class="stat-label">Replacements due soon</span><span class="stat-value" style="color:${due.length ? DASH_PAL.serious : DASH_PAL.good}">${due.length}</span><span class="stat-sub">≈ ${fmtINR(dueCost)} if planned now</span></div>
+    <div class="stat-tile"><span class="stat-label">Replacements due soon</span><span class="stat-value" style="color:${dueCount ? DASH_PAL.serious : DASH_PAL.good}">${dueCount}</span><span class="stat-sub">≈ ${fmtINR(dueCost)} if planned now</span></div>
     <div class="stat-tile"><span class="stat-label">Breakdown cost avoidable</span><span class="stat-value" style="color:#006300">${fmtINR(avoided)}</span><span class="stat-sub">est. 40% roadside premium saved</span></div>
     <div class="stat-tile"><span class="stat-label">AI signals active</span><span class="stat-value">${signals}</span><span class="stat-sub">Foresight watching 24×7</span></div>`;
 }
@@ -634,18 +645,20 @@ function renderAccounts() {
 function renderRecurrent() {
   const el = document.getElementById("recurTable");
   if (!el) return;
-  const rows = [];
-  db.vehicles.forEach(v => {
-    const cats = {};
-    db.expenses.filter(e => e.vehicleId === v.id).forEach(e => (cats[e.category] = cats[e.category] || []).push(e));
-    Object.entries(cats).filter(([, l]) => l.length >= 2).forEach(([c, l]) =>
-      rows.push({ v: v.name, what: c, kind: "Repeat repair", n: l.length, total: l.reduce((s, e) => s + e.amount, 0), last: l.map(e => e.date).sort().pop() }));
-    const titles = {};
-    db.issues.filter(i => i.vehicleId === v.id).forEach(i => (titles[i.title.trim().toLowerCase()] = titles[i.title.trim().toLowerCase()] || []).push(i));
-    Object.values(titles).filter(l => l.length >= 2).forEach(l =>
-      rows.push({ v: v.name, what: l[0].title, kind: "Repeat issue", n: l.length, total: 0, last: l.map(i => i.createdAt).sort().pop() }));
-  });
-  rows.sort((a, b) => b.n - a.n);
+  const rows = window.FWFleetIQ && FWFleetIQ.recurrentRows ? FWFleetIQ.recurrentRows() : [];
+  if (!(window.FWFleetIQ && FWFleetIQ.recurrentRows)) {
+    db.vehicles.forEach(v => {
+      const cats = {};
+      db.expenses.filter(e => e.vehicleId === v.id).forEach(e => (cats[e.category] = cats[e.category] || []).push(e));
+      Object.entries(cats).filter(([, l]) => l.length >= 2).forEach(([c, l]) =>
+        rows.push({ v: v.name, what: c, kind: "Repeat repair", n: l.length, total: l.reduce((s, e) => s + e.amount, 0), last: l.map(e => e.date).sort().pop() }));
+      const titles = {};
+      db.issues.filter(i => i.vehicleId === v.id).forEach(i => (titles[i.title.trim().toLowerCase()] = titles[i.title.trim().toLowerCase()] || []).push(i));
+      Object.values(titles).filter(l => l.length >= 2).forEach(l =>
+        rows.push({ v: v.name, what: l[0].title, kind: "Repeat issue", n: l.length, total: 0, last: l.map(i => i.createdAt).sort().pop() }));
+    });
+    rows.sort((a, b) => b.n - a.n);
+  }
   el.innerHTML = rows.length ?
     `<table class="chart-table-el"><thead><tr><th>Vehicle</th><th>What keeps recurring</th><th>Type</th><th>Times</th><th>Total spent</th><th>Last seen</th></tr></thead><tbody>` +
     rows.map(r => `<tr><td><strong>${esc(r.v)}</strong></td><td>${esc(r.what)}</td><td>${r.kind}</td><td>${r.n}×</td><td>${r.total ? fmtINRfull(r.total) : "—"}</td><td>${r.last ? fmtDate(r.last) : "—"}</td></tr>`).join("") + "</tbody></table>"
@@ -655,13 +668,15 @@ function renderRecurrent() {
 function renderDeviation() {
   const el = document.getElementById("devTable");
   if (!el) return;
-  const vs = vehicleStats().filter(v => v.costPerKm > 0);
+  const vs = window.FWFleetIQ && FWFleetIQ.deviationRows
+    ? FWFleetIQ.deviationRows({ filters: { vehicleId: selectedVehicleFilter(), period: selectedPeriodFilter() } })
+    : vehicleStats().filter(v => v.costPerKm > 0).map(v => ({ ...v }));
   if (!vs.length) { el.innerHTML = "<p class='muted'>Add expenses and FleetIQ will benchmark every vehicle against your fleet average.</p>"; return; }
-  const avg = mean(vs.map(v => v.costPerKm));
+  const avg = vs[0].fleetAvg != null ? vs[0].fleetAvg : mean(vs.map(v => v.costPerKm));
   el.innerHTML =
     `<table class="chart-table-el"><thead><tr><th>Vehicle</th><th>Type</th><th>₹/km</th><th>Fleet avg</th><th>Deviation</th><th>Verdict</th></tr></thead><tbody>` +
     vs.map(v => {
-      const dev = avg ? ((v.costPerKm - avg) / avg) * 100 : 0;
+      const dev = v.deviationPct != null ? v.deviationPct : avg ? ((v.costPerKm - avg) / avg) * 100 : 0;
       const badge = dev > 15 ? `<span class="fw-badge overdue">${dev.toFixed(0)}% costlier</span>` :
         dev < -15 ? `<span class="fw-badge ok">${Math.abs(dev).toFixed(0)}% cheaper</span>` :
         `<span class="fw-badge upcoming">Within band</span>`;
@@ -672,35 +687,41 @@ function renderDeviation() {
 function renderAnomaly() {
   const el = document.getElementById("anomTable");
   if (!el) return;
-  const byCat = {};
-  db.expenses.forEach(e => (byCat[e.category] = byCat[e.category] || []).push(e.amount));
-  const rows = [];
-  db.expenses.forEach(e => {
-    const arr = byCat[e.category];
-    if (arr.length < 3) return;
-    const avg = mean(arr);
-    if (e.amount > avg * 1.8) rows.push({ ...e, avg, x: e.amount / avg });
-  });
-  rows.sort((a, b) => b.x - a.x);
+  const rows = window.FWFleetIQ && FWFleetIQ.anomalyRows ? FWFleetIQ.anomalyRows() : [];
+  if (!(window.FWFleetIQ && FWFleetIQ.anomalyRows)) {
+    const byCat = {};
+    db.expenses.forEach(e => (byCat[e.category] = byCat[e.category] || []).push(e.amount));
+    db.expenses.forEach(e => {
+      const arr = byCat[e.category];
+      if (arr.length < 3) return;
+      const avg = mean(arr);
+      if (e.amount > avg * 1.8) rows.push({ ...e, avg, x: e.amount / avg });
+    });
+    rows.sort((a, b) => b.x - a.x);
+  }
   el.innerHTML = rows.length ?
     `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Category</th><th>Billed</th><th>Your average</th><th>Factor</th></tr></thead><tbody>` +
-    rows.slice(0, 12).map(r => `<tr><td>${fmtDate(r.date)}</td><td><strong>${esc(vName(r.vehicleId))}</strong></td><td>${esc(r.category)}</td><td style="color:${DASH_PAL.critical}"><strong>${fmtINRfull(r.amount)}</strong></td><td>${fmtINRfull(r.avg)}</td><td>${r.x.toFixed(1)}× normal</td></tr>`).join("") + "</tbody></table>"
+    rows.slice(0, 12).map(r => `<tr><td>${fmtDate(r.date)}</td><td><strong>${esc(r.vehicleName || vName(r.vehicleId))}</strong></td><td>${esc(r.category)}</td><td style="color:${DASH_PAL.critical}"><strong>${fmtINRfull(r.amount)}</strong></td><td>${fmtINRfull(r.avg)}</td><td>${r.x.toFixed(1)}× normal</td></tr>`).join("") + "</tbody></table>"
     : "<p class='muted'>No anomalies right now. Any bill 1.8× above your own average for that part will appear here.</p>";
 }
 
 function renderRecommendations() {
   const el = document.getElementById("recoList");
   if (!el) return;
-  const items = [];
-  predictParts().filter(p => p.lifeUsed >= 0.85).slice(0, 5).forEach(p =>
-    items.push({ ic: "wrench", tone: "warning", t: `Plan ${p.category} for ${p.vehicle.name} now — ~${fmtINR(p.estCost)} planned beats a roadside failure`, d: p.lifeUsed >= 1 ? "Overdue" : "~" + p.dueDate.toLocaleDateString("en-IN", { month: "short", year: "numeric" }) }));
-  if (typeof computeInsights === "function")
-    computeInsights().filter(i => i.sev >= 3).slice(0, 5).forEach(i =>
-      items.push({ ic: "alert", tone: "danger", t: `${i.title} — ${i.detail}`, d: i.tag }));
-  const vs = vehicleStats().filter(v => v.costPerKm > 0);
-  const avg = mean(vs.map(v => v.costPerKm));
-  vs.filter(v => avg && (v.costPerKm - avg) / avg > 0.2).forEach(v =>
-    items.push({ ic: "chartBar", tone: "info", t: `Audit ${v.name}: ₹${v.costPerKm.toFixed(2)}/km vs fleet ₹${avg.toFixed(2)} — check driver habits, route or a lingering fault`, d: "Deviation" }));
+  const items = window.FWFleetIQ && FWFleetIQ.recommendations
+    ? FWFleetIQ.recommendations({ filters: { vehicleId: selectedVehicleFilter(), period: selectedPeriodFilter() } })
+    : [];
+  if (!(window.FWFleetIQ && FWFleetIQ.recommendations)) {
+    predictParts().filter(p => p.lifeUsed >= 0.85).slice(0, 5).forEach(p =>
+      items.push({ ic: "wrench", tone: "warning", t: `Plan ${p.category} for ${p.vehicle.name} now — ~${fmtINR(p.estCost)} planned beats a roadside failure`, d: p.lifeUsed >= 1 ? "Overdue" : "~" + p.dueDate.toLocaleDateString("en-IN", { month: "short", year: "numeric" }) }));
+    if (typeof computeInsights === "function")
+      computeInsights().filter(i => i.sev >= 3).slice(0, 5).forEach(i =>
+        items.push({ ic: "alert", tone: "danger", t: `${i.title} — ${i.detail}`, d: i.tag }));
+    const vs = vehicleStats().filter(v => v.costPerKm > 0);
+    const avg = mean(vs.map(v => v.costPerKm));
+    vs.filter(v => avg && (v.costPerKm - avg) / avg > 0.2).forEach(v =>
+      items.push({ ic: "chartBar", tone: "info", t: `Audit ${v.name}: ₹${v.costPerKm.toFixed(2)}/km vs fleet ₹${avg.toFixed(2)} — check driver habits, route or a lingering fault`, d: "Deviation" }));
+  }
   el.innerHTML = items.length ?
     items.map(i => `<div class="pred-row" style="padding:12px 16px"><div class="pred-main" style="display:flex;align-items:center;gap:10px;font-size:0.9rem"><span class="ic-tile ${i.tone}" style="width:32px;height:32px;flex:none">${FWIcon(i.ic, { size: 16 })}</span><span style="flex:1;min-width:0">${esc(i.t)}</span><span class="muted" style="flex:none;font-size:0.78rem">${esc(i.d)}</span></div></div>`).join("")
     : "<p class='muted'>All clear. Recommendations appear as predictions come due, anomalies surface or vehicles drift from the fleet average.</p>";
@@ -1044,9 +1065,17 @@ function initBillScan() {
     let exp;
     if (billEditIdx !== null && db.expenses[billEditIdx]) {
       exp = db.expenses[billEditIdx];   // edit keeps billThumb/billPath
-      if (dbBacked && exp.id) { const ok = await dbUpdateExpense(exp.id, fields); if (!ok) { st.textContent = "Could not save — check your connection and try again."; return; } }
+      if (window.FWFleetFin && FWFleetFin.updateExpense && exp.id) {
+        const ok = await FWFleetFin.updateExpense({ id: exp.id, patch: fields });
+        if (!ok) { st.textContent = "Could not save — check your connection and try again."; return; }
+      } else if (dbBacked && exp.id) { const ok = await dbUpdateExpense(exp.id, fields); if (!ok) { st.textContent = "Could not save — check your connection and try again."; return; } }
       Object.assign(exp, fields);
       billEditIdx = null;
+    } else if (window.FWFleetFin && FWFleetFin.createExpense) {
+      const saved = await FWFleetFin.createExpense(fields);
+      if (!saved) { st.textContent = "Could not save — check your connection and try again."; return; }
+      exp = saved;
+      db.expenses.push(exp);
     } else if (dbBacked) {
       const saved = await dbCreateExpense(fields);
       if (!saved) { st.textContent = "Could not save — check your connection and try again."; return; }
@@ -1144,6 +1173,7 @@ function renderBenchmark() {
 // Baseline = the vehicle's own median km/L across fill-to-fill gaps.
 // Flag any fill running well below it with a meaningful litre gap.
 function fuelTheftFlags() {
+  if (window.FWFleetIQ && FWFleetIQ.fuelTheftFlags) return FWFleetIQ.fuelTheftFlags();
   const flags = [];
   db.vehicles.forEach(v => {
     const fills = (db.fuelLogs || []).filter(f => f.vehicleId === v.id && f.odo > 0 && f.litres > 0)
@@ -1186,6 +1216,7 @@ function renderFuelWatch() {
 
 // ---------- What-if simulator ----------
 function whatifBase() {
+  if (window.FWFleetIQ && FWFleetIQ.whatIfBase) return FWFleetIQ.whatIfBase();
   const cutoff = addMonths(todayKey(), -11);
   return {
     maint: db.expenses.filter(e => monthKey(e.date) >= cutoff).reduce((s, e) => s + e.amount, 0) / 12,
@@ -1203,11 +1234,14 @@ function renderWhatIf() {
   document.getElementById("wiKmV").textContent = (kp >= 0 ? "+" : "") + Math.round(kp * 100) + "%";
   document.getElementById("wiVehV").textContent = "+" + av;
   const b = whatifBase();
-  const scale = 1 + av / b.n;
-  const proj = b.fuel * (1 + fp) * (1 + kp) * scale + b.maint * (1 + kp * 0.6) * scale;
-  const now = b.fuel + b.maint;
-  const d = proj - now;
-  const up = d >= 0;
+  const projection = window.FWFleetIQ && FWFleetIQ.projectWhatIf
+    ? FWFleetIQ.projectWhatIf({ base: b, fuelPct: fp, kmPct: kp, addedVehicles: av })
+    : null;
+  const scale = projection ? null : 1 + av / b.n;
+  const proj = projection ? projection.projected : b.fuel * (1 + fp) * (1 + kp) * scale + b.maint * (1 + kp * 0.6) * scale;
+  const now = projection ? projection.current : b.fuel + b.maint;
+  const d = projection ? projection.delta : proj - now;
+  const up = projection ? projection.increase : d >= 0;
   out.innerHTML = `
     <div class="stat-tile"><span class="stat-label">Today / month</span><span class="stat-value">${fmtINR(now)}</span><span class="stat-sub">diesel + maintenance, 12-mo avg</span></div>
     <div class="stat-tile"><span class="stat-label">Projected / month</span><span class="stat-value">${fmtINR(proj)}</span><span class="stat-sub">with your sliders applied</span></div>

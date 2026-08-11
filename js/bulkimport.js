@@ -79,6 +79,7 @@ const DRV_COLS = [
 const DRV_EXAMPLE = { name: "Suresh Kumar", phone: "9840012345", dlNo: "TN01 20230012345", dlExpiry: "2029-06-30", vehicleName: "TN-01-AB-1234", upiId: "suresh@okhdfcbank", bankAccount: "12345678901", bankIfsc: "HDFC0000123" };
 
 function excelDateToStr(v) {
+  if (window.FWBulkImport) return FWBulkImport.excelDateToStr(v);
   if (v == null || v === "") return "";
   if (v instanceof Date) return isNaN(v) ? "" : v.toISOString().slice(0, 10);
   if (typeof v === "number") { const d = new Date(Math.round((v - 25569) * 86400 * 1000)); return isNaN(d) ? "" : d.toISOString().slice(0, 10); }
@@ -114,6 +115,7 @@ async function readRows(file) {
 // re-cased whitespace (Excel/Sheets sometimes normalise headers slightly),
 // and auto-formatting "date"-kind columns to YYYY-MM-DD.
 function buildGetter(row, cols) {
+  if (window.FWBulkImport) return FWBulkImport.buildGetter(row, cols);
   const normMap = {};
   Object.keys(row).forEach(k => { normMap[k.trim().toLowerCase()] = k; });
   return key => {
@@ -166,6 +168,7 @@ function confirmImport(resEl, kind, newCount, dupNames, onChoice) {
 // the fields actually filled in the file — used in update mode so an empty
 // Excel cell can never blank out data already on record).
 function parseVehicleRows(rows) {
+  if (window.FWBulkImport) return FWBulkImport.parseVehicleRows({ rows, cols: VEH_COLS, uidFn: uid });
   const news = [], dups = [], errors = [];
   const seenInFile = new Set();
   rows.forEach((row, i) => {
@@ -271,6 +274,7 @@ document.getElementById("vehUploadFile")?.addEventListener("change", async e => 
 });
 
 function parseDriverRows(rows) {
+  if (window.FWBulkImport) return FWBulkImport.parseDriverRows({ rows, cols: DRV_COLS });
   const news = [], dups = [], errors = [];
   const seenInFile = new Set();
   rows.forEach((row, i) => {

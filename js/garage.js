@@ -184,28 +184,42 @@ document.getElementById("gPhotoFile").addEventListener("change", e => {
 });
 
 // ---------- Job workflow actions ----------
-function gApprove(id) { const j = G.jobs.find(x => x.id === id); if (!j || !j.estimate) return; j.estimate.status = "Approved"; j.status = "Approved"; saveG(); renderAllG(); toast("Estimate approved."); }
-function gReject(id) { const j = G.jobs.find(x => x.id === id); if (!j || !j.estimate) return; j.estimate.status = "Rejected"; j.status = "Planned"; saveG(); renderAllG(); toast("Estimate rejected."); }
-function gStart(id) { const j = G.jobs.find(x => x.id === id); if (!j) return; j.status = "In Progress"; saveG(); renderAllG(); toast("Job started."); }
+function gApprove(id) {
+  const j = window.FWGarageOps ? FWGarageOps.approveEstimate({ store: G, id }) : (() => { const job = G.jobs.find(x => x.id === id); if (!job || !job.estimate) return null; job.estimate.status = "Approved"; job.status = "Approved"; return job; })();
+  if (!j) return; saveG(); renderAllG(); toast("Estimate approved.");
+}
+function gReject(id) {
+  const j = window.FWGarageOps ? FWGarageOps.rejectEstimate({ store: G, id }) : (() => { const job = G.jobs.find(x => x.id === id); if (!job || !job.estimate) return null; job.estimate.status = "Rejected"; job.status = "Planned"; return job; })();
+  if (!j) return; saveG(); renderAllG(); toast("Estimate rejected.");
+}
+function gStart(id) {
+  const j = window.FWGarageOps ? FWGarageOps.startJob({ store: G, id }) : (() => { const job = G.jobs.find(x => x.id === id); if (!job) return null; job.status = "In Progress"; return job; })();
+  if (!j) return; saveG(); renderAllG(); toast("Job started.");
+}
 function gComplete(id) {
   const j = G.jobs.find(x => x.id === id);
   if (!j) return;
   const suggested = j.estimate ? j.estimate.total : 0;
   const amt = prompt("Final bill amount (₹):", suggested || "");
   if (amt === null) return;
-  j.finalAmount = +amt || suggested;
-  j.status = "Completed";
-  j.completedAt = iso(new Date());
+  if (window.FWGarageOps) FWGarageOps.completeJob({ store: G, id, amount: +amt || suggested });
+  else { j.finalAmount = +amt || suggested; j.status = "Completed"; j.completedAt = iso(new Date()); }
   saveG(); renderAllG();
   toast("Job marked complete.");
 }
-function gDeliver(id) { const j = G.jobs.find(x => x.id === id); if (!j) return; j.status = "Delivered"; saveG(); renderAllG(); toast("Vehicle marked delivered."); }
+function gDeliver(id) {
+  const j = window.FWGarageOps ? FWGarageOps.deliverJob({ store: G, id }) : (() => { const job = G.jobs.find(x => x.id === id); if (!job) return null; job.status = "Delivered"; return job; })();
+  if (!j) return; saveG(); renderAllG(); toast("Vehicle marked delivered.");
+}
 function gEstimateFor(id) {
   document.querySelector('#gTabBar .tab-btn[data-tab="quotes"]')?.click();
   const sel = document.getElementById("gQuoteJob");
   if ([...sel.options].some(o => o.value === id)) sel.value = id;
 }
-function gResolve(id) { const c = G.complaints.find(x => x.id === id); if (c) { c.status = "Resolved"; saveG(); renderAllG(); toast("Complaint marked resolved."); } }
+function gResolve(id) {
+  const c = window.FWGarageOps ? FWGarageOps.resolveComplaint({ store: G, id }) : (() => { const row = G.complaints.find(x => x.id === id); if (row) row.status = "Resolved"; return row; })();
+  if (c) { saveG(); renderAllG(); toast("Complaint marked resolved."); }
+}
 
 // ---------- Renderers ----------
 function jobCardHTML(j) {
@@ -439,8 +453,8 @@ document.getElementById("gQuoteForm").addEventListener("submit", e => {
     rate: +r.querySelector(".gq-rate").value || 0
   })).filter(it => it.desc);
   if (!items.length) { alert("Add at least one line item."); return; }
-  job.estimate = { items, total: items.reduce((s, it) => s + it.qty * it.rate, 0), status: "Sent" };
-  job.status = "Estimate Sent";
+  if (window.FWGarageOps) FWGarageOps.saveEstimate({ store: G, jobId, items });
+  else { job.estimate = { items, total: items.reduce((s, it) => s + it.qty * it.rate, 0), status: "Sent" }; job.status = "Estimate Sent"; }
   saveG();
   document.getElementById("gQuoteItems").innerHTML = quoteRow();
   quoteTotal();
@@ -456,7 +470,8 @@ document.getElementById("gInspForm").addEventListener("submit", e => {
   const job = G.jobs.find(j => j.id === jobId);
   if (!job) { alert("Pick a job in the workshop."); return; }
   const fd = new FormData(e.target);
-  job.inspection = {
+  if (window.FWGarageOps) FWGarageOps.saveInspection({ store: G, jobId, checkItems: GARAGE_CHECK, formData: fd });
+  else job.inspection = {
     items: GARAGE_CHECK.map((item, i) => ({ item, ok: fd.get("gchk" + i) === "on" })),
     notes: (fd.get("notes") || "").trim()
   };
@@ -469,9 +484,14 @@ document.getElementById("gInspForm").addEventListener("submit", e => {
 document.getElementById("gStockForm").addEventListener("submit", e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
-  const existing = G.stock.find(p => p.name.toLowerCase() === fd.name.trim().toLowerCase());
-  if (existing) { existing.qty = +fd.qty; existing.minQty = +fd.minQty; if (fd.unitCost) existing.unitCost = +fd.unitCost; }
-  else G.stock.push({ id: uid(), name: fd.name.trim(), partNo: (fd.partNo || "").trim(), qty: +fd.qty, minQty: +fd.minQty, unitCost: fd.unitCost ? +fd.unitCost : null });
+  const saved = window.FWGarageOps
+    ? FWGarageOps.saveStockItem({ store: G, fields: fd, uidFn: uid })
+    : null;
+  const existing = saved ? saved.updated : G.stock.find(p => p.name.toLowerCase() === fd.name.trim().toLowerCase());
+  if (!saved) {
+    if (existing) { existing.qty = +fd.qty; existing.minQty = +fd.minQty; if (fd.unitCost) existing.unitCost = +fd.unitCost; }
+    else G.stock.push({ id: uid(), name: fd.name.trim(), partNo: (fd.partNo || "").trim(), qty: +fd.qty, minQty: +fd.minQty, unitCost: fd.unitCost ? +fd.unitCost : null });
+  }
   saveG(); e.target.reset(); renderAllG();
   toast(existing ? "Stock updated." : "Stock item added.");
 });
@@ -479,7 +499,8 @@ document.getElementById("gStockForm").addEventListener("submit", e => {
 document.getElementById("gProfileForm").addEventListener("submit", e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
-  G.profile = { ...G.profile, name: fd.name.trim(), city: fd.city.trim(), phone: fd.phone.trim(), gstin: fd.gstin.trim().toUpperCase() };
+  if (window.FWGarageOps) FWGarageOps.saveProfile({ store: G, fields: fd });
+  else G.profile = { ...G.profile, name: fd.name.trim(), city: fd.city.trim(), phone: fd.phone.trim(), gstin: fd.gstin.trim().toUpperCase() };
   saveG(); renderAllG();
   toast("Profile saved.");
 });

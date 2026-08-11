@@ -30,10 +30,10 @@ function complianceBadge(label, till) {
   return `<span class="fw-badge ${cls}" title="${esc(label)}">${esc(label)}: ${d < 0 ? "Expired " + (-d) + "d ago" : d + "d left"}</span>`;
 }
 
-async function loadVehicles() {
+async function loadVehicles(portalVehicles) {
   // RLS (can_view_vehicle) already restricts this to assigned vehicles —
   // no need to filter client-side; what comes back IS the permission.
-  const vehicles = await fwCloud.authGet("vehicles", "select=*&order=name.asc") || [];
+  const vehicles = portalVehicles || await fwCloud.authGet("vehicles", "select=*&order=name.asc") || [];
   const box = document.getElementById("teamVehicleList");
   box.innerHTML = vehicles.length ? vehicles.map(v => {
     const access = ASSIGN[v.ext_id] || "view";
@@ -55,13 +55,18 @@ window.openVehicle = async function (vehId, extId, name, access) {
   body.innerHTML = "<p class='muted'>Loading…</p>";
   modal.style.display = "flex";
 
-  const [fuel, exp, iss, insp, pendingExp] = await Promise.all([
-    fwCloud.authGet("fuel_logs", `select=*&vehicle_id=eq.${vehId}&order=log_date.desc&limit=8`),
-    fwCloud.authGet("expenses", `select=*&vehicle_id=eq.${vehId}&order=expense_date.desc&limit=8`),
-    fwCloud.authGet("issues", `select=*&vehicle_id=eq.${vehId}&order=reported_at.desc.nullslast&limit=8`),
-    fwCloud.authGet("inspections", `select=*&vehicle_id=eq.${vehId}&order=inspection_date.desc&limit=5`),
-    fwCloud.authGet("expense_change_requests", `select=*&vehicle_id=eq.${vehId}&status=eq.pending&order=created_at.desc&limit=8`),
-  ]);
+  const history = window.FWTeamAccess
+    ? await FWTeamAccess.vehicleHistory({ vehicleId: vehId })
+    : null;
+  const [fuel, exp, iss, insp, pendingExp] = history
+    ? [history.fuel, history.expenses, history.issues, history.inspections, history.pendingExpenses]
+    : await Promise.all([
+      fwCloud.authGet("fuel_logs", `select=*&vehicle_id=eq.${vehId}&order=log_date.desc&limit=8`),
+      fwCloud.authGet("expenses", `select=*&vehicle_id=eq.${vehId}&order=expense_date.desc&limit=8`),
+      fwCloud.authGet("issues", `select=*&vehicle_id=eq.${vehId}&order=reported_at.desc.nullslast&limit=8`),
+      fwCloud.authGet("inspections", `select=*&vehicle_id=eq.${vehId}&order=inspection_date.desc&limit=5`),
+      fwCloud.authGet("expense_change_requests", `select=*&vehicle_id=eq.${vehId}&status=eq.pending&order=created_at.desc&limit=8`),
+    ]);
 
   const listHTML = (rows, empty, fmt) => (rows && rows.length ? rows.map(fmt).join("") : `<p class="muted" style="font-size:0.85rem">${empty}</p>`);
 
@@ -132,7 +137,9 @@ window.tvSaveFuel = async function (vehId) {
   const amount = +document.getElementById("tvFuelAmt").value || 0;
   const odo = +document.getElementById("tvOdo").value || 0;
   if (!amount) return tvErr("Enter the amount.");
-  const ok = await fwCloud.authInsert("fuel_logs", { org_id: ORG, vehicle_id: vehId, log_date: today(), litres, amount, odometer: odo || null });
+  const ok = window.FWTeamAccess
+    ? await FWTeamAccess.createFuelLog({ orgId: ORG, vehicleId: vehId, date: today(), litres, amount, odo })
+    : await fwCloud.authInsert("fuel_logs", { org_id: ORG, vehicle_id: vehId, log_date: today(), litres, amount, odometer: odo || null });
   if (ok) { toast("Diesel entry saved."); document.getElementById("teamVehModal").style.display = "none"; }
   else tvErr("Could not save — check your access for this vehicle.");
 };
@@ -144,11 +151,13 @@ window.tvSaveExpense = async function (vehId) {
   const category = (document.getElementById("tvExpCat").value || "").trim();
   const amount = +document.getElementById("tvExpAmt").value || 0;
   if (!category || !amount) return tvErr("Enter category and amount.");
-  const ok = await fwCloud.authInsert("expense_change_requests", {
-    org_id: ORG, vehicle_id: vehId, action: "create",
-    patch: { expense_date: today(), category, amount },
-    requested_by: fwCloud.uid(),
-  });
+  const ok = window.FWTeamAccess
+    ? await FWTeamAccess.requestExpenseChange({ orgId: ORG, vehicleId: vehId, date: today(), category, amount })
+    : await fwCloud.authInsert("expense_change_requests", {
+      org_id: ORG, vehicle_id: vehId, action: "create",
+      patch: { expense_date: today(), category, amount },
+      requested_by: fwCloud.uid(),
+    });
   if (ok) { toast("Submitted — awaiting owner approval."); document.getElementById("teamVehModal").style.display = "none"; }
   else tvErr("Could not submit — check your access for this vehicle.");
 };
@@ -156,7 +165,9 @@ window.tvSaveIssue = async function (vehId) {
   const title = (document.getElementById("tvIssTitle").value || "").trim();
   const severity = document.getElementById("tvIssSev").value;
   if (!title) return tvErr("Describe the problem.");
-  const ok = await fwCloud.authInsert("issues", { org_id: ORG, vehicle_id: vehId, title, severity, status: "Open", reported_at: today(), source: "Team portal" });
+  const ok = window.FWTeamAccess
+    ? await FWTeamAccess.createIssue({ orgId: ORG, vehicleId: vehId, title, severity, date: today(), source: "Team portal" })
+    : await fwCloud.authInsert("issues", { org_id: ORG, vehicle_id: vehId, title, severity, status: "Open", reported_at: today(), source: "Team portal" });
   if (ok) { toast("Problem reported."); document.getElementById("teamVehModal").style.display = "none"; }
   else tvErr("Could not save — check your access for this vehicle.");
 };
@@ -164,6 +175,29 @@ window.tvSaveIssue = async function (vehId) {
 document.getElementById("teamVehModalClose").addEventListener("click", () => { document.getElementById("teamVehModal").style.display = "none"; });
 
 async function unlock() {
+  if (window.FWTeamAccess) {
+    const access = await FWTeamAccess.loadPortalAccess();
+    const m = access.membership;
+    const view = FWTeamAccess.portalView(access);
+    document.getElementById("teamGate").hidden = true;
+    document.getElementById("teamApp").hidden = false;
+    if (!m || !m.role) {
+      document.getElementById("teamAccessNote").innerHTML = "No FleetWorks role found for this account yet. Ask your fleet owner to assign you in <strong>Team &amp; Access</strong>.";
+      return;
+    }
+    if (!view.canUsePortal) {
+      document.getElementById("teamAccessNote").innerHTML = `You're an ${esc(m.role)} — use the full <a href="fleet.html">Fleet Manager</a> instead of this portal.`;
+      return;
+    }
+    ORG = m.orgId;
+    ASSIGN = view.assignmentMap;
+    document.getElementById("teamWhoRole").textContent = view.roleLabel;
+    document.getElementById("teamWhoName").textContent = view.name;
+    document.getElementById("teamAccessNote").textContent = view.accessNote;
+    await loadVehicles(view.vehicles);
+    return;
+  }
+
   const uid = fwCloud.uid();
   const mem = await fwCloud.authGet("memberships", `select=role,org_id&user_id=eq.${uid}&limit=1`);
   const m = mem && mem[0];

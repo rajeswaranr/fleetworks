@@ -178,19 +178,28 @@
     profile() { const s = session(); return (s && s.user && s.user.user_metadata) || {}; },
 
     async signup(email, password, profile) {
-      const r = await fetch(cfg().url + "/auth/v1/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "apikey": cfg().anonKey },
-        body: JSON.stringify({ email, password, data: profile || {} })
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.msg || j.error_description || "Sign up failed");
+      const j = window.FWAuth && window.FWAuth.signup
+        ? await window.FWAuth.signup({ email, password, profile })
+        : await (async () => {
+          const r = await fetch(cfg().url + "/auth/v1/signup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "apikey": cfg().anonKey },
+            body: JSON.stringify({ email, password, data: profile || {} })
+          });
+          const body = await r.json();
+          if (!r.ok) throw new Error(body.msg || body.error_description || "Sign up failed");
+          return body;
+        })();
       if (j.access_token) { setSession(j); return "ready"; }
       return "confirm_email"; // confirmations enabled in Supabase
     },
 
     /* Re-send the sign-up confirmation email (Supabase resend endpoint). */
     async resend(email) {
+      if (window.FWAuth && window.FWAuth.resendSignup) {
+        await window.FWAuth.resendSignup({ email });
+        return true;
+      }
       const r = await fetch(cfg().url + "/auth/v1/resend", {
         method: "POST",
         headers: { "Content-Type": "application/json", "apikey": cfg().anonKey },
@@ -231,17 +240,22 @@
     async updatePasswordFromRecovery(password) {
       const p = recoveryParams();
       if (p.type !== "recovery" || !p.accessToken) throw new Error("This reset link is missing or expired. Please request a new one.");
-      const r = await fetch(cfg().url + "/auth/v1/user", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "apikey": cfg().anonKey,
-          "Authorization": "Bearer " + p.accessToken
-        },
-        body: JSON.stringify({ password })
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(j.msg || j.error_description || j.error || "Could not update password.");
+      const j = window.FWAuth && window.FWAuth.updatePasswordFromRecovery
+        ? await window.FWAuth.updatePasswordFromRecovery({ params: p, password })
+        : await (async () => {
+          const r = await fetch(cfg().url + "/auth/v1/user", {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "apikey": cfg().anonKey,
+              "Authorization": "Bearer " + p.accessToken
+            },
+            body: JSON.stringify({ password })
+          });
+          const body = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(body.msg || body.error_description || body.error || "Could not update password.");
+          return body;
+        })();
       if (p.refreshToken) setSession({
         access_token: p.accessToken,
         refresh_token: p.refreshToken,
@@ -252,13 +266,18 @@
     },
 
     async login(email, password) {
-      const r = await fetch(cfg().url + "/auth/v1/token?grant_type=password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "apikey": cfg().anonKey },
-        body: JSON.stringify({ email, password })
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error_description || j.msg || "Login failed");
+      const j = window.FWAuth && window.FWAuth.login
+        ? await window.FWAuth.login({ email, password })
+        : await (async () => {
+          const r = await fetch(cfg().url + "/auth/v1/token?grant_type=password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "apikey": cfg().anonKey },
+            body: JSON.stringify({ email, password })
+          });
+          const body = await r.json();
+          if (!r.ok) throw new Error(body.error_description || body.msg || "Login failed");
+          return body;
+        })();
       const sessionPayload = { ...j, user: { ...(j.user || {}), email } };
       setSession(sessionPayload);
       await fwCloud.pull();

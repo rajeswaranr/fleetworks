@@ -10,6 +10,7 @@
 const qs = new URLSearchParams(location.search);
 const OWNER = qs.get("o"), TOKEN = qs.get("t");
 const DNAME = qs.get("n") || "Driver", DVEH = qs.get("v") || "";
+const DRIVER_CTX = { ownerId: OWNER, token: TOKEN, driverName: DNAME, vehicleName: DVEH };
 
 document.getElementById("drvName").textContent = DNAME;
 document.getElementById("drvVeh").textContent = DVEH ? "Vehicle: " + DVEH : "No vehicle assigned";
@@ -33,7 +34,8 @@ const CHECK_ITEMS = [
   "Engine oil leak check", "Coolant level", "Battery & terminals",
   "Documents in cabin (RC/Ins/PUC)", "Load body & tarpaulin", "Cabin & seat belts"
 ];
-document.getElementById("dCheckList").innerHTML = CHECK_ITEMS.map((item, i) => `
+const DRIVER_CHECK_ITEMS = window.FWDriverPortal ? FWDriverPortal.checkItems() : CHECK_ITEMS;
+document.getElementById("dCheckList").innerHTML = DRIVER_CHECK_ITEMS.map((item, i) => `
   <label class="drv-check-row">
     <input type="checkbox" name="chk${i}" checked />
     <span>${item}</span>
@@ -44,6 +46,7 @@ document.querySelectorAll('input[name="date"]').forEach(i => { i.value = new Dat
 
 // ---------- Send ----------
 async function send(kind, payload) {
+  if (window.FWDriverPortal) return FWDriverPortal.submitEntry({ context: DRIVER_CTX, kind, payload });
   const r = await fetch(FW_BACKEND.url + "/rest/v1/driver_entries", {
     method: "POST",
     headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey, "Prefer": "return=minimal" },
@@ -90,7 +93,7 @@ document.getElementById("dIssForm").addEventListener("submit", e => {
 document.getElementById("dCheckForm").addEventListener("submit", e => {
   e.preventDefault();
   const fd = new FormData(e.target);
-  const results = CHECK_ITEMS.map((item, i) => ({ item, ok: fd.get("chk" + i) === "on" }));
+  const results = DRIVER_CHECK_ITEMS.map((item, i) => ({ item, ok: fd.get("chk" + i) === "on" }));
   handle(e.target, "inspection", {
     results, passed: results.every(r => r.ok),
     odo: +fd.get("odo") || 0, date: new Date().toISOString().slice(0, 10)

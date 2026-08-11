@@ -405,6 +405,10 @@ let myOrgId = null;
 async function getMyOrgId() {
   if (myOrgId) return myOrgId;
   if (!(window.fwCloud && fwCloud.user())) return null;
+  if (window.FWTeamAccess) {
+    myOrgId = await FWTeamAccess.ownerOrg().catch(() => null);
+    if (myOrgId) return myOrgId;
+  }
   const rows = await fwCloud.authGet("memberships", "select=org_id&role=in.(owner,manager)&limit=1").catch(() => null);
   myOrgId = rows && rows[0] ? rows[0].org_id : null;
   return myOrgId;
@@ -429,13 +433,15 @@ document.getElementById("teamRole")?.addEventListener("change", renderTeamPicker
 async function renderTeamRoster() {
   const el = document.getElementById("teamRosterTable");
   if (!el) return;
-  const url = location.origin + location.pathname.replace(/[^/]*$/, "team.html");
+  const url = window.FWTeamAccess ? FWTeamAccess.ownerPortalUrl(location) : location.origin + location.pathname.replace(/[^/]*$/, "team.html");
   const urlEl = document.getElementById("teamPortalUrl");
   if (urlEl) urlEl.textContent = url;
   if (!(window.fwCloud && fwCloud.user())) { el.innerHTML = "<p class='muted'>Sign in to manage your team.</p>"; return; }
   const org = await getMyOrgId();
   if (!org) { el.innerHTML = "<p class='muted'>No organization found yet — save something once while signed in, then reload this tab.</p>"; return; }
-  const rows = await fwCloud.authRpc("team_roster", { p_org: org });
+  const rows = window.FWTeamAccess
+    ? await FWTeamAccess.listRoster({ orgId: org })
+    : await fwCloud.authRpc("team_roster", { p_org: org });
   if (!rows) { el.innerHTML = "<p class='muted'>Team roster needs <code>db/schema-team-access.sql</code> run once in Supabase.</p>"; return; }
   el.innerHTML = rows.length ?
     `<table class="chart-table-el"><thead><tr><th>Name / Email</th><th>Role</th><th>Vehicles</th><th></th></tr></thead><tbody>` +
@@ -465,8 +471,9 @@ document.getElementById("teamInviteForm")?.addEventListener("submit", async e =>
   const btn = e.target.querySelector("button[type=submit]");
   btn.disabled = true;
   try {
-    const res = await fwCloud.callFunction("team-invite", { email: fd.email, password: fd.password, name: fd.name, role: fd.role, vehicles });
-    const url = location.origin + location.pathname.replace(/[^/]*$/, "team.html");
+    const invite = { email: fd.email, password: fd.password, name: fd.name, role: fd.role, vehicles };
+    const res = window.FWTeamAccess ? await FWTeamAccess.inviteMember(invite) : await fwCloud.callFunction("team-invite", invite);
+    const url = window.FWTeamAccess ? FWTeamAccess.ownerPortalUrl(location) : location.origin + location.pathname.replace(/[^/]*$/, "team.html");
     alert(`${fd.name} can now sign in at:\n${url}\n\nEmail: ${res.email}\n\nShare the password with them directly (call/in person) — not over WhatsApp or SMS.`);
     e.target.reset();
     renderTeamPicker();

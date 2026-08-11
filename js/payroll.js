@@ -155,6 +155,7 @@ document.getElementById("payoutForm")?.addEventListener("submit", async e => {
 // or requiring any account) for when it's easier to scan from a phone
 // while managing payroll on a laptop. ----------
 function buildUpiLink(vpa, name, amount, note) {
+  if (window.FWPayments && FWPayments.buildUpiLink) return FWPayments.buildUpiLink(vpa, name, amount, note);
   const params = new URLSearchParams({ pa: vpa, pn: name, am: String(amount), cu: "INR" });
   if (note) params.set("tn", note.slice(0, 50));
   return "upi://pay?" + params.toString();

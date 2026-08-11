@@ -505,6 +505,33 @@ async function dbUpdateTyreReading(id, patch) {
 }
 async function dbDeleteTyreReading(id) { return fwCloud.authDelete("tyre_readings", `id=eq.${id}`); }
 
+if (typeof window !== "undefined") {
+  Object.assign(window, {
+    coreDbBacked,
+    dbCreateExpense,
+    dbUpdateExpense,
+    dbCreateFuelLog,
+    dbUpdateFuelLog,
+    dbCreateIssue,
+    dbUpdateIssue,
+    dbCreateWorkOrder,
+    dbUpdateWorkOrder,
+    dbCreateReminder,
+    dbUpdateReminder,
+    dbCreateInspection,
+    dbCreatePart,
+    dbUpdatePart,
+    dbCreateDocument,
+    dbUpdateDocument,
+    dbCreateTyreReading,
+    dbUpdateTyreReading,
+    dbCreateTrip,
+    dbUpdateTrip,
+    dbCreateLedgerEntry,
+    dbUpdateLedgerEntry,
+  });
+}
+
 // ---------- Trips (no ext_id needed) ----------
 function dbRowToTrip(row, vehicleExtId) {
   return {

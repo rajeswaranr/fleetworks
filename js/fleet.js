@@ -141,6 +141,7 @@ function mileagePoints(vid) {
 
 // ---------- AI: Smart Assessments (insights feed) ----------
 function computeInsights() {
+  if (window.FWFleetOps && FWFleetOps.computeInsights) return FWFleetOps.computeInsights();
   const out = [];
   const now = new Date();
 
@@ -252,6 +253,7 @@ function computeInsights() {
 
 // ---------- AI: issue priority (Smart Priorities) ----------
 function prioritisedIssues() {
+  if (window.FWFleetOps && FWFleetOps.prioritisedIssues) return FWFleetOps.prioritisedIssues();
   const sevW = { High: 3, Medium: 2, Low: 1 };
   return db.issues
     .filter(i => i.status !== "Resolved")
@@ -267,6 +269,7 @@ function prioritisedIssues() {
 
 // ---------- PM reminder status ----------
 function reminderStatus() {
+  if (window.FWFleetOps && FWFleetOps.reminderStatus) return FWFleetOps.reminderStatus();
   return db.reminders.map(r => {
     const next = new Date(r.lastDate);
     next.setMonth(next.getMonth() + (+r.everyMonths || 3));
@@ -770,6 +773,7 @@ function openEditKhata(id) {
 // One number per truck: compliance + open issues + inspections + tyres +
 // overdue PM + cost deviation + overdue predictions. Higher is healthier.
 function healthScore(v) {
+  if (window.FWFleetOps && FWFleetOps.healthScore) return FWFleetOps.healthScore(v);
   let s = 100;
   const c = v.compliance || {};
   Object.keys(DOC_LABELS).forEach(k => {
@@ -964,7 +968,11 @@ async function createWorkOrder(issueId) {
   if (vendor === null) return;
   const est = prompt("Estimated cost (₹, optional):", "");
   const w = { issueId, vehicleId: i.vehicleId, title: i.title, vendor: vendor.trim(), estCost: est ? +est : null, status: "Open", createdAt: new Date().toISOString().slice(0, 10) };
-  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+  if (window.FWMaintenance && FWMaintenance.createWorkOrder) {
+    const saved = await FWMaintenance.createWorkOrder(w);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.workOrders.push(saved);
+  } else if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateWorkOrder(w);
     if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
     db.workOrders.push(saved);
@@ -986,7 +994,14 @@ async function completeWorkOrder(id) {
   w.status = "Completed"; w.completedAt = new Date().toISOString().slice(0, 10); w.finalCost = +cost;
   const ex = { vehicleId: w.vehicleId, date: w.completedAt, category: cat.trim() || "Other", amount: +cost };
   const i = db.issues.find(x => x.id === w.issueId);
-  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+  if (window.FWFleetFin && FWFleetFin.createExpense) {
+    const saved = await FWFleetFin.createExpense(ex);
+    if (saved) db.expenses.push(saved);
+    if (typeof coreDbBacked === "function" && coreDbBacked()) {
+      await dbUpdateWorkOrder(w.id, { status: w.status, completedAt: w.completedAt, finalCost: w.finalCost });
+      if (i) await dbUpdateIssue(i.id, { status: "Resolved", resolvedAt: w.completedAt });
+    }
+  } else if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateExpense(ex);
     if (saved) db.expenses.push(saved);
     await dbUpdateWorkOrder(w.id, { status: w.status, completedAt: w.completedAt, finalCost: w.finalCost });
@@ -1120,7 +1135,10 @@ async function resolveIssue(id) {
   const i = db.issues.find(x => x.id === id);
   if (!i) return;
   i.status = "Resolved"; i.resolvedAt = new Date().toISOString().slice(0, 10);
-  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+  if (window.FWMaintenance && FWMaintenance.resolveIssue) {
+    const ok = await FWMaintenance.resolveIssue({ id: i.id, resolvedAt: i.resolvedAt });
+    if (!ok) { toast("Could not save — check your connection and try again.", "err"); return; }
+  } else if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const ok = await dbUpdateIssue(i.id, { status: i.status, resolvedAt: i.resolvedAt });
     if (!ok) { toast("Could not save — check your connection and try again.", "err"); return; }
   }
@@ -1148,7 +1166,10 @@ async function completeReminder(id) {
   const r = db.reminders.find(x => x.id === id);
   if (!r) return;
   r.lastDate = new Date().toISOString().slice(0, 10);
-  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+  if (window.FWMaintenance && FWMaintenance.completeReminder) {
+    const ok = await FWMaintenance.completeReminder({ id: r.id, lastDate: r.lastDate });
+    if (!ok) { toast("Could not save — check your connection and try again.", "err"); return; }
+  } else if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const ok = await fwCloud.authPatch(`reminders?id=eq.${r.id}`, { last_date: r.lastDate });
     if (!ok) { toast("Could not save — check your connection and try again.", "err"); return; }
   }
@@ -1264,6 +1285,7 @@ function partDetailHTML(p) {
 // ---------- Render: Compliance Radar (unified renewals) ----------
 // Aggregate every dated renewal in the fleet into one urgency-ranked list.
 function radarItems() {
+  if (window.FWFleetOps && FWFleetOps.radarItems) return FWFleetOps.radarItems();
   const items = [];
   const push = (cat, entity, type, date) => { if (date) items.push({ cat, entity, type, date, days: daysUntil(date) }); };
   db.vehicles.forEach(v => {
@@ -1411,6 +1433,7 @@ async function deleteDocument(id) {
 
 // ---------- Render: Tyre Health ----------
 function latestReadings(vid) {
+  if (window.FWFleetOps && FWFleetOps.latestReadings) return FWFleetOps.latestReadings(vid);
   const map = {};
   db.tyreReadings.filter(t => t.vehicleId === vid)
     .sort((a, b) => a.date.localeCompare(b.date))
@@ -1905,7 +1928,11 @@ document.getElementById("fuelForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
   const f = { vehicleId: fd.vehicleId, date: fd.date, litres: +fd.litres, amount: +fd.amount, odo: +fd.odo };
-  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+  if (window.FWFleetFin && FWFleetFin.createFuelLog) {
+    const saved = await FWFleetFin.createFuelLog(f);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.fuelLogs.push(saved);
+  } else if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateFuelLog(f);
     if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
     db.fuelLogs.push(saved);
@@ -1928,7 +1955,12 @@ document.getElementById("inspectionForm").addEventListener("submit", async e => 
     severity: r.item.includes("Brake") || r.item.includes("Tyre") ? "High" : "Medium",
     status: "Open", createdAt: new Date().toISOString().slice(0, 10), source: "Inspection"
   }));
-  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+  if (window.FWMaintenance && FWMaintenance.recordInspection) {
+    const result = await FWMaintenance.recordInspection(ins);
+    if (!result || !result.inspection) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.inspections.push(result.inspection);
+    result.faults.forEach(f => db.issues.push(f));
+  } else if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateInspection(ins);
     if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
     db.inspections.push(saved);
@@ -1946,7 +1978,11 @@ document.getElementById("issueForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
   const i = { vehicleId: fd.vehicleId, title: fd.title.trim(), severity: fd.severity, status: "Open", createdAt: new Date().toISOString().slice(0, 10), source: "Manual" };
-  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+  if (window.FWMaintenance && FWMaintenance.createIssue) {
+    const saved = await FWMaintenance.createIssue(i);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.issues.push(saved);
+  } else if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateIssue(i);
     if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
     db.issues.push(saved);
@@ -1962,7 +1998,11 @@ document.getElementById("reminderForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
   const r = { vehicleId: fd.vehicleId, task: fd.task, everyMonths: +fd.everyMonths, lastDate: fd.lastDate };
-  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+  if (window.FWMaintenance && FWMaintenance.createReminder) {
+    const saved = await FWMaintenance.createReminder(r);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.reminders.push(saved);
+  } else if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateReminder(r);
     if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
     db.reminders.push(saved);
@@ -1987,7 +2027,12 @@ document.getElementById("partForm").addEventListener("submit", async e => {
   };
   const dbBacked = typeof coreDbBacked === "function" && coreDbBacked();
   const existing = db.parts.find(p => p.name.toLowerCase() === partData.name.toLowerCase());
-  if (existing) {
+  if (window.FWMaintenance && FWMaintenance.savePart) {
+    const saved = await FWMaintenance.savePart({ part: partData, existing });
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    if (existing) Object.assign(existing, saved.patch);
+    else db.parts.push(saved);
+  } else if (existing) {
     // Restocking (qty/minQty/name) always applies; other fields only overwrite
     // if actually filled in this time, so a quick re-add doesn't wipe vendor/
     // warranty/etc. already on file.
@@ -2027,7 +2072,11 @@ document.getElementById("documentForm").addEventListener("submit", async e => {
     docType: fd.docType, number: fd.number.trim(),
     issueDate: fd.issueDate || null, expiryDate: fd.expiryDate, note: fd.note.trim()
   };
-  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+  if (window.FWMaintenance && FWMaintenance.createDocument) {
+    const saved = await FWMaintenance.createDocument(d);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.documents.push(saved);
+  } else if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateDocument(d);
     if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
     db.documents.push(saved);
@@ -2051,7 +2100,11 @@ document.getElementById("tyreForm").addEventListener("submit", async e => {
     treadDepth: +fd.treadDepth, pressure: fd.pressure ? +fd.pressure : null,
     odo: fd.odo ? +fd.odo : null, date: fd.date
   };
-  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+  if (window.FWMaintenance && FWMaintenance.createTyreReading) {
+    const saved = await FWMaintenance.createTyreReading(t);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.tyreReadings.push(saved);
+  } else if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateTyreReading(t);
     if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
     db.tyreReadings.push(saved);
@@ -2753,7 +2806,11 @@ document.getElementById("tripForm")?.addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
   const t = { vehicleId: fd.vehicleId, date: fd.date, from: fd.from.trim(), to: fd.to.trim(), freight: +fd.freight, km: fd.km ? +fd.km : null };
-  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+  if (window.FWFleetFin && FWFleetFin.createTrip) {
+    const saved = await FWFleetFin.createTrip(t);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.trips.push(saved);
+  } else if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateTrip(t);
     if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
     db.trips.push(saved);
@@ -2767,7 +2824,11 @@ document.getElementById("khataForm")?.addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
   const l = { driverId: fd.driverId, date: fd.date, type: fd.type, amount: +fd.amount, note: (fd.note || "").trim() };
-  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+  if (window.FWFleetFin && FWFleetFin.createLedgerEntry) {
+    const saved = await FWFleetFin.createLedgerEntry(l);
+    if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
+    db.driverLedger.push(saved);
+  } else if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateLedgerEntry(l);
     if (!saved) { toast("Could not save — check your connection and try again.", "err"); return; }
     db.driverLedger.push(saved);

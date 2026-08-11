@@ -50,6 +50,13 @@ const WF_MECHANICS = [
 ];
 
 function wfCloudRowToCard(row) {
+  if (window.FWServiceWorkflow) {
+    return FWServiceWorkflow.cloudRowToCard({
+      row,
+      mechanic: WF_MECHANICS[WFD.length % WF_MECHANICS.length],
+      profile: window.fwCloud && fwCloud.profile ? fwCloud.profile() : {},
+    });
+  }
   const idx = Math.max(0, WF_ENUM.indexOf(row.stage));
   const mechanic = WF_MECHANICS[WFD.length % WF_MECHANICS.length];
   const profile = window.fwCloud && fwCloud.profile ? fwCloud.profile() : {};
@@ -73,6 +80,15 @@ function wfCloudRowToCard(row) {
 }
 
 function wfAdvance(id, toIdx, by, note, patch) {
+  if (window.FWServiceWorkflow) {
+    const r = FWServiceWorkflow.advance({ requests: WFD, id, toIdx, by, note, patch });
+    if (!r) return;
+    wfCloudAdvance(r, toIdx);
+    wfSave();
+    wfRender();
+    if (typeof toast === "function") toast(note || WF_STAGES[toIdx].label);
+    return;
+  }
   const r = WFD.find(x => x.id === id);
   if (!r || toIdx !== r.stage + 1) return;
   r.stage = toIdx;
@@ -96,15 +112,17 @@ function wfRaise(vehicle, issue, severity) {
   const m = WF_MECHANICS[WFD.length % WF_MECHANICS.length];
   let store = {}; try { store = JSON.parse(localStorage.getItem("ff_fleet") || "{}"); } catch { }
   const owner = { name: (store.settings && store.settings.businessName) || "FleetWorks owner", phone: (store.settings && store.settings.ownerPhone) || "" };
-  const r = {
-    id: wfUid(), vehicle, issue, severity, createdAt: wfNow(), stage: 1,
-    mechanic: m, owner, assessment: null, invoice: null, finalAmount: null,
-    photos: [], postReport: null, feedback: null,
-    events: [
-      { stage: 0, at: wfNow(), by: "Owner", note: "Complaint raised: " + issue },
-      { stage: 1, at: wfNow(), by: "FleetWorks", note: `Matched ${m.name} (${m.rating}★, ${m.km} km away) — ${m.shop}` }
-    ]
-  };
+  const r = window.FWServiceWorkflow
+    ? FWServiceWorkflow.raise({ vehicle, issue, severity, mechanic: m, owner, id: wfUid() })
+    : {
+      id: wfUid(), vehicle, issue, severity, createdAt: wfNow(), stage: 1,
+      mechanic: m, owner, assessment: null, invoice: null, finalAmount: null,
+      photos: [], postReport: null, feedback: null,
+      events: [
+        { stage: 0, at: wfNow(), by: "Owner", note: "Complaint raised: " + issue },
+        { stage: 1, at: wfNow(), by: "FleetWorks", note: `Matched ${m.name} (${m.rating}★, ${m.km} km away) — ${m.shop}` }
+      ]
+    };
   WFD.unshift(r);
   wfSave();
   wfRender();
