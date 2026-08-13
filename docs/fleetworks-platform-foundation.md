@@ -425,6 +425,25 @@ geofence_events
 maintenance_predictions
 ```
 
+### Migrated Feature Modules
+
+The following feature modules now own business rules and workflows that used to live directly inside page scripts:
+
+| Module | Folder | Global | Primary Legacy UI Shell |
+| --- | --- | --- | --- |
+| Auth | `js/modules/auth/` | `window.FWAuth` | `js/auth-reset.js`, `js/cloudstore.js`, reset/login pages |
+| FleetOps | `js/modules/fleet-ops/` | `window.FWFleetOps` | `js/legacy/fleet.js` |
+| Maintenance | `js/modules/maintenance/` | `window.FWMaintenance` | `js/legacy/fleet.js` |
+| FleetFin | `js/modules/fleet-fin/` | `window.FWFleetFin` | `js/legacy/fleet.js`, `js/legacy/analytics.js` |
+| FleetIQ | `js/modules/fleet-iq/` | `window.FWFleetIQ` | `js/legacy/analytics.js` |
+| Team Access | `js/modules/team-access/` | `window.FWTeamAccess` | `js/legacy/team.js`, `js/account.js` |
+| Driver Portal | `js/modules/driver-portal/` | `window.FWDriverPortal` | `js/legacy/driver.js` |
+| GarageOps | `js/modules/garage-ops/` | `window.FWGarageOps` | `js/legacy/garage.js` |
+| Bulk Import | `js/modules/bulk-import/` | `window.FWBulkImport` | `js/legacy/bulkimport.js` |
+| Service Workflow | `js/modules/service-workflow/` | `window.FWServiceWorkflow` | `js/legacy/workflow.js` |
+
+The `js/legacy/*` files are still required because they render the current static UI and bind DOM events. They should remain thin UI shells and call module APIs first, keeping old inline logic only as compatibility fallback during the controller migration.
+
 ## Plugin Contract
 
 Future modules should register themselves using:
@@ -455,8 +474,8 @@ FWPlatform.registerModule({
 
 ## Why This Is Non-Breaking
 
-- Existing scripts still load first.
-- Existing global functions still work.
+- Existing page shells still load and render the current UI.
+- Existing global functions still work from their new `js/legacy/*` paths.
 - Existing forms, tabs, and render functions are not replaced.
 - The new registry only records module metadata and capabilities.
 - If a new module fails during boot, the platform logs the error and continues.

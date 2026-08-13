@@ -1,6 +1,6 @@
 # FleetWorks Code Pattern
 
-Prepared on: 2026-08-02
+Prepared on: 2026-08-13
 
 ## Recommended Pattern
 
@@ -112,33 +112,56 @@ js/platform/api-client.js
   Stable facade over current fwCloud/Supabase access and future API/BFF.
 ```
 
-## Current Implemented Module Examples
+## Current Implemented Modules
 
 ```text
-js/modules/fleet-core/
-  domain/
-  ports/
-  adapters/
-  use-cases/
-  view-models/
-  fleet-core.module.js
-
-js/modules/payments/
-  domain/
-  ports/
-  adapters/
-  use-cases/
-  view-models/
-  payment.module.js
-
+js/modules/auth/
+js/modules/bulk-import/
 js/modules/driver-map/
+js/modules/driver-portal/
+js/modules/fleet-core/
+js/modules/fleet-fin/
+js/modules/fleet-iq/
+js/modules/fleet-ops/
+js/modules/garage-ops/
+js/modules/iot-telemetry/
+js/modules/llm-gateway/
+js/modules/maintenance/
+js/modules/payments/
+js/modules/security/
+js/modules/service-workflow/
+js/modules/team-access/
+```
+
+Most feature modules follow the standard structure:
+
+```text
   domain/
   ports/
   adapters/
   use-cases/
   view-models/
-  driver-map.module.js
+  <module>.module.js
 ```
+
+Platform/contract-only modules may currently expose just `<module>.module.js` until their workflow needs full ports/adapters.
+
+## Current Legacy UI Shells
+
+```text
+js/legacy/fleet.js
+js/legacy/analytics.js
+js/legacy/team.js
+js/legacy/garage.js
+js/legacy/driver.js
+js/legacy/bulkimport.js
+js/legacy/workflow.js
+js/legacy/payroll.js
+js/legacy/copilot.js
+js/legacy/fleetmap.js
+```
+
+These files still own page bootstrapping, DOM rendering, tab orchestration, and event binding. They should call `js/modules/*` APIs for business behavior and should not receive new domain rules.
 
 ## Plugin / Plug-Out Rule
 
@@ -181,13 +204,14 @@ Use this sequence:
 3. Add a legacy adapter wrapping current globals.
 4. Add use cases that call the port.
 5. Add view models for UI-ready data.
-6. Keep the existing UI rendering.
-7. When stable, migrate UI event handlers to call use cases.
-8. Later, replace legacy adapter with Supabase/API adapter.
+6. Keep the existing UI rendering in `js/legacy/*`.
+7. Migrate UI event handlers to call module use cases.
+8. Later, move page controllers/render orchestration out of `js/legacy/*`.
+9. Replace legacy adapters with Supabase/API adapters where needed.
 
 ## What Not To Do
 
-- Do not put new business rules directly inside `fleet.js` when they belong to a domain module.
+- Do not put new business rules directly inside `js/legacy/*` when they belong to a domain module.
 - Do not let domain files call Supabase or the DOM.
 - Do not add new direct external API calls inside UI event handlers.
 - Do not rely on frontend checks for authorization.

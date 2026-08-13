@@ -162,20 +162,46 @@ The local server in `server/static-server.mjs` only maps URL paths to files and 
 
 ## 5. Main Application Modules
 
+Current code is split into two layers:
+
+- `js/modules/*` owns migrated business workflows, domain rules, ports, adapters, use cases, and view-model helpers.
+- `js/legacy/*` owns the current static-page UI shells: DOM rendering, form binding, tab orchestration, and compatibility fallbacks.
+
+New business logic should be added under `js/modules/*`. The legacy UI shells should call module APIs first and keep inline behavior only as a temporary fallback while UI controllers are migrated.
+
 ### 5.1 Owner Fleet Manager
 
 Primary page: `fleet.html`
 
-Main scripts:
+Business modules loaded by this page:
 
-- `js/fleet.js`
+- `js/modules/auth/*`
+- `js/modules/fleet-core/*`
+- `js/modules/fleet-ops/*`
+- `js/modules/maintenance/*`
+- `js/modules/fleet-fin/*`
+- `js/modules/fleet-iq/*`
+- `js/modules/team-access/*`
+- `js/modules/bulk-import/*`
+- `js/modules/service-workflow/*`
+- `js/modules/payments/*`
+- `js/modules/driver-map/*`
+- `js/modules/llm-gateway/*`
+- `js/modules/security/*`
+- `js/modules/iot-telemetry/*`
+
+Legacy UI shell scripts:
+
+- `js/legacy/fleet.js`
 - `js/dbcore.js`
 - `js/cloudstore.js`
-- `js/analytics.js`
+- `js/legacy/analytics.js`
 - `js/account.js`
-- `js/payroll.js`
-- `js/workflow.js`
-- `js/copilot.js`
+- `js/legacy/payroll.js`
+- `js/legacy/bulkimport.js`
+- `js/legacy/fleetmap.js`
+- `js/legacy/workflow.js`
+- `js/legacy/copilot.js`
 
 Responsibilities:
 
@@ -194,7 +220,9 @@ Responsibilities:
 
 Primary page: `team.html`
 
-Main script: `js/team.js`
+Business module: `js/modules/team-access/*`
+
+Legacy UI shell: `js/legacy/team.js`
 
 Responsibilities:
 
@@ -209,7 +237,9 @@ Responsibilities:
 
 Primary page: `driver.html`
 
-Main script: `js/driver.js`
+Business module: `js/modules/driver-portal/*`
+
+Legacy UI shell: `js/legacy/driver.js`
 
 Responsibilities:
 
@@ -222,10 +252,15 @@ Responsibilities:
 
 Primary page: `garage.html`
 
-Main scripts:
+Business modules:
 
-- `js/garage.js`
-- `js/workflow.js`
+- `js/modules/garage-ops/*`
+- `js/modules/service-workflow/*`
+
+Legacy UI shells:
+
+- `js/legacy/garage.js`
+- `js/legacy/workflow.js`
 
 Responsibilities:
 
@@ -505,14 +540,15 @@ The browser is trusted for UX, not for authorization. Authorization must stay in
 Short term:
 
 - Keep the static/Supabase architecture.
-- Document module ownership and data ownership per feature.
+- Keep module ownership and data ownership documented per feature.
 - Continue moving production records from blobs/localStorage to normalized tables.
 - Keep all authorization in RLS, not client-side filters.
+- Keep `js/legacy/*` as UI shells only; add new business rules to `js/modules/*`.
 
 Medium term:
 
 - Extract a small typed data-access layer per domain.
-- Split `fleet.js` into domain modules: fleet, finance, maintenance, compliance, inventory, reports.
+- Move page controllers and render orchestration out of `js/legacy/*` into module-owned controllers/view models.
 - Define a single app state facade around `db`.
 - Add integration tests for key RLS-driven flows.
 
@@ -533,12 +569,13 @@ Long term:
 - `js/backend.js`
 - `js/cloudstore.js`
 - `js/dbcore.js`
-- `js/fleet.js`
-- `js/team.js`
-- `js/driver.js`
-- `js/workflow.js`
-- `js/payroll.js`
-- `js/copilot.js`
+- `js/modules/*`
+- `js/legacy/fleet.js`
+- `js/legacy/team.js`
+- `js/legacy/driver.js`
+- `js/legacy/workflow.js`
+- `js/legacy/payroll.js`
+- `js/legacy/copilot.js`
 - `supabase/migrations/*.sql`
 - `supabase/functions/*/index.ts`
 - `server/ocr/app.py`
