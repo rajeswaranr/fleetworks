@@ -8,7 +8,7 @@ This document describes the first non-breaking architecture expansion added to t
 
 ## What Changed
 
-The current app still works the same way. Existing files such as `fleet.js`, `cloudstore.js`, `dbcore.js`, `fleetmap.js`, and `payroll.js` continue to own their current UI and workflows.
+The current app still works the same way. UI controllers now live under module folders such as `js/modules/fleet-ops/controllers/fleet.controller.js`, while shared support files such as `cloudstore.js` and `dbcore.js` keep their existing roles.
 
 New platform files were added beside the existing code:
 
@@ -429,20 +429,20 @@ maintenance_predictions
 
 The following feature modules now own business rules and workflows that used to live directly inside page scripts:
 
-| Module | Folder | Global | Primary Legacy UI Shell |
+| Module | Folder | Global | Primary UI Controller |
 | --- | --- | --- | --- |
 | Auth | `js/modules/auth/` | `window.FWAuth` | `js/auth-reset.js`, `js/cloudstore.js`, reset/login pages |
-| FleetOps | `js/modules/fleet-ops/` | `window.FWFleetOps` | `js/legacy/fleet.js` |
-| Maintenance | `js/modules/maintenance/` | `window.FWMaintenance` | `js/legacy/fleet.js` |
-| FleetFin | `js/modules/fleet-fin/` | `window.FWFleetFin` | `js/legacy/fleet.js`, `js/legacy/analytics.js` |
-| FleetIQ | `js/modules/fleet-iq/` | `window.FWFleetIQ` | `js/legacy/analytics.js` |
-| Team Access | `js/modules/team-access/` | `window.FWTeamAccess` | `js/legacy/team.js`, `js/account.js` |
-| Driver Portal | `js/modules/driver-portal/` | `window.FWDriverPortal` | `js/legacy/driver.js` |
-| GarageOps | `js/modules/garage-ops/` | `window.FWGarageOps` | `js/legacy/garage.js` |
-| Bulk Import | `js/modules/bulk-import/` | `window.FWBulkImport` | `js/legacy/bulkimport.js` |
-| Service Workflow | `js/modules/service-workflow/` | `window.FWServiceWorkflow` | `js/legacy/workflow.js` |
+| FleetOps | `js/modules/fleet-ops/` | `window.FWFleetOps` | `js/modules/fleet-ops/controllers/fleet.controller.js` |
+| Maintenance | `js/modules/maintenance/` | `window.FWMaintenance` | `js/modules/fleet-ops/controllers/fleet.controller.js` |
+| FleetFin | `js/modules/fleet-fin/` | `window.FWFleetFin` | `js/modules/fleet-ops/controllers/fleet.controller.js`, `js/modules/fleet-iq/controllers/analytics.controller.js` |
+| FleetIQ | `js/modules/fleet-iq/` | `window.FWFleetIQ` | `js/modules/fleet-iq/controllers/analytics.controller.js` |
+| Team Access | `js/modules/team-access/` | `window.FWTeamAccess` | `js/modules/team-access/controllers/team.controller.js`, `js/account.js` |
+| Driver Portal | `js/modules/driver-portal/` | `window.FWDriverPortal` | `js/modules/driver-portal/controllers/driver.controller.js` |
+| GarageOps | `js/modules/garage-ops/` | `window.FWGarageOps` | `js/modules/garage-ops/controllers/garage.controller.js` |
+| Bulk Import | `js/modules/bulk-import/` | `window.FWBulkImport` | `js/modules/bulk-import/controllers/bulkimport.controller.js` |
+| Service Workflow | `js/modules/service-workflow/` | `window.FWServiceWorkflow` | `js/modules/service-workflow/controllers/workflow.controller.js` |
 
-The `js/legacy/*` files are still required because they render the current static UI and bind DOM events. They should remain thin UI shells and call module APIs first, keeping old inline logic only as compatibility fallback during the controller migration.
+The active static-page UI controllers now live under `js/modules/*/controllers/`. The old `js/legacy/*` controller files are deprecated compatibility markers only.
 
 ## Plugin Contract
 
@@ -475,7 +475,7 @@ FWPlatform.registerModule({
 ## Why This Is Non-Breaking
 
 - Existing page shells still load and render the current UI.
-- Existing global functions still work from their new `js/legacy/*` paths.
+- Existing global functions still work from their new `js/modules/*/controllers/` paths.
 - Existing forms, tabs, and render functions are not replaced.
 - The new registry only records module metadata and capabilities.
 - If a new module fails during boot, the platform logs the error and continues.

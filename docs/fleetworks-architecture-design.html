@@ -259,15 +259,15 @@
   </pre>
 
   <h2>5. Module Breakdown</h2>
-  <p>Current code is split into <code>js/modules/*</code> for migrated business workflows and <code>js/legacy/*</code> for the current static UI shells. Legacy shells still render pages and bind forms, but business rules should live in modules and be called from the shell.</p>
+  <p>Current code is split into <code>js/modules/*</code> for migrated business workflows and module-owned page controllers. <code>js/legacy/*</code> now contains deprecated compatibility markers for moved controller paths.</p>
   <table>
     <tr><th>Area</th><th>Files</th><th>Responsibilities</th></tr>
-    <tr><td>Owner Fleet Manager</td><td>fleet.html, js/modules/fleet-core/*, js/modules/fleet-ops/*, js/modules/maintenance/*, js/legacy/fleet.js, js/dbcore.js, js/cloudstore.js</td><td>Auth gate, fleet forms, render orchestration, normalized DB CRUD, local/demo state.</td></tr>
-    <tr><td>Analytics and Reports</td><td>js/modules/fleet-fin/*, js/modules/fleet-iq/*, js/modules/llm-gateway/*, js/modules/driver-map/*, js/legacy/analytics.js, js/legacy/copilot.js, js/legacy/fleetmap.js</td><td>FleetFin/FleetIQ views, assistant, summaries, map-related views.</td></tr>
-    <tr><td>Team Portal</td><td>team.html, js/modules/team-access/*, js/legacy/team.js</td><td>Supervisor/driver login, RLS-scoped vehicle access, fuel/issues/inspection updates, expense requests.</td></tr>
-    <tr><td>No-Login Driver Link</td><td>driver.html, js/modules/driver-portal/*, js/legacy/driver.js</td><td>Tokenized driver submissions into driver_entries through anonymous insert.</td></tr>
-    <tr><td>Garage Workflow</td><td>garage.html, js/modules/garage-ops/*, js/modules/service-workflow/*, js/legacy/garage.js, js/legacy/workflow.js</td><td>Owner-mechanic service request lifecycle and local/cloud workflow state.</td></tr>
-    <tr><td>Payroll</td><td>js/modules/payments/*, js/legacy/payroll.js, supabase/functions/payroll-*</td><td>Manual salary logs, payment requests, Cashfree payout setup and transfer flow.</td></tr>
+    <tr><td>Owner Fleet Manager</td><td>fleet.html, js/modules/fleet-core/*, js/modules/fleet-ops/*, js/modules/maintenance/*, js/modules/fleet-ops/controllers/fleet.controller.js, js/dbcore.js, js/cloudstore.js</td><td>Auth gate, fleet forms, render orchestration, normalized DB CRUD, local/demo state.</td></tr>
+    <tr><td>Analytics and Reports</td><td>js/modules/fleet-fin/*, js/modules/fleet-iq/*, js/modules/llm-gateway/*, js/modules/driver-map/*, js/modules/fleet-iq/controllers/analytics.controller.js, js/modules/llm-gateway/controllers/copilot.controller.js, js/modules/driver-map/controllers/fleetmap.controller.js</td><td>FleetFin/FleetIQ views, assistant, summaries, map-related views.</td></tr>
+    <tr><td>Team Portal</td><td>team.html, js/modules/team-access/*, js/modules/team-access/controllers/team.controller.js</td><td>Supervisor/driver login, RLS-scoped vehicle access, fuel/issues/inspection updates, expense requests.</td></tr>
+    <tr><td>No-Login Driver Link</td><td>driver.html, js/modules/driver-portal/*, js/modules/driver-portal/controllers/driver.controller.js</td><td>Tokenized driver submissions into driver_entries through anonymous insert.</td></tr>
+    <tr><td>Garage Workflow</td><td>garage.html, js/modules/garage-ops/*, js/modules/service-workflow/*, js/modules/garage-ops/controllers/garage.controller.js, js/modules/service-workflow/controllers/workflow.controller.js</td><td>Owner-mechanic service request lifecycle and local/cloud workflow state.</td></tr>
+    <tr><td>Payroll</td><td>js/modules/payments/*, js/modules/payments/controllers/payroll.controller.js, supabase/functions/payroll-*</td><td>Manual salary logs, payment requests, Cashfree payout setup and transfer flow.</td></tr>
     <tr><td>Public and Admin</td><td>index.html, partner.html, admin.html, signin.html</td><td>Lead capture, vendor applications, staff/admin workflows.</td></tr>
   </table>
 
@@ -372,12 +372,12 @@ Signed in:
   <h2>11. Recommended Evolution</h2>
   <table>
     <tr><th>Horizon</th><th>Recommendation</th></tr>
-    <tr><td>Short term</td><td>Keep static/Supabase architecture, document feature ownership, continue moving production records to normalized tables, keep authorization in RLS, and keep js/legacy/* as UI shells only.</td></tr>
-    <tr><td>Medium term</td><td>Extract domain-specific data-access modules, move page controllers/render orchestration out of js/legacy/*, add a single state facade around db, expand RLS-driven tests.</td></tr>
+    <tr><td>Short term</td><td>Keep static/Supabase architecture, document feature ownership, continue moving production records to normalized tables, keep authorization in RLS, and keep UI controllers under js/modules/*/controllers/.</td></tr>
+    <tr><td>Medium term</td><td>Extract domain-specific data-access modules, split large page controllers/render orchestration into smaller module-owned controllers, add a single state facade around db, expand RLS-driven tests.</td></tr>
     <tr><td>Long term</td><td>Consider a component framework or backend-for-frontend only if UI/state orchestration outgrows the current static model.</td></tr>
   </table>
 
   <h2>12. Source Files Referenced</h2>
-  <p class="small">package.json, server/static-server.mjs, fleet.html, team.html, driver.html, garage.html, js/backend.js, js/cloudstore.js, js/dbcore.js, js/modules/*, js/legacy/fleet.js, js/legacy/team.js, js/legacy/driver.js, js/legacy/workflow.js, js/legacy/payroll.js, js/legacy/copilot.js, supabase/migrations/*.sql, supabase/functions/*/index.ts, server/ocr/app.py</p>
+  <p class="small">package.json, server/static-server.mjs, fleet.html, team.html, driver.html, garage.html, js/backend.js, js/cloudstore.js, js/dbcore.js, js/modules/*, js/modules/team-access/controllers/team.controller.js, js/modules/driver-portal/controllers/driver.controller.js, js/modules/fleet-ops/controllers/fleet.controller.js, js/modules/service-workflow/controllers/workflow.controller.js, js/modules/payments/controllers/payroll.controller.js, js/modules/llm-gateway/controllers/copilot.controller.js, supabase/migrations/*.sql, supabase/functions/*/index.ts, server/ocr/app.py</p>
 </body>
 </html>

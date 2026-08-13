@@ -164,10 +164,10 @@ The local server in `server/static-server.mjs` only maps URL paths to files and 
 
 Current code is split into two layers:
 
-- `js/modules/*` owns migrated business workflows, domain rules, ports, adapters, use cases, and view-model helpers.
-- `js/legacy/*` owns the current static-page UI shells: DOM rendering, form binding, tab orchestration, and compatibility fallbacks.
+- `js/modules/*` owns migrated business workflows, domain rules, ports, adapters, use cases, view-model helpers, and module-owned page controllers.
+- `js/legacy/*` contains deprecated compatibility markers for UI controller paths that have moved.
 
-New business logic should be added under `js/modules/*`. The legacy UI shells should call module APIs first and keep inline behavior only as a temporary fallback while UI controllers are migrated.
+New business logic should be added under `js/modules/*`. UI controllers should call module APIs first and keep inline behavior only as a temporary fallback while larger controllers are split.
 
 ### 5.1 Owner Fleet Manager
 
@@ -190,18 +190,18 @@ Business modules loaded by this page:
 - `js/modules/security/*`
 - `js/modules/iot-telemetry/*`
 
-Legacy UI shell scripts:
+UI controller scripts:
 
-- `js/legacy/fleet.js`
+- `js/modules/fleet-ops/controllers/fleet.controller.js`
 - `js/dbcore.js`
 - `js/cloudstore.js`
-- `js/legacy/analytics.js`
+- `js/modules/fleet-iq/controllers/analytics.controller.js`
 - `js/account.js`
-- `js/legacy/payroll.js`
-- `js/legacy/bulkimport.js`
-- `js/legacy/fleetmap.js`
-- `js/legacy/workflow.js`
-- `js/legacy/copilot.js`
+- `js/modules/payments/controllers/payroll.controller.js`
+- `js/modules/bulk-import/controllers/bulkimport.controller.js`
+- `js/modules/driver-map/controllers/fleetmap.controller.js`
+- `js/modules/service-workflow/controllers/workflow.controller.js`
+- `js/modules/llm-gateway/controllers/copilot.controller.js`
 
 Responsibilities:
 
@@ -222,7 +222,7 @@ Primary page: `team.html`
 
 Business module: `js/modules/team-access/*`
 
-Legacy UI shell: `js/legacy/team.js`
+Module UI controller: `js/modules/team-access/controllers/team.controller.js`
 
 Responsibilities:
 
@@ -239,7 +239,7 @@ Primary page: `driver.html`
 
 Business module: `js/modules/driver-portal/*`
 
-Legacy UI shell: `js/legacy/driver.js`
+Module UI controller: `js/modules/driver-portal/controllers/driver.controller.js`
 
 Responsibilities:
 
@@ -257,10 +257,10 @@ Business modules:
 - `js/modules/garage-ops/*`
 - `js/modules/service-workflow/*`
 
-Legacy UI shells:
+UI controllers:
 
-- `js/legacy/garage.js`
-- `js/legacy/workflow.js`
+- `js/modules/garage-ops/controllers/garage.controller.js`
+- `js/modules/service-workflow/controllers/workflow.controller.js`
 
 Responsibilities:
 
@@ -543,12 +543,12 @@ Short term:
 - Keep module ownership and data ownership documented per feature.
 - Continue moving production records from blobs/localStorage to normalized tables.
 - Keep all authorization in RLS, not client-side filters.
-- Keep `js/legacy/*` as UI shells only; add new business rules to `js/modules/*`.
+- Keep UI controllers under `js/modules/*/controllers/`; add new business rules to `js/modules/*`.
 
 Medium term:
 
 - Extract a small typed data-access layer per domain.
-- Move page controllers and render orchestration out of `js/legacy/*` into module-owned controllers/view models.
+- Split page controllers and render orchestration into smaller module-owned controllers/view models.
 - Define a single app state facade around `db`.
 - Add integration tests for key RLS-driven flows.
 
@@ -570,12 +570,12 @@ Long term:
 - `js/cloudstore.js`
 - `js/dbcore.js`
 - `js/modules/*`
-- `js/legacy/fleet.js`
-- `js/legacy/team.js`
-- `js/legacy/driver.js`
-- `js/legacy/workflow.js`
-- `js/legacy/payroll.js`
-- `js/legacy/copilot.js`
+- `js/modules/fleet-ops/controllers/fleet.controller.js`
+- `js/modules/team-access/controllers/team.controller.js`
+- `js/modules/driver-portal/controllers/driver.controller.js`
+- `js/modules/service-workflow/controllers/workflow.controller.js`
+- `js/modules/payments/controllers/payroll.controller.js`
+- `js/modules/llm-gateway/controllers/copilot.controller.js`
 - `supabase/migrations/*.sql`
 - `supabase/functions/*/index.ts`
 - `server/ocr/app.py`

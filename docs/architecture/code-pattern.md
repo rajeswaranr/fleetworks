@@ -146,22 +146,29 @@ Most feature modules follow the standard structure:
 
 Platform/contract-only modules may currently expose just `<module>.module.js` until their workflow needs full ports/adapters.
 
-## Current Legacy UI Shells
+## Current UI Controllers
 
 ```text
-js/legacy/fleet.js
-js/legacy/analytics.js
-js/legacy/team.js
-js/legacy/garage.js
-js/legacy/driver.js
-js/legacy/bulkimport.js
-js/legacy/workflow.js
-js/legacy/payroll.js
-js/legacy/copilot.js
-js/legacy/fleetmap.js
+js/modules/fleet-ops/controllers/fleet.controller.js
+js/modules/fleet-iq/controllers/analytics.controller.js
+js/modules/garage-ops/controllers/garage.controller.js
+js/modules/bulk-import/controllers/bulkimport.controller.js
+js/modules/service-workflow/controllers/workflow.controller.js
+js/modules/payments/controllers/payroll.controller.js
+js/modules/llm-gateway/controllers/copilot.controller.js
+js/modules/driver-map/controllers/fleetmap.controller.js
 ```
 
-These files still own page bootstrapping, DOM rendering, tab orchestration, and event binding. They should call `js/modules/*` APIs for business behavior and should not receive new domain rules.
+These module-owned controllers own page bootstrapping, DOM rendering, tab orchestration, and event binding. They should call `js/modules/*` APIs for business behavior and should not receive new domain rules.
+
+Additional page controllers:
+
+```text
+js/modules/team-access/controllers/team.controller.js
+js/modules/driver-portal/controllers/driver.controller.js
+```
+
+The old `js/legacy/*.js` controller files are deprecated compatibility markers only.
 
 ## Plugin / Plug-Out Rule
 
@@ -204,9 +211,9 @@ Use this sequence:
 3. Add a legacy adapter wrapping current globals.
 4. Add use cases that call the port.
 5. Add view models for UI-ready data.
-6. Keep the existing UI rendering in `js/legacy/*`.
+6. Keep existing UI behavior working while moving rendering/controllers into `js/modules/*/controllers/`.
 7. Migrate UI event handlers to call module use cases.
-8. Later, move page controllers/render orchestration out of `js/legacy/*`.
+8. Split large controllers into smaller module controllers/view models when behavior is stable.
 9. Replace legacy adapters with Supabase/API adapters where needed.
 
 ## What Not To Do
