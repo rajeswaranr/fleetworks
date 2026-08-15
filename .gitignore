@@ -3,3 +3,6 @@
 
 # Supabase CLI local state (which project is linked, auth cache)
 supabase/.temp/
+
+# Local generated seed data / browser storage state
+.tmp/
