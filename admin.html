@@ -149,6 +149,14 @@
     const escAttr = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     const fmtDT = d => new Date(d).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
+    function isAdminSession(s = session) {
+      return String(s && s.user && s.user.app_metadata && s.user.app_metadata.role || "").toLowerCase() === "admin";
+    }
+
+    function adminOnlyMessage() {
+      return "This is not a FleetWorks admin account. Use Owner Dashboard or Partner Dashboard for non-admin logins.";
+    }
+
     function authHeaders() {
       return {
         "apikey": FW_BACKEND.anonKey,
@@ -162,8 +170,10 @@
         headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey },
         body: JSON.stringify({ email, password })
       });
-      if (!r.ok) throw new Error((await r.json()).error_description || "Login failed");
-      session = await r.json();
+      const body = await r.json();
+      if (!r.ok) throw new Error(body.error_description || body.msg || "Login failed");
+      if (!isAdminSession(body)) throw new Error(adminOnlyMessage());
+      session = body;
       sessionStorage.setItem("fw_admin_session", JSON.stringify(session));
     }
 
@@ -397,6 +407,12 @@
     });
 
     function showConsole() {
+      if (!isAdminSession()) {
+        logout();
+        $("loginError").textContent = adminOnlyMessage();
+        $("loginError").hidden = false;
+        return;
+      }
       $("loginView").hidden = true;
       $("consoleView").hidden = false;
       $("logoutBtn").hidden = false;

@@ -14,6 +14,7 @@
   const debounceMs = 1500;
   let timer = null;
   let pendingPush = null; // last db object queued for the debounced push, flushed on logout
+  let accountKindCache = null;
 
   function cfg() { return window.FW_BACKEND || { url: "", anonKey: "" }; }
   function sessionKeyFor(s) {
@@ -33,6 +34,7 @@
     return null;
   }
   function setSession(s) {
+    accountKindCache = null;
     if (s) {
       const key = sessionKeyFor(s);
       localStorage.setItem(key, JSON.stringify(s));
@@ -186,10 +188,17 @@
     /* Profile fields captured at signup (name, transport name, mobile,
        fleet size) — stored as Supabase user_metadata, no extra table. */
     profile() { const s = session(); return (s && s.user && s.user.user_metadata) || {}; },
+    appRole() {
+      const s = session();
+      return String((s && s.user && s.user.app_metadata && s.user.app_metadata.role) || "").toLowerCase();
+    },
 
     async signup(email, password, profile) {
       const cleanEmail = String(email || "").trim().toLowerCase();
-      if (cfg().ownerSignupUrl) {
+      const signupRole = profile && String(profile.fleetworks_role || profile.role || "").toLowerCase();
+      const isOwnerSignup = profile && signupRole !== "partner" && signupRole !== "vendor" &&
+        (signupRole === "owner" || profile.transport_name || profile.gst_pan || profile.fleet_size);
+      if (cfg().ownerSignupUrl && isOwnerSignup) {
         const r = await fetch(cfg().ownerSignupUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json", "apikey": cfg().anonKey },
@@ -302,8 +311,13 @@
         })();
       const sessionPayload = { ...j, user: { ...(j.user || {}), email } };
       setSession(sessionPayload);
-      await fwCloud.pull();
       return true;
+    },
+
+    clearSession() {
+      clearTimeout(timer);
+      pendingPush = null;
+      setSession(null);
     },
 
     // Flushes any pending debounced push first (otherwise the last save
@@ -330,6 +344,56 @@
     /* Signed-in user's uuid (null when signed out) — used to build
        owner-scoped rows like driver_entries. */
     uid() { const s = session(); return (s && s.user && s.user.id) || null; },
+
+    accountKindCached() { return accountKindCache; },
+
+    async accountKind() {
+      const user = fwCloud.user();
+      if (!user) { accountKindCache = null; return null; }
+      if (accountKindCache) return accountKindCache;
+
+      const p = fwCloud.profile() || {};
+      const appRole = fwCloud.appRole ? fwCloud.appRole() : "";
+      if (appRole === "admin") {
+        accountKindCache = "admin";
+        return accountKindCache;
+      }
+
+      const profileRole = String(p.fleetworks_role || p.role || "").toLowerCase();
+      if (profileRole === "partner" || profileRole === "vendor") {
+        accountKindCache = "partner";
+        return accountKindCache;
+      }
+
+      const ownerRows = await fwCloud.authGet("memberships", "select=org_id,role&role=in.(owner,manager)&limit=1").catch(() => null);
+      if (ownerRows && ownerRows.length) {
+        accountKindCache = "owner";
+        return accountKindCache;
+      }
+
+      const uid = fwCloud.uid();
+      if (uid) {
+        const apps = await fwCloud.authGet("vendor_applications", "select=id&owner_id=eq." + encodeURIComponent(uid) + "&limit=1").catch(() => null);
+        if (apps && apps.length) {
+          accountKindCache = "partner";
+          return accountKindCache;
+        }
+      }
+
+      if (profileRole === "owner" || p.transport_name || p.gst_pan || p.fleet_size) {
+        accountKindCache = "owner";
+        return accountKindCache;
+      }
+
+      const anyRows = await fwCloud.authGet("memberships", "select=role&limit=1").catch(() => null);
+      if (anyRows && anyRows.length) {
+        accountKindCache = "team";
+        return accountKindCache;
+      }
+
+      accountKindCache = "unknown";
+      return accountKindCache;
+    },
 
     /* Authenticated PATCH — path is table + PostgREST filter,
        e.g. "driver_entries?id=eq.<uuid>". */

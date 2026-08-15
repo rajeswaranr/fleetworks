@@ -31,7 +31,13 @@
 
 "use strict";
 
-function coreDbBacked() { return !!(window.fwCloud && fwCloud.user()); }
+function coreDbBacked() {
+  if (!(window.fwCloud && fwCloud.user())) return false;
+  const appRole = fwCloud.appRole && fwCloud.appRole();
+  if (appRole === "admin") return false;
+  const kind = fwCloud.accountKindCached && fwCloud.accountKindCached();
+  return !kind || kind === "owner";
+}
 
 let _dbOrgId = null;
 async function dbOrgId() {
@@ -41,11 +47,17 @@ async function dbOrgId() {
   // an unfiltered query here can pick a DIFFERENT membership row (e.g. a
   // supervisor/driver membership picked up via Team & Access) and silently
   // point every fetch at the wrong org, making a real fleet look empty.
-  let rows = await fwCloud.authGet("memberships", "select=org_id&role=eq.owner&limit=1").catch(() => null);
-  if (!rows || !rows[0]) rows = await fwCloud.authGet("memberships", "select=org_id&limit=1").catch(() => null);
+  let rows = await fwCloud.authGet("memberships", "select=org_id&role=in.(owner,manager)&limit=1").catch(() => null);
   if (rows && rows[0]) {
     _dbOrgId = rows[0].org_id;
     return _dbOrgId;
+  }
+  if (fwCloud.accountKind) {
+    const kind = await fwCloud.accountKind().catch(() => null);
+    const profile = fwCloud.profile ? fwCloud.profile() || {} : {};
+    const looksLikeOwner = profile.fleetworks_role === "owner" || profile.transport_name || profile.gst_pan || profile.fleet_size;
+    if (kind && kind !== "owner") return null;
+    if (!kind && !looksLikeOwner) return null;
   }
   // First-time owners may have an auth user but no organization row yet.
   // Create the tenant via the same definer function the blob sync path uses.

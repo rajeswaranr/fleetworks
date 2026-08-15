@@ -164,11 +164,10 @@ vendorForm.addEventListener("submit", async (e) => {
   if (window.fwCloud && password) {
     try {
       const res = await fwCloud.signup(data.email, password, {
-        role: "partner", business_name: data.businessName, phone: data.phone
+        fleetworks_role: "partner", role: "partner", business_name: data.businessName, phone: data.phone
       });
       if (res === "ready") {
-        const session = JSON.parse(localStorage.getItem("fw_session") || "null");
-        ownerId = session?.user?.id || null;
+        ownerId = fwCloud.uid ? fwCloud.uid() : null;
       } else {
         needsEmailConfirm = true;
       }
@@ -256,7 +255,7 @@ const partnerSignedIn = document.getElementById("partnerSignedIn");
 function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
 async function fetchOwnApplication() {
-  const uid = JSON.parse(localStorage.getItem("fw_session") || "null")?.user?.id;
+  const uid = window.fwCloud && fwCloud.uid ? fwCloud.uid() : null;
   if (!uid || !window.fwCloud) return null;
   let rows = await fwCloud.authGet("vendor_applications", "owner_id=eq." + uid + "&select=*&order=created_at.desc&limit=1");
   if (rows && rows.length) return rows[0];
@@ -266,20 +265,12 @@ async function fetchOwnApplication() {
   // matching email. Matched on the JWT's *verified* email claim (proven
   // by actually confirming that inbox), never on phone number, which
   // anyone could type in without proving they own it.
-  const email = JSON.parse(localStorage.getItem("fw_session") || "null")?.user?.email;
+  const email = fwCloud.user ? fwCloud.user() : null;
   if (email) {
     const matches = await fwCloud.authGet("vendor_applications",
       "email=eq." + encodeURIComponent(email) + "&owner_id=is.null&order=created_at.desc&limit=1");
     if (matches && matches.length) {
-      await fetch(FW_BACKEND.url + "/rest/v1/vendor_applications?id=eq." + matches[0].id, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey,
-          "Authorization": "Bearer " + JSON.parse(localStorage.getItem("fw_session")).access_token,
-          "Prefer": "return=minimal"
-        },
-        body: JSON.stringify({ owner_id: uid })
-      }).catch(() => {});
+      await fwCloud.authPatch("vendor_applications?id=eq." + matches[0].id, { owner_id: uid }).catch(() => {});
       rows = await fwCloud.authGet("vendor_applications", "owner_id=eq." + uid + "&select=*&order=created_at.desc&limit=1");
       if (rows && rows.length) return rows[0];
     }
@@ -293,6 +284,20 @@ async function renderPartnerPortal() {
   document.getElementById("partnerOwnerName").textContent = "";
   const details = document.getElementById("partnerAppDetails");
   details.innerHTML = "<p class='muted'>Loading your application…</p>";
+
+  const kind = window.fwCloud && fwCloud.accountKind ? await fwCloud.accountKind().catch(() => null) : "partner";
+  if (kind !== "partner") {
+    partnerSignedOut.hidden = false;
+    partnerSignedIn.hidden = true;
+    const err = document.getElementById("partnerLoginErr");
+    if (err) {
+      err.innerHTML = "This login is not a workshop partner account. " +
+        (kind === "owner" ? `<a href="fleet.html#overview">Open Owner Dashboard</a>.` :
+          kind === "admin" ? `<a href="admin.html">Open Admin Console</a>.` : "Sign in with a partner account.");
+      err.hidden = false;
+    }
+    return;
+  }
 
   const app = await fetchOwnApplication();
   if (!app) {

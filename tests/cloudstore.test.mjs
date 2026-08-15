@@ -78,14 +78,18 @@ function loadCloudstore() {
       const body = bodyText ? JSON.parse(bodyText) : {};
       const path = url.split('?')[0];
 
-      if (path.endsWith('/auth/v1/token') && options.method === 'POST' && body.grant_type === 'password') {
+      if (path.endsWith('/auth/v1/token') && options.method === 'POST' && url.includes('grant_type=password')) {
         return {
           ok: true,
           status: 200,
           json: async () => ({
             access_token: 'access-' + body.email,
             refresh_token: 'refresh-' + body.email,
-            user: { id: 'user-' + body.email, email: body.email }
+            user: {
+              id: 'user-' + body.email,
+              email: body.email,
+              app_metadata: body.email === 'admin@example.com' ? { role: 'admin' } : {}
+            }
           })
         };
       }
@@ -138,6 +142,27 @@ test('keeps each signed-in account in its own session slot', async () => {
   assert.equal(localStorage.getItem('fw_session:active'), 'fw_session:user2@example.com');
 });
 
+test('login only creates a session and does not pull owner fleet data', async () => {
+  const { window, fetchCalls } = loadCloudstore();
+
+  await window.fwCloud.login('partner@example.com', 'secret-1');
+
+  assert.equal(window.fwCloud.user(), 'partner@example.com');
+  assert.equal(fetchCalls.some(([u]) => u.includes('/rest/v1/fleets')), false);
+});
+
+test('admin accounts are classified before owner or partner lookups', async () => {
+  const { window, fetchCalls } = loadCloudstore();
+
+  await window.fwCloud.login('admin@example.com', 'secret-1');
+  const kind = await window.fwCloud.accountKind();
+
+  assert.equal(kind, 'admin');
+  assert.equal(window.fwCloud.accountKindCached(), 'admin');
+  assert.equal(fetchCalls.some(([u]) => u.includes('/rest/v1/memberships')), false);
+  assert.equal(fetchCalls.some(([u]) => u.includes('/rest/v1/vendor_applications')), false);
+});
+
 test('logout removes only the active session and preserves the previous account', async () => {
   const { window, localStorage } = loadCloudstore();
   const fwCloud = window.fwCloud;
@@ -183,6 +208,20 @@ test('signup uses server-side owner signup when configured', async () => {
   });
   assert.equal(fetchCalls.some(([u]) => u.includes('/auth/v1/signup')), false);
   assert.ok(localStorage.getItem('fw_session:owner@example.com'));
+});
+
+test('partner signup bypasses the server-side owner signup endpoint', async () => {
+  const { window, fetchCalls } = loadCloudstore();
+  window.FW_BACKEND.ownerSignupUrl = 'https://example.test/functions/v1/owner-signup';
+
+  await window.fwCloud.signup('partner@example.com', 'new-secret', {
+    fleetworks_role: 'partner',
+    role: 'partner',
+    business_name: 'Partner Workshop'
+  });
+
+  assert.equal(fetchCalls.some(([u]) => u.endsWith('/functions/v1/owner-signup')), false);
+  assert.equal(fetchCalls.some(([u]) => u.includes('/auth/v1/signup')), true);
 });
 
 test('recovery links opened on a non-reset page are forwarded to reset.html', () => {

@@ -525,6 +525,23 @@ function gUnlock() {
   document.getElementById("gQuoteItems").innerHTML = quoteRow();
   quoteTotal();
 }
+async function gUnlockIfPartner() {
+  if (sessionStorage.getItem("fwGarageDemo")) { gUnlock(); return true; }
+  if (!(window.fwCloud && fwCloud.user())) return false;
+  const kind = fwCloud.accountKind ? await fwCloud.accountKind().catch(() => null) : "partner";
+  if (kind === "partner") { gUnlock(); return true; }
+  document.getElementById("gGate").hidden = false;
+  document.getElementById("gShell").style.display = "none";
+  document.body.classList.add("auth-locked");
+  const err = document.getElementById("gLoginErr");
+  if (err) {
+    err.innerHTML = "This account is not a workshop partner account. " +
+      (kind === "owner" ? `<a href="fleet.html#overview">Open Owner Dashboard</a>.` :
+        kind === "admin" ? `<a href="admin.html">Open Admin Console</a>.` : "Sign in with a partner account.");
+    err.hidden = false;
+  }
+  return false;
+}
 document.getElementById("gDemoBtn").addEventListener("click", () => {
   sessionStorage.setItem("fwGarageDemo", "1");
   gUnlock();
@@ -545,7 +562,10 @@ document.getElementById("gLoginForm").addEventListener("submit", async e => {
   const fd = Object.fromEntries(new FormData(e.target));
   const err = document.getElementById("gLoginErr");
   err.hidden = true;
-  try { await fwCloud.login(fd.email, fd.password); }
+  try {
+    await fwCloud.login(fd.email, fd.password);
+    await gUnlockIfPartner();
+  }
   catch (ex) { err.textContent = ex.message; err.hidden = false; }
 });
 document.getElementById("gLogout").addEventListener("click", () => {
@@ -558,4 +578,4 @@ document.getElementById("gDemoReset").addEventListener("click", () => {
 });
 
 document.body.classList.add("auth-locked");
-if ((window.fwCloud && fwCloud.user()) || sessionStorage.getItem("fwGarageDemo")) gUnlock();
+if ((window.fwCloud && fwCloud.user()) || sessionStorage.getItem("fwGarageDemo")) gUnlockIfPartner();

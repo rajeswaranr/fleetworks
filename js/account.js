@@ -8,6 +8,7 @@
 
 let selVehicle = null;
 const today = () => new Date().toISOString().slice(0, 10);
+let ownerPullDone = false;
 
 // ---------- Auth views ----------
 let signupMode = false;
@@ -31,6 +32,22 @@ function applyAuthGate() {
   const shell = document.querySelector(".app-shell");
   if (shell) shell.style.display = locked ? "none" : "";
   document.body.classList.toggle("auth-locked", locked);
+}
+
+function showWrongPortal(kind) {
+  sessionStorage.removeItem("fwDemo");
+  document.getElementById("authGate").hidden = false;
+  const shell = document.querySelector(".app-shell");
+  if (shell) shell.style.display = "none";
+  document.body.classList.add("auth-locked");
+  showSignInPanel();
+  const err = document.getElementById("authErr");
+  const label = kind === "partner" ? "workshop partner" : kind === "team" ? "team member" : kind === "admin" ? "admin" : "non-owner";
+  err.innerHTML = `This is a ${label} account. Fleet owner dashboard is only for transport owner accounts. ` +
+    (kind === "partner" ? `<a href="garage.html">Open Partner Dashboard</a>.` :
+      kind === "team" ? `<a href="team.html">Open Team Portal</a>.` :
+        kind === "admin" ? `<a href="admin.html">Open Admin Console</a>.` : "Sign in with an owner account.");
+  err.hidden = false;
 }
 function openGate() {
   sessionStorage.removeItem("fwDemo");
@@ -76,7 +93,7 @@ function doLogout() {
   if (confirm("Sign out? Your data stays safely in the cloud.")) fwCloud.logout();
 }
 
-function renderAuthState() {
+async function renderAuthState() {
   if (window.fwCloud && fwCloud.recoveryPending && fwCloud.recoveryPending()) {
     if (fwCloud.forwardRecoveryToReset && fwCloud.forwardRecoveryToReset()) return;
     showResetPasswordPanel();
@@ -85,6 +102,20 @@ function renderAuthState() {
   }
   const user = window.fwCloud && fwCloud.user();
   applyAuthGate();
+  if (user && !sessionStorage.getItem("fwDemo") && window.fwCloud && fwCloud.accountKind) {
+    const kind = await fwCloud.accountKind();
+    if (kind !== "owner") {
+      document.getElementById("portalView").hidden = true;
+      document.getElementById("accountSignedOut").hidden = false;
+      showWrongPortal(kind);
+      updateAuthPill();
+      return;
+    }
+    if (!ownerPullDone && fwCloud.pull) {
+      ownerPullDone = true;
+      await fwCloud.pull().catch(() => false);
+    }
+  }
   // a real account never inherits demo data, and never sees the demo loader
   if (user && window.clearDemoForOwner) clearDemoForOwner();
   if (window.syncDemoButton) syncDemoButton();
@@ -177,6 +208,7 @@ document.getElementById("authForm").addEventListener("submit", async e => {
         gst_pan_type: isGst ? "GSTIN" : "PAN",
         mobile: fd.mobile,
         fleet_size: fd.fleetSize ? +fd.fleetSize : null,
+        fleetworks_role: "owner",
         trial_started: new Date().toISOString().slice(0, 10)
       };
       const res = await fwCloud.signup(fd.email, fd.password, profile);
@@ -184,6 +216,12 @@ document.getElementById("authForm").addEventListener("submit", async e => {
       else { showEmailConfirm(fd.email); }
     } else {
       await fwCloud.login(fd.email, fd.password);
+      const kind = fwCloud.accountKind ? await fwCloud.accountKind() : "owner";
+      if (kind !== "owner") {
+        showWrongPortal(kind);
+        return;
+      }
+      if (fwCloud.pull) await fwCloud.pull();
       location.reload();
     }
   } catch (ex) { err.textContent = ex.message; err.hidden = false; }
@@ -486,8 +524,8 @@ document.getElementById("teamInviteForm")?.addEventListener("submit", async e =>
 });
 
 const _origRenderAuthStateForTeam = renderAuthState;
-renderAuthState = function () {
-  _origRenderAuthStateForTeam();
+renderAuthState = async function () {
+  await _origRenderAuthStateForTeam();
   renderTeamPicker();
   renderTeamRoster();
 };
