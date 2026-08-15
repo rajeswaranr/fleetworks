@@ -91,6 +91,16 @@
     const cleanEmail = String(email || "").trim().toLowerCase();
     return resetPasswordUrl() + (cleanEmail ? "?email=" + encodeURIComponent(cleanEmail) : "");
   }
+  function friendlyAuthError(body, fallback) {
+    if (window.FWAuthDomain && FWAuthDomain.friendlyAuthErrorMessage) return FWAuthDomain.friendlyAuthErrorMessage(body, fallback);
+    const text = String(body && (body.msg || body.message || body.error_description || body.error) || body || "");
+    const lower = text.toLowerCase();
+    if (lower.includes("email address not authorized")) return "Supabase is not allowed to send auth emails to this address. Configure custom SMTP in Supabase Auth.";
+    if (lower.includes("rate") || lower.includes("too many") || lower.includes("429")) return "Supabase auth email rate limit was reached. Configure custom SMTP for reliable signup/reset emails.";
+    if (lower.includes("smtp") || lower.includes("gomail") || lower.includes("send email") || lower.includes("mail")) return "Auth email could not be sent. Check Supabase Auth logs and configure custom SMTP.";
+    if (lower.includes("not confirmed")) return "This account is waiting for email confirmation. Configure custom SMTP or use server-side owner signup.";
+    return text || fallback || "Authentication request failed.";
+  }
   function isResetPasswordPage() {
     const loc = window.location || location;
     return /(^|\/)reset\.html$/i.test(loc.pathname || "");
@@ -178,16 +188,28 @@
     profile() { const s = session(); return (s && s.user && s.user.user_metadata) || {}; },
 
     async signup(email, password, profile) {
+      const cleanEmail = String(email || "").trim().toLowerCase();
+      if (cfg().ownerSignupUrl) {
+        const r = await fetch(cfg().ownerSignupUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "apikey": cfg().anonKey },
+          body: JSON.stringify({ email: cleanEmail, password, profile: profile || {} })
+        });
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(friendlyAuthError(body, "Could not create account."));
+        await fwCloud.login(cleanEmail, password);
+        return "ready";
+      }
       const j = window.FWAuth && window.FWAuth.signup
-        ? await window.FWAuth.signup({ email, password, profile })
+        ? await window.FWAuth.signup({ email: cleanEmail, password, profile })
         : await (async () => {
           const r = await fetch(cfg().url + "/auth/v1/signup", {
             method: "POST",
             headers: { "Content-Type": "application/json", "apikey": cfg().anonKey },
-            body: JSON.stringify({ email, password, data: profile || {} })
+            body: JSON.stringify({ email: cleanEmail, password, data: profile || {} })
           });
           const body = await r.json();
-          if (!r.ok) throw new Error(body.msg || body.error_description || "Sign up failed");
+          if (!r.ok) throw new Error(friendlyAuthError(body, "Sign up failed"));
           return body;
         })();
       if (j.access_token) { setSession(j); return "ready"; }
@@ -207,7 +229,7 @@
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
-        throw new Error(j.msg || j.error_description || "Could not resend — please wait a minute and try again.");
+        throw new Error(friendlyAuthError(j, "Could not resend — please wait a minute and try again."));
       }
       return true;
     },
@@ -232,7 +254,7 @@
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
-        throw new Error(j.msg || j.error_description || j.error || "Could not send reset email.");
+        throw new Error(friendlyAuthError(j, "Could not send reset email."));
       }
       return true;
     },

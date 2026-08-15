@@ -15,7 +15,11 @@ window.FW_BACKEND = {
   // Copilot LLM edge function (supabase/functions/copilot/). Once deployed
   // it is <project>.supabase.co/functions/v1/copilot. Blank = the built-in
   // rule-based Copilot only (the app auto-falls-back when unreachable).
-  copilotUrl: "https://crdblxeufbhysglbbtxi.supabase.co/functions/v1/copilot"
+  copilotUrl: "https://crdblxeufbhysglbbtxi.supabase.co/functions/v1/copilot",
+  // Optional server-side owner signup. When deployed, this creates confirmed
+  // Supabase Auth users via an Edge Function so owner signup does not depend
+  // on Supabase confirmation email delivery. Leave blank until deployed.
+  ownerSignupUrl: ""
 };
 
 window.fwConfigured = function () {

@@ -2,6 +2,24 @@
 
 Prepared on: 2026-08-13
 
+For the actual current repository layout, see:
+
+```text
+docs/architecture/current-folder-structure.md
+```
+
+For current database tables, fields, and foreign keys, see:
+
+```text
+docs/architecture/current-database-structure.md
+```
+
+For auth email delivery mitigation and the server-side owner signup path, see:
+
+```text
+docs/architecture/auth-email-mitigation.md
+```
+
 ## Recommended Pattern
 
 FleetWorks should follow:
@@ -148,6 +166,8 @@ Platform/contract-only modules may currently expose just `<module>.module.js` un
 
 ## Current UI Controllers
 
+These are the actual controller files in the current repo:
+
 ```text
 js/modules/fleet-ops/controllers/fleet.controller.js
 js/modules/fleet-iq/controllers/analytics.controller.js
@@ -160,6 +180,8 @@ js/modules/driver-map/controllers/fleetmap.controller.js
 ```
 
 These module-owned controllers own page bootstrapping, DOM rendering, tab orchestration, and event binding. They should call `js/modules/*` APIs for business behavior and should not receive new domain rules.
+
+Note: `js/modules/fleet-fin/controllers/` is still a future split target. Current finance-related UI is handled through `fleet.controller.js`, `analytics.controller.js`, and `payments/controllers/payroll.controller.js`.
 
 Additional page controllers:
 
@@ -239,3 +261,9 @@ packages/plugin-contracts
 ```
 
 The current app can stay working while new modules gradually move behind clean boundaries.
+
+For a more detailed future ReactJS, NodeJS, and PostgreSQL target folder layout, see:
+
+```text
+docs/architecture/react-node-postgres-folder-structure.md
+```

@@ -11,7 +11,7 @@
     if (!cfg().url || !cfg().anonKey) throw new Error("Backend not configured yet.");
     const response = await fetch(cfg().url + path, options);
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.msg || data.error_description || data.error || "Request failed.");
+    if (!response.ok) throw new Error(FWAuthDomain.friendlyAuthErrorMessage(data, "Request failed."));
     return data;
   }
 

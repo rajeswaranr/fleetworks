@@ -16,6 +16,8 @@ This document captures the recommended expansion path for FleetWorks so the curr
 
 This is a forward-looking companion to `docs/fleetworks-architecture-design.md`.
 
+For the actual current repository layout, see `docs/architecture/current-folder-structure.md`.
+
 ## Current Architecture Position
 
 The current FleetWorks application is a strong MVP / early SaaS foundation:
@@ -82,6 +84,12 @@ packages/
   domain/              Shared business rules and validation
   sdk/                 Client SDK for web and mobile
   plugins/             Plugin contracts and module definitions
+```
+
+Detailed ReactJS, NodeJS, and PostgreSQL folder guidance is documented in:
+
+```text
+docs/architecture/react-node-postgres-folder-structure.md
 ```
 
 ## Expansion Principle

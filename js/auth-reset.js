@@ -26,6 +26,15 @@
     const input = form && (form.elements ? form.elements.email : form.querySelector('[name="email"]'));
     return input ? String(input.value || "").trim() : "";
   }
+  function friendlyAuthError(body, fallback) {
+    if (window.FWAuthDomain && FWAuthDomain.friendlyAuthErrorMessage) return FWAuthDomain.friendlyAuthErrorMessage(body, fallback);
+    const text = String(body && (body.msg || body.message || body.error_description || body.error) || body || "");
+    const lower = text.toLowerCase();
+    if (lower.includes("email address not authorized")) return "Supabase is not allowed to send auth emails to this address. Configure custom SMTP in Supabase Auth.";
+    if (lower.includes("rate") || lower.includes("too many") || lower.includes("429")) return "Supabase auth email rate limit was reached. Configure custom SMTP for reliable signup/reset emails.";
+    if (lower.includes("smtp") || lower.includes("gomail") || lower.includes("send email") || lower.includes("mail")) return "Auth email could not be sent. Check Supabase Auth logs and configure custom SMTP.";
+    return text || fallback || "Authentication request failed.";
+  }
 
   async function requestPasswordReset(email) {
     const cleanEmail = String(email || "").trim().toLowerCase();
@@ -43,7 +52,7 @@
     });
     if (!r.ok) {
       const j = await r.json().catch(() => ({}));
-      throw new Error(j.msg || j.error_description || j.error || "Could not send reset email.");
+      throw new Error(friendlyAuthError(j, "Could not send reset email."));
     }
     return true;
   }

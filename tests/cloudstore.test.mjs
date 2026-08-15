@@ -163,6 +163,28 @@ test('requestPasswordReset sends a Supabase recovery email with a FleetWorks red
   assert.deepEqual(JSON.parse(options.body), { email: 'recover@example.com' });
 });
 
+test('signup uses server-side owner signup when configured', async () => {
+  const { window, localStorage, fetchCalls } = loadCloudstore();
+  window.FW_BACKEND.ownerSignupUrl = 'https://example.test/functions/v1/owner-signup';
+
+  const result = await window.fwCloud.signup('OWNER@example.com', 'new-secret', {
+    full_name: 'Owner',
+    transport_name: 'Owner Transport'
+  });
+
+  assert.equal(result, 'ready');
+  const [url, options] = fetchCalls.find(([u]) => u.endsWith('/functions/v1/owner-signup'));
+  assert.equal(url, 'https://example.test/functions/v1/owner-signup');
+  assert.equal(options.method, 'POST');
+  assert.deepEqual(JSON.parse(options.body), {
+    email: 'owner@example.com',
+    password: 'new-secret',
+    profile: { full_name: 'Owner', transport_name: 'Owner Transport' }
+  });
+  assert.equal(fetchCalls.some(([u]) => u.includes('/auth/v1/signup')), false);
+  assert.ok(localStorage.getItem('fw_session:owner@example.com'));
+});
+
 test('recovery links opened on a non-reset page are forwarded to reset.html', () => {
   const { window } = loadCloudstore();
   window.location.hash = '#access_token=recovery-access&refresh_token=recovery-refresh&type=recovery&token_type=bearer';

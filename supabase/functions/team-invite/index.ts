@@ -22,9 +22,14 @@ const ALLOW_ORIGINS = [
   "https://www.fleetworks.in",
   "http://localhost:8642",
   "http://127.0.0.1:8642",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080",
+  "http://localhost:8090",
+  "http://127.0.0.1:8090",
 ];
 function cors(origin: string | null) {
-  const o = origin && ALLOW_ORIGINS.includes(origin) ? origin : ALLOW_ORIGINS[0];
+  const dev = origin && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
+  const o = origin && (ALLOW_ORIGINS.includes(origin) || dev) ? origin : ALLOW_ORIGINS[0];
   return {
     "Access-Control-Allow-Origin": o,
     "Access-Control-Allow-Methods": "POST, OPTIONS",

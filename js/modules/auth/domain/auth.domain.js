@@ -57,6 +57,28 @@
     return { ...(session || {}), user };
   }
 
+  function friendlyAuthErrorMessage(input, fallback) {
+    const text = String(
+      (input && (input.msg || input.message || input.error_description || input.error)) ||
+      input ||
+      ""
+    );
+    const lower = text.toLowerCase();
+    if (lower.includes("email address not authorized")) {
+      return "Supabase is not allowed to send auth emails to this address. Configure custom SMTP in Supabase Auth, or add the address as an authorized team email for testing.";
+    }
+    if (lower.includes("rate") || lower.includes("too many") || lower.includes("429")) {
+      return "Supabase auth email rate limit was reached. The default email provider is very limited; configure custom SMTP for reliable signup/reset emails.";
+    }
+    if (lower.includes("smtp") || lower.includes("gomail") || lower.includes("send email") || lower.includes("mail")) {
+      return "Auth email could not be sent. Check Supabase Auth logs and configure custom SMTP for production email delivery.";
+    }
+    if (lower.includes("not confirmed")) {
+      return "This account is waiting for email confirmation. If confirmation emails are not arriving, use the server-side owner signup flow or configure custom SMTP.";
+    }
+    return text || fallback || "Authentication request failed.";
+  }
+
   window.FWAuthDomain = window.FWAuthDomain || {
     normalizeEmail,
     validateEmail,
@@ -67,5 +89,6 @@
     isRecoveryLink,
     sessionKey,
     sessionPayload,
+    friendlyAuthErrorMessage,
   };
 })();
