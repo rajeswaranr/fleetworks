@@ -137,6 +137,11 @@ const TN_CITIES = [
 // returns Google's top-ranked (and therefore biggest, most established) shops,
 // while searching each locality separately reaches into entirely different
 // result sets — which is where the small independent garages actually are.
+//
+// This built-in map only covers Chennai. For every other Tamil Nadu district
+// the admin console sends the district's own town list with the request
+// (js/geo-india.js is the single source of truth for that data — duplicating
+// 304 towns here would just let the two copies drift apart).
 const LOCALITIES_OF: Record<string, string[]> = {
   chennai: [
     "Ambattur", "Avadi", "Poonamallee", "Redhills", "Manali", "Ennore",
@@ -144,6 +149,21 @@ const LOCALITIES_OF: Record<string, string[]> = {
     "Guduvancheri", "Sriperumbudur", "Kavanur", "Mowlivakkam",
   ],
 };
+
+// Caller-supplied town lists are bounded hard: each extra town is a paid
+// Outscraper query, and the whole run must finish inside the function's
+// wall-clock budget. 15 matches the largest built-in list.
+const MAX_LOCALITIES = 15;
+function cleanLocalities(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((x): x is string => typeof x === "string")
+    .map((x) => x.trim())
+    // Town names feed straight into search phrases — keep them looking like
+    // town names. Parenthetical qualifiers like "Udhagamandalam (Ooty)" are fine.
+    .filter((x) => x.length >= 2 && x.length <= 40 && /^[\p{L}0-9 .()'-]+$/u.test(x))
+    .slice(0, MAX_LOCALITIES);
+}
 
 // City is typed by hand into the config form, so "chennai" and "Chennai" both
 // arrive. Normalise, or the same city splits into two groups in the table.
@@ -209,7 +229,7 @@ Deno.serve(async (req) => {
   const jwt = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   if (!jwt) return err(origin, 401, "Sign in first.");
 
-  let body: { vendorType?: string; city?: string; limit?: number; searchQuery?: string; configId?: string; deep?: boolean };
+  let body: { vendorType?: string; city?: string; limit?: number; searchQuery?: string; configId?: string; deep?: boolean; localities?: string[] };
   try { body = await req.json(); } catch { return err(origin, 400, "bad_json"); }
 
   const vendorType = (body.vendorType || "").trim();
@@ -232,7 +252,12 @@ Deno.serve(async (req) => {
   //     metro. Far better at surfacing the small independent garages, because a
   //     locality search returns a different result set rather than a deeper
   //     slice of the same one.
-  const localities = body.deep ? (LOCALITIES_OF[city.toLowerCase()] ?? []) : [];
+  // Deep scan's town list: the caller's own (the admin console sends the
+  // district's towns from geo-india.js), falling back to the built-in map.
+  const clientLocalities = cleanLocalities(body.localities);
+  const localities = body.deep
+    ? (clientLocalities.length ? clientLocalities : (LOCALITIES_OF[city.toLowerCase()] ?? []))
+    : [];
   const queries = custom
     ? [custom]
     : localities.length

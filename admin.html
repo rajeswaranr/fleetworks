@@ -218,6 +218,7 @@
 
   <script src="js/icons.js"></script>
   <script src="js/backend.js"></script>
+  <script src="js/geo-india.js"></script>
   <script>
     "use strict";
     const $ = id => document.getElementById(id);
@@ -602,9 +603,24 @@
     // The edge function scrapes and ingests in one round trip, so this waits on a
     // single request rather than polling. That takes ~10-60s, so the button has to
     // show it's working — otherwise the console just looks frozen.
+    // A config's city matched (case-insensitively) against the TN district
+    // list gives Deep Scan its towns — js/geo-india.js is the single source of
+    // truth, so the edge function doesn't carry a second copy of 304 towns.
+    function districtTowns(city) {
+      if (!window.TN_TOWNS) return null;
+      const key = Object.keys(TN_TOWNS).find(d => d.toLowerCase() === String(city).trim().toLowerCase());
+      // The edge function caps a run at 15 towns (each is a paid query and the
+      // whole run shares one time budget). Slice here too so the confirm
+      // dialog never promises towns that would be silently dropped.
+      return key ? TN_TOWNS[key].slice(0, 15) : null;
+    }
+
     window.triggerScrape = async function (btn, configId, vendorType, city, deep) {
+      const towns = deep ? districtTowns(city) : null;
       const blurb = deep
-        ? `DEEP SCAN — ${vendorType} in every locality inside ${city}.\n\nSearches each suburb separately instead of the city as a whole, which is how you reach the small independent garages Google ranks below the big workshops.\n\nRuns ~15 searches instead of 3, so it takes longer and costs proportionally more.`
+        ? (towns
+          ? `DEEP SCAN — ${vendorType} across ${towns.length} towns of ${city}:\n${towns.slice(0, 6).join(", ")}${towns.length > 6 ? "…" : ""}.\n\nEach town is searched separately — that's where the small independent garages Google buries actually surface. ${towns.length} searches instead of 3, so it costs proportionally more.`
+          : `DEEP SCAN — ${vendorType} in ${city}.\n\nNo town list is on file for ${city} (only Tamil Nadu districts have one), so this runs like a normal scrape unless it's Chennai.`)
         : `Search Google Maps for ${vendorType} businesses serving trucks/lorries/buses in ${city}?\n\nThree HCV phrases, up to ${SCRAPE_LIMIT} results each. Takes up to a minute.`;
       if (!confirm(blurb + "\n\nNew shops go to the review queue; ones already on file are skipped.")) return;
       const label = btn.textContent;
@@ -651,7 +667,7 @@
         const r = await fetch(SCRAPE_FN_URL, {
           method: "POST",
           headers: { ...authHeaders(), "Content-Type": "application/json" },
-          body: JSON.stringify({ configId, vendorType, city, limit: SCRAPE_LIMIT, deep: !!deep })
+          body: JSON.stringify({ configId, vendorType, city, limit: SCRAPE_LIMIT, deep: !!deep, localities: towns || undefined })
         });
         const result = await r.json().catch(() => ({}));
         stop = true; clearInterval(tick);
