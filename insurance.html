@@ -139,12 +139,13 @@
       <p class="muted" style="font-size:0.85rem;margin:-6px 0 10px">This is most of what decides your renewal price. Skip anything you don't have to hand.</p>
       <div class="form-row">
         <label>Cover Wanted
-          <select name="coverType">
+          <select name="coverType" id="insCover">
             <option value="">Select cover</option>
-            <option>Comprehensive (own damage + third party)</option>
-            <option>Third-party only</option>
-            <option>Not sure — advise me</option>
+            <option value="nildep">Comprehensive + Nil Depreciation</option>
+            <option value="imt23">Comprehensive + IMT-23</option>
+            <option value="tp">Third-party only (statutory minimum)</option>
           </select>
+          <span class="field-hint" id="coverHint">Nil Dep waives the depreciation cut at claim time. IMT-23 adds lamps, tyres, bumpers and paintwork, but depreciation still applies.</span>
         </label>
         <label>Current Insurer<input type="text" name="currentInsurer" placeholder="e.g. New India Assurance" /></label>
       </div>
@@ -191,6 +192,19 @@
         <span>I'd like FleetWorks to share these details with licensed insurance partners so they can contact me with quotes. I've read the <a href="privacy.html">Privacy Policy</a>.</span>
       </label>
 
+      <div style="border-top:1px solid var(--line,#e3e8ef);margin-top:16px;padding-top:16px">
+        <button type="button" class="btn btn-outline btn-block" id="estBtn">Estimate my premium now</button>
+        <p class="muted" style="font-size:0.78rem;text-align:center;margin:8px 0 0">Needs GVW, IDV and cover type. Instant, no phone call.</p>
+      </div>
+
+      <div id="estOut" hidden style="margin-top:14px;border:1px solid var(--amber-dark,#c2820a);border-radius:12px;padding:18px;background:rgba(245,165,36,.06)">
+        <p class="muted" style="font-size:0.72rem;letter-spacing:.12em;text-transform:uppercase;margin:0 0 4px">Indicative estimate — not a quote</p>
+        <p style="font-size:1.6rem;font-weight:800;color:var(--navy);margin:0 0 2px" id="estTotal"></p>
+        <p class="muted" style="font-size:0.85rem;margin:0 0 14px" id="estSummary"></p>
+        <div id="estWorking" style="display:flex;flex-direction:column;gap:8px;font-size:0.86rem"></div>
+        <div id="estCaveats" class="muted" style="font-size:0.76rem;margin-top:14px;line-height:1.6"></div>
+      </div>
+
       <button type="submit" class="btn btn-primary btn-block" style="margin-top:12px" id="insSubmit">Request Quotes</button>
       <p class="field-error" id="insErr" hidden></p>
     </form>
@@ -221,9 +235,11 @@
   <script src="js/icons.js"></script>
   <script src="js/backend.js"></script>
   <script src="js/geo-india.js"></script>
+  <script src="js/premium-estimator.js"></script>
   <script>
     "use strict";
     const $ = id => document.getElementById(id);
+    const esc = s => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
     const navbar = $("navbar");
     window.addEventListener("scroll", () => navbar.classList.toggle("scrolled", window.scrollY > 10));
 
@@ -303,6 +319,56 @@
       $("usefleetBtn").textContent = "✓ Fleet added";
       $("usefleetBtn").disabled = true;
       $("prefillSub").textContent = "All " + FLEET.length + " vehicles will be sent with your request. The fields below describe the first one.";
+    });
+
+    // ---------- Instant estimate ----------
+    // Renders estimatePremium()'s own working rather than a bare number: a
+    // figure a customer cannot see the derivation of is indistinguishable from
+    // one we made up, and this one is deliberately not made up.
+    const inr = n => "₹" + Math.round(Math.abs(n)).toLocaleString("en-IN");
+
+    $("estBtn").addEventListener("click", () => {
+      const f = $("insForm"), out = $("estOut");
+      const res = window.estimatePremium({
+        gvwKg: Number(f.gvwKg.value) || null,
+        idv: Number(f.currentIdv.value) || null,
+        manufactureYear: Number(f.manufactureYear.value) || null,
+        cover: f.coverType.value,
+        ncbPercent: Number(f.ncbPercent.value) || 0,
+      });
+
+      out.hidden = false;
+      if (!res.ok) {
+        $("estTotal").textContent = "—";
+        $("estSummary").textContent = res.reason;
+        $("estWorking").innerHTML = "";
+        $("estCaveats").innerHTML = "";
+        out.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        return;
+      }
+
+      $("estTotal").textContent = res.exactOnly
+        ? inr(res.totalLow)
+        : inr(res.totalLow) + " – " + inr(res.totalHigh);
+      $("estSummary").textContent = res.exactOnly
+        ? "Third-party only. This figure is set by IRDAI, so every insurer charges it."
+        : "Per year, including GST. The third-party half is exact; own damage varies by insurer.";
+
+      $("estWorking").innerHTML = res.working.map(w => {
+        const amount = w.range
+          ? (Math.round(w.range[0]) === Math.round(w.range[1])
+              ? inr(w.range[0])
+              : inr(w.range[0]) + " – " + inr(w.range[1]))
+          : inr(w.value);
+        const neg = w.range && w.range[0] < 0;
+        return `<div style="display:flex;justify-content:space-between;gap:14px;align-items:baseline;border-bottom:1px dashed var(--line,#e3e8ef);padding-bottom:7px">
+          <span><strong>${esc(w.label)}</strong><br /><span class="muted" style="font-size:0.78rem">${esc(w.note)}</span></span>
+          <span style="white-space:nowrap;font-weight:700;color:${neg ? "#0ca30c" : "var(--navy)"}">${neg ? "−" : ""}${amount}</span>
+        </div>`;
+      }).join("");
+
+      $("estCaveats").innerHTML = res.caveats.map(c => "• " + esc(c)).join("<br />");
+      out.scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
 
     // ---------- Submit ----------
