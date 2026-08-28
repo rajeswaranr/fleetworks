@@ -16,6 +16,25 @@
 </head>
 <body>
 
+  <!-- ======= INSURANCE FLASH ======= -->
+  <!-- WORDING — read before changing:
+       "India's cheapest" is a superlative claim. Under the CCPA Guidelines for
+       Prevention of Misleading Advertisements it must be substantiated on
+       demand, and FleetWorks does not set the premium — the insurer's
+       underwriting does. Substantiable alternative, a straight swap for the
+       <b> line below:
+         <b>Compare HCV, Carrier &amp; Public Liability quotes</b>
+       That claims what we actually do (compare) rather than a price we do not
+       control. See terms.html §7 and the ** note in the insurance section. -->
+  <a class="flash" href="insurance.html">
+    <span class="flash-tag">Insurance</span>
+    <span class="flash-msg">
+      <b>India's cheapest quote</b> on HCV vehicle, Carrier Liability &amp; Public Liability
+      <sup>**</sup>
+    </span>
+    <span class="flash-cta">Get quotes →</span>
+  </a>
+
   <!-- ======= TOP BAR ======= -->
   <div class="topbar">
     <div class="container topbar-inner">
@@ -313,13 +332,13 @@
     <div class="container">
       <div class="section-head">
         <h2>The FleetWorks Insurance Challenge</h2>
-        <p>We challenge to get you the <strong>lowest insurance premium</strong> on HCV vehicle &amp; services cover — trucks, tippers, trailers and buses.<span style="color:var(--ai-muted)">**</span></p>
+        <p>We challenge to get you the <strong>lowest premium</strong> across all three covers a transport business actually needs — <strong>HCV vehicle</strong>, <strong>Carrier&rsquo;s Legal Liability</strong> for the goods you haul, and <strong>Public Liability</strong> for everything else.<span style="color:var(--ai-muted)">**</span></p>
       </div>
       <div class="usp-grid" style="grid-template-columns:repeat(3,1fr)">
         <div class="usp-card" style="text-align:center">
           <span class="usp-ic"><i data-icon="truck" data-icon-size="24"></i></span>
-          <h4>Built for HCVs</h4>
-          <p>Trucks, tippers, trailers and buses — cover matched to your vehicle class, tonnage and route, not a car policy stretched to fit.</p>
+          <h4>All three covers, one call</h4>
+          <p><strong>Vehicle</strong> for trucks, tippers, trailers and buses. <strong>Carrier&rsquo;s liability</strong> for the load. <strong>Public liability</strong> for third-party claims. Priced together, not as three separate agents.</p>
         </div>
         <div class="usp-card" style="text-align:center">
           <span class="usp-ic"><i data-icon="trendDown" data-icon-size="24"></i></span>
@@ -333,7 +352,7 @@
         </div>
       </div>
       <p style="text-align:center;margin-top:22px">
-        <button class="btn btn-primary" onclick="openBooking('HCV Insurance Quote')"><i data-icon="rupee" data-icon-size="16"></i> Get Instant Quote</button>
+        <a href="insurance.html" class="btn btn-primary"><i data-icon="rupee" data-icon-size="16"></i> Get Quotes for My Fleet</a>
       </p>
       <p class="muted" style="text-align:center;font-size:0.85rem;margin-top:18px">We work across all major insurers covering HCVs:</p>
       <p style="text-align:center;max-width:860px;margin:10px auto 0;line-height:2.1">
@@ -529,6 +548,47 @@
   </section>
 
   <!-- ======= CTA STRIP ======= -->
+  <!-- ======= TRY ONE ======= -->
+  <!-- Three doors, because visitors arrive with three different problems: the
+       truck is down now, the books are a mess, or the policy is expiring. One
+       generic "Sign up" makes all three read the wrong page. -->
+  <section class="section" id="try">
+    <div class="container">
+      <div class="section-head">
+        <h2>Try any one. That&rsquo;s all it takes.</h2>
+        <p>You don&rsquo;t have to move your whole fleet office on day one. Pick whichever hurts most today — the rest will make sense afterwards.</p>
+      </div>
+      <div class="try-grid">
+
+        <article class="try-card">
+          <span class="try-ic"><i data-icon="wrench" data-icon-size="24"></i></span>
+          <h3>Book a service</h3>
+          <p>Breakdown, tyre, battery, bodywork. A rated workshop, genuine parts, price agreed before work starts.</p>
+          <button class="btn btn-primary btn-block" onclick="openBooking()">Book a Service</button>
+          <span class="try-note">Takes 30 seconds · 24&times;7</span>
+        </article>
+
+        <article class="try-card featured">
+          <span class="try-tag">Most owners start here</span>
+          <span class="try-ic"><i data-icon="gauge" data-icon-size="24"></i></span>
+          <h3>Try the fleet CRM</h3>
+          <p>Every vehicle, driver, diesel fill and document in one place. Compliance alerts before the fine, GST-ready books, Tally export.</p>
+          <a href="fleet.html#account" class="btn btn-primary btn-block">Start 15-Day Free Trial</a>
+          <span class="try-note">No card · No hardware to fit</span>
+        </article>
+
+        <article class="try-card">
+          <span class="try-ic"><i data-icon="shieldCheck" data-icon-size="24"></i></span>
+          <h3>Get insurance quotes</h3>
+          <p>Vehicle, carrier&rsquo;s liability and public liability — compared across insurers by licensed partners, in one form.</p>
+          <a href="insurance.html" class="btn btn-primary btn-block">Get Quotes</a>
+          <span class="try-note">Already a user? We fill it from your fleet</span>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
   <section class="cta-strip">
     <div class="container cta-inner">
       <div>

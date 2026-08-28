@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HCV Insurance Quotes — FleetWorks</title>
+  <meta name="description" content="Request commercial vehicle insurance quotes for your truck, tipper, trailer or bus fleet. One form, compared across major Indian insurers by licensed partners." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" type="image/png" href="icons/icon-96.png" />
+  <meta name="theme-color" content="#0f1e33" />
+</head>
+<body>
+  <header class="navbar" id="navbar">
+    <div class="container nav-inner">
+      <a href="index.html" class="logo">
+        <img src="assets/logo-mark.svg" width="34" height="34" alt="" style="display:block" />
+        <span>Fleet<em>Works</em></span>
+      </a>
+      <div class="nav-actions">
+        <a href="index.html" class="btn btn-outline btn-sm">← Back to FleetWorks</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container dash-main" style="max-width:880px">
+    <h1 style="color:var(--navy);margin-bottom:6px">HCV Insurance Quotes</h1>
+    <p class="muted" style="max-width:62ch">Vehicle cover, carrier&rsquo;s legal liability and public liability — the three a transport business actually needs. Fill this once and our licensed insurance partners come back with comparable quotes, instead of you repeating the same twenty questions to five different agents.</p>
+
+    <!-- Signed-in owners: pull vehicles straight from their fleet. This is the
+         thing a generic insurance portal structurally cannot do. -->
+    <div id="fleetPrefill" class="chart-card" hidden style="margin-top:20px;border-color:var(--amber-dark)">
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <span class="ic-tile brand" style="flex:none"><i data-icon="truck" data-icon-size="20"></i></span>
+        <div style="flex:1;min-width:200px">
+          <strong id="prefillTitle">We already have your fleet</strong>
+          <p class="muted" style="margin:2px 0 0;font-size:0.85rem" id="prefillSub"></p>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" id="usefleetBtn">Use my fleet</button>
+      </div>
+    </div>
+
+    <form id="insForm" class="entry-form chart-card" style="margin-top:20px;display:flex;flex-direction:column;gap:2px">
+
+      <h2 style="color:var(--navy);font-size:1.05rem;margin:4px 0 10px">Your details</h2>
+      <div class="form-row">
+        <label>Your Name<input type="text" name="ownerName" required placeholder="e.g. Rajesh Kumar" /></label>
+        <label>Mobile Number<input type="tel" name="phone" required maxlength="10" inputmode="numeric" placeholder="10-digit number" /></label>
+      </div>
+      <div class="form-row">
+        <label>Transport / Company Name<input type="text" name="businessName" placeholder="e.g. Sri Balaji Transports" /></label>
+        <label>Email (optional)<input type="email" name="email" placeholder="you@example.com" /></label>
+      </div>
+      <div class="form-row">
+        <label>GSTIN or PAN (optional)<input type="text" name="gstinPan" style="text-transform:uppercase" maxlength="15" placeholder="Helps insurers price a business policy" /></label>
+        <label>State
+          <select name="state" id="insState" required><option value="">Select state</option></select>
+        </label>
+      </div>
+      <div class="form-row">
+        <label>District
+          <select name="district" id="insDistrict" required disabled><option value="">Select state first</option></select>
+        </label>
+        <label>Town
+          <select name="townSel" id="insTownSel" hidden disabled><option value="">Select district first</option></select>
+          <input type="text" name="town" id="insTownText" placeholder="Your town" hidden disabled />
+        </label>
+      </div>
+
+      <h2 style="color:var(--navy);font-size:1.05rem;margin:22px 0 10px">What cover do you need?</h2>
+      <p class="muted" style="font-size:0.85rem;margin:-6px 0 8px">Pick everything that applies — priced together is usually cheaper than three separate policies.</p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin:0 0 8px">
+        <label class="muted" style="flex-direction:row;align-items:flex-start;gap:8px;font-size:0.9rem"><input type="checkbox" name="lines" value="Motor (HCV)" checked style="width:auto;margin-top:4px" /> <span><strong>Vehicle insurance</strong><br /><span style="font-size:0.8rem">The truck itself</span></span></label>
+        <label class="muted" style="flex-direction:row;align-items:flex-start;gap:8px;font-size:0.9rem"><input type="checkbox" name="lines" value="Carrier's Legal Liability" style="width:auto;margin-top:4px" /> <span><strong>Carrier&rsquo;s legal liability</strong><br /><span style="font-size:0.8rem">Goods you haul for others</span></span></label>
+        <label class="muted" style="flex-direction:row;align-items:flex-start;gap:8px;font-size:0.9rem"><input type="checkbox" name="lines" value="Public Liability" style="width:auto;margin-top:4px" /> <span><strong>Public liability</strong><br /><span style="font-size:0.8rem">Third-party injury or damage</span></span></label>
+      </div>
+      <div class="form-row">
+        <label>Annual goods value carried (₹, optional)
+          <input type="number" name="annualGoodsValue" min="0" placeholder="e.g. 40000000" />
+          <span class="field-hint">Carrier&rsquo;s liability is rated on the value you move in a year, not on the truck.</span>
+        </label>
+        <label>Liability cover wanted per event (₹, optional)
+          <input type="number" name="liabilityLimit" min="0" placeholder="e.g. 5000000" />
+        </label>
+      </div>
+
+      <h2 style="color:var(--navy);font-size:1.05rem;margin:22px 0 10px">The vehicles</h2>
+      <div class="form-row">
+        <label>How many vehicles?
+          <input type="number" name="fleetSize" id="insFleetSize" min="1" max="9999" value="1" required />
+          <span class="field-hint">Fleets of 5+ are usually priced better as one policy.</span>
+        </label>
+        <label>Vehicle Type
+          <select name="vehicleClass" required>
+            <option value="">Select type</option>
+            <option>Truck / Lorry (HCV)</option>
+            <option>Tipper</option>
+            <option>Trailer / Multi-axle</option>
+            <option>Tanker</option>
+            <option>Bus</option>
+            <option>LCV / Pickup</option>
+            <option>Mixed fleet</option>
+          </select>
+        </label>
+      </div>
+      <div class="form-row">
+        <label>Registration Number<input type="text" name="regNumber" style="text-transform:uppercase" placeholder="e.g. TN 29 AB 1234" /></label>
+        <label>Make &amp; Model<input type="text" name="makeModel" placeholder="e.g. Tata Signa 4825.TK" /></label>
+      </div>
+      <div class="form-row">
+        <label>Year of Manufacture<input type="number" name="manufactureYear" min="1980" max="2027" placeholder="e.g. 2021" /></label>
+        <label>GVW (kg)<input type="number" name="gvwKg" min="0" placeholder="e.g. 28000" /></label>
+      </div>
+      <div class="form-row">
+        <label>Permit
+          <select name="permitType">
+            <option value="">Select permit</option>
+            <option>National Permit</option>
+            <option>State Permit</option>
+            <option>Private Carrier</option>
+          </select>
+        </label>
+        <label>Goods Carried
+          <select name="goodsType">
+            <option value="">Select goods</option>
+            <option>General goods</option>
+            <option>Market load</option>
+            <option>Perishables</option>
+            <option>Hazardous / petroleum</option>
+            <option>Passengers</option>
+          </select>
+          <span class="field-hint">Hazardous loads are rated differently — declaring it up front avoids a claim dispute later.</span>
+        </label>
+      </div>
+
+      <h2 style="color:var(--navy);font-size:1.05rem;margin:22px 0 10px">Your current policy</h2>
+      <p class="muted" style="font-size:0.85rem;margin:-6px 0 10px">This is most of what decides your renewal price. Skip anything you don't have to hand.</p>
+      <div class="form-row">
+        <label>Cover Wanted
+          <select name="coverType">
+            <option value="">Select cover</option>
+            <option>Comprehensive (own damage + third party)</option>
+            <option>Third-party only</option>
+            <option>Not sure — advise me</option>
+          </select>
+        </label>
+        <label>Current Insurer<input type="text" name="currentInsurer" placeholder="e.g. New India Assurance" /></label>
+      </div>
+      <div class="form-row">
+        <label>Policy Expiry Date<input type="date" name="policyExpiry" /></label>
+        <label>Current IDV (₹)<input type="number" name="currentIdv" min="0" placeholder="Insured Declared Value" /></label>
+      </div>
+      <div class="form-row">
+        <label>No-Claim Bonus (%)
+          <select name="ncbPercent">
+            <option value="">Select NCB</option>
+            <option value="0">0% — claimed last year</option>
+            <option value="20">20%</option>
+            <option value="25">25%</option>
+            <option value="35">35%</option>
+            <option value="45">45%</option>
+            <option value="50">50%</option>
+          </select>
+        </label>
+        <label>Claims in the last year
+          <select name="claimsLastYear">
+            <option value="">Select</option>
+            <option value="0">None</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3 or more</option>
+          </select>
+        </label>
+      </div>
+
+      <label style="margin-top:6px">Add-ons you want (optional)</label>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin:4px 0 6px">
+        <label class="muted" style="flex-direction:row;align-items:center;gap:7px;font-size:0.9rem"><input type="checkbox" name="addons" value="Zero depreciation" style="width:auto" /> Zero depreciation</label>
+        <label class="muted" style="flex-direction:row;align-items:center;gap:7px;font-size:0.9rem"><input type="checkbox" name="addons" value="Engine protection" style="width:auto" /> Engine protection</label>
+        <label class="muted" style="flex-direction:row;align-items:center;gap:7px;font-size:0.9rem"><input type="checkbox" name="addons" value="Consumables" style="width:auto" /> Consumables</label>
+        <label class="muted" style="flex-direction:row;align-items:center;gap:7px;font-size:0.9rem"><input type="checkbox" name="addons" value="Roadside assistance" style="width:auto" /> Roadside assistance</label>
+        <label class="muted" style="flex-direction:row;align-items:center;gap:7px;font-size:0.9rem"><input type="checkbox" name="addons" value="Driver / cleaner cover" style="width:auto" /> Driver &amp; cleaner cover</label>
+      </div>
+
+      <label>Anything else we should know?<textarea name="notes" rows="2" placeholder="e.g. two vehicles due for renewal next month, one had a claim in June"></textarea></label>
+
+      <label class="muted" style="flex-direction:row;align-items:flex-start;gap:9px;font-size:0.86rem;margin-top:10px;line-height:1.6">
+        <input type="checkbox" name="consent" required style="width:auto;margin-top:4px" />
+        <span>I'd like FleetWorks to share these details with licensed insurance partners so they can contact me with quotes. I've read the <a href="privacy.html">Privacy Policy</a>.</span>
+      </label>
+
+      <button type="submit" class="btn btn-primary btn-block" style="margin-top:12px" id="insSubmit">Request Quotes</button>
+      <p class="field-error" id="insErr" hidden></p>
+    </form>
+
+    <div id="insDone" class="chart-card" hidden style="margin-top:20px;text-align:center;border-color:#0ca30c">
+      <span class="ic-tile success" style="width:56px;height:56px;margin:0 auto 12px"><i data-icon="checkCircle" data-icon-size="28"></i></span>
+      <h2 style="color:var(--navy)">Request received</h2>
+      <p class="muted">Reference <strong id="insRef"></strong>. A licensed insurance partner will call <strong id="insPhone"></strong> — usually the same working day.</p>
+      <a href="index.html" class="btn btn-outline" style="margin-top:10px">Back to FleetWorks</a>
+    </div>
+
+    <!-- Honest about what FleetWorks is in this transaction. Required posture
+         while unregistered with IRDAI; see terms.html §7. -->
+    <p class="muted" style="font-size:0.8rem;margin-top:26px;line-height:1.7">
+      FleetWorks Private Limited is not an insurer and does not underwrite, price or issue insurance. We pass your request to licensed insurers and licensed insurance intermediaries, who quote and contract with you directly on their own terms. Premium, cover and acceptance are decided solely by the insurer, based on vehicle age, class, tonnage, usage, claim history and their own underwriting.
+    </p>
+  </main>
+
+  <footer class="footer" style="margin-top:60px">
+    <div class="footer-bottom">
+      <div class="container">
+        <span>© 2026 FleetWorks Private Limited. All rights reserved.</span>
+        <span><a href="terms.html" style="display:inline">Terms</a> · <a href="privacy.html" style="display:inline">Privacy</a> · <a href="refund.html" style="display:inline">Refund Policy</a></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/icons.js"></script>
+  <script src="js/backend.js"></script>
+  <script src="js/geo-india.js"></script>
+  <script>
+    "use strict";
+    const $ = id => document.getElementById(id);
+    const navbar = $("navbar");
+    window.addEventListener("scroll", () => navbar.classList.toggle("scrolled", window.scrollY > 10));
+
+    // ---------- State -> District -> Town, same data as the booking form ----------
+    const st = $("insState"), di = $("insDistrict"), ts = $("insTownSel"), tt = $("insTownText");
+    function activateTown(on) {
+      for (const el of [ts, tt]) {
+        const live = el === on;
+        el.hidden = !live; el.disabled = !live; el.required = live && el === ts;
+        if (!live) el.value = "";
+      }
+    }
+    st.innerHTML = '<option value="">Select state</option>' +
+      Object.keys(window.IN_DISTRICTS || {}).map(s => `<option>${s}</option>`).join("");
+    st.addEventListener("change", () => {
+      const ds = (window.IN_DISTRICTS || {})[st.value] || [];
+      di.disabled = !ds.length;
+      di.innerHTML = ds.length
+        ? '<option value="">Select district</option>' + ds.map(d => `<option>${d}</option>`).join("")
+        : '<option value="">Select state first</option>';
+      activateTown(null);
+    });
+    di.addEventListener("change", () => {
+      const towns = (window.TN_TOWNS || {})[di.value];
+      if (towns && st.value === "Tamil Nadu") {
+        ts.innerHTML = '<option value="">Select town</option>' +
+          towns.map(t => `<option>${t}</option>`).join("") + '<option value="__other">Other…</option>';
+        activateTown(ts);
+      } else {
+        activateTown(tt);
+      }
+    });
+    ts.addEventListener("change", () => {
+      if (ts.value === "__other") { activateTown(tt); tt.focus(); }
+    });
+
+    // ---------- Prefill from the owner's own fleet ----------
+    // A signed-in owner has already told us their vehicles. Making them retype
+    // make, model, year and GVW is the exact friction every other insurance
+    // portal has, and the one thing we don't need to.
+    let FLEET = [];
+    function activeSession() {
+      try {
+        const key = localStorage.getItem("fw_session:active");
+        const raw = key ? localStorage.getItem(key) : localStorage.getItem("fw_session");
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    }
+    (async function loadFleet() {
+      const s = activeSession();
+      if (!s || !s.access_token || !window.fwConfigured || !fwConfigured()) return;
+      try {
+        const r = await fetch(FW_BACKEND.url + "/rest/v1/vehicles?select=name,make,model,year,gvw,type&limit=200", {
+          headers: { apikey: FW_BACKEND.anonKey, Authorization: "Bearer " + s.access_token }
+        });
+        if (!r.ok) return;
+        FLEET = await r.json();
+        if (!FLEET.length) return;
+        $("prefillSub").textContent =
+          FLEET.length + (FLEET.length === 1 ? " vehicle" : " vehicles") + " on your FleetWorks account — we'll send their details instead of you typing them.";
+        $("fleetPrefill").hidden = false;
+      } catch { /* prefill is a convenience; never block the form on it */ }
+    })();
+
+    $("usefleetBtn").addEventListener("click", () => {
+      if (!FLEET.length) return;
+      const f = $("insForm");
+      f.fleetSize.value = FLEET.length;
+      const v = FLEET[0];
+      if (v) {
+        if (!f.regNumber.value) f.regNumber.value = v.name || "";
+        if (!f.makeModel.value) f.makeModel.value = [v.make, v.model].filter(Boolean).join(" ");
+        if (!f.manufactureYear.value && v.year) f.manufactureYear.value = v.year;
+        if (!f.gvwKg.value && v.gvw) f.gvwKg.value = v.gvw;
+      }
+      if (FLEET.length > 1) f.vehicleClass.value = "Mixed fleet";
+      $("usefleetBtn").textContent = "✓ Fleet added";
+      $("usefleetBtn").disabled = true;
+      $("prefillSub").textContent = "All " + FLEET.length + " vehicles will be sent with your request. The fields below describe the first one.";
+    });
+
+    // ---------- Submit ----------
+    $("insForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const err = $("insErr"), btn = $("insSubmit");
+      err.hidden = true;
+      const f = e.target;
+      const phone = f.phone.value.trim();
+      if (!/^[6-9]\d{9}$/.test(phone)) {
+        err.textContent = "Enter a valid 10-digit mobile number (starting 6–9).";
+        err.hidden = false; f.phone.focus(); return;
+      }
+      const fd = new FormData(f);
+      const num = k => { const v = fd.get(k); return v === "" || v == null ? null : Number(v); };
+      const txt = k => { const v = fd.get(k); return v && String(v).trim() ? String(v).trim() : null; };
+      const town = (fd.get("townSel") && fd.get("townSel") !== "__other") ? fd.get("townSel") : txt("town");
+      const ref = "INS" + Date.now().toString(36).toUpperCase().slice(-6);
+
+      const row = {
+        ref,
+        owner_name: txt("ownerName"), phone, email: txt("email"),
+        business_name: txt("businessName"), gstin_pan: (txt("gstinPan") || "").toUpperCase() || null,
+        state: txt("state"), district: txt("district"), town: town || null,
+        fleet_size: num("fleetSize") || 1,
+        vehicle_class: txt("vehicleClass"), reg_number: (txt("regNumber") || "").toUpperCase() || null,
+        make_model: txt("makeModel"), manufacture_year: num("manufactureYear"), gvw_kg: num("gvwKg"),
+        permit_type: txt("permitType"), goods_type: txt("goodsType"),
+        vehicles_json: FLEET.length ? FLEET : null,
+        cover_type: txt("coverType"), current_insurer: txt("currentInsurer"),
+        policy_expiry: txt("policyExpiry"), current_idv: num("currentIdv"),
+        ncb_percent: num("ncbPercent"), claims_last_year: num("claimsLastYear"),
+        addons: fd.getAll("addons").length ? fd.getAll("addons") : null,
+        lines: fd.getAll("lines").length ? fd.getAll("lines") : null,
+        annual_goods_value: num("annualGoodsValue"), liability_limit: num("liabilityLimit"),
+        notes: txt("notes"),
+      };
+
+      btn.disabled = true; btn.textContent = "Sending…";
+      // Send under the owner's own token when signed in — anon and authenticated
+      // have separate insert policies, and the anon key alone is rejected for a
+      // logged-in session.
+      const s = activeSession();
+      const headers = { "Content-Type": "application/json", apikey: FW_BACKEND.anonKey, Prefer: "return=minimal" };
+      if (s && s.access_token) headers.Authorization = "Bearer " + s.access_token;
+      try {
+        const r = await fetch(FW_BACKEND.url + "/rest/v1/insurance_quotes", {
+          method: "POST", headers, body: JSON.stringify(row)
+        });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "Could not send your request.");
+        $("insRef").textContent = ref;
+        $("insPhone").textContent = "+91 " + phone;
+        $("insForm").hidden = true; $("fleetPrefill").hidden = true; $("insDone").hidden = false;
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (ex) {
+        err.textContent = ex.message + " Please try again, or call +91 97407 99722.";
+        err.hidden = false;
+      } finally {
+        btn.disabled = false; btn.textContent = "Request Quotes";
+      }
+    });
+  </script>
+</body>
+</html>

@@ -108,6 +108,14 @@
 
       <div class="chart-card">
         <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="shieldCheck" data-icon-size="18"></i></span> Insurance Quote Requests</h2><p class="muted">Sorted by policy expiry — the ones expiring soonest are the ones to call today. Pass these to a licensed insurance partner.</p></div>
+          <button class="btn btn-outline btn-sm" onclick="loadInsuranceQuotes()">↻ Refresh</button>
+        </div>
+        <div class="chart-scroll"><div id="insuranceTable"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
           <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="search" data-icon-size="18"></i></span> Unverified — Needs Review</h2><p class="muted">Freshly sourced shops. Check the Google category and rating, then Verify the genuine HCV ones or Reject the car-shop strays. You can also upload a scrape JSON here.</p></div>
         </div>
         <form id="leadUploadForm" class="entry-form" style="margin-bottom:14px">
@@ -487,6 +495,66 @@
     };
     window.toggleRejected = function () { SHOW_REJECTED = !SHOW_REJECTED; renderLeadTables(); };
 
+    // ===== Insurance quote requests =====
+    // Ordered by policy expiry, nulls last: a policy lapsing in nine days is a
+    // different call from one lapsing in four months, and expiry is the only
+    // field on this desk that carries a deadline.
+    const INS_STATUS = { new: "New", contacted: "Contacted", quoted: "Quoted", converted: "Converted", lost: "Lost" };
+    const INS_NEXT = { new: ["contacted", "lost"], contacted: ["quoted", "lost"], quoted: ["converted", "lost"], lost: ["new"], converted: [] };
+
+    async function loadInsuranceQuotes() {
+      try {
+        const rows = await fetchTable("insurance_quotes",
+          "select=*&order=policy_expiry.asc.nullslast,created_at.desc&limit=300");
+        $("insuranceTable").innerHTML = rows.length ? renderInsurance(rows)
+          : "<p class='muted'>No insurance quote requests yet — they arrive from the Get Quotes page.</p>";
+      } catch (ex) {
+        $("insuranceTable").innerHTML = `<p class="muted" style="color:#b91c1c">${esc(ex.message)}</p>`;
+      }
+    }
+
+    function renderInsurance(rows) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      return `<table class="chart-table-el"><thead><tr><th>Expiry</th><th>Owner</th><th>Phone</th><th>Fleet</th><th>Vehicle</th><th>Current cover</th><th>Where</th><th>Status</th><th>Assigned to</th><th></th></tr></thead><tbody>` +
+        rows.map(q => {
+          // Days-to-expiry is the whole point of this table, so it gets colour.
+          let exp = "<span class='muted'>—</span>";
+          if (q.policy_expiry) {
+            const d = Math.round((new Date(q.policy_expiry) - today) / 86400000);
+            const tone = d < 0 ? "#b91c1c" : d <= 15 ? "#b91c1c" : d <= 45 ? "#c2820a" : "#0ca30c";
+            const label = d < 0 ? `Lapsed ${-d}d ago` : d === 0 ? "Today" : `${d}d left`;
+            exp = `<strong style="color:${tone}">${label}</strong><br /><span class="muted" style="font-size:0.72rem">${fmtDT(q.policy_expiry).split(",")[0]}</span>`;
+          }
+          const veh = [q.make_model, q.manufacture_year, q.gvw_kg ? q.gvw_kg + "kg" : null].filter(Boolean).join(" · ");
+          const cover = [q.cover_type, q.current_insurer, q.ncb_percent != null ? "NCB " + q.ncb_percent + "%" : null,
+                         q.claims_last_year ? q.claims_last_year + " claim(s)" : null].filter(Boolean).join("<br />");
+          const fleet = q.fleet_size > 1
+            ? `<strong>${q.fleet_size}</strong> vehicles${q.vehicles_json ? ' <span class="fw-badge ok" title="Pulled from their FleetWorks account">from app</span>' : ""}`
+            : "1";
+          return `<tr>
+            <td style="white-space:nowrap">${exp}</td>
+            <td><strong>${esc(q.owner_name || "")}</strong>${q.business_name ? `<br /><span class="muted" style="font-size:0.76rem">${esc(q.business_name)}</span>` : ""}<br /><span class="muted" style="font-size:0.7rem">${esc(q.ref || "")}</span></td>
+            <td><a href="tel:+91${esc(q.phone)}"><strong>${esc(q.phone)}</strong></a></td>
+            <td>${fleet}</td>
+            <td>${esc(q.vehicle_class || "")}${veh ? `<br /><span class="muted" style="font-size:0.74rem">${esc(veh)}</span>` : ""}</td>
+            <td style="font-size:0.8rem">${cover || "<span class='muted'>—</span>"}</td>
+            <td style="font-size:0.8rem">${esc([q.town, q.district, q.state].filter(Boolean).join(", "))}</td>
+            <td><span class="status-pill">${INS_STATUS[q.status] || q.status}</span></td>
+            <td><select onchange="assignInsurance('${q.id}', this.value)">${bdmOptions(q.assigned_to)}</select></td>
+            <td style="white-space:nowrap">${(INS_NEXT[q.status] || []).map(s => `<button class="link-btn" onclick="setInsuranceStatus('${q.id}','${s}')">${INS_STATUS[s]}</button>`).join(" ")}</td>
+          </tr>`;
+        }).join("") + "</tbody></table>";
+    }
+
+    window.assignInsurance = async function (id, staffId) {
+      try { await patchRow("insurance_quotes", id, { assigned_to: staffId || null }); await loadInsuranceQuotes(); }
+      catch (ex) { alert(ex.message); }
+    };
+    window.setInsuranceStatus = async function (id, status) {
+      try { await patchRow("insurance_quotes", id, { status }); await loadInsuranceQuotes(); }
+      catch (ex) { alert(ex.message); }
+    };
+
     // ===== Admin-issued password reset =====
     // Works without SMTP: the admin sets a temporary password and reads it out
     // over the phone. The service-role work happens inside the edge function —
@@ -850,6 +918,7 @@
       loadScraperConfigs().catch(err => console.warn("Scraper configs unavailable:", err.message));
       loadScraperRuns().catch(err => console.warn("Scraper runs unavailable:", err.message));
       loadPwResetLog().catch(err => console.warn("Password reset log unavailable:", err.message));
+      loadInsuranceQuotes().catch(err => console.warn("Insurance quotes unavailable:", err.message));
     }
     function logout() {
       session = null;
