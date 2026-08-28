@@ -69,6 +69,18 @@ window.estimatePremium = function (input) {
   const { gvwKg, idv, manufactureYear, cover, ncbPercent } = input;
   const working = [], caveats = [];
 
+  // Hard gate. Until the rate table is confirmed against the IRDAI notification
+  // this returns no figure at all, rather than a figure with a caveat under it.
+  // A wrong premium a customer budgets on does real damage, and a disclaimer
+  // below a big rupee number is not what anyone reads. Flip TP_RATES.verified
+  // once the table is checked and this lifts on its own.
+  if (!window.TP_RATES.verified) {
+    return {
+      ok: false,
+      reason: "Premium estimates switch on once we've confirmed this year's IRDAI rate schedule. Request quotes below and a licensed partner will send exact figures — usually the same working day.",
+    };
+  }
+
   // ---- Third party: exact, when the slab is known ----
   let tp = null;
   if (gvwKg) {
