@@ -314,30 +314,81 @@ function legendHTML(items) {
 
 // ---------- Render: stat tiles ----------
 // FleetFin — the money picture (actuals only)
+// The month before `key`. Written out rather than using Date arithmetic on a
+// "YYYY-MM" string, which silently breaks across a January boundary.
+function prevMonthKey(key) {
+  const [y, m] = key.split("-").map(Number);
+  return m === 1 ? (y - 1) + "-12" : y + "-" + String(m - 1).padStart(2, "0");
+}
+
+/* Month-on-month delta as a rendered fragment. An executive reading a tile
+   wants direction before magnitude — "up 12%" answers the question that a bare
+   rupee figure only raises. `goodDown` flips the colour for costs, where a fall
+   is the good outcome and a rise is not. */
+function momDelta(now, prev, goodDown) {
+  if (!prev) return '<span class="stat-sub">no prior month to compare</span>';
+  const pct = ((now - prev) / Math.abs(prev)) * 100;
+  if (!isFinite(pct)) return '<span class="stat-sub">—</span>';
+  const up = pct >= 0;
+  // Under half a percent is noise, not a trend, and colouring it implies a
+  // signal that isn't there.
+  const flat = Math.abs(pct) < 0.5;
+  const good = flat ? null : (goodDown ? !up : up);
+  const colour = good === null ? "" : good ? "#006300" : DASH_PAL.critical;
+  const arrow = flat ? "→" : up ? "▲" : "▼";
+  return `<span class="stat-sub" style="color:${colour}">${arrow} ${Math.abs(pct).toFixed(0)}% vs ${monthLabel(prevMonthKey(todayKey()))}</span>`;
+}
+
 function renderStats() {
   const el = document.getElementById("finStatRow");
   if (!el) return;
   const nowK = todayKey();
-  const thisMonth = db.expenses.filter(e => monthKey(e.date) === nowK).reduce((s, e) => s + e.amount, 0);
-  const fuelMonth = (db.fuelLogs || []).filter(f => monthKey(f.date) === nowK).reduce((s, f) => s + f.amount, 0);
+  const prevK = prevMonthKey(nowK);
+  const sumExp = k => db.expenses.filter(e => monthKey(e.date) === k).reduce((s, e) => s + e.amount, 0);
+  const sumFuel = k => (db.fuelLogs || []).filter(f => monthKey(f.date) === k).reduce((s, f) => s + f.amount, 0);
+  const sumRev = k => (db.trips || []).filter(t => monthKey(t.date) === k).reduce((s, t) => s + t.freight, 0);
+
+  const thisMonth = sumExp(nowK);
+  const fuelMonth = sumFuel(nowK);
   const driverMonth = driverSpend("all", nowK);
   const allInMonth = thisMonth + fuelMonth + driverMonth;
-  const revMonth = (db.trips || []).filter(t => monthKey(t.date) === nowK).reduce((s, t) => s + t.freight, 0);
+  const revMonth = sumRev(nowK);
   const profMonth = revMonth - allInMonth;
+
+  const pExp = sumExp(prevK), pFuel = sumFuel(prevK), pDriver = driverSpend("all", prevK);
+  const pAllIn = pExp + pFuel + pDriver;
+  const pRev = sumRev(prevK);
+  const pProf = pRev - pAllIn;
+
+  // Margin says whether the fleet is actually a business this month. Profit in
+  // rupees hides it: the same lakh of profit is healthy on 5 lakh of freight
+  // and thin on 50.
+  const margin = revMonth ? (profMonth / revMonth) * 100 : null;
+  const pMargin = pRev ? (pProf / pRev) * 100 : null;
+
+  // Utilisation: vehicles that actually earned this month against the fleet
+  // that was paid for. An idle truck costs nearly as much as a busy one.
+  const earned = new Set((db.trips || []).filter(t => monthKey(t.date) === nowK).map(t => t.vehicleId));
+  const fleetSize = (db.vehicles || []).length;
+  const util = fleetSize ? (earned.size / fleetSize) * 100 : null;
   const vs = vehicleStats();
   const fleetCpk = mean(vs.filter(v => v.costPerKm > 0).map(v => v.costPerKm));
   const indCpk = mean(vs.map(v => v.industry));
   const deltaPct = indCpk ? ((fleetCpk - indCpk) / indCpk) * 100 : 0;
   const deltaGood = deltaPct <= 0;
   el.innerHTML = `
-    <div class="stat-tile"><span class="stat-label">Total expenses this month</span><span class="stat-value">${fmtINR(allInMonth)}</span><span class="stat-sub">maintenance + diesel + driver pay</span></div>
-    <div class="stat-tile"><span class="stat-label">Maintenance this month</span><span class="stat-value">${fmtINR(thisMonth)}</span><span class="stat-sub">${nowK ? monthLabel(nowK) : ""}</span></div>
-    <div class="stat-tile"><span class="stat-label">Diesel this month</span><span class="stat-value">${fmtINR(fuelMonth)}</span><span class="stat-sub">from fuel logs</span></div>
-    <div class="stat-tile"><span class="stat-label">Driver pay this month</span><span class="stat-value">${fmtINR(driverMonth)}</span><span class="stat-sub">salaries + net khata advances</span></div>
+    <div class="stat-tile"><span class="stat-label">Total expenses this month</span><span class="stat-value">${fmtINR(allInMonth)}</span>${momDelta(allInMonth, pAllIn, true)}</div>
+    <div class="stat-tile"><span class="stat-label">Maintenance this month</span><span class="stat-value">${fmtINR(thisMonth)}</span>${momDelta(thisMonth, pExp, true)}</div>
+    <div class="stat-tile"><span class="stat-label">Diesel this month</span><span class="stat-value">${fmtINR(fuelMonth)}</span>${momDelta(fuelMonth, pFuel, true)}</div>
+    <div class="stat-tile"><span class="stat-label">Driver pay this month</span><span class="stat-value">${fmtINR(driverMonth)}</span>${momDelta(driverMonth, pDriver, true)}</div>
     <div class="stat-tile"><span class="stat-label">Fleet cost per km</span><span class="stat-value">₹${fleetCpk.toFixed(2)}</span>
       <span class="stat-sub" style="color:${deltaGood ? "#006300" : DASH_PAL.critical}">${deltaGood ? "▼" : "▲"} ${Math.abs(deltaPct).toFixed(0)}% vs industry ₹${indCpk.toFixed(2)}</span></div>
-    <div class="stat-tile"><span class="stat-label">Freight this month</span><span class="stat-value">${fmtINR(revMonth)}</span><span class="stat-sub">from logged trips</span></div>
-    <div class="stat-tile"><span class="stat-label">Profit this month</span><span class="stat-value" style="color:${profMonth >= 0 ? "#006300" : DASH_PAL.critical}">${profMonth < 0 ? "−" : ""}${fmtINR(Math.abs(profMonth))}</span><span class="stat-sub">freight − all expenses</span></div>
+    <div class="stat-tile"><span class="stat-label">Freight this month</span><span class="stat-value">${fmtINR(revMonth)}</span>${momDelta(revMonth, pRev, false)}</div>
+    <div class="stat-tile"><span class="stat-label">Profit this month</span><span class="stat-value" style="color:${profMonth >= 0 ? "#006300" : DASH_PAL.critical}">${profMonth < 0 ? "−" : ""}${fmtINR(Math.abs(profMonth))}</span>${momDelta(profMonth, pProf, false)}</div>
+    <div class="stat-tile"><span class="stat-label">Operating margin</span><span class="stat-value" style="color:${margin == null ? "" : margin >= 0 ? "#006300" : DASH_PAL.critical}">${margin == null ? "—" : margin.toFixed(1) + "%"}</span>
+      ${margin == null ? '<span class="stat-sub">log trips to see margin</span>' : momDelta(margin, pMargin, false)}</div>
+    <div class="stat-tile"><span class="stat-label">Fleet utilisation</span><span class="stat-value">${util == null ? "—" : Math.round(util) + "%"}</span>
+      <span class="stat-sub">${util == null ? "add vehicles to track" : earned.size + " of " + fleetSize + " earned this month"}</span></div>
     <div class="stat-tile"><span class="stat-label">GST credit, this quarter</span><span class="stat-value" style="color:#006300">${fmtINR(itcQuarter())}</span><span class="stat-sub">ITC from captured GST bills</span></div>`;
 }
 
