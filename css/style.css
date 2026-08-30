@@ -715,7 +715,7 @@ input[type="file"] {
 .cp-input button { padding: 8px 14px; font-size: 0.8rem; }
 
 /* ---------- Role chooser (signin.html) ---------- */
-.role-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.role-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 20px; }
 .role-card {
   background: #fff; border: 1.5px solid var(--line); border-radius: var(--radius);
   padding: 30px 26px; text-decoration: none; color: var(--ink);
