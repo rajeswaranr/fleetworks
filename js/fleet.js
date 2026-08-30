@@ -995,6 +995,7 @@ async function completeWorkOrder(id) {
     db.expenses.push(ex);
   }
   if (i) { i.status = "Resolved"; i.resolvedAt = w.completedAt; }
+  rememberExpenseCategory(ex.category);
   saveStore(); renderIssues(); renderWorkOrders(); renderVehicles(); renderOverview();
   alert("Job card closed. The expense has been added to your books automatically — it will appear in the AI Dashboard and Tally export.");
 }
@@ -1726,17 +1727,53 @@ const DEFAULT_EXPENSE_CATEGORIES = [
   "FASTag Recharge", "Toll", "RTO", "Police",
   "Insurance", "Permit & Road Tax", "Fitness & PUC", "Other",
 ];
+// Categories a signed-in fleet has in the database. Null until loaded, and
+// null forever when signed out — the app still works offline, where the shipped
+// constant is the whole list.
+let DB_EXPENSE_CATEGORIES = null;
+
+async function loadExpenseCategories() {
+  if (typeof coreDbBacked !== "function" || !coreDbBacked()) return;
+  try {
+    const rows = await dbLoadExpenseCategories();
+    if (rows && rows.length) { DB_EXPENSE_CATEGORIES = rows; renderExpenseCategoryList(); }
+  } catch { /* suggestions are a convenience; never block the form on them */ }
+}
+
 function renderExpenseCategoryList() {
   const el = document.getElementById("expenseCategoryList");
   if (!el) return;
   const seen = new Set();
   const cats = [];
-  DEFAULT_EXPENSE_CATEGORIES.concat(db.expenses.map(e => e.category)).forEach(c => {
-    const t = (c || "").trim();
-    const key = t.toLowerCase();
-    if (t && !seen.has(key)) { seen.add(key); cats.push(t); }
-  });
+  // Database list first when we have one, then the shipped defaults, then every
+  // category any expense has actually used. Concatenating rather than choosing
+  // means a fleet never loses a suggestion it was relying on, whichever source
+  // it came from.
+  (DB_EXPENSE_CATEGORIES || DEFAULT_EXPENSE_CATEGORIES)
+    .concat(DB_EXPENSE_CATEGORIES ? DEFAULT_EXPENSE_CATEGORIES : [])
+    .concat(db.expenses.map(e => e.category))
+    .forEach(c => {
+      const t = (c || "").trim();
+      const key = t.toLowerCase();
+      if (t && !seen.has(key)) { seen.add(key); cats.push(t); }
+    });
   el.innerHTML = cats.map(c => `<option value="${esc(c)}"></option>`).join("");
+}
+
+// Called after an expense is saved: a category typed once is remembered for
+// every device on the account, which is the whole point of moving this list
+// into the database.
+function rememberExpenseCategory(name) {
+  const t = String(name || "").trim();
+  if (!t) return;
+  const known = new Set((DB_EXPENSE_CATEGORIES || []).map(c => c.toLowerCase()));
+  if (known.has(t.toLowerCase())) return;
+  if (DB_EXPENSE_CATEGORIES) DB_EXPENSE_CATEGORIES.push(t);
+  if (typeof coreDbBacked === "function" && coreDbBacked() && typeof dbAddExpenseCategory === "function") {
+    dbAddExpenseCategory(t).catch(() => {});
+  }
+  renderExpenseCategoryList();
+  loadExpenseCategories();
 }
 
 // ---------- Save confirmation + cross-cutting refresh ----------

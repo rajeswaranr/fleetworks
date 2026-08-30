@@ -45,6 +45,36 @@ function normPayBasis(v) {
 
 function coreDbBacked() { return !!(window.fwCloud && fwCloud.user()); }
 
+// ---------- Expense categories ----------
+// The suggestion list a fleet actually works with, held in the database rather
+// than a constant, so a type entered on a phone shows up on the desktop and an
+// operator can retire types they never use. The field itself stays free text —
+// this is memory, not a constraint.
+async function dbLoadExpenseCategories() {
+  const org = await dbOrgId(); if (!org) return null;
+  let rows = await fwCloud.authGet("expense_categories",
+    `select=name,is_active,sort_order&org_id=eq.${org}&is_active=eq.true&order=sort_order.asc,name.asc`);
+  // A brand-new org has none. Seed the shipped list once, then re-read — doing
+  // it lazily avoids needing a hook on organisation creation, and the seeder is
+  // idempotent so a race just inserts nothing the second time.
+  if (rows && rows.length === 0) {
+    await fwCloud.authRpc("seed_expense_categories", { p_org: org }).catch(() => null);
+    rows = await fwCloud.authGet("expense_categories",
+      `select=name,is_active,sort_order&org_id=eq.${org}&is_active=eq.true&order=sort_order.asc,name.asc`);
+  }
+  return rows ? rows.map(r => r.name) : null;
+}
+
+// Remembers a category the moment it is used. Conflicts are ignored by the
+// unique index, so saving an existing category is a no-op rather than an error.
+async function dbAddExpenseCategory(name) {
+  const org = await dbOrgId(); if (!org) return false;
+  const clean = String(name || "").trim();
+  if (!clean) return false;
+  return fwCloud.authInsert("expense_categories",
+    { org_id: org, name: clean, is_default: false, sort_order: 500 });
+}
+
 let _dbOrgId = null;
 async function dbOrgId() {
   if (_dbOrgId) return _dbOrgId;
