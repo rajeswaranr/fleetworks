@@ -1717,7 +1717,13 @@ function fillTyrePositions() {
 const DEFAULT_EXPENSE_CATEGORIES = [
   "Tyres", "Tyre Puncture", "Tyre Change", "Battery", "Brakes", "Clutch",
   "Engine Oil & Filters", "Suspension", "Electrical", "Body & Paint",
-  "DEF", "Greasing", "Water Wash", "RTO", "Police",
+  "DEF", "Greasing", "Water Wash",
+  // Road-running costs. FASTag recharges are a large, recurring per-vehicle
+  // spend for any national-permit fleet, and until the Toll & FASTag tab is
+  // fed by telematics this is where they belong — logged here they flow into
+  // cost-per-km, the FleetFin tiles and the category breakdowns like any other
+  // expense, rather than sitting outside the books.
+  "FASTag Recharge", "Toll", "RTO", "Police",
   "Insurance", "Permit & Road Tax", "Fitness & PUC", "Other",
 ];
 function renderExpenseCategoryList() {

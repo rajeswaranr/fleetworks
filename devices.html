@@ -52,6 +52,7 @@
           <button class="btn btn-outline btn-sm" id="simStop" disabled>■ Stop</button>
           <button class="btn btn-outline btn-sm" id="simSeed">+ Create 5 demo devices</button>
           <button class="btn btn-outline btn-sm" id="simClear" style="color:#b91c1c;border-color:#b91c1c">Clear simulated data</button>
+          <button class="btn btn-outline btn-sm" id="purgeBtn" title="Delete readings past their retention window">Purge old telemetry</button>
           <span class="muted" id="simStatus" style="font-size:0.85rem;margin-left:auto"></span>
         </div>
       </div>
@@ -298,6 +299,36 @@
         $("simStatus").textContent = "Simulated data cleared.";
         await refreshAll();
       } catch (ex) { $("simStatus").textContent = "Could not clear: " + ex.message; }
+    });
+
+    // Retention. Telemetry is unbounded by nature — one reading per 30s per
+    // truck is ~1.7M rows a month for twenty vehicles — so the purge is exposed
+    // here rather than left as a function nobody knows exists. It loops until a
+    // pass deletes nothing, since each call is batched to avoid a long lock.
+    $("purgeBtn").addEventListener("click", async () => {
+      if (!confirm("Delete telemetry past its retention window?
+
+Default is 90 days for readings and 2 years for acknowledged events. Unacknowledged events are never deleted.")) return;
+      const btn = $("purgeBtn");
+      btn.disabled = true; btn.textContent = "Purging…";
+      let tel = 0, ev = 0;
+      try {
+        for (let pass = 0; pass < 40; pass++) {
+          const res = await api("rpc/purge_telemetry", { method: "POST", body: JSON.stringify({ p_batch: 20000 }) });
+          const row = Array.isArray(res) ? res[0] : res;
+          const t = Number(row?.telemetry_deleted || 0), e = Number(row?.events_deleted || 0);
+          tel += t; ev += e;
+          if (t === 0 && e === 0) break;
+        }
+        $("simStatus").textContent = tel || ev
+          ? `Purged ${tel.toLocaleString("en-IN")} reading(s) and ${ev} event(s).`
+          : "Nothing past retention — nothing to purge.";
+        await refreshAll();
+      } catch (ex) {
+        $("simStatus").textContent = "Purge failed: " + ex.message;
+      } finally {
+        btn.disabled = false; btn.textContent = "Purge old telemetry";
+      }
     });
 
     // ---------- boot ----------
