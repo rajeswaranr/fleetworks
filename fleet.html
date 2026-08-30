@@ -569,6 +569,34 @@
       <!-- ======= FLEETFIN DASHBOARD ======= -->
       <section class="tab-panel" id="tab-fin">
         <section class="stat-row" id="finStatRow" aria-label="Money at a glance"></section>
+
+        <!-- One action, two records: the recharge lands in the books as an
+             expense AND updates that vehicle's FASTag balance, so the money and
+             the tag never disagree. -->
+        <section class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="rupee" data-icon-size="20"></i></span> Log a FASTag Recharge</h2>
+              <p class="muted">Records the expense against the vehicle and updates its FASTag balance in one go. Balances and days-remaining live in <strong>Toll &amp; FASTag</strong>.</p>
+            </div>
+          </div>
+          <form id="finFastagForm" class="entry-form">
+            <div class="form-row">
+              <label>Vehicle<select name="vehicleId" id="finFastagVehicle" required></select></label>
+              <label>Recharge amount (₹)<input type="number" name="amount" min="1" required placeholder="e.g. 5000" inputmode="numeric" /></label>
+            </div>
+            <div class="form-row">
+              <label>Date<input type="date" name="date" required /></label>
+              <label>Balance after recharge (₹)
+                <input type="number" name="balanceAfter" min="0" placeholder="optional — if you saw it" />
+                <span class="field-hint">Leave blank and we add the recharge to the last known balance.</span>
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Save Recharge</button>
+            <p class="field-error" id="finFastagErr" hidden></p>
+          </form>
+        </section>
+
         <section class="dash-grid" id="finGrid"></section>
 
         <section class="chart-card">
