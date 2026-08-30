@@ -227,7 +227,9 @@ select optgroup { font-weight: 800; color: var(--navy); font-style: normal; }
 .service-card.highlight .price-tag { background: rgba(245, 166, 35, 0.18); color: var(--amber); }
 
 /* ---------- Pillars (unified-solution section) ---------- */
-.pillars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+/* Four offerings. auto-fit rather than a fixed 4 so the row reflows to 2x2 on a
+   tablet without a separate breakpoint, and a future fifth card needs no CSS. */
+.pillars { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 22px; }
 .pillar-card {
   background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
   padding: 30px 28px; display: flex; flex-direction: column; gap: 12px;
@@ -1370,3 +1372,14 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .cp-typing span:nth-child(2) { animation-delay: 0.2s; }
 .cp-typing span:nth-child(3) { animation-delay: 0.4s; }
 @keyframes cpBlink { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+
+/* The trades that no longer get their own card. Named in one line so the
+   network's breadth is still stated without ten tiles competing with the
+   platform sections above. */
+.svc-more {
+  text-align: center;
+  margin: 22px auto 0;
+  max-width: 72ch;
+  color: var(--muted);
+  font-size: .95rem;
+}
