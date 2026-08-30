@@ -79,12 +79,38 @@ window.openVehicle = async function (vehId, extId, name, access) {
         <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="tvSaveFuel('${vehId}')">${FWIcon("fuel", { size: 14 })} Save Diesel Entry</button>
       </div>
       <div class="wf-form" style="margin:14px 0">
-        <p class="muted" style="font-size:0.8rem;margin-bottom:6px"><strong>Log expense</strong></p>
+        <p class="muted" style="font-size:0.8rem;margin-bottom:6px"><strong>Trip — start &amp; end kms</strong></p>
         <div class="form-row">
-          <input type="text" id="tvExpCat" placeholder="Category (e.g. Brakes)" />
+          <input type="number" id="tvOdoStart" placeholder="Starting km" min="0" />
+          <input type="number" id="tvOdoEnd" placeholder="Ending km" min="0" />
+        </div>
+        <div class="form-row" style="margin-top:6px">
+          <input type="text" id="tvFrom" placeholder="From" />
+          <input type="text" id="tvTo" placeholder="To" />
+        </div>
+        <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="tvSaveTrip('${vehId}')">${FWIcon("truck", { size: 14 })} Save Trip</button>
+      </div>
+      <div class="wf-form" style="margin:14px 0">
+        <p class="muted" style="font-size:0.8rem;margin-bottom:6px"><strong>Petty expense</strong> — goes to the owner for approval</p>
+        <div class="form-row">
+          <input type="text" id="tvExpCat" list="tvExpCatList" placeholder="Police, RTO, Parking…" />
           <input type="number" id="tvExpAmt" placeholder="₹ amount" min="0" />
         </div>
+        <datalist id="tvExpCatList">
+          <option value="Police"></option><option value="RTO"></option><option value="Parking"></option>
+          <option value="Toll"></option><option value="FASTag Recharge"></option><option value="Loading / Unloading"></option>
+          <option value="Weighbridge"></option><option value="Food &amp; Stay"></option><option value="Tyre Puncture"></option>
+          <option value="Water Wash"></option><option value="Greasing"></option><option value="Other"></option>
+        </datalist>
         <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="tvSaveExpense('${vehId}')">${FWIcon("receipt", { size: 14 })} Save Expense</button>
+      </div>
+      <div class="wf-form" style="margin:14px 0">
+        <p class="muted" style="font-size:0.8rem;margin-bottom:6px"><strong>Advance received</strong> — recorded against your khata</p>
+        <div class="form-row">
+          <input type="number" id="tvAdvAmt" placeholder="₹ amount" min="0" />
+          <input type="text" id="tvAdvNote" placeholder="Note (optional)" />
+        </div>
+        <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="tvSaveAdvance()">${FWIcon("rupee", { size: 14 })} Record Advance</button>
       </div>
       <div class="wf-form" style="margin:14px 0">
         <p class="muted" style="font-size:0.8rem;margin-bottom:6px"><strong>Report a problem</strong></p>
@@ -126,6 +152,43 @@ function toast(msg, tone) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove("show"), 2200);
 }
+
+// A trip is the two odometer readings the driver actually knows; distance is
+// derived rather than asked for, because a driver mis-typing km is far more
+// likely than mis-reading the dial twice.
+window.tvSaveTrip = async function (vehId) {
+  const start = +document.getElementById("tvOdoStart").value || 0;
+  const end = +document.getElementById("tvOdoEnd").value || 0;
+  const from = (document.getElementById("tvFrom").value || "").trim();
+  const to = (document.getElementById("tvTo").value || "").trim();
+  if (!start || !end) return tvErr("Enter both the starting and ending kilometres.");
+  if (end < start) return tvErr("Ending km is below starting km — check the readings.");
+  if (end - start > 3000) return tvErr(`That is ${Math.round(end - start)} km in one trip. Check the readings before saving.`);
+  const ok = await fwCloud.authInsert("trips", {
+    org_id: ORG, vehicle_id: vehId, trip_date: today(),
+    odo_start: start, odo_end: end, km: end - start,
+    from_loc: from || null, to_loc: to || null,
+  });
+  if (ok) { toast(`Trip saved — ${Math.round(end - start)} km.`); document.getElementById("teamVehModal").style.display = "none"; }
+  else tvErr("Could not save — check your access for this vehicle.");
+};
+
+// An advance is money the driver received, recorded against their own khata.
+// It needs the driver row linked to this login; without that link there is no
+// khata to write to, and saying so is better than failing silently.
+window.tvSaveAdvance = async function () {
+  const amount = +document.getElementById("tvAdvAmt").value || 0;
+  const note = (document.getElementById("tvAdvNote").value || "").trim();
+  if (!amount) return tvErr("Enter the advance amount.");
+  const me = await fwCloud.authGet("drivers", `select=id&org_id=eq.${ORG}&user_id=eq.${fwCloud.uid()}&limit=1`).catch(() => null);
+  if (!me || !me[0]) return tvErr("Your login isn't linked to a driver record yet — ask the owner to link it.");
+  const ok = await fwCloud.authInsert("driver_ledger", {
+    org_id: ORG, driver_id: me[0].id, entry_date: today(),
+    type: "advance", amount, note: note || null,
+  });
+  if (ok) { toast("Advance recorded in your khata."); document.getElementById("teamVehModal").style.display = "none"; }
+  else tvErr("Could not save the advance.");
+};
 
 window.tvSaveFuel = async function (vehId) {
   const litres = +document.getElementById("tvLitres").value || 0;
