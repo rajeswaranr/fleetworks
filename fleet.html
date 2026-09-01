@@ -203,6 +203,7 @@
         <button class="side-item tab-btn" data-tab="account"><i data-icon="plus"></i><span>Add Entry — Diesel / Expense</span></button>
         <button class="side-item tab-btn" data-tab="khata"><i data-icon="driver"></i><span>Driver Khata</span></button>
         <button class="side-item tab-btn" data-tab="payroll"><i data-icon="rupee"></i><span>Payroll — Pay Drivers</span></button>
+        <button class="side-item tab-btn" data-tab="whatsapp"><i data-icon="chat"></i><span>WhatsApp — Drivers</span></button>
         <button class="side-item tab-btn" data-tab="expensehistory"><i data-icon="receipt"></i><span>Expenses</span></button>
         <button class="side-item tab-btn" data-tab="fuel"><i data-icon="fuel"></i><span>Fuel</span></button>
         <button class="side-item tab-btn" data-tab="toll"><i data-icon="mapPin"></i><span>Toll &amp; FASTag</span></button>
@@ -1055,6 +1056,55 @@
         </div>
       </div>
 
+      <!-- Bill entry + AI review. Wider than the edit modal because a bill is a
+           table, not a field, and the assessment has to show its evidence
+           beside the lines it is talking about. -->
+      <div id="billModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:330;display:none;align-items:center;justify-content:center;padding:16px">
+        <div class="chart-card" style="max-width:820px;width:100%;max-height:90vh;overflow:auto">
+          <div class="chart-head">
+            <div>
+              <h2 id="billTitle">Enter the workshop bill</h2>
+              <p class="muted" id="billSub"></p>
+            </div>
+          </div>
+          <div id="billLines"></div>
+          <button type="button" class="link-btn" id="billAddLine">+ Add line</button>
+          <div class="form-row" style="margin-top:10px">
+            <label>Expense category (for your books)
+              <input type="text" id="billCategory" list="expenseCategoryList" placeholder="e.g. Clutch" />
+            </label>
+            <p style="text-align:right;margin:auto 0 0;font-weight:700">Bill total: <span id="billTotal">&#8377;0</span></p>
+          </div>
+          <p class="field-error" id="billErr" hidden></p>
+          <div id="billReviewOut"></div>
+          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+            <button type="button" class="btn btn-primary" id="billCheckBtn">Check this bill</button>
+            <button type="button" class="btn btn-outline" id="billCloseJobBtn">Close job card &amp; record expense</button>
+            <button type="button" class="btn btn-outline" id="billCancel">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======= WHATSAPP ======= -->
+      <section class="tab-panel" id="tab-whatsapp">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="chat" data-icon-size="22"></i></span> WhatsApp to your drivers</h2>
+              <p class="muted">Allotments, wages, khata statements and the daily attendance check &mdash; sent to the app drivers already use.</p>
+            </div>
+          </div>
+          <div id="waStatus"></div>
+          <p class="muted" style="margin-top:12px">A driver must opt in before FleetWorks may message them, and can opt out at any time. Their reply opens a 24-hour window in which further messages are free.</p>
+          <div id="waContacts" style="margin-top:14px"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Recent messages</h2><p class="muted">Every message sent and received, with its delivery status.</p></div></div>
+          <div id="waMessages"></div>
+        </div>
+      </section>
+
       <!-- ======= FUEL ======= -->
       <section class="tab-panel" id="tab-fuel">
         <section class="stat-row" id="fuelStats"></section>
@@ -1714,6 +1764,8 @@
   <script src="js/bulkimport.js"></script>
   <script src="js/fleetmap.js"></script>
   <script src="js/workflow.js"></script>
+  <script src="js/billreview.js"></script>
+  <script src="js/whatsapp.js"></script>
   <script src="js/copilot.js"></script>
   <script>
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");

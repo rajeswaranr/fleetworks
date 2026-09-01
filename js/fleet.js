@@ -929,7 +929,7 @@ function renderWorkOrders() {
       <div class="pred-main"><span class="fw-chip is-pending"><span class="dot"></span>In workshop</span> <strong>${esc(vName(w.vehicleId))}</strong> — ${esc(w.title)}</div>
       <div class="pred-detail">
         <span>${w.vendor ? esc(w.vendor) + " · " : ""}opened ${fmtDate(w.createdAt)}${w.estCost ? " · est. " + fmtINR(w.estCost) : ""}</span>
-        <button class="link-btn" onclick="completeWorkOrder('${w.id}')">${FWIcon("check", { size: 14 })} Complete &amp; Bill</button>
+        <button class="link-btn" onclick="startBilling('${w.id}')">${FWIcon("check", { size: 14 })} Complete &amp; Bill</button>
         <button class="link-btn" onclick="openEditWorkOrder('${w.id}')">${FWIcon("document", { size: 14 })} Edit</button>
       </div>
     </div>`).join("") : "<p class='muted'>No open job cards.</p>") +
@@ -976,6 +976,14 @@ async function createWorkOrder(issueId) {
   saveStore(); renderIssues(); renderWorkOrders(); renderOverview();
 }
 
+// Where "Complete & Bill" goes. Signed-in fleets get the itemised bill and the
+// AI check; everyone else keeps the single-total prompt, which still works.
+function startBilling(id) {
+  const dbBacked = typeof coreDbBacked === "function" && coreDbBacked();
+  if (dbBacked && typeof openBillEntry === "function") return openBillEntry(id);
+  return completeWorkOrder(id);
+}
+
 async function completeWorkOrder(id) {
   const w = db.workOrders.find(x => x.id === id);
   if (!w) return;
@@ -983,8 +991,14 @@ async function completeWorkOrder(id) {
   if (cost === null || !+cost) return;
   const cat = prompt("Expense category (Tyres / Battery / Brakes / Clutch / Engine Oil & Filters / Suspension / Electrical / Body & Paint / DEF / Greasing / Water Wash / RTO / Police / Other — or type your own):", "Other");
   if (cat === null) return;
+  await finishWorkOrder(w, +cost, cat.trim() || "Other");
+  alert("Job card closed. The expense has been added to your books automatically — it will appear in the AI Dashboard and Tally export.");
+}
+
+// Closing a job card, shared by the prompt() flow and the itemised bill modal.
+async function finishWorkOrder(w, cost, category) {
   w.status = "Completed"; w.completedAt = new Date().toISOString().slice(0, 10); w.finalCost = +cost;
-  const ex = { vehicleId: w.vehicleId, date: w.completedAt, category: cat.trim() || "Other", amount: +cost };
+  const ex = { vehicleId: w.vehicleId, date: w.completedAt, category: category || "Other", amount: +cost };
   const i = db.issues.find(x => x.id === w.issueId);
   if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const saved = await dbCreateExpense(ex);
@@ -997,7 +1011,15 @@ async function completeWorkOrder(id) {
   if (i) { i.status = "Resolved"; i.resolvedAt = w.completedAt; }
   rememberExpenseCategory(ex.category);
   saveStore(); renderIssues(); renderWorkOrders(); renderVehicles(); renderOverview();
-  alert("Job card closed. The expense has been added to your books automatically — it will appear in the AI Dashboard and Tally export.");
+}
+
+// Entry point for the itemised bill modal: the line items are already saved, so
+// this only needs the total and a category for the books.
+async function completeWorkOrderWithTotal(id, total, category) {
+  const w = db.workOrders.find(x => x.id === id);
+  if (!w) throw new Error("Job card not found.");
+  await finishWorkOrder(w, total, category || "Other");
+  if (typeof toast === "function") toast("Job card closed — expense recorded in your books.");
 }
 
 // ---------- Render: fuel ----------
