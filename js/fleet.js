@@ -2725,7 +2725,7 @@ function buildDynamicPanels() {
       </div>
       <div class="form-row">
         <label>Issuing bank
-          <input type="text" name="bank" list="fastagBankList" placeholder="e.g. HDFC, IDFC First, Paytm" maxlength="40" />
+          <input type="text" name="bank" list="fastagBankList" placeholder="e.g. Airtel Payments Bank, ICICI, Bank of Baroda" maxlength="40" />
           <datalist id="fastagBankList">
             <option value="Airtel Payments Bank"></option><option value="ICICI Bank"></option><option value="Bank of Baroda"></option>
             <option value="HDFC Bank"></option><option value="IDFC FIRST Bank"></option><option value="State Bank of India"></option>
