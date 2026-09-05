@@ -26,3 +26,21 @@ comment on column fastag_accounts.recharge_url is
 
 -- Verify after running:
 --   select vehicle_id, tag_id, recharge_url from fastag_accounts;
+
+-- ---------- UPI recharge address ----------
+-- NETC tags are rechargeable from any UPI app by paying a virtual address of
+-- the form netc.<VEHICLENUMBER>@<issuer handle> — netc.TN01AB1234@icici,
+-- netc.TN01AB1234@idfcnetc, and so on.
+--
+-- FleetWorks can build the left-hand side from the registration number it
+-- already holds, but the handle differs per issuer and there are ~39 of them.
+-- Guessing it would send a recharge into the void, so the confirmed address is
+-- stored once per tag and shown in full before anyone pays.
+--
+-- Still not a payment path. FleetWorks renders a QR of the standard NPCI
+-- upi://pay URI; the owner scans it with their own UPI app and confirms there.
+-- No funds, no float, no aggregator.
+alter table fastag_accounts add column if not exists upi_vpa text;
+
+comment on column fastag_accounts.upi_vpa is
+  'NETC UPI address for recharging this tag, e.g. netc.TN01AB1234@icici. Confirmed by the owner; FleetWorks only renders a QR of it.';

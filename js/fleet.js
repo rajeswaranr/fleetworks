@@ -1710,7 +1710,7 @@ function fillVehicleSelects() {
   const opts = db.vehicles.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
   ["compVehicle", "fuelVehicle", "inspVehicle", "issueVehicle", "remVehicle", "fuelVehicleFilter",
    "tyreVehicleFilter", "tyreFormVehicle", "tripVehicle", "billVehicle", "svcVehicle",
-   "fastagVehicle", "finFastagVehicle"].forEach(id => {
+   "fastagVehicle", "finFastagVehicle", "invVehicle"].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const keep = el.value;
@@ -1889,7 +1889,12 @@ async function loadFastag() {
     const rows = await fwCloud.authGet("fastag_accounts",
       `select=*,vehicles(ext_id)&org_id=eq.${org}&is_active=eq.true`);
     FASTAG = (rows || []).map(r => ({ ...r, vehicleExtId: r.vehicles ? r.vehicles.ext_id : null }));
-  } catch { FASTAG = []; }
+    // Balance history drives the "is anyone actually topping this up?" check.
+    const log = await fwCloud.authGet("fastag_balance_log",
+      `select=account_id,balance,recorded_at&org_id=eq.${org}&order=recorded_at.desc&limit=400`).catch(() => null);
+    FASTAG_LOG = {};
+    (log || []).forEach(r => { (FASTAG_LOG[r.account_id] ||= []).push(r); });
+  } catch { FASTAG = []; FASTAG_LOG = {}; }
   renderFastag();
 }
 
@@ -1897,6 +1902,59 @@ async function loadFastag() {
 // recharges for the vehicle, so one unusual top-up does not drag the figure;
 // falling back to a month at the tag's measured daily burn, and only then to a
 // flat default. Computed, never guessed — the same rule as the rest of FleetFin.
+// ---------- Is this tag actually being topped up? ----------
+// Auto-recharge set at the issuer bank does not pass through FleetWorks, so it
+// cannot be confirmed from the expense book — a bank top-up leaves no expense
+// row. What it DOES leave is a balance that goes back up. So the signal is the
+// balance history itself: a tag sitting below its threshold with no observed
+// rise, for longer than that tag's own usual gap between top-ups, is a tag
+// nobody is refilling.
+//
+// This is the one thing FleetWorks can see that no single issuer app can: every
+// tag at once, and the moment one stops recovering. Today the owner finds out
+// from the driver, at the plaza.
+//
+// Deliberately conservative. Balances are entered by hand, so absence of a
+// reading is not absence of a top-up — an account with no recent observation is
+// reported as UNKNOWN, never as broken. Crying wolf here would train owners to
+// ignore the one alert that matters.
+function fastagTopUpGap(acctId) {
+  const log = (FASTAG_LOG[acctId] || []).slice().sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
+  const rises = [];
+  for (let i = 1; i < log.length; i++) {
+    if (+log[i].balance > +log[i - 1].balance) rises.push(new Date(log[i].recorded_at));
+  }
+  if (rises.length < 2) return { lastRise: rises[0] || null, typicalDays: null };
+  const gaps = [];
+  for (let i = 1; i < rises.length; i++) gaps.push((rises[i] - rises[i - 1]) / 86400000);
+  gaps.sort((a, b) => a - b);
+  const mid = Math.floor(gaps.length / 2);
+  return {
+    lastRise: rises[rises.length - 1],
+    typicalDays: gaps.length % 2 ? gaps[mid] : (gaps[mid - 1] + gaps[mid]) / 2,
+  };
+}
+
+function fastagAutoRechargeCheck(acct) {
+  const p = fastagProjected(acct);
+  const thr = +acct.low_threshold || 1000;
+  if (p.balance >= thr) return { state: "ok" };
+  // A stale reading means we cannot tell, and saying so is the honest answer.
+  if (p.stale) return { state: "unknown", reason: "no balance reading in over two weeks" };
+
+  const { lastRise, typicalDays } = fastagTopUpGap(acct.id);
+  if (!lastRise) return { state: "unknown", reason: "no top-up history recorded yet" };
+
+  const daysSince = (Date.now() - lastRise) / 86400000;
+  const expected = typicalDays == null ? 14 : Math.max(3, typicalDays * 1.5);
+  if (daysSince <= expected) return { state: "ok" };
+  return {
+    state: "not_topping_up",
+    daysSince: Math.round(daysSince),
+    typicalDays: typicalDays == null ? null : Math.round(typicalDays),
+  };
+}
+
 function fastagSuggestedAmount(vehicleExtId, acct) {
   const past = db.expenses
     .filter(e => e.vehicleId === vehicleExtId && e.category === "FASTag Recharge" && +e.amount > 0)
@@ -1909,6 +1967,84 @@ function fastagSuggestedAmount(vehicleExtId, acct) {
   const p = acct ? fastagProjected(acct) : null;
   if (p && p.rate > 0) return Math.max(500, Math.round((p.rate * 30) / 500) * 500);
   return 2000;
+}
+
+// ---------- Recharge by UPI QR ----------
+// A NETC tag is rechargeable from any UPI app by paying a virtual address of
+// the form netc.<VEHICLENUMBER>@<issuer handle>. FleetWorks builds the left
+// side from the registration it already holds; the handle differs per issuer,
+// so it is confirmed once and stored rather than guessed.
+//
+// FleetWorks never moves the money. It renders the standard NPCI upi://pay URI
+// as a QR; the owner scans it with their own UPI app and confirms there. The
+// address is shown in full first, because a wrong VPA pays a stranger.
+function fastagVpaSuggestion(vehicleExtId) {
+  const v = db.vehicles.find(x => x.id === vehicleExtId);
+  const reg = (v && v.name ? v.name : "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  return reg ? "netc." + reg + "@" : "";
+}
+
+async function fastagSetVpa(vehicleExtId) {
+  const acct = FASTAG.find(a => a.vehicleExtId === vehicleExtId);
+  if (!acct) { toast("Add a FASTag for this vehicle first.", "err"); return null; }
+  const suggested = acct.upi_vpa || fastagVpaSuggestion(vehicleExtId);
+  const vpa = prompt(
+    "FASTag UPI address for this tag.\n\n"
+    + "Most issuers use netc.<vehicle number>@<their handle> — for example "
+    + "netc.TN01AB1234@icici or netc.TN01AB1234@idfcnetc.\n\n"
+    + "Check yours with your issuer before paying.",
+    suggested);
+  if (vpa === null) return null;
+  const t = vpa.trim();
+  // A UPI address is name@handle. Anything else will be rejected by the app at
+  // best, and at worst pays somebody unintended.
+  if (t && !/^[\w.\-]{2,60}@[A-Za-z]{2,30}$/.test(t)) {
+    toast("That doesn't look like a UPI address (name@handle).", "err");
+    return null;
+  }
+  const ok = await fwCloud.authPatch(`fastag_accounts?id=eq.${acct.id}`, { upi_vpa: t || null });
+  if (!ok) { toast("Could not save that UPI address.", "err"); return null; }
+  acct.upi_vpa = t || null;
+  renderFastag();
+  return acct.upi_vpa;
+}
+
+async function fastagUpiQr(vehicleExtId) {
+  const acct = FASTAG.find(a => a.vehicleExtId === vehicleExtId);
+  if (!acct) return;
+  let vpa = acct.upi_vpa;
+  if (!vpa) { vpa = await fastagSetVpa(vehicleExtId); if (!vpa) return; }
+
+  const suggested = fastagSuggestedAmount(vehicleExtId, acct);
+  const amtStr = prompt("Recharge amount (₹):", String(suggested));
+  if (amtStr === null) return;
+  const amount = Math.round(+amtStr);
+  if (!(amount > 0)) { toast("Enter an amount above zero.", "err"); return; }
+
+  const v = db.vehicles.find(x => x.id === vehicleExtId);
+  const link = buildUpiLink(vpa, "FASTag " + (v ? v.name : ""), amount, "FASTag recharge " + (v ? v.name : ""));
+
+  openEditModal("Recharge by UPI", `
+    <p style="text-align:center;margin:0 0 10px">
+      <strong>${esc(v ? v.name : "")}</strong><br />
+      <span class="muted">Paying <strong>${esc(vpa)}</strong></span><br />
+      <span style="font-size:1.3rem;font-weight:700">${fmtINR(amount)}</span>
+    </p>
+    <div id="fastagQr" style="display:flex;justify-content:center;margin:12px 0"><span class="muted">Generating…</span></div>
+    <p style="text-align:center;margin:6px 0"><a class="btn btn-primary" href="${escAttr(link)}">Open my UPI app</a></p>
+    <p class="muted" style="font-size:.8rem">Check the address above before paying — FleetWorks does not process this payment, your UPI app does. Once it goes through, log it below so the balance and your books both move.</p>`,
+    null);
+
+  try {
+    await loadQrCode();
+    const box = document.getElementById("fastagQr");
+    if (!box) return;
+    box.innerHTML = "";
+    new window.QRCode(box, { text: link, width: 200, height: 200, correctLevel: window.QRCode.CorrectLevel.M });
+  } catch (e) {
+    const box = document.getElementById("fastagQr");
+    if (box) box.innerHTML = `<span class="muted">${esc(e.message || "Could not draw the QR code.")} Use the button below instead.</span>`;
+  }
 }
 
 // Opens the owner's own recharge page for this tag when they have saved one,
@@ -1983,12 +2119,16 @@ function renderFastag() {
   const low = rows.filter(r => r.p.balance < (+r.a.low_threshold || 1000));
   const soon = rows.filter(r => r.p.daysLeft != null && r.p.daysLeft < 5);
   const totalBal = rows.reduce((s, r) => s + r.p.balance, 0);
+  // Tags that are low AND show no sign of being refilled — the failure an
+  // issuer's own app cannot show you, because it only knows about one tag.
+  const notFilling = rows.filter(r => fastagAutoRechargeCheck(r.a).state === "not_topping_up");
   const noTag = db.vehicles.length - rows.length;
 
   if (statEl) statEl.innerHTML = `
     <div class="stat-tile"><span class="stat-label">Tags on file</span><span class="stat-value">${rows.length}</span><span class="stat-sub">${noTag > 0 ? noTag + " vehicle(s) without one" : "every vehicle covered"}</span></div>
     <div class="stat-tile"><span class="stat-label">Total balance</span><span class="stat-value">${fmtINR(totalBal)}</span><span class="stat-sub">estimated, across all tags</span></div>
     <div class="stat-tile"><span class="stat-label">Below your threshold</span><span class="stat-value" style="color:${low.length ? PAL.critical : "#006300"}">${low.length}</span><span class="stat-sub">recharge before the next trip</span></div>
+    <div class="stat-tile"><span class="stat-label">Not being topped up</span><span class="stat-value" style="color:${notFilling.length ? PAL.critical : "#006300"}">${notFilling.length}</span><span class="stat-sub">${notFilling.length ? "low, and no recharge going in" : "every low tag is being refilled"}</span></div>
     <div class="stat-tile"><span class="stat-label">Running out this week</span><span class="stat-value" style="color:${soon.length ? PAL.serious : "#006300"}">${soon.length}</span><span class="stat-sub">under 5 days at current spend</span></div>`;
 
   if (!rows.length && !untagged.length) {
@@ -2004,16 +2144,23 @@ function renderFastag() {
       const dl = p.daysLeft == null
         ? `<span class="muted" title="Needs at least two FASTag expenses a week apart">not enough history</span>`
         : `<strong style="color:${tone}">${p.daysLeft < 1 ? "under a day" : Math.round(p.daysLeft) + " days"}</strong>`;
+      const chk = fastagAutoRechargeCheck(a);
+      const warn = chk.state === "not_topping_up"
+        ? `<br /><span style="color:${PAL.critical};font-size:0.74rem">Below your threshold for ${chk.daysSince} days with no top-up${chk.typicalDays ? ` — usually every ${chk.typicalDays}` : ""}. If auto-recharge is on at your bank, it isn't working.</span>`
+        : chk.state === "unknown"
+          ? `<br /><span class="muted" style="font-size:0.74rem">Can't tell if it's being topped up — ${esc(chk.reason)}.</span>`
+          : "";
       const age = a.balance_at ? Math.round((Date.now() - new Date(a.balance_at)) / 86400000) : null;
       return `<tr>
         <td><strong>${esc(v ? v.name : a.vehicleExtId || "—")}</strong></td>
         <td>${esc(a.tag_id || "—")}${a.bank ? `<br /><span class="muted" style="font-size:0.76rem">${esc(a.bank)}</span>` : ""}</td>
         <td style="color:${tone};font-weight:700">${fmtINR(p.balance)}${p.stale ? '<br /><span class="muted" style="font-size:0.7rem">estimate is stale</span>' : ""}</td>
         <td>${p.rate == null ? "<span class='muted'>—</span>" : fmtINR(p.rate) + "/day"}</td>
-        <td>${dl}</td>
+        <td>${dl}${warn}</td>
         <td class="muted" style="font-size:0.8rem">${age == null ? "—" : age === 0 ? "today" : age + "d ago"}</td>
         <td style="white-space:nowrap">
           <button class="link-btn" onclick="fastagRecharge('${esc(a.vehicleExtId)}')">Recharge ${fmtINR(fastagSuggestedAmount(a.vehicleExtId, a))}</button>
+          <button class="link-btn" onclick="fastagUpiQr('${esc(a.vehicleExtId)}')" title="Show a UPI QR to recharge this tag">UPI QR</button>
           <button class="link-btn" onclick="fastagSetLink('${esc(a.vehicleExtId)}')" title="${a.recharge_url ? "Change" : "Save"} where you recharge this tag">${a.recharge_url ? "Edit link" : "+ Link"}</button>
         </td>
       </tr>`;
@@ -2046,6 +2193,8 @@ const DEFAULT_EXPENSE_CATEGORIES = [
 // null forever when signed out — the app still works offline, where the shipped
 // constant is the whole list.
 let DB_EXPENSE_CATEGORIES = null;
+// Recent balance observations per FASTag account id, for the top-up check.
+let FASTAG_LOG = {};
 
 async function loadExpenseCategories() {
   if (typeof coreDbBacked !== "function" || !coreDbBacked()) return;
@@ -2713,6 +2862,123 @@ function buildDynamicPanels() {
   </div>
   <div class="chart-card"><div class="chart-head"><div><h2>Balances</h2><p class="muted">Positive balance = cash with the driver, still to be accounted</p></div></div><div class="chart-scroll"><div id="khataBalances"></div></div></div>
   <div class="chart-card"><div class="chart-head"><div><h2>Ledger</h2></div></div><div class="chart-scroll"><div id="khataTable"></div></div></div>`);
+  // ---------- Invoices ----------
+  // The revenue side, built like the bill book on the other side of it: one
+  // form, item rows, then a list. gstbills captures what the fleet pays; this
+  // is what it bills for.
+  mk("invoices", `<section class="stat-row" id="invoiceTiles"></section>
+  <div class="chart-card">
+    <div class="chart-head"><div>
+      <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="document" data-icon-size="22"></i></span> Raise a Freight Invoice</h2>
+      <p class="muted">Bill a consignor for a trip or a month's work. Reverse charge is the default, because that is how most goods transport is billed &mdash; change it if you charge GST yourself.</p>
+    </div></div>
+    <form id="invoiceForm" class="entry-form">
+      <div class="form-row">
+        <label>Invoice No<input type="text" name="invoiceNo" required maxlength="40" /></label>
+        <label>Date<input type="date" name="invoiceDate" required /></label>
+        <label>LR / Consignment No<input type="text" name="lrNo" maxlength="40" placeholder="optional" /></label>
+      </div>
+      <div class="form-row">
+        <label>Pick a saved customer<select name="invParty" id="invParty"></select></label>
+      </div>
+      <div class="form-row">
+        <label>Bill to (customer)<input type="text" name="customerName" required maxlength="120" placeholder="e.g. Sri Balaji Steels Pvt Ltd" /></label>
+        <label>Customer GSTIN<input type="text" name="customerGstin" maxlength="15" style="text-transform:uppercase" placeholder="blank if unregistered" /></label>
+      </div>
+      <div class="form-row">
+        <label>Customer address<input type="text" name="customerAddress" maxlength="200" placeholder="optional" /></label>
+        <label>Place of supply (state code)<input type="text" name="placeOfSupply" maxlength="2" inputmode="numeric" placeholder="e.g. 33 — only if no GSTIN" /></label>
+      </div>
+      <div class="form-row">
+        <label>Vehicle<select name="vehicleId" id="invVehicle"></select></label>
+        <label>Tax treatment
+          <select name="taxTreatment">
+            <option value="rcm">Reverse charge — recipient pays GST</option>
+            <option value="forward_5">5% GST (no input credit)</option>
+            <option value="forward_12">12% GST (with input credit)</option>
+            <option value="forward_18">18% GST</option>
+            <option value="exempt">Exempt / nil rated</option>
+          </select>
+        </label>
+      </div>
+      <datalist id="invItemList"></datalist>
+      <div id="invLines"></div>
+      <button type="button" class="link-btn" id="invAddLine">+ Add line</button>
+      <div id="invTotals" style="margin:10px 0"></div>
+      <label>Notes<input type="text" name="notes" maxlength="200" placeholder="optional — payment terms, remarks" /></label>
+      <p class="field-error" id="invoiceErr" hidden></p>
+      <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Save as Draft</button>
+    </form>
+    <p class="disclaimer">FleetWorks records what you invoiced; it is not a substitute for your accountant or for e-invoicing where that applies to your turnover.</p>
+  </div>
+  <div class="chart-card"><div class="chart-head"><div><h2>Invoices raised</h2><p class="muted">Draft until you issue it; issued until the money lands.</p></div></div>
+    <div class="chart-scroll"><div id="invoiceList"></div></div></div>
+
+  <div class="chart-card">
+    <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="network" data-icon-size="22"></i></span> Customers &amp; Parties</h2>
+      <p class="muted">Saved once, picked on every invoice &mdash; so one customer's GSTIN and state are never typed two different ways.</p></div></div>
+    <form id="partyForm" class="entry-form">
+      <div class="form-row">
+        <label>Name<input type="text" name="name" required maxlength="120" placeholder="e.g. Sri Balaji Steels Pvt Ltd" /></label>
+        <label>GSTIN<input type="text" name="gstin" maxlength="15" style="text-transform:uppercase" placeholder="blank if unregistered" /></label>
+        <label>State code (if no GSTIN)<input type="text" name="stateCode" maxlength="2" inputmode="numeric" placeholder="e.g. 33" /></label>
+      </div>
+      <div class="form-row">
+        <label>Billing address<input type="text" name="billingAddress" maxlength="200" /></label>
+        <label>Phone<input type="tel" name="phone" maxlength="15" /></label>
+        <label>Email<input type="email" name="email" maxlength="120" /></label>
+      </div>
+      <div class="form-row">
+        <label>Credit limit (&#8377;)<input type="number" name="creditLimit" min="0" /></label>
+        <label>Credit days<input type="number" name="creditDays" min="0" max="365" /></label>
+        <label>Usual tax treatment
+          <select name="defaultTax">
+            <option value="">Ask each time</option>
+            <option value="rcm">Reverse charge</option>
+            <option value="forward_5">5% GST</option>
+            <option value="forward_12">12% GST</option>
+            <option value="forward_18">18% GST</option>
+            <option value="exempt">Exempt</option>
+          </select>
+        </label>
+      </div>
+      <div class="form-row">
+        <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="isCustomer" checked /> We invoice them</label>
+        <label style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="isSupplier" /> They invoice us</label>
+      </div>
+      <p class="field-error" id="partyErr" hidden></p>
+      <button type="submit" class="btn btn-primary">Save Customer</button>
+    </form>
+    <div class="chart-scroll" style="margin-top:14px"><div id="partyList"></div></div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="wrench" data-icon-size="22"></i></span> Services &amp; Items You Bill</h2>
+      <p class="muted">Freight, detention, loading, workshop work &mdash; with its SAC or HSN code and rate, so an invoice line is one keystroke.</p></div></div>
+    <form id="itemForm" class="entry-form">
+      <div class="form-row">
+        <label>Name<input type="text" name="name" required maxlength="120" placeholder="e.g. Freight — Chennai to Salem" /></label>
+        <label>Type
+          <select name="kind"><option value="service">Service</option><option value="goods">Goods</option></select>
+        </label>
+        <label>HSN / SAC<input type="text" name="hsnSac" maxlength="10" placeholder="996511 for road freight" /></label>
+      </div>
+      <div class="form-row">
+        <label>Unit
+          <input type="text" name="unit" list="unitList" maxlength="12" placeholder="Trip" />
+          <datalist id="unitList"><option value="Trip"></option><option value="MT"></option><option value="KM"></option><option value="Hour"></option><option value="Day"></option><option value="Nos"></option></datalist>
+        </label>
+        <label>Rate (&#8377;)<input type="number" name="rate" min="0" step="any" /></label>
+        <label>GST rate (%)
+          <select name="gstRate"><option value="0">0 / exempt</option><option value="5">5</option><option value="12">12</option><option value="18">18</option><option value="28">28</option></select>
+        </label>
+      </div>
+      <p class="field-error" id="itemErr" hidden></p>
+      <button type="submit" class="btn btn-primary">Save Item</button>
+    </form>
+    <div class="chart-scroll" style="margin-top:14px"><div id="itemList"></div></div>
+  </div>`);
+
   mk("gstbills", `<div class="chart-card">
     <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="receipt" data-icon-size="22"></i></span> Bill Capture &amp; GST</h2><p class="muted">Snap the workshop bill — FleetWorks reads the amount, date and GSTIN on your phone, and tracks your input-tax credit</p></div></div>
     <div class="settings-actions">

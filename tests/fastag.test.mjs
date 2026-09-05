@@ -91,3 +91,67 @@ test('never suggests less than 500', () => {
   const f = loadSuggest([ex('v1', 100)]);
   assert.equal(f('v1', null), 500);
 });
+
+/* ---------- the "is anyone topping this up?" check ---------- */
+
+function loadCheck({ log = [], balance, balanceAt, threshold = 1000, rate = 100 }) {
+  const sandbox = {
+    console, Date, Math,
+    FASTAG_LOG: { a1: log },
+    fastagDailySpend: () => rate,
+    fastagProjected: (acct) => {
+      const elapsed = (Date.now() - new Date(acct.balance_at)) / 86400000;
+      return {
+        balance: Math.max(0, acct.balance - rate * elapsed),
+        rate, daysLeft: null, stale: elapsed > 14,
+      };
+    },
+  };
+  sandbox.window = sandbox; sandbox.globalThis = sandbox;
+  vm.createContext(sandbox);
+  for (const fn of ['fastagTopUpGap', 'fastagAutoRechargeCheck']) {
+    const start = fleetJs.indexOf(`function ${fn}(`);
+    vm.runInContext(fleetJs.slice(start, fleetJs.indexOf('\n}', start) + 2), sandbox, { filename: 'chk.js' });
+  }
+  return () => sandbox.fastagAutoRechargeCheck({ id: 'a1', balance, balance_at: balanceAt, low_threshold: threshold });
+}
+
+const ago = (d) => new Date(Date.now() - d * 86400000).toISOString();
+const obs = (d, balance) => ({ account_id: 'a1', balance, recorded_at: ago(d) });
+
+test('a healthy tag above its threshold is not flagged', () => {
+  const f = loadCheck({ balance: 5000, balanceAt: ago(1), log: [obs(30, 1000), obs(29, 5000)] });
+  assert.equal(f().state, 'ok');
+});
+
+test('low with no top-up for far longer than usual is flagged', () => {
+  // Rises 69, 59 and 49 days ago — a steady 10-day cadence — then nothing,
+  // while the balance sat low. 49 days of silence against a 10-day habit.
+  const f = loadCheck({
+    balance: 400, balanceAt: ago(2),
+    log: [obs(70, 200), obs(69, 4000), obs(60, 300), obs(59, 4000), obs(50, 200), obs(49, 4000)],
+  });
+  const r = f();
+  assert.equal(r.state, 'not_topping_up');
+  assert.equal(r.typicalDays, 10);
+});
+
+test('low but topped up recently is not flagged', () => {
+  const f = loadCheck({
+    balance: 900, balanceAt: ago(1),
+    log: [obs(30, 200), obs(29, 4000), obs(20, 300), obs(19, 4000), obs(3, 200), obs(2, 4000)],
+  });
+  assert.equal(f().state, 'ok');
+});
+
+/* The conservative half. A hand-entered balance means no reading is not the
+   same as no top-up, and a false alarm trains owners to ignore the real one. */
+test('a stale reading reports unknown, never broken', () => {
+  const f = loadCheck({ balance: 400, balanceAt: ago(40), log: [obs(60, 200), obs(59, 4000)] });
+  assert.equal(f().state, 'unknown');
+});
+
+test('no top-up history at all reports unknown', () => {
+  const f = loadCheck({ balance: 400, balanceAt: ago(2), log: [obs(5, 400)] });
+  assert.equal(f().state, 'unknown');
+});
