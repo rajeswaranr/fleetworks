@@ -1736,6 +1736,34 @@ function fillTyrePositions() {
 // ---------- Toll & FASTag ----------
 let FASTAG = [];
 
+// NETC FASTag UPI handle per issuer bank.
+// VPA format is netc.<VEHICLE_REGISTRATION>@<handle>
+// Derived from NPCI/NETC documentation and issuer apps; verify with your bank before paying.
+const NETC_ISSUER_HANDLES = {
+  "AIRTEL PAYMENTS BANK":      "airtelnetc",
+  "AXIS BANK":                 "axisnetc",
+  "AU SMALL FINANCE BANK":     "aunetc",
+  "BANK OF BARODA":            "bobnetc",
+  "EQUITAS SMALL FINANCE BANK":"equitas",
+  "FEDERAL BANK":              "federalnetc",
+  "FINO PAYMENTS BANK":        "fino",
+  "HDFC BANK":                 "hdfcnetc",
+  "ICICI BANK":                "icici",
+  "IDFC FIRST BANK":           "idfcnetc",
+  "INDUSIND BANK":             "indusindnetc",
+  "JAMMU & KASHMIR BANK":      "jkbnetc",
+  "KARNATAKA BANK":            "kbnetc",
+  "KARUR VYSYA BANK":          "kvbnetc",
+  "KOTAK MAHINDRA BANK":       "kmbl",
+  "PUNJAB & SIND BANK":        "psbnetc",
+  "PUNJAB NATIONAL BANK":      "pnbnetc",
+  "SARASWAT BANK":             "saraswatnetc",
+  "SOUTH INDIAN BANK":         "siblnetc",
+  "STATE BANK OF INDIA":       "sbinetc",
+  "UNION BANK OF INDIA":       "ubinnetc",
+  "YES BANK":                  "yesnetc",
+};
+
 // Bound lazily: the panel is built by mk() at render time, so the form does not
 // exist when this file first runs.
 // FleetFin's recharge entry. Writes the expense and moves the tag balance in
@@ -1978,26 +2006,28 @@ function fastagSuggestedAmount(vehicleExtId, acct) {
 // FleetWorks never moves the money. It renders the standard NPCI upi://pay URI
 // as a QR; the owner scans it with their own UPI app and confirms there. The
 // address is shown in full first, because a wrong VPA pays a stranger.
-function fastagVpaSuggestion(vehicleExtId) {
+// Derive the NETC VPA from bank name + vehicle registration.
+// Returns a complete address (netc.TN01AB1234@icici) when the bank is in the
+// known list, or a partial one (netc.TN01AB1234@) when it is not.
+function fastagVpaSuggestion(vehicleExtId, bank) {
   const v = db.vehicles.find(x => x.id === vehicleExtId);
   const reg = (v && v.name ? v.name : "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-  return reg ? "netc." + reg + "@" : "";
+  if (!reg) return "";
+  const handle = bank ? NETC_ISSUER_HANDLES[(bank).trim().toUpperCase()] : null;
+  return handle ? `netc.${reg}@${handle}` : `netc.${reg}@`;
 }
 
 async function fastagSetVpa(vehicleExtId) {
   const acct = FASTAG.find(a => a.vehicleExtId === vehicleExtId);
   if (!acct) { toast("Add a FASTag for this vehicle first.", "err"); return null; }
-  const suggested = acct.upi_vpa || fastagVpaSuggestion(vehicleExtId);
+  const suggested = acct.upi_vpa || fastagVpaSuggestion(vehicleExtId, acct.bank);
   const vpa = prompt(
     "FASTag UPI address for this tag.\n\n"
-    + "Most issuers use netc.<vehicle number>@<their handle> — for example "
-    + "netc.TN01AB1234@icici or netc.TN01AB1234@idfcnetc.\n\n"
-    + "Check yours with your issuer before paying.",
+    + "Format: netc.<vehicle number>@<bank handle> — e.g. netc.TN01AB1234@icici\n\n"
+    + "Check with your bank if unsure of the handle.",
     suggested);
   if (vpa === null) return null;
   const t = vpa.trim();
-  // A UPI address is name@handle. Anything else will be rejected by the app at
-  // best, and at worst pays somebody unintended.
   if (t && !/^[\w.\-]{2,60}@[A-Za-z]{2,30}$/.test(t)) {
     toast("That doesn't look like a UPI address (name@handle).", "err");
     return null;
@@ -2012,8 +2042,33 @@ async function fastagSetVpa(vehicleExtId) {
 async function fastagUpiQr(vehicleExtId) {
   const acct = FASTAG.find(a => a.vehicleExtId === vehicleExtId);
   if (!acct) return;
-  let vpa = acct.upi_vpa;
-  if (!vpa) { vpa = await fastagSetVpa(vehicleExtId); if (!vpa) return; }
+  const v = db.vehicles.find(x => x.id === vehicleExtId);
+
+  // Derive VPA from bank name + vehicle number. If the bank is in the known list
+  // this produces a complete address immediately; otherwise it falls back to the
+  // saved VPA or a partial suggestion the owner can complete.
+  let vpa = acct.upi_vpa || fastagVpaSuggestion(vehicleExtId, acct.bank);
+  const isComplete = /^[\w.\-]{2,60}@[A-Za-z]{2,30}$/.test(vpa);
+
+  // If we could not derive a complete VPA, ask the owner to fill in the handle.
+  if (!isComplete) {
+    const typed = prompt(
+      `FASTag UPI address for ${v ? v.name : "this vehicle"}.\n\n`
+      + "Format: netc.<number>@<bank handle> — e.g. netc.TN01AB1234@icici\n"
+      + `Bank on file: ${acct.bank || "not set"}. Check with your bank if unsure.`,
+      vpa);
+    if (!typed) return;
+    vpa = typed.trim();
+    if (!/^[\w.\-]{2,60}@[A-Za-z]{2,30}$/.test(vpa)) {
+      toast("That doesn't look like a UPI address (name@handle).", "err"); return;
+    }
+  }
+
+  // Save new / updated VPA so the next QR tap skips the prompt.
+  if (vpa !== acct.upi_vpa) {
+    const ok = await fwCloud.authPatch(`fastag_accounts?id=eq.${acct.id}`, { upi_vpa: vpa });
+    if (ok) { acct.upi_vpa = vpa; renderFastag(); }
+  }
 
   const suggested = fastagSuggestedAmount(vehicleExtId, acct);
   const amtStr = prompt("Recharge amount (₹):", String(suggested));
@@ -2021,18 +2076,18 @@ async function fastagUpiQr(vehicleExtId) {
   const amount = Math.round(+amtStr);
   if (!(amount > 0)) { toast("Enter an amount above zero.", "err"); return; }
 
-  const v = db.vehicles.find(x => x.id === vehicleExtId);
   const link = buildUpiLink(vpa, "FASTag " + (v ? v.name : ""), amount, "FASTag recharge " + (v ? v.name : ""));
+  const bankLabel = acct.bank || vpa.split("@")[1] || "FASTag";
 
   openEditModal("Recharge by UPI", `
     <p style="text-align:center;margin:0 0 10px">
-      <strong>${esc(v ? v.name : "")}</strong><br />
+      <strong>${esc(v ? v.name : "")}</strong> &nbsp;·&nbsp; ${esc(bankLabel)}<br />
       <span class="muted">Paying <strong>${esc(vpa)}</strong></span><br />
       <span style="font-size:1.3rem;font-weight:700">${fmtINR(amount)}</span>
     </p>
     <div id="fastagQr" style="display:flex;justify-content:center;margin:12px 0"><span class="muted">Generating…</span></div>
     <p style="text-align:center;margin:6px 0"><a class="btn btn-primary" href="${escAttr(link)}">Open my UPI app</a></p>
-    <p class="muted" style="font-size:.8rem">Check the address above before paying — FleetWorks does not process this payment, your UPI app does. Once it goes through, log it below so the balance and your books both move.</p>`,
+    <p class="muted" style="font-size:.8rem">Verify the address above before paying — FleetWorks builds the QR, your UPI app moves the money. Log it below once done.</p>`,
     null);
 
   try {
