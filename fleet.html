@@ -534,6 +534,8 @@
           <span class="lt-count" id="dashUpdated"></span>
           <span class="lt-spacer"></span>
         </div>
+        <!-- Grafana-style summary dashboard — rendered by js/gf-dashboard.js -->
+        <section id="gfOpsGrid" style="padding:0 0 4px"></section>
         <!-- Maintenance KPIs: what is broken, what is waiting, and how long
              each is costing. Rendered by renderOpsStats() in js/analytics.js. -->
         <section class="stat-row" id="opsStatRow"></section>
@@ -569,6 +571,8 @@
 
       <!-- ======= FLEETFIN DASHBOARD ======= -->
       <section class="tab-panel" id="tab-fin">
+        <!-- Grafana-style summary dashboard — rendered by js/gf-dashboard.js -->
+        <section id="gfFinGrid" style="padding:0 0 4px"></section>
         <section class="stat-row" id="finStatRow" aria-label="Money at a glance"></section>
 
         <!-- One action, two records: the recharge lands in the books as an
@@ -1582,6 +1586,8 @@
 
       <!-- ======= FLEETIQ DASHBOARD ======= -->
       <section class="tab-panel" id="tab-analytics">
+        <!-- Grafana-style summary dashboard — rendered by js/gf-dashboard.js -->
+        <section id="gfIqGrid" style="padding:0 0 4px"></section>
         <div class="chart-card">
           <div class="chart-head">
             <div>
@@ -1767,6 +1773,8 @@
   <script src="js/billreview.js"></script>
   <script src="js/whatsapp.js"></script>
   <script src="js/invoices.js"></script>
+  <script src="js/xgboost.js"></script>
+  <script src="js/gf-dashboard.js"></script>
   <script src="js/copilot.js"></script>
   <script>
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");

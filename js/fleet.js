@@ -449,6 +449,7 @@ function renderDashboard() {
 
 function renderOverview() {
   const insights = computeInsights();
+  if (window.renderGfOps) renderGfOps();
   renderDashboard();
 
   const sevColor = s => s >= 4 ? PAL.critical : s === 3 ? PAL.serious : s === 2 ? PAL.warn : s === 1 ? PAL.s1 : PAL.good;
@@ -2695,8 +2696,10 @@ function activateTab(tabName, options = {}) {
     if (startEl) startEl.hidden = exempt || !signedIn;
     document.getElementById("fleetContent").hidden = !exempt;
   }
-  if (tabName === "account" && window.renderAuthState) renderAuthState();
-  if (tabName === "map" && window.renderFleetMap) renderFleetMap();
+  if (tabName === "account"   && window.renderAuthState) renderAuthState();
+  if (tabName === "map"       && window.renderFleetMap)  renderFleetMap();
+  if (tabName === "fin"       && window.renderGfFin)     renderGfFin();
+  if (tabName === "analytics" && window.renderGfIq)      renderGfIq();
   return true;
 }
 
@@ -3437,6 +3440,7 @@ function renderAll() {
   renderFastag();
   renderVendors(); renderIntegrations(); renderReports();
   if (window.renderAnalyticsAll) renderAnalyticsAll();
+  if (window.renderGfDash) renderGfDash();
   if (window.renderAccountPortal) renderAccountPortal();
   if (window.renderTeamPicker) renderTeamPicker();
   if (window.renderPayroll) renderPayroll();
