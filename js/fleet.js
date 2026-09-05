@@ -1893,6 +1893,63 @@ async function loadFastag() {
   renderFastag();
 }
 
+// What this owner usually puts on this tag. Median of their own past FASTag
+// recharges for the vehicle, so one unusual top-up does not drag the figure;
+// falling back to a month at the tag's measured daily burn, and only then to a
+// flat default. Computed, never guessed — the same rule as the rest of FleetFin.
+function fastagSuggestedAmount(vehicleExtId, acct) {
+  const past = db.expenses
+    .filter(e => e.vehicleId === vehicleExtId && e.category === "FASTag Recharge" && +e.amount > 0)
+    .map(e => +e.amount).sort((a, b) => a - b);
+  if (past.length) {
+    const mid = Math.floor(past.length / 2);
+    const med = past.length % 2 ? past[mid] : (past[mid - 1] + past[mid]) / 2;
+    return Math.max(500, Math.round(med / 500) * 500);
+  }
+  const p = acct ? fastagProjected(acct) : null;
+  if (p && p.rate > 0) return Math.max(500, Math.round((p.rate * 30) / 500) * 500);
+  return 2000;
+}
+
+// Opens the owner's own recharge page for this tag when they have saved one,
+// then drops them on the pre-filled log form. FleetWorks does not process the
+// payment — see the recharge_url migration for why.
+function fastagRecharge(vehicleExtId) {
+  const acct = FASTAG.find(a => a.vehicleExtId === vehicleExtId);
+  if (acct && acct.recharge_url) window.open(acct.recharge_url, "_blank", "noopener");
+  const amount = fastagSuggestedAmount(vehicleExtId, acct);
+  document.querySelector('[data-tab="account"]')?.click();
+  const form = document.getElementById("finFastagForm");
+  if (!form) return;
+  form.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (form.elements.vehicleId) form.elements.vehicleId.value = vehicleExtId;
+  if (form.elements.amount && !form.elements.amount.value) form.elements.amount.value = amount;
+  toast(acct && acct.recharge_url
+    ? "Recharge page opened — log the amount here when it's done."
+    : "Recharge on your issuer's app, then log it here.");
+}
+
+// Saved once per tag, because the ~39 NETC issuers' recharge pages move and a
+// shipped list would send someone to a dead link on the day they need it.
+async function fastagSetLink(vehicleExtId) {
+  const acct = FASTAG.find(a => a.vehicleExtId === vehicleExtId);
+  if (!acct) { toast("Add a FASTag for this vehicle first.", "err"); return; }
+  const url = prompt("Link to where you recharge this tag (your issuer's page or app link):", acct.recharge_url || "");
+  if (url === null) return;
+  const trimmed = url.trim();
+  // Only http(s). A javascript: or data: URL here would run in the owner's
+  // session the moment anyone clicked Recharge.
+  if (trimmed && !/^https?:\/\//i.test(trimmed)) {
+    toast("That needs to start with http:// or https://", "err");
+    return;
+  }
+  const ok = await fwCloud.authPatch(`fastag_accounts?id=eq.${acct.id}`, { recharge_url: trimmed || null });
+  if (!ok) { toast("Could not save that link.", "err"); return; }
+  acct.recharge_url = trimmed || null;
+  renderFastag();
+  toast(trimmed ? "Recharge link saved." : "Recharge link cleared.");
+}
+
 function renderFastag() {
   // FleetFin's recharge form shares the same vehicle list.
   const finSel = document.getElementById("finFastagVehicle");
@@ -1940,7 +1997,7 @@ function renderFastag() {
   }
 
   tblEl.innerHTML = `<table class="chart-table-el"><thead><tr>
-    <th>Vehicle</th><th>Tag / Bank</th><th>Balance now</th><th>Daily toll</th><th>Days left</th><th>Last updated</th></tr></thead><tbody>` +
+    <th>Vehicle</th><th>Tag / Bank</th><th>Balance now</th><th>Daily toll</th><th>Days left</th><th>Last updated</th><th>Recharge</th></tr></thead><tbody>` +
     rows.sort((x, y) => (x.p.daysLeft ?? 1e9) - (y.p.daysLeft ?? 1e9)).map(({ a, v, p }) => {
       const thr = +a.low_threshold || 1000;
       const tone = p.balance < thr ? PAL.critical : (p.daysLeft != null && p.daysLeft < 5) ? PAL.serious : "#006300";
@@ -1955,11 +2012,15 @@ function renderFastag() {
         <td>${p.rate == null ? "<span class='muted'>—</span>" : fmtINR(p.rate) + "/day"}</td>
         <td>${dl}</td>
         <td class="muted" style="font-size:0.8rem">${age == null ? "—" : age === 0 ? "today" : age + "d ago"}</td>
+        <td style="white-space:nowrap">
+          <button class="link-btn" onclick="fastagRecharge('${esc(a.vehicleExtId)}')">Recharge ${fmtINR(fastagSuggestedAmount(a.vehicleExtId, a))}</button>
+          <button class="link-btn" onclick="fastagSetLink('${esc(a.vehicleExtId)}')" title="${a.recharge_url ? "Change" : "Save"} where you recharge this tag">${a.recharge_url ? "Edit link" : "+ Link"}</button>
+        </td>
       </tr>`;
     }).join("") +
     untagged.map(v => `<tr>
         <td><strong>${esc(v.name)}</strong></td>
-        <td colspan="4"><span class="muted">No FASTag on file yet — add one above to start tracking its balance.</span></td>
+        <td colspan="5"><span class="muted">No FASTag on file yet — add one above to start tracking its balance.</span></td>
         <td class="muted" style="font-size:0.8rem">—</td>
       </tr>`).join("") + "</tbody></table>";
 }
