@@ -310,7 +310,7 @@
     try {
       const org = await dbOrgId();
       if (!org) { INVOICES = []; renderInvoices(); return; }
-      INVOICES = await fwCloud.authGet("invoices",
+      INVOICES = await fwCloud.authGet("sales_invoices",
         `select=*&org_id=eq.${org}&order=invoice_date.desc&limit=200`) || [];
     } catch { INVOICES = []; }
     renderInvoices();
@@ -381,11 +381,11 @@
       notes: f.elements.notes.value.trim() || null,
     };
 
-    const saved = await fwCloud.authInsertRet("invoices", row);
+    const saved = await fwCloud.authInsertRet("sales_invoices", row);
     if (!saved) return fail(fwCloud.lastError() || "Could not save the invoice — the number may already be used.");
     const invId = Array.isArray(saved) ? saved[0].id : saved.id;
 
-    const ok = await fwCloud.authInsert("invoice_lines", rows.map((l, n) => ({
+    const ok = await fwCloud.authInsert("sales_invoice_lines", rows.map((l, n) => ({
       org_id: org, invoice_id: invId, line_no: n + 1,
       description: String(l.description).trim(),
       sac_code: String(l.sac_code || "").trim() || null,
@@ -408,7 +408,7 @@
     const patch = { status };
     if (status === "issued") patch.issued_at = new Date().toISOString();
     if (status === "paid") patch.paid_at = new Date().toISOString();
-    const ok = await fwCloud.authPatch(`invoices?id=eq.${id}`, patch);
+    const ok = await fwCloud.authPatch(`sales_invoices?id=eq.${id}`, patch);
     if (typeof toast === "function") toast(ok ? `Invoice marked ${status}.` : "Could not update that invoice.", ok ? "ok" : "err");
     if (ok) await loadInvoices();
   }
@@ -418,7 +418,7 @@
   async function printInvoice(id) {
     const inv = INVOICES.find((i) => i.id === id);
     if (!inv) return;
-    const lines = await fwCloud.authGet("invoice_lines", `select=*&invoice_id=eq.${id}&order=line_no`) || [];
+    const lines = await fwCloud.authGet("sales_invoice_lines", `select=*&invoice_id=eq.${id}&order=line_no`) || [];
     const s = db.settings || {};
     const w = window.open("", "_blank");
     if (!w) { if (typeof toast === "function") toast("Allow pop-ups to print the invoice.", "err"); return; }

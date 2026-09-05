@@ -79,9 +79,9 @@ create index if not exists idx_items_org on items(org_id, name);
 -- Nullable and ON DELETE SET NULL on purpose: an invoice already issued must
 -- survive the customer record being tidied up, and it keeps its own copy of the
 -- name, GSTIN and amounts regardless.
-alter table invoices     add column if not exists party_id uuid references parties(id) on delete set null;
-alter table invoice_lines add column if not exists item_id uuid references items(id) on delete set null;
-create index if not exists idx_invoices_party on invoices(party_id);
+alter table sales_invoices      add column if not exists party_id uuid references parties(id) on delete set null;
+alter table sales_invoice_lines add column if not exists item_id uuid references items(id) on delete set null;
+create index if not exists idx_sales_invoices_party on sales_invoices(party_id);
 
 alter table parties enable row level security;
 alter table items   enable row level security;

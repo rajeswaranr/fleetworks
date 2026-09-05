@@ -1,4 +1,11 @@
--- ============ FleetWorks — freight invoices ============
+-- ============ FleetWorks — freight invoices (sales side) ============
+-- NAMED sales_invoices, NOT invoices. public.invoices already exists and means
+-- something else entirely: FleetWorks invoicing a fleet owner for a marketplace
+-- service booking, created only by a security-definer trigger, with insert and
+-- delete revoked from authenticated. This table is the opposite direction — the
+-- owner invoicing THEIR customers for freight. Two different documents, two
+-- different payers; sharing a table would have quietly mixed the marketplace's
+-- billing into an owner's sales ledger.
 -- The other direction of the bill book. gstbills captures what the fleet PAYS
 -- and the input credit it earns; this is what the fleet BILLS its customers for
 -- moving their goods, which is where its revenue actually comes from and the
@@ -13,7 +20,7 @@
 -- the tax split is computed and stored rather than recalculated for display —
 -- two screens must never disagree about what a customer owes.
 
-create table if not exists invoices (
+create table if not exists sales_invoices (
   id            uuid primary key default gen_random_uuid(),
   org_id        uuid not null references organizations(id) on delete cascade,
   invoice_no    text not null,
@@ -61,13 +68,13 @@ create table if not exists invoices (
   -- is the constraint that stops two trucks' paperwork colliding.
   unique (org_id, invoice_no)
 );
-create index if not exists idx_invoices_org_date on invoices(org_id, invoice_date desc);
-create index if not exists idx_invoices_status on invoices(org_id, status);
+create index if not exists idx_sales_invoices_org_date on sales_invoices(org_id, invoice_date desc);
+create index if not exists idx_sales_invoices_status on sales_invoices(org_id, status);
 
-create table if not exists invoice_lines (
+create table if not exists sales_invoice_lines (
   id            uuid primary key default gen_random_uuid(),
   org_id        uuid not null references organizations(id) on delete cascade,
-  invoice_id    uuid not null references invoices(id) on delete cascade,
+  invoice_id    uuid not null references sales_invoices(id) on delete cascade,
   line_no       int,
   description   text not null,
   -- 9965xx is the services accounting code for goods transport. Kept per line
@@ -79,29 +86,29 @@ create table if not exists invoice_lines (
   amount        numeric(14,2) not null,
   created_at    timestamptz not null default now()
 );
-create index if not exists idx_invoice_lines on invoice_lines(invoice_id, line_no);
+create index if not exists idx_sales_invoice_lines on sales_invoice_lines(invoice_id, line_no);
 
-alter table invoices      enable row level security;
-alter table invoice_lines enable row level security;
+alter table sales_invoices      enable row level security;
+alter table sales_invoice_lines enable row level security;
 
-drop policy if exists invoices_member_all on invoices;
-create policy invoices_member_all on invoices for all to authenticated
+drop policy if exists sales_invoices_member_all on sales_invoices;
+create policy sales_invoices_member_all on sales_invoices for all to authenticated
   using (is_org_member(org_id)) with check (is_org_member(org_id));
 
-drop policy if exists invoice_lines_member_all on invoice_lines;
-create policy invoice_lines_member_all on invoice_lines for all to authenticated
+drop policy if exists sales_invoice_lines_member_all on sales_invoice_lines;
+create policy sales_invoice_lines_member_all on sales_invoice_lines for all to authenticated
   using (is_org_member(org_id)) with check (is_org_member(org_id));
 
-grant select, insert, update, delete on invoices to authenticated;
-grant select, insert, update, delete on invoice_lines to authenticated;
+grant select, insert, update, delete on sales_invoices to authenticated;
+grant select, insert, update, delete on sales_invoice_lines to authenticated;
 
 create or replace function set_invoice_updated_at()
 returns trigger language plpgsql as $$
 begin new.updated_at := now(); return new; end; $$;
 
-drop trigger if exists trg_invoice_updated on invoices;
-create trigger trg_invoice_updated before update on invoices
+drop trigger if exists trg_invoice_updated on sales_invoices;
+create trigger trg_invoice_updated before update on sales_invoices
   for each row execute function set_invoice_updated_at();
 
 -- Verify after running:
---   select invoice_no, customer_name, tax_treatment, total, status from invoices;
+--   select invoice_no, customer_name, tax_treatment, total, status from sales_invoices;
