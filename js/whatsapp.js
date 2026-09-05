@@ -69,6 +69,7 @@
   }
 
   const TEMPLATE_ACTIONS = [
+    { name: "welcome_message", label: "Send welcome" },
     { name: "attendance_check", label: "Ask attendance" },
     { name: "driver_allotment", label: "Send allotment" },
     { name: "wages_paid", label: "Wages paid" },
@@ -159,6 +160,7 @@
      invented — a wage figure in a WhatsApp message is a promise. */
   function variablesFor(tpl, contact) {
     const name = contact.name || "Driver";
+    if (tpl === "welcome_message") return { driver_name: name, fleet_name: fleetName() };
     if (tpl === "attendance_check") return { driver_name: name, date: today(), fleet_name: fleetName() };
     if (tpl === "driver_allotment") {
       const veh = prompt("Vehicle for this allotment (registration):", "");
@@ -218,6 +220,26 @@
     }
   }
 
+  /* Sends one template to every opted-in contact, one at a time with a short
+     gap. Returns a summary string. */
+  async function sendToAll(tpl) {
+    const targets = waContacts.filter((c) => c.opted_in_at && !c.opted_out_at);
+    if (!targets.length) { if (typeof toast === "function") toast("No opted-in drivers.", "err"); return; }
+    if (!confirm(`Send "${tpl.replace(/_/g, " ")}" to ${targets.length} driver(s)?`)) return;
+    let ok = 0, fail = 0;
+    for (const c of targets) {
+      const variables = variablesFor(tpl, c);
+      if (!variables) continue;
+      try {
+        const r = await fwCloud.authFn("whatsapp-send", { contactId: c.id, template: tpl, variables, refType: tpl });
+        if (r && r.ok) ok++; else fail++;
+      } catch { fail++; }
+      await new Promise((res) => setTimeout(res, 300));  // avoid rate-limiting
+    }
+    if (typeof toast === "function") toast(`Sent ${ok}, failed ${fail}.`, fail ? "err" : "ok");
+    await renderMessages();
+  }
+
   async function refresh() {
     waContacts = await loadContacts();
     renderStatus();
@@ -240,6 +262,8 @@
   function init() {
     const host = $("waContacts");
     if (!host) return;
+    const btnWelcomeAll = $("waBtnWelcomeAll");
+    if (btnWelcomeAll) btnWelcomeAll.addEventListener("click", () => sendToAll("welcome_message"));
     host.addEventListener("click", (e) => {
       const add = e.target.getAttribute("data-wa-add");
       const inId = e.target.getAttribute("data-wa-optin");
