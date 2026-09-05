@@ -1709,7 +1709,8 @@ function loadDemoFleet() {
 function fillVehicleSelects() {
   const opts = db.vehicles.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
   ["compVehicle", "fuelVehicle", "inspVehicle", "issueVehicle", "remVehicle", "fuelVehicleFilter",
-   "tyreVehicleFilter", "tyreFormVehicle", "tripVehicle", "billVehicle", "svcVehicle"].forEach(id => {
+   "tyreVehicleFilter", "tyreFormVehicle", "tripVehicle", "billVehicle", "svcVehicle",
+   "fastagVehicle", "finFastagVehicle"].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const keep = el.value;
@@ -1883,7 +1884,8 @@ function fastagProjected(acct) {
 async function loadFastag() {
   if (typeof coreDbBacked !== "function" || !coreDbBacked()) { FASTAG = []; renderFastag(); return; }
   try {
-    const org = await dbOrgId(); if (!org) return;
+    const org = await dbOrgId();
+    if (!org) { FASTAG = []; renderFastag(); return; }
     const rows = await fwCloud.authGet("fastag_accounts",
       `select=*,vehicles(ext_id)&org_id=eq.${org}&is_active=eq.true`);
     FASTAG = (rows || []).map(r => ({ ...r, vehicleExtId: r.vehicles ? r.vehicles.ext_id : null }));
@@ -1916,6 +1918,11 @@ function renderFastag() {
     const v = db.vehicles.find(x => x.id === a.vehicleExtId);
     return { a, v, p: fastagProjected(a) };
   });
+  // Vehicles with no tag on file yet. They still belong in the table — an
+  // untagged truck is the one that gets stopped at the plaza, so it should be
+  // visible rather than reduced to a count in a tile.
+  const tagged = new Set(FASTAG.map(a => a.vehicleExtId));
+  const untagged = db.vehicles.filter(v => !tagged.has(v.id));
   const low = rows.filter(r => r.p.balance < (+r.a.low_threshold || 1000));
   const soon = rows.filter(r => r.p.daysLeft != null && r.p.daysLeft < 5);
   const totalBal = rows.reduce((s, r) => s + r.p.balance, 0);
@@ -1927,8 +1934,8 @@ function renderFastag() {
     <div class="stat-tile"><span class="stat-label">Below your threshold</span><span class="stat-value" style="color:${low.length ? PAL.critical : "#006300"}">${low.length}</span><span class="stat-sub">recharge before the next trip</span></div>
     <div class="stat-tile"><span class="stat-label">Running out this week</span><span class="stat-value" style="color:${soon.length ? PAL.serious : "#006300"}">${soon.length}</span><span class="stat-sub">under 5 days at current spend</span></div>`;
 
-  if (!rows.length) {
-    tblEl.innerHTML = "<p class='muted'>No FASTag balances recorded yet — add one above and it starts tracking.</p>";
+  if (!rows.length && !untagged.length) {
+    tblEl.innerHTML = "<p class='muted'>Add a vehicle first — FASTag balances are tracked per vehicle.</p>";
     return;
   }
 
@@ -1949,7 +1956,12 @@ function renderFastag() {
         <td>${dl}</td>
         <td class="muted" style="font-size:0.8rem">${age == null ? "—" : age === 0 ? "today" : age + "d ago"}</td>
       </tr>`;
-    }).join("") + "</tbody></table>";
+    }).join("") +
+    untagged.map(v => `<tr>
+        <td><strong>${esc(v.name)}</strong></td>
+        <td colspan="4"><span class="muted">No FASTag on file yet — add one above to start tracking its balance.</span></td>
+        <td class="muted" style="font-size:0.8rem">—</td>
+      </tr>`).join("") + "</tbody></table>";
 }
 
 // Suggested expense categories, shown in every expense-category field's
@@ -2015,10 +2027,6 @@ function rememberExpenseCategory(name) {
     dbAddExpenseCategory(t).catch(() => {});
   }
   renderExpenseCategoryList();
-  loadExpenseCategories();
-  bindFastagForm();
-  bindFinFastagForm();
-  loadFastag();
 }
 
 // ---------- Save confirmation + cross-cutting refresh ----------
@@ -2037,6 +2045,9 @@ function refreshCrossCutting() {
   if (window.renderTeamPicker) renderTeamPicker();
   if (window.renderAccountPortal) renderAccountPortal();
   if (typeof renderExpenseApprovals === "function") renderExpenseApprovals();
+  // Both FASTag vehicle pickers are rendered from db.vehicles, so a vehicle
+  // added anywhere in the app has to refresh them too.
+  if (typeof renderFastag === "function") renderFastag();
 }
 let toastTimer = null;
 // Double confirmation for every destructive action — nothing in any table
@@ -2716,9 +2727,16 @@ function buildDynamicPanels() {
         <label>Issuing bank
           <input type="text" name="bank" list="fastagBankList" placeholder="e.g. HDFC, IDFC First, Paytm" maxlength="40" />
           <datalist id="fastagBankList">
-            <option value="HDFC Bank"></option><option value="ICICI Bank"></option><option value="IDFC First Bank"></option>
-            <option value="Paytm Payments Bank"></option><option value="SBI"></option><option value="Axis Bank"></option>
-            <option value="Bank of Baroda"></option><option value="Kotak Mahindra"></option><option value="Airtel Payments Bank"></option>
+            <option value="Airtel Payments Bank"></option><option value="ICICI Bank"></option><option value="Bank of Baroda"></option>
+            <option value="HDFC Bank"></option><option value="IDFC FIRST Bank"></option><option value="State Bank of India"></option>
+            <option value="Axis Bank"></option><option value="Kotak Mahindra Bank"></option><option value="IndusInd Bank"></option>
+            <option value="Federal Bank"></option><option value="Union Bank of India"></option><option value="Punjab National Bank"></option>
+            <option value="Canara Bank"></option><option value="Bank of Maharashtra"></option><option value="Indian Bank"></option>
+            <option value="IDBI Bank"></option><option value="Yes Bank"></option><option value="UCO Bank"></option>
+            <option value="Karnataka Bank"></option><option value="Karur Vysya Bank"></option><option value="City Union Bank"></option>
+            <option value="Equitas Small Finance Bank"></option><option value="AU Small Finance Bank"></option><option value="Fino Payments Bank"></option>
+            <option value="Jammu & Kashmir Bank"></option><option value="Saraswat Bank"></option><option value="Transcorp"></option>
+            <option value="LivQuik"></option>
           </datalist>
         </label>
         <label>Current balance (₹)<input type="number" name="balance" min="0" step="1" required placeholder="e.g. 4500" /></label>
@@ -3034,6 +3052,7 @@ function renderAll() {
   renderRadar(); renderDocuments(); renderTyres(); renderSettings();
   renderAssignments(); renderMeters(); renderExpenseHistory(); renderExpenseApprovals(); renderReplacement();
   renderItemFailures(); renderForms(); renderServiceHistory(); renderServiceTasks();
+  renderFastag();
   renderVendors(); renderIntegrations(); renderReports();
   if (window.renderAnalyticsAll) renderAnalyticsAll();
   if (window.renderAccountPortal) renderAccountPortal();
@@ -3049,6 +3068,14 @@ function renderAll() {
 }
 buildDynamicPanels();
 initListToolbars();
+
+// Startup for the expense-category list and Toll & FASTag. These must run after
+// buildDynamicPanels(), which is what creates #fastagForm and #fastagVehicle —
+// binding or rendering before the panel exists silently does nothing.
+loadExpenseCategories();
+bindFastagForm();
+bindFinFastagForm();
+loadFastag();
 
 // Trips & khata entry forms (panels are built dynamically above)
 document.getElementById("tripForm")?.addEventListener("submit", async e => {
