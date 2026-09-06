@@ -46,16 +46,16 @@ const AISENSY_KEY  = Deno.env.get("AISENSY_API_KEY") || "";
 // AiSensy endpoint (v2 Campaign API)
 const AISENSY_URL  = "https://backend.aisensy.com/campaign/t1/api/v2";
 
-function metaEndpoint(phoneId: string, graphVersion: string) {
+function metaEndpoint(phoneId: string, graphVersion: string, token: string) {
   return {
     url: `https://graph.facebook.com/${graphVersion}/${phoneId}/messages`,
-    headers: { Authorization: "Bearer " + WA_TOKEN, "Content-Type": "application/json" },
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
   };
 }
-function d360Endpoint() {
+function d360Endpoint(token: string) {
   return {
     url: "https://waba-v2.360dialog.io/v1/messages",
-    headers: { "D360-API-KEY": WA_TOKEN, "Content-Type": "application/json" },
+    headers: { "D360-API-KEY": token, "Content-Type": "application/json" },
   };
 }
 
@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
         },
       };
     }
-    const ep  = PROVIDER === "360dialog" ? d360Endpoint() : metaEndpoint(WA_PHONE_ID, GRAPH_VER);
+    const ep  = PROVIDER === "360dialog" ? d360Endpoint(WA_TOKEN) : metaEndpoint(WA_PHONE_ID, GRAPH_VER, WA_TOKEN);
     sendUrl     = ep.url;
     sendHeaders = ep.headers;
   }

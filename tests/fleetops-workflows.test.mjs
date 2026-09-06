@@ -343,6 +343,10 @@ test('FleetOps workflow pages save test data through the business DB layer and r
   await activate(page, 'workorders');
   await expectUiText(page, '#workOrdersList', /FleetWorks Test Workshop/);
   await page.getByRole('button', { name: /Complete & Bill/i }).first().click();
+  await page.fill('#billLines [data-bill="description"][data-i="0"]', 'Brake inspection and repair');
+  await page.fill('#billLines [data-bill="amount"][data-i="0"]', '11800');
+  await page.fill('#billCategory', 'Brake Inspection');
+  await page.click('#billCloseJobBtn');
   await waitForDbCount(page, 'expenses', 1);
   await page.waitForFunction(() => window.__businessDb.calls.some((call) => call.kind === 'dbUpdateWorkOrder'));
 

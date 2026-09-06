@@ -78,27 +78,29 @@ test('ambiguous or unrelated replies mark nothing', () => {
   }
 });
 
-/* FleetWorks runs on Meta direct. The provider adapter exists as an escape
-   hatch, so the thing worth guarding is that the DEFAULT stays Meta and that an
-   unrecognised value falls back to it rather than silently addressing nowhere. */
-const endpoint = loadFn('../supabase/functions/whatsapp-send/index.ts', 'endpoint');
+/* Meta and 360dialog share the Cloud API payload, but use different endpoints
+   and authentication headers. AiSensy is handled by its separate campaign
+   branch in the edge function. */
+const metaEndpoint = loadFn('../supabase/functions/whatsapp-send/index.ts', 'metaEndpoint');
+const d360Endpoint = loadFn('../supabase/functions/whatsapp-send/index.ts', 'd360Endpoint');
 
 test('default provider is Meta direct', () => {
-  const ep = endpoint('meta', 'tok', '123456', 'v21.0');
+  const ep = metaEndpoint('123456', 'v21.0', 'tok');
   assert.equal(ep.url, 'https://graph.facebook.com/v21.0/123456/messages');
   assert.equal(ep.headers.Authorization, 'Bearer tok');
   assert.equal(ep.headers['D360-API-KEY'], undefined);
 });
 
-test('an unset or unknown provider still routes to Meta', () => {
-  for (const p of ['', 'nonsense', 'aisensy']) {
-    assert.match(endpoint(p, 'tok', '123456', 'v21.0').url, /graph\.facebook\.com/);
-  }
-});
-
 test('360dialog swaps base URL and auth header, nothing else', () => {
-  const ep = endpoint('360dialog', 'key', '123456', 'v21.0');
+  const ep = d360Endpoint('key');
   assert.equal(ep.url, 'https://waba-v2.360dialog.io/v1/messages');
   assert.equal(ep.headers['D360-API-KEY'], 'key');
   assert.equal(ep.headers.Authorization, undefined);
+});
+
+test('AiSensy remains wired to its campaign API', () => {
+  const src = readFileSync(resolve(__dirname, '../supabase/functions/whatsapp-send/index.ts'), 'utf8');
+  assert.match(src, /WHATSAPP_PROVIDER/);
+  assert.match(src, /backend\.aisensy\.com\/campaign\/t1\/api\/v2/);
+  assert.match(src, /PROVIDER === "aisensy"/);
 });
