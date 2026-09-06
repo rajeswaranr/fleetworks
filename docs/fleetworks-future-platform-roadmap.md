@@ -20,10 +20,12 @@ For the actual current repository layout, see `docs/architecture/current-folder-
 
 ## Current Architecture Position
 
-The current FleetWorks application is a strong MVP / early SaaS foundation:
+The current FleetWorks application is a modular static SaaS foundation:
 
 - Static multi-page web app
-- Vanilla JavaScript modules
+- Modular-monolith JavaScript organized by domain
+- Hexagonal ports, adapters, use cases, and view models for migrated modules
+- Module registry with capabilities, dependencies, permissions, tables, and Edge Functions
 - Supabase Auth
 - Supabase Postgres
 - Supabase Row Level Security
@@ -31,7 +33,9 @@ The current FleetWorks application is a strong MVP / early SaaS foundation:
 - Supabase Edge Functions
 - LocalStorage demo/offline fallback
 
-This is good for the current web-based fleet management product, but it is not enough by itself for advanced IoT, telemetry, large mobile/web scale, production LLM operations, or true plug-in architecture.
+The repository now includes initial IoT, telemetry, LLM, communications,
+invoicing, insurance, and plug-compatible module contracts. A backend API layer,
+mobile clients, production observability, and asynchronous event processing remain future work.
 
 The recommended approach is not to throw away the current system. Instead, the current web app should become the first client of a larger FleetWorks platform.
 
@@ -253,7 +257,7 @@ For larger scale:
 
 ## Web And Mobile Readiness
 
-The future mobile app should not directly reuse browser-global files such as `fleet.js`.
+The future mobile app should consume stable domain APIs and shared contracts, not browser controllers or globals.
 
 Instead, create a shared API and client SDK:
 
@@ -326,11 +330,12 @@ This is what creates real plug-in/plug-out ability. The current script-per-featu
 
 ### Phase 1: Foundation Cleanup
 
-- Document domain boundaries.
-- Split `fleet.js` into smaller domain files.
-- Create `js/apiClient.js` or a future `packages/sdk`.
-- Add schema validation for user inputs.
-- Expand tests around data and RLS.
+- Completed: moved active controllers into domain module folders.
+- Completed: introduced the API facade, module registry, and hexagonal registry.
+- Completed: documented module metadata, ownership boundaries, and permission names.
+- Remaining: reduce the FleetOps controller and shared mutable `db` state further.
+- Remaining: migrate transitional direct `fwCloud` calls behind module ports and adapters.
+- Remaining: expand schema validation and RLS integration tests.
 
 ### Phase 2: Backend API Layer
 
@@ -342,10 +347,10 @@ This is what creates real plug-in/plug-out ability. The current script-per-featu
 
 ### Phase 3: Plugin Foundation
 
-- Add module registry.
+- Extend the existing module registry with tenant-scoped runtime controls.
 - Add feature flags per tenant.
 - Generate navigation from enabled modules.
-- Define permissions per module.
+- Enforce the permissions already declared by each module at server boundaries.
 
 ### Phase 4: LLM Gateway
 

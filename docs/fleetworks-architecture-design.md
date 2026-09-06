@@ -1,6 +1,6 @@
 # FleetWorks Application Architecture Design
 
-Prepared on: 2026-08-01
+Updated on: 2026-09-06
 
 ## 1. Executive Summary
 
@@ -8,7 +8,7 @@ FleetWorks is a static, browser-first fleet management application backed by Sup
 
 The current architecture is best described as:
 
-> Static multi-page SaaS/PWA + browser-side business logic + Supabase backend-as-a-service.
+> Static multi-page SaaS and PWA with a browser modular monolith, hexagonal boundaries inside business modules, and Supabase as the backend platform.
 
 There is no traditional application server for business logic. The local Node server only serves static files for development and testing.
 
@@ -37,18 +37,15 @@ There is no traditional application server for business logic. The local Node se
 +--------------------------------------------------------------------------------+
 |                         CLIENT APPLICATION LAYER                                |
 |                                                                                |
-|  Vanilla browser JavaScript modules loaded as globals:                          |
+|  Modular monolith under js/modules:                                             |
 |                                                                                |
-|  fleet.js       Owner dashboard, forms, tabs, render orchestration              |
-|  dbcore.js      DB-direct CRUD mapping for normalized fleet entities            |
-|  cloudstore.js  Auth/session, Supabase REST/RPC helpers, sync, storage helpers  |
-|  team.js        Supervisor/driver authenticated portal                          |
-|  driver.js      No-login driver link submissions                                |
-|  workflow.js    Owner-to-mechanic service workflow                              |
-|  payroll.js     Driver salary logs, payment approvals, Cashfree functions       |
-|  analytics.js   Fleet insights and reporting views                              |
-|  account.js     Account, team, organization, and settings views                 |
-|  copilot.js     Rule-based and LLM-backed assistant UI                          |
+|  domain -> ports -> adapters -> use cases -> view models -> controllers         |
+|                                                                                |
+|  FWPlatform     Module registry, capabilities, dependencies, lifecycle          |
+|  FWHex          Port, adapter, use-case, and view-model registry                |
+|  FWApi          Stable data and Edge Function facade                            |
+|  dbcore.js      DB-direct mapping retained as transitional infrastructure       |
+|  cloudstore.js  Auth, session, REST, RPC, sync, and storage infrastructure      |
 +--------------------------------------+-----------------------------------------+
                                        |
                                        v
@@ -84,9 +81,12 @@ There is no traditional application server for business logic. The local Node se
 |  Tenant core: organizations, memberships                                        |
 |  Fleet core: vehicles, drivers, expenses, fuel_logs, issues, work_orders        |
 |  Operations: reminders, inspections, parts, documents, tyre_readings            |
-|  Finance: trips, driver_ledger, salary_payments, payment_requests               |
+|  Finance: trips, ledger, payroll, FASTag, parties, items, sales invoices        |
 |  Team access: vehicle_assignments, expense_change_requests                      |
-|  Intake: leads, vendor_applications, vendor_leads, driver_entries               |
+|  Intelligence: bill_reviews, work_order_lines, model-backed risk scoring        |
+|  Communications: WhatsApp contacts, messages, templates, attendance            |
+|  Telemetry: devices, telemetry, ADAS events, retention policies                 |
+|  Intake: leads, vendors, insurance quotes, driver operational entries           |
 |  Service workflow: service_requests, assignments, estimates, invoices, payments |
 |                                                                                |
 |  Main security boundary: Supabase Row Level Security policies                   |
@@ -98,8 +98,9 @@ There is no traditional application server for business logic. The local Node se
 |                                                                                |
 |  Anthropic Claude       Copilot Edge Function                                   |
 |  Cashfree Payouts       Payroll Edge Functions                                  |
+|  Meta / 360dialog / AiSensy   WhatsApp Edge Functions                           |
 |  PaddleOCR/FastAPI      Optional bill OCR microservice                          |
-|  WhatsApp/UPI links     Client-opened external actions                          |
+|  FASTag / UPI           Owner-directed recharge actions                         |
 +--------------------------------------------------------------------------------+
 ```
 
@@ -123,14 +124,15 @@ There is no traditional application server for business logic. The local Node se
        +----------------------------+   +------------------------------+
        | Supabase Platform          |   | Supabase Edge Functions      |
        | Auth, PostgREST, Storage   |   | team-invite, payroll,        |
-       | RLS-secured Postgres       |   | copilot                      |
+       | RLS-secured Postgres       |   | copilot, payroll, WhatsApp,  |
+       |                            |   | bill review, telemetry       |
        +-------------+--------------+   +---------------+--------------+
                      |                                  |
                      v                                  v
        +----------------------------+   +------------------------------+
        | FleetWorks Database        |   | External Providers           |
-       | Tenant, fleet, workflow,   |   | Anthropic, Cashfree, OCR     |
-       | payroll, leads, documents  |   | service, WhatsApp, UPI       |
+       | Fleet, finance, workflow,  |   | Anthropic, Cashfree, OCR,    |
+       | IoT, messaging, invoices   |   | Meta, 360dialog, AiSensy     |
        +----------------------------+   +------------------------------+
 ```
 
@@ -189,6 +191,8 @@ Business modules loaded by this page:
 - `js/modules/llm-gateway/*`
 - `js/modules/security/*`
 - `js/modules/iot-telemetry/*`
+- `js/modules/communications/*`
+- `js/modules/invoicing/*`
 
 UI controller scripts:
 
@@ -196,6 +200,11 @@ UI controller scripts:
 - `js/dbcore.js`
 - `js/cloudstore.js`
 - `js/modules/fleet-iq/controllers/analytics.controller.js`
+- `js/modules/fleet-iq/controllers/dashboard.controller.js`
+- `js/modules/fleet-iq/xgboost.js`
+- `js/modules/maintenance/controllers/bill-review.controller.js`
+- `js/modules/communications/controllers/whatsapp.controller.js`
+- `js/modules/invoicing/controllers/invoices.controller.js`
 - `js/account.js`
 - `js/modules/payments/controllers/payroll.controller.js`
 - `js/modules/bulk-import/controllers/bulkimport.controller.js`
@@ -215,8 +224,34 @@ Responsibilities:
 - Parts inventory and tyre health
 - Trips, loads, driver ledger, and payroll
 - FleetIQ analytics, reports, and Copilot assistant
+- FASTag account monitoring and recharge links
+- GST-aware sales invoicing, parties, and items
+- Consent-aware WhatsApp communication
+- Itemized maintenance bills and AI-assisted bill review
 
-### 5.2 Team Portal
+### 5.2 Communications
+
+Business module: `js/modules/communications/*`
+
+The module declares WhatsApp contacts, messages, templates, consent permissions,
+and the `whatsapp-send` and `whatsapp-webhook` Edge Functions. Provider secrets
+remain server-side. The browser controller manages consent-aware operator flows.
+
+### 5.3 Invoicing
+
+Business module: `js/modules/invoicing/*`
+
+The module owns parties, items, sales invoices, invoice lines, GST calculation,
+printing, and invoice payment status. It depends on Fleet Core and FleetFin.
+
+### 5.4 Insurance
+
+Business module: `js/modules/insurance/*`
+
+The module owns commercial vehicle premium estimates and insurance quote
+requests. Shared Indian geography reference data lives in `js/shared/`.
+
+### 5.5 Team Portal
 
 Primary page: `team.html`
 
@@ -233,7 +268,7 @@ Responsibilities:
 - Submit expense change requests for owner approval
 - View recent vehicle history
 
-### 5.3 No-Login Driver Link
+### 5.6 No-Login Driver Link
 
 Primary page: `driver.html`
 
@@ -248,7 +283,7 @@ Responsibilities:
 - Insert rows into `driver_entries` using the anonymous Supabase role
 - Owner later pulls and merges entries
 
-### 5.4 Garage / Mechanic Workflow
+### 5.7 Garage / Mechanic Workflow
 
 Primary page: `garage.html`
 
@@ -269,7 +304,7 @@ Responsibilities:
 - Local playable flow via `fw_service_requests`
 - Cloud twin via normalized service workflow tables
 
-### 5.5 Public Intake and Admin
+### 5.8 Public Intake and Admin
 
 Primary pages:
 
@@ -312,12 +347,18 @@ organizations
     |     +-- issues
     |     |     |
     |     |     +-- work_orders
+    |     |           +-- work_order_lines
+    |     |           +-- bill_reviews
     |     |
     |     +-- reminders
     |     +-- inspections
     |     +-- tyre_readings
     |     +-- documents
     |     +-- trips
+    |     +-- fastag_accounts
+    |     +-- devices
+    |           +-- telemetry
+    |           +-- adas_events
     |
     +-- drivers
     |     |
@@ -328,6 +369,12 @@ organizations
     +-- parts
     +-- memberships
     +-- vehicle_assignments
+    +-- expense_categories
+    +-- whatsapp_contacts
+    |     +-- whatsapp_messages
+    +-- parties
+          +-- sales_invoices
+                +-- sales_invoice_lines
 ```
 
 Important ID convention:
@@ -348,7 +395,9 @@ Signed in:
   Core entities:
     vehicles, drivers, expenses, fuel_logs, issues, work_orders,
     reminders, inspections, parts, documents, tyre_readings, trips,
-    driver_ledger
+    driver_ledger, fastag_accounts, fastag_balance_log,
+    work_order_lines, bill_reviews, parties, items, sales_invoices,
+    sales_invoice_lines, whatsapp_contacts, whatsapp_messages
     -> Supabase normalized tables
 
   Settings/demo metadata:
@@ -412,6 +461,23 @@ payroll-add-beneficiary
 payroll-transfer
 payroll-webhook
   Integrate with Cashfree payouts and record payroll activity.
+
+owner-signup
+admin-reset-password
+  Perform privileged account creation and reset operations without exposing the service role.
+
+bill-review
+  Reviews itemized work-order bills against fleet history before job closure.
+
+telemetry-ingest
+  Accepts authenticated device telemetry and writes normalized records.
+
+whatsapp-send
+whatsapp-webhook
+  Send consent-checked messages and process provider delivery or driver replies.
+
+vendor-scrape
+  Performs controlled server-side vendor discovery and verification.
 ```
 
 ## 8. External Integration Architecture
@@ -426,6 +492,14 @@ Browser
   +-- Supabase Edge Function: payroll-*
   |       |
   |       +-- Cashfree Payouts
+  |
+  +-- Supabase Edge Functions: whatsapp-send / whatsapp-webhook
+  |       |
+  |       +-- Meta Cloud API / 360dialog / AiSensy
+  |
+  +-- Supabase Edge Function: telemetry-ingest
+  |       |
+  |       +-- Fleet devices and simulated telemetry adapters
   |
   +-- Optional OCR API: server/ocr/app.py
   |       |
@@ -448,14 +522,14 @@ fleet.html
   -> pull fleets.data settings blob
   -> dbcore.js resolves org_id
   -> load normalized core tables
-  -> fleet.js renderAll
+  -> FleetOps controller renderAll
 ```
 
 ### 9.2 Owner Saves a Core Record
 
 ```text
 Fleet form submit
-  -> fleet.js validates and builds local shape
+  -> owning module/controller validates and builds the domain shape
   -> dbcore.js maps local shape to database row
   -> fwCloud authenticated REST helper
   -> Supabase PostgREST
@@ -491,7 +565,7 @@ Owner copies driver link
 ### 9.5 Copilot Question
 
 ```text
-copilot.js
+js/modules/llm-gateway/controllers/copilot.controller.js
   -> creates compact fleet summary
   -> calls Supabase Edge Function copilot
   -> Edge Function calls Anthropic
@@ -529,7 +603,7 @@ The browser is trusted for UX, not for authorization. Authorization must stay in
 ## 12. Current Architectural Risks and Improvement Areas
 
 - Browser-global module order is part of the runtime contract.
-- `fleet.js` is a large orchestration file and contains many responsibilities.
+- The FleetOps controller remains large and still contains several presentation responsibilities.
 - Shared mutable global `db` object can make state changes hard to reason about.
 - Some state remains hybrid between normalized tables, localStorage, and blob sync.
 - DOC/workflow comments show production cloud twins, but some flows are still local-first/playable.
@@ -576,6 +650,10 @@ Long term:
 - `js/modules/service-workflow/controllers/workflow.controller.js`
 - `js/modules/payments/controllers/payroll.controller.js`
 - `js/modules/llm-gateway/controllers/copilot.controller.js`
+- `js/modules/communications/controllers/whatsapp.controller.js`
+- `js/modules/invoicing/controllers/invoices.controller.js`
+- `js/modules/maintenance/controllers/bill-review.controller.js`
+- `js/modules/fleet-iq/controllers/dashboard.controller.js`
 - `supabase/migrations/*.sql`
 - `supabase/functions/*/index.ts`
 - `server/ocr/app.py`

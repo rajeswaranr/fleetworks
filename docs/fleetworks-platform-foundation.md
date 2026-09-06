@@ -1,6 +1,6 @@
 # FleetWorks Platform Foundation Implementation
 
-Prepared on: 2026-08-02
+Updated on: 2026-09-06
 
 ## Purpose
 
@@ -54,28 +54,38 @@ These files introduce a stable module and capability layer for future work.
 
 ## Current Wiring
 
-The new platform files are loaded after the existing application scripts in `fleet.html`.
+The platform runtime and feature modules are loaded explicitly by `fleet.html`.
+Module-owned controllers replace the former root controller paths.
 
 ```text
-Existing app scripts
+Shared infrastructure
   icons.js
   backend.js
   cloudstore.js
-  fleet.js
   dbcore.js
-  analytics.js
   account.js
-  payroll.js
   testdata.js
-  bulkimport.js
-  fleetmap.js
-  workflow.js
-  copilot.js
 
-New platform scripts
+Platform runtime
   platform/module-registry.js
   platform/hexagonal.js
   platform/api-client.js
+
+Module-owned controllers and capabilities
+  modules/fleet-ops/controllers/fleet.controller.js
+  modules/fleet-iq/controllers/analytics.controller.js
+  modules/fleet-iq/controllers/dashboard.controller.js
+  modules/fleet-iq/xgboost.js
+  modules/maintenance/controllers/bill-review.controller.js
+  modules/communications/controllers/whatsapp.controller.js
+  modules/invoicing/controllers/invoices.controller.js
+  modules/payments/controllers/payroll.controller.js
+  modules/bulk-import/controllers/bulkimport.controller.js
+  modules/driver-map/controllers/fleetmap.controller.js
+  modules/service-workflow/controllers/workflow.controller.js
+  modules/llm-gateway/controllers/copilot.controller.js
+
+Module contracts
   modules/fleet-core/domain/fleet-core.domain.js
   modules/fleet-core/ports/fleet-repository.port.js
   modules/fleet-core/adapters/legacy-fleet.repository.js
@@ -97,10 +107,15 @@ New platform scripts
   modules/payments/payment.module.js
   modules/llm-gateway/llm-gateway.module.js
   modules/iot-telemetry/iot-telemetry.module.js
+  modules/communications/communications.module.js
+  modules/invoicing/invoicing.module.js
+  modules/insurance/insurance.module.js
   modules/index.js
 ```
 
-The new layer is additive. It does not replace the existing global functions or current render flow.
+The module layer owns feature boundaries and controller locations. Transitional
+globals remain where the static browser runtime still needs backward-compatible
+coordination, but new business rules belong inside module layers.
 
 ## New Platform Responsibilities
 
