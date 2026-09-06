@@ -189,3 +189,82 @@ h1, h2, h3, h4 { color: var(--ai-text); letter-spacing: -0.01em; }
 .modal input::placeholder, .modal textarea::placeholder { color: #5c6690; }
 .modal-close { color: var(--ai-muted); }
 .modal-close:hover { color: #fff; }
+
+/* ---------- HCV insurance challenge: insurer link chips ---------- */
+.ins-link {
+  display: inline-block; margin: 3px 4px; padding: 4px 12px; border-radius: 100px;
+  font-size: 0.82rem; text-decoration: none; white-space: nowrap;
+  color: var(--ai-muted); background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--ai-line); transition: color .15s, border-color .15s, background .15s;
+}
+.ins-link:hover { color: var(--ai-text); border-color: rgba(168, 85, 247, 0.4); background: var(--ai-surface-hi); }
+
+/* Invalid-field feedback inside the dark modal. style.css's input.invalid rule
+   ties with .modal input on specificity and loses on load order, so without
+   this the red border never rendered here — a blocked submit looked like a
+   dead Confirm button. */
+.modal input.invalid, .modal select.invalid, .modal textarea.invalid {
+  border-color: #f87171 !important; box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18) !important;
+}
+
+/* ---------- Insurance flash bar ---------- */
+/* Sits above the topbar, so it is the first thing on the page. Amber on the
+   dark ground rather than a new hue — the palette already owns amber, and a
+   second accent would fight the CTAs further down. */
+.flash{
+  display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;
+  padding:9px 18px;text-decoration:none;position:relative;overflow:hidden;
+  background:linear-gradient(90deg,#3A2708 0%,#5A3C0A 50%,#3A2708 100%);
+  border-bottom:1px solid rgba(245,165,36,.35);
+  color:#FFE7BA;font-size:.86rem;line-height:1.4;text-align:center;
+}
+.flash:hover{background:linear-gradient(90deg,#4A320A 0%,#6E4A0C 50%,#4A320A 100%)}
+.flash:focus-visible{outline:2px solid var(--ai-cyan,#22D3EE);outline-offset:-3px}
+.flash-tag{
+  flex:none;background:#F5A524;color:#241804;font-weight:700;
+  font-size:.66rem;letter-spacing:.11em;text-transform:uppercase;
+  padding:3px 9px;border-radius:100px;
+}
+.flash-msg b{color:#FFD27A;font-weight:700}
+.flash-msg sup{font-size:.7em;opacity:.75;margin-left:1px}
+.flash-cta{flex:none;font-weight:600;color:#FFD27A;white-space:nowrap}
+.flash-cta:hover{text-decoration:underline}
+/* A sheen that crosses once every 6s — enough to catch the eye on a page the
+   visitor has already scrolled past, not a permanent animation. */
+.flash::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(100deg,transparent 42%,rgba(255,226,170,.16) 50%,transparent 58%);
+  transform:translateX(-100%);animation:flashSheen 6s ease-in-out infinite;
+}
+@keyframes flashSheen{0%,72%{transform:translateX(-100%)}88%,100%{transform:translateX(100%)}}
+@media (prefers-reduced-motion:reduce){ .flash::after{animation:none;opacity:0} }
+@media (max-width:640px){
+  .flash{font-size:.79rem;gap:8px;padding:8px 12px}
+  .flash-cta{width:100%}
+}
+
+/* ---------- "Try any one" — three doors ---------- */
+.try-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;align-items:stretch}
+.try-card{
+  position:relative;display:flex;flex-direction:column;gap:10px;
+  padding:26px 22px 22px;border-radius:16px;
+  background:var(--ai-surface,#0F1629);border:1px solid var(--ai-line,#22304D);
+  transition:transform .2s ease,border-color .2s ease,background .2s ease;
+}
+.try-card:hover{transform:translateY(-4px);border-color:rgba(245,165,36,.45);background:var(--ai-surface-hi,#18233A)}
+.try-card.featured{border-color:rgba(245,165,36,.5);background:var(--ai-surface-hi,#18233A)}
+.try-tag{
+  position:absolute;top:-11px;left:22px;
+  background:#F5A524;color:#241804;font-weight:700;
+  font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;
+  padding:4px 10px;border-radius:100px;
+}
+.try-ic{
+  width:48px;height:48px;border-radius:12px;display:grid;place-items:center;
+  background:rgba(245,165,36,.12);color:#F5A524;
+}
+.try-card h3{margin:2px 0 0;font-size:1.15rem;color:var(--ai-text,#EEF2FA)}
+.try-card p{margin:0;flex:1;color:var(--ai-muted,#8A93AD);font-size:.93rem;line-height:1.65}
+.try-card .btn{margin-top:6px}
+.try-note{font-size:.76rem;color:var(--ai-muted,#8A93AD);text-align:center}
+@media (max-width:900px){ .try-grid{grid-template-columns:1fr;gap:26px} }

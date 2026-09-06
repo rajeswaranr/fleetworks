@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Device Monitoring — FleetWorks</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" type="image/png" href="icons/icon-96.png" />
+  <meta name="theme-color" content="#0f1e33" />
+</head>
+<body>
+  <header class="navbar" id="navbar">
+    <div class="container nav-inner">
+      <a href="index.html" class="logo">
+        <img src="assets/logo-mark.svg" width="34" height="34" alt="" style="display:block" />
+        <span>Fleet<em>Works</em></span>
+      </a>
+      <span style="font-weight:700;color:var(--navy)">Device Monitoring</span>
+      <div class="nav-actions">
+        <a href="fleet.html" class="btn btn-outline btn-sm">← Fleet</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container dash-main">
+
+    <div id="gate" class="onboard-card" style="max-width:460px;margin:60px auto;text-align:center">
+      <h2 style="color:var(--navy)">Sign in to view devices</h2>
+      <p class="muted">Device telemetry is scoped to your fleet, so this page needs your FleetWorks account.</p>
+      <a href="fleet.html#account" class="btn btn-primary" style="margin-top:10px">Go to Sign In</a>
+    </div>
+
+    <div id="app" hidden>
+
+      <section class="stat-row" id="deviceStats"></section>
+
+      <!-- Simulator. Explicitly labelled everywhere, because data that looks
+           live but isn't is worse than no data at all. -->
+      <div class="chart-card" style="border-color:var(--amber-dark)">
+        <div class="chart-head">
+          <div>
+            <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="zap" data-icon-size="18"></i></span> Telemetry Simulator</h2>
+            <p class="muted">No hardware fitted yet — this generates realistic HCV telemetry so the dashboard, alerts and ingest contract can be built and demonstrated now. Every row it writes is tagged <strong>simulated</strong> and can be cleared in one click.</p>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-primary btn-sm" id="simStart">▶ Start simulation</button>
+          <button class="btn btn-outline btn-sm" id="simStop" disabled>■ Stop</button>
+          <button class="btn btn-outline btn-sm" id="simSeed">+ Create 5 demo devices</button>
+          <button class="btn btn-outline btn-sm" id="simClear" style="color:#b91c1c;border-color:#b91c1c">Clear simulated data</button>
+          <button class="btn btn-outline btn-sm" id="purgeBtn" title="Delete readings past their retention window">Purge old telemetry</button>
+          <span class="muted" id="simStatus" style="font-size:0.85rem;margin-left:auto"></span>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="network" data-icon-size="18"></i></span> Devices</h2><p class="muted">Online means a reading in the last 5 minutes</p></div>
+          <button class="btn btn-outline btn-sm" onclick="refreshAll()">↻ Refresh</button>
+        </div>
+        <div class="chart-scroll"><div id="devicesTable"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile" style="background:#fee2e2;color:#b91c1c"><i data-icon="alert" data-icon-size="18"></i></span> ADAS &amp; Safety Events</h2><p class="muted">Unacknowledged first — critical events need someone to look</p></div>
+        </div>
+        <div class="chart-scroll"><div id="eventsTable"></div></div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="js/icons.js"></script>
+  <script src="js/backend.js"></script>
+  <script src="js/device-sim.js"></script>
+  <script>
+    "use strict";
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s == null ? "" : s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    const navbar = $("navbar");
+    window.addEventListener("scroll", () => navbar.classList.toggle("scrolled", window.scrollY > 10));
+
+    function activeSession() {
+      try {
+        const k = localStorage.getItem("fw_session:active");
+        const raw = k ? localStorage.getItem(k) : localStorage.getItem("fw_session");
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    }
+    const SESSION = activeSession();
+    let ORG = null;
+
+    function hdrs(extra) {
+      return { apikey: FW_BACKEND.anonKey, Authorization: "Bearer " + SESSION.access_token,
+               "Content-Type": "application/json", ...(extra || {}) };
+    }
+    async function api(path, opts) {
+      const r = await fetch(FW_BACKEND.url + "/rest/v1/" + path, { headers: hdrs(opts && opts.headers), ...opts });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || ("Request failed (" + r.status + ")"));
+      return r.status === 204 ? null : r.json();
+    }
+
+    const fmtAgo = ts => {
+      if (!ts) return "never";
+      const s = Math.round((Date.now() - new Date(ts)) / 1000);
+      if (s < 60) return s + "s ago";
+      if (s < 3600) return Math.round(s / 60) + "m ago";
+      if (s < 86400) return Math.round(s / 3600) + "h ago";
+      return Math.round(s / 86400) + "d ago";
+    };
+    const ONLINE_MS = 5 * 60 * 1000;
+    const isOnline = d => d.last_seen_at && (Date.now() - new Date(d.last_seen_at)) < ONLINE_MS;
+
+    let DEVICES = [], LATEST = {}, EVENTS = [];
+
+    async function refreshAll() {
+      DEVICES = await api("devices?select=*&order=created_at.asc&limit=200");
+
+      // One query for the newest reading per device would need a lateral join
+      // PostgREST can't express, so pull a recent window and reduce client-side.
+      // Fine at fleet scale; revisit with an RPC if a customer runs hundreds.
+      const recent = await api("telemetry?select=*&order=recorded_at.desc&limit=600");
+      LATEST = {};
+      for (const t of recent) if (!LATEST[t.device_id]) LATEST[t.device_id] = t;
+
+      EVENTS = await api("device_events?select=*&order=acknowledged_at.asc.nullsfirst,occurred_at.desc&limit=60");
+      renderStats(); renderDevices(); renderEvents();
+    }
+
+    function renderStats() {
+      const online = DEVICES.filter(isOnline).length;
+      const unack = EVENTS.filter(e => !e.acknowledged_at).length;
+      const critical = EVENTS.filter(e => !e.acknowledged_at && e.severity === "critical").length;
+      const lowFuel = Object.values(LATEST).filter(t => t.fuel_level_pct != null && t.fuel_level_pct < 15).length;
+      $("deviceStats").innerHTML = `
+        <div class="stat-tile"><span class="stat-label">Devices</span><span class="stat-value">${DEVICES.length}</span><span class="stat-sub">${DEVICES.filter(d => d.simulated).length} simulated</span></div>
+        <div class="stat-tile"><span class="stat-label">Online</span><span class="stat-value" style="color:${online ? "#0ca30c" : "#b91c1c"}">${online}</span><span class="stat-sub">reading within 5 min</span></div>
+        <div class="stat-tile"><span class="stat-label">Unacknowledged</span><span class="stat-value" style="color:${unack ? "#c2820a" : "#0ca30c"}">${unack}</span><span class="stat-sub">${critical} critical</span></div>
+        <div class="stat-tile"><span class="stat-label">Low fuel</span><span class="stat-value">${lowFuel}</span><span class="stat-sub">under 15%</span></div>`;
+    }
+
+    function renderDevices() {
+      if (!DEVICES.length) {
+        $("devicesTable").innerHTML = "<p class='muted'>No devices yet — use <strong>Create 5 demo devices</strong> above to populate the dashboard.</p>";
+        return;
+      }
+      $("devicesTable").innerHTML = `<table class="chart-table-el"><thead><tr>
+        <th>Device</th><th>Status</th><th>Last seen</th><th>Speed</th><th>Fuel</th><th>Coolant</th><th>Tyre</th><th>Odometer</th><th>Battery</th></tr></thead><tbody>` +
+        DEVICES.map(d => {
+          const t = LATEST[d.id] || {};
+          const on = isOnline(d);
+          // Colour is the point of this table: a number nobody can scan is a
+          // number nobody acts on.
+          const fuelTone = t.fuel_level_pct == null ? "" : t.fuel_level_pct < 15 ? "color:#b91c1c;font-weight:700"
+                          : t.fuel_level_pct < 30 ? "color:#c2820a;font-weight:600" : "";
+          const coolTone = t.coolant_temp_c == null ? "" : t.coolant_temp_c > 100 ? "color:#b91c1c;font-weight:700"
+                          : t.coolant_temp_c > 95 ? "color:#c2820a" : "";
+          const tyreTone = t.tyre_pressure_min_psi == null ? "" : t.tyre_pressure_min_psi < 85 ? "color:#b91c1c;font-weight:700" : "";
+          return `<tr>
+            <td><strong>${esc(d.model || d.vendor || "Device")}</strong>${d.simulated ? ' <span class="fw-badge upcoming">sim</span>' : ""}<br />
+                <span class="muted" style="font-size:0.72rem">${esc(d.imei)}${d.protocol ? " · " + esc(d.protocol) : ""}</span></td>
+            <td><span class="fw-badge ${on ? "ok" : "overdue"}">${on ? "Online" : "Offline"}</span>${t.ignition === false ? '<br /><span class="muted" style="font-size:0.7rem">parked</span>' : ""}</td>
+            <td>${fmtAgo(d.last_seen_at)}</td>
+            <td>${t.speed_kmph != null ? t.speed_kmph + " km/h" : "—"}</td>
+            <td style="${fuelTone}">${t.fuel_level_pct != null ? t.fuel_level_pct + "%" : "—"}</td>
+            <td style="${coolTone}">${t.coolant_temp_c != null ? t.coolant_temp_c + "°C" : "—"}</td>
+            <td style="${tyreTone}">${t.tyre_pressure_min_psi != null ? t.tyre_pressure_min_psi + " psi" : "—"}</td>
+            <td>${t.odometer_km != null ? Math.round(t.odometer_km).toLocaleString("en-IN") + " km" : "—"}</td>
+            <td>${t.battery_voltage != null ? t.battery_voltage + "V" : "—"}</td>
+          </tr>`;
+        }).join("") + "</tbody></table>";
+    }
+
+    const EVENT_LABEL = {
+      lane_departure:"Lane departure", forward_collision:"Forward collision", headway_warning:"Headway",
+      pedestrian_warning:"Pedestrian", fatigue:"Driver fatigue", distraction:"Distraction",
+      phone_use:"Phone use", no_seatbelt:"No seatbelt", smoking:"Smoking",
+      harsh_brake:"Harsh braking", harsh_accel:"Harsh acceleration", harsh_corner:"Harsh cornering",
+      overspeed:"Overspeed", fuel_drop:"Fuel drop", tamper:"Tamper / low tyre",
+      power_cut:"Power cut", sos:"SOS", panic:"Panic",
+    };
+
+    function renderEvents() {
+      if (!EVENTS.length) {
+        $("eventsTable").innerHTML = "<p class='muted'>No events yet — start the simulator to generate ADAS and safety alerts.</p>";
+        return;
+      }
+      const dev = Object.fromEntries(DEVICES.map(d => [d.id, d]));
+      $("eventsTable").innerHTML = `<table class="chart-table-el"><thead><tr>
+        <th>When</th><th>Event</th><th>Severity</th><th>Device</th><th>Speed</th><th>Location</th><th></th></tr></thead><tbody>` +
+        EVENTS.map(e => {
+          const tone = e.severity === "critical" ? "#b91c1c" : e.severity === "warning" ? "#c2820a" : "#64748b";
+          const d = dev[e.device_id];
+          return `<tr style="${e.acknowledged_at ? "opacity:.5" : ""}">
+            <td style="white-space:nowrap">${fmtAgo(e.occurred_at)}</td>
+            <td><strong>${esc(EVENT_LABEL[e.event_type] || e.event_type)}</strong></td>
+            <td><span class="fw-badge" style="background:${tone}18;color:${tone};border-color:${tone}">${esc(e.severity)}</span></td>
+            <td class="muted" style="font-size:0.78rem">${esc(d ? (d.model || d.imei) : e.device_id.slice(0, 8))}</td>
+            <td>${e.speed_kmph != null ? e.speed_kmph + " km/h" : "—"}</td>
+            <td class="muted" style="font-size:0.76rem">${e.latitude != null ? e.latitude.toFixed(3) + ", " + e.longitude.toFixed(3) : "—"}</td>
+            <td>${e.acknowledged_at ? '<span class="muted" style="font-size:0.76rem">acknowledged</span>'
+                 : `<button class="link-btn" onclick="ackEvent('${e.id}')">Acknowledge</button>`}</td>
+          </tr>`;
+        }).join("") + "</tbody></table>";
+    }
+
+    window.ackEvent = async function (id) {
+      try {
+        await api("device_events?id=eq." + id, { method: "PATCH",
+          headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({ acknowledged_at: new Date().toISOString(), acknowledged_by: SESSION.user.id }) });
+        await refreshAll();
+      } catch (ex) { alert(ex.message); }
+    };
+
+    // ---------- Simulator ----------
+    // Writes straight to the telemetry table under the member's own token,
+    // which the simulated:true RLS policy permits. The ingest edge function is
+    // for real vendors, whose posts carry a service key the browser must never
+    // hold — so the simulator deliberately does not use it.
+    let SIM = null, TRUCKS = [];
+
+    $("simSeed").addEventListener("click", async () => {
+      try {
+        const models = [
+          { vendor: "Queclink", model: "GV350CEU", protocol: "ais140", caps: ["gps","can","fuel_level"] },
+          { vendor: "Teltonika", model: "FMC650",  protocol: "ais140", caps: ["gps","can","tpms"] },
+          { vendor: "Jimi",      model: "JC450",   protocol: "jt808",  caps: ["gps","adas","dms"] },
+          { vendor: "Concox",    model: "JC261",   protocol: "jt808",  caps: ["gps","dms"] },
+          { vendor: "Howen",     model: "Hero-ME41", protocol: "jt808", caps: ["gps","adas","dms","can"] },
+        ];
+        const rows = models.map((m, i) => ({
+          org_id: ORG, imei: "8611" + String(Date.now()).slice(-8) + i,
+          vendor: m.vendor, model: m.model, protocol: m.protocol,
+          capabilities: m.caps, status: "active", simulated: true,
+          installed_at: new Date().toISOString(),
+        }));
+        await api("devices", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(rows) });
+        $("simStatus").textContent = "5 demo devices created.";
+        await refreshAll();
+      } catch (ex) { $("simStatus").textContent = "Could not create devices: " + ex.message; }
+    });
+
+    $("simStart").addEventListener("click", async () => {
+      const sims = DEVICES.filter(d => d.simulated);
+      if (!sims.length) { $("simStatus").textContent = "Create demo devices first."; return; }
+      TRUCKS = sims.map(d => ({ device: d, truck: new SimTruck(d.imei) }));
+      $("simStart").disabled = true; $("simStop").disabled = false;
+      let ticks = 0;
+
+      const step = async () => {
+        const readings = [], events = [], seen = [];
+        for (const { device, truck } of TRUCKS) {
+          const { reading, events: evs } = truck.tick(30);
+          readings.push({ ...reading, device_id: device.id, org_id: ORG, simulated: true });
+          for (const e of evs) events.push({ ...e, device_id: device.id, org_id: ORG, simulated: true });
+          seen.push(device.id);
+        }
+        try {
+          await api("telemetry", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(readings) });
+          if (events.length) await api("device_events", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify(events) });
+          const now = new Date().toISOString();
+          await Promise.all(seen.map(id => api("devices?id=eq." + id, { method: "PATCH",
+            headers: { Prefer: "return=minimal" }, body: JSON.stringify({ last_seen_at: now }) })));
+          ticks++;
+          $("simStatus").textContent = `Running — ${ticks} tick${ticks === 1 ? "" : "s"}, ${TRUCKS.length} trucks, ${events.length} event(s) last tick.`;
+          await refreshAll();
+        } catch (ex) {
+          $("simStatus").textContent = "Simulator error: " + ex.message;
+          clearInterval(SIM); SIM = null;
+          $("simStart").disabled = false; $("simStop").disabled = true;
+        }
+      };
+      await step();
+      SIM = setInterval(step, 6000);   // one tick per 6s wall-clock = 30s of simulated time
+    });
+
+    $("simStop").addEventListener("click", () => {
+      if (SIM) clearInterval(SIM);
+      SIM = null;
+      $("simStart").disabled = false; $("simStop").disabled = true;
+      $("simStatus").textContent = "Stopped.";
+    });
+
+    $("simClear").addEventListener("click", async () => {
+      if (!confirm("Delete all simulated devices, telemetry and events?\n\nReal device data is not touched.")) return;
+      if (SIM) { clearInterval(SIM); SIM = null; $("simStart").disabled = false; $("simStop").disabled = true; }
+      try {
+        // Order matters: children first, or the FK cascade does it for us but
+        // the counts we report would be wrong.
+        await api("telemetry?simulated=eq.true", { method: "DELETE", headers: { Prefer: "return=minimal" } });
+        await api("device_events?simulated=eq.true", { method: "DELETE", headers: { Prefer: "return=minimal" } });
+        await api("devices?simulated=eq.true", { method: "DELETE", headers: { Prefer: "return=minimal" } });
+        $("simStatus").textContent = "Simulated data cleared.";
+        await refreshAll();
+      } catch (ex) { $("simStatus").textContent = "Could not clear: " + ex.message; }
+    });
+
+    // Retention. Telemetry is unbounded by nature — one reading per 30s per
+    // truck is ~1.7M rows a month for twenty vehicles — so the purge is exposed
+    // here rather than left as a function nobody knows exists. It loops until a
+    // pass deletes nothing, since each call is batched to avoid a long lock.
+    $("purgeBtn").addEventListener("click", async () => {
+      if (!confirm("Delete telemetry past its retention window?
+
+Default is 90 days for readings and 2 years for acknowledged events. Unacknowledged events are never deleted.")) return;
+      const btn = $("purgeBtn");
+      btn.disabled = true; btn.textContent = "Purging…";
+      let tel = 0, ev = 0;
+      try {
+        for (let pass = 0; pass < 40; pass++) {
+          const res = await api("rpc/purge_telemetry", { method: "POST", body: JSON.stringify({ p_batch: 20000 }) });
+          const row = Array.isArray(res) ? res[0] : res;
+          const t = Number(row?.telemetry_deleted || 0), e = Number(row?.events_deleted || 0);
+          tel += t; ev += e;
+          if (t === 0 && e === 0) break;
+        }
+        $("simStatus").textContent = tel || ev
+          ? `Purged ${tel.toLocaleString("en-IN")} reading(s) and ${ev} event(s).`
+          : "Nothing past retention — nothing to purge.";
+        await refreshAll();
+      } catch (ex) {
+        $("simStatus").textContent = "Purge failed: " + ex.message;
+      } finally {
+        btn.disabled = false; btn.textContent = "Purge old telemetry";
+      }
+    });
+
+    // ---------- boot ----------
+    (async function boot() {
+      if (!SESSION || !SESSION.access_token) return;   // gate stays visible
+      try {
+        const m = await api("memberships?select=org_id&role=eq.owner&limit=1");
+        ORG = m && m[0] ? m[0].org_id : null;
+        if (!ORG) {
+          const any = await api("memberships?select=org_id&limit=1");
+          ORG = any && any[0] ? any[0].org_id : null;
+        }
+        if (!ORG) { $("gate").querySelector("p").textContent = "No organisation found on this account yet — add a vehicle in FleetWorks first."; return; }
+        $("gate").hidden = true; $("app").hidden = false;
+        await refreshAll();
+      } catch (ex) {
+        $("gate").querySelector("p").textContent = ex.message;
+      }
+    })();
+  </script>
+</body>
+</html>

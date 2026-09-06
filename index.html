@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FleetWorks — India's First AI-Powered Fleet Care Platform | Service Aggregator &amp; Fleet Management</title>
-  <meta name="description" content="India's first AI-powered fleet care platform. Book rated, authorised workshops for every HCV trade — mechanical, electrical, tyre, breakdown, towing, painting, fuel, EV charging, washing — with genuine parts, a low-price guarantee and warranty. Plus complete bookkeeping, predictive maintenance and higher uptime for fleet owners." />
+  <title>FleetWorks — Fleet Management Software for Indian Commercial Fleets</title>
+  <meta name="description" content="Fleet management software for Indian commercial vehicle operators. Compliance, diesel, maintenance, drivers and payroll in one system, with AI that checks your bills, IoT from the tracker already on your truck, and a workshop network for every HCV trade." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -15,6 +15,25 @@
   <meta name="theme-color" content="#0f1e33" />
 </head>
 <body>
+
+  <!-- ======= INSURANCE FLASH ======= -->
+  <!-- WORDING — read before changing:
+       "India's cheapest" is a superlative claim. Under the CCPA Guidelines for
+       Prevention of Misleading Advertisements it must be substantiated on
+       demand, and FleetWorks does not set the premium — the insurer's
+       underwriting does. Substantiable alternative, a straight swap for the
+       <b> line below:
+         <b>Compare HCV, Carrier &amp; Public Liability quotes</b>
+       That claims what we actually do (compare) rather than a price we do not
+       control. See terms.html §7 and the ** note in the insurance section. -->
+  <a class="flash" href="insurance.html">
+    <span class="flash-tag">Insurance</span>
+    <span class="flash-msg">
+      <b>India's cheapest quote</b> on HCV vehicle, Carrier Liability &amp; Public Liability
+      <sup>**</sup>
+    </span>
+    <span class="flash-cta">Get quotes →</span>
+  </a>
 
   <!-- ======= TOP BAR ======= -->
   <div class="topbar">
@@ -34,13 +53,14 @@
       <nav class="nav-links" id="navLinks">
         <a href="#platform">Platform</a>
         <a href="#services">Services</a>
+        <a href="#ai">AI</a>
         <a href="#owners">For Fleet Owners</a>
         <a href="#everything">Everything Built In</a>
         <a href="why.html">Why FleetWorks</a>
         <a href="partner.html">Partners</a>
       </nav>
       <div class="nav-actions">
-        <a href="fleet.html#account" class="btn btn-outline btn-sm" id="navSignIn">Sign In</a>
+        <a href="signin.html" class="btn btn-outline btn-sm" id="navSignIn">Sign In</a>
         <button class="btn btn-primary btn-sm" onclick="openBooking()">Book Service</button>
         <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
       </div>
@@ -52,8 +72,8 @@
     <div class="container hero-inner">
       <div class="hero-text">
         <span class="badge badge-flash"><i data-icon="zap" data-icon-size="14"></i> India's First AI-Powered Fleet Care Platform</span>
-        <h1>Operations. Maintenance. Costs. Even tomorrow's breakdowns. <span class="accent">Handled. You relax.</span></h1>
-        <p>FleetWorks runs your whole fleet office — books rated workshops with genuine parts, keeps every rupee GST-ready, and predicts failures before they stop a truck. Your fleet keeps earning while you sit back.</p>
+        <h1>Fleet management software <span class="accent">built for Indian commercial fleets.</span></h1>
+        <p>Run compliance, diesel, maintenance, drivers and payroll from one system — with AI that acts on what it finds, IoT when you want it, and a workshop network when something breaks. No hardware to fit, no rip-and-replace.</p>
         <div class="hero-cta">
           <button class="btn btn-primary" onclick="openBooking()"><i data-icon="wrench" data-icon-size="16"></i> Book a Service</button>
           <a href="fleet.html?auth=signup#account" class="btn btn-outline btn-light-outline"><i data-icon="gauge" data-icon-size="16"></i> Start 15-Day Free Trial</a>
@@ -186,28 +206,39 @@
   <section class="section" id="platform">
     <div class="container">
       <div class="section-head">
-        <h2>One platform, three ways we keep you moving</h2>
-        <p>FleetWorks brings the whole fleet office together — the service network, the books, and the AI — so nothing slips and every vehicle stays earning.</p>
+        <h2>One platform, four ways to use it.</h2>
+        <p>Start with the software and add the rest when you need it. Every part writes to the same record, so a fault code becomes a job card, a job card becomes a cost, and the cost lands in your books without anyone retyping it.</p>
       </div>
       <div class="pillars">
-        <article class="pillar-card">
-          <span class="pillar-ic"><i data-icon="network" data-icon-size="26"></i></span>
-          <h3>Service Aggregator</h3>
-          <p>Book rated, authorised workshops for every trade — mechanic, electrical, tyre, breakdown, towing, painting, fuel, EV charging and washing — with genuine parts and a low-price guarantee.</p>
-          <a href="#services" class="link-btn">See all services →</a>
-        </article>
+
         <article class="pillar-card featured">
           <span class="pillar-ic"><i data-icon="gauge" data-icon-size="26"></i></span>
-          <h3>Fleet Books &amp; Uptime</h3>
-          <p>Complete bookkeeping and revenue maximising for fleet owners — track every rupee and every bolt, stay RTO-compliant, and keep uptime high with predictive maintenance.</p>
-          <a href="#owners" class="link-btn">For fleet owners →</a>
+          <h3>Fleet Management &amp; Operations</h3>
+          <p>The system of record. Vehicles, drivers, compliance radar, diesel and mileage, job cards, inspections, spares, tyres, trips and driver payroll on whichever basis you pay — monthly, weekly, daily, per trip or per tonne. GST-ready books with Tally export.</p>
+          <a href="fleet.html#account" class="link-btn">Start free trial →</a>
         </article>
+
         <article class="pillar-card">
-          <span class="pillar-ic"><i data-icon="brain" data-icon-size="26"></i></span>
-          <h3>AI Intelligence</h3>
-          <p><strong>Foresight</strong> predicts repairs before parts fail and flags inflated bills or lapsing documents; <strong>Copilot</strong> answers any question about your fleet in plain English.</p>
-          <a href="fleet.html#analytics" class="link-btn">See the AI →</a>
+          <span class="pillar-ic"><i data-icon="zap" data-icon-size="26"></i></span>
+          <h3>IoT Enablement</h3>
+          <p>Bring your own tracker. We read the AIS-140 device already fitted to your truck, or your driver&rsquo;s phone, and turn it into fuel, engine, tyre and ADAS data inside the same records — instead of a second dashboard you have to remember to open.</p>
+          <a href="devices.html" class="link-btn">See device monitoring →</a>
         </article>
+
+        <article class="pillar-card">
+          <span class="pillar-ic"><i data-icon="network" data-icon-size="26"></i></span>
+          <h3>Service Aggregation</h3>
+          <p>Book a rated workshop from inside the app when a service is due or a truck stops. Genuine parts, the price agreed before work starts, and the invoice back in your books — no phone calls, no arguing at the counter.</p>
+          <a href="#services" class="link-btn">See all services →</a>
+        </article>
+
+        <article class="pillar-card">
+          <span class="pillar-ic"><i data-icon="wrench" data-icon-size="26"></i></span>
+          <h3>Mechanical &amp; Electrical Support</h3>
+          <p>A network of HCV specialists across every trade — mechanic, auto electrician, hydraulics and tipper rams, radiator, diesel injector, body works, welding, glass and spares — reachable round the clock, wherever the truck actually stopped.</p>
+          <a href="partner.html" class="link-btn">Our workshop network →</a>
+        </article>
+
       </div>
     </div>
   </section>
@@ -216,8 +247,8 @@
   <section class="section alt" id="services">
     <div class="container">
       <div class="section-head">
-        <h2>India's fleet-service aggregator</h2>
-        <p>Every heavy-vehicle trade, one verified network — each workshop rated by fleet owners like you.</p>
+        <h2>When something breaks, book it from the app</h2>
+        <p>A verified workshop network across every heavy-vehicle trade, rated by fleet owners — so a fault on your dashboard becomes a booked job without a single phone call.</p>
       </div>
       <div class="services-grid">
         <article class="service-card" data-service="Mechanical &amp; Garage">
@@ -244,30 +275,6 @@
           <p>Flatbed and heavy-vehicle towing, on-road recovery and cross-city transport.</p>
           <button class="link-btn">Book Now →</button>
         </article>
-        <article class="service-card" data-service="Painting &amp; Body">
-          <div class="service-icon"><i data-icon="spray" data-icon-size="26"></i></div>
-          <div class="svc-top"><h3>Painting &amp; Body</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> 4.7</span></div>
-          <p>Cabin &amp; load-body repair, denting, fabrication, anti-rust, full painting and fleet livery.</p>
-          <button class="link-btn">Book Now →</button>
-        </article>
-        <article class="service-card" data-service="Fuel Delivery">
-          <div class="service-icon"><i data-icon="fuel" data-icon-size="26"></i></div>
-          <div class="svc-top"><h3>Fuel Delivery</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> 4.6</span></div>
-          <p>Doorstep and roadside diesel delivery when a vehicle runs dry — metered and billed.</p>
-          <button class="link-btn">Book Now →</button>
-        </article>
-        <article class="service-card" data-service="EV Charging">
-          <div class="service-icon"><i data-icon="charge" data-icon-size="26"></i></div>
-          <div class="svc-top"><h3>EV Charging</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> New</span></div>
-          <p>Charging-station locator and sessions for electric commercial vehicles across the network.</p>
-          <button class="link-btn">Book Now →</button>
-        </article>
-        <article class="service-card" data-service="Washing &amp; Detailing">
-          <div class="service-icon"><i data-icon="droplet" data-icon-size="26"></i></div>
-          <div class="svc-top"><h3>Washing &amp; Detailing</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> 4.7</span></div>
-          <p>Pressure wash, underbody &amp; engine-bay cleaning, cabin detailing and fleet-wash contracts.</p>
-          <button class="link-btn">Book Now →</button>
-        </article>
         <article class="service-card" data-service="Full HCV Maintenance">
           <div class="service-icon"><i data-icon="calendarClock" data-icon-size="26"></i></div>
           <div class="svc-top"><h3>Full HCV Maintenance</h3><span class="rating"><i data-icon="check" data-icon-size="11"></i> 4.8</span></div>
@@ -281,6 +288,8 @@
           <button class="link-btn">Get Help Now →</button>
         </article>
       </div>
+
+      <p class="svc-more">Also bookable: painting &amp; body work, fuel delivery, washing &amp; detailing, EV charging, spare parts, AC, welding and fabrication.</p>
 
       <!-- USP guarantees (shown once) -->
       <div class="usp-grid">
@@ -305,6 +314,100 @@
           <p>A full digital record of every part replaced — down to a single bolt — attached to each vehicle's history.</p>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ======= AI ======= -->
+  <!-- Deliberately about what the AI DOES to a record, not about "powered by
+       AI". Every claim here maps to something that ships: Foresight to the
+       part-life model, the bill checker to work_order_lines, Copilot to the
+       edge function, anomaly detection to Diesel Watch. -->
+  <section class="section" id="ai">
+    <div class="container">
+      <div class="section-head">
+        <h2>AI that acts on your records, not just reports on them</h2>
+        <p>Trained on nothing but your own fleet&rsquo;s history — your parts, your workshops, your routes. It shows the numbers behind every judgement, and it never decides anything on its own.</p>
+      </div>
+      <div class="pillars">
+
+        <article class="pillar-card">
+          <span class="pillar-ic"><i data-icon="brain" data-icon-size="26"></i></span>
+          <h3>Foresight — failures before they happen</h3>
+          <p>Learns how long each part actually lasts on <em>your</em> trucks and flags a replacement while it is still a planned job. A breakdown on the highway costs more than the same job booked into a workshop &mdash; in towing, in the driver&rsquo;s idle days, and in the load that did not move.</p>
+        </article>
+
+        <article class="pillar-card">
+          <span class="pillar-ic"><i data-icon="receipt" data-icon-size="26"></i></span>
+          <h3>Bill checking</h3>
+          <p>Reads a workshop invoice and compares every line against your own history — a duplicate diagnostic charge, a part replaced twice in six months, a labour rate above what you normally pay. It shows the evidence; you approve or dispute.</p>
+        </article>
+
+        <article class="pillar-card">
+          <span class="pillar-ic"><i data-icon="chat" data-icon-size="26"></i></span>
+          <h3>Copilot — ask in plain English</h3>
+          <p>&ldquo;Which truck cost me most last month?&rdquo; &ldquo;What is due on TN 29 AB 1234?&rdquo; Answered from your live data, in English or Hinglish, without building a report.</p>
+        </article>
+
+        <article class="pillar-card">
+          <span class="pillar-ic"><i data-icon="chartBar" data-icon-size="26"></i></span>
+          <h3>Anomaly detection</h3>
+          <p>Diesel Watch catches fills where mileage fell well below that vehicle&rsquo;s own normal — pilferage, or a fault worth checking. Spend forecasting projects next quarter from your twelve-month trend.</p>
+        </article>
+
+      </div>
+      <p class="muted" style="text-align:center;margin-top:22px;max-width:70ch;margin-left:auto;margin-right:auto">
+        <strong>No black box.</strong> Every assessment records how many of your own past jobs it compared against, and the working behind the number. Nothing is approved, rejected or paid on the AI&rsquo;s word alone.
+      </p>
+    </div>
+  </section>
+
+  <!-- ======= HCV INSURANCE CHALLENGE ======= -->
+  <section class="section" id="insurance">
+    <div class="container">
+      <div class="section-head">
+        <h2>The FleetWorks Insurance Challenge</h2>
+        <p>We challenge to get you the <strong>lowest premium</strong> across all three covers a transport business actually needs — <strong>HCV vehicle</strong>, <strong>Carrier&rsquo;s Legal Liability</strong> for the goods you haul, and <strong>Public Liability</strong> for everything else.<span style="color:var(--ai-muted)">**</span></p>
+      </div>
+      <div class="usp-grid" style="grid-template-columns:repeat(3,1fr)">
+        <div class="usp-card" style="text-align:center">
+          <span class="usp-ic"><i data-icon="truck" data-icon-size="24"></i></span>
+          <h4>All three covers, one call</h4>
+          <p><strong>Vehicle</strong> for trucks, tippers, trailers and buses. <strong>Carrier&rsquo;s liability</strong> for the load. <strong>Public liability</strong> for third-party claims. Priced together, not as three separate agents.</p>
+        </div>
+        <div class="usp-card" style="text-align:center">
+          <span class="usp-ic"><i data-icon="trendDown" data-icon-size="24"></i></span>
+          <h4>Lowest premium challenge<span style="color:var(--ai-muted)">**</span></h4>
+          <p>Every major insurer compared on one call. Show us a lower quote for the same cover and we take up the challenge.</p>
+        </div>
+        <div class="usp-card" style="text-align:center">
+          <span class="usp-ic"><i data-icon="shieldCheck" data-icon-size="24"></i></span>
+          <h4>We care beyond the policy</h4>
+          <p>Renewal reminders on your compliance radar, and a team that stands with you from breakdown to claim settlement.</p>
+        </div>
+      </div>
+      <p style="text-align:center;margin-top:22px">
+        <a href="insurance.html" class="btn btn-primary"><i data-icon="rupee" data-icon-size="16"></i> Get Quotes for My Fleet</a>
+      </p>
+      <p class="muted" style="text-align:center;font-size:0.85rem;margin-top:18px">We work across all major insurers covering HCVs:</p>
+      <p style="text-align:center;max-width:860px;margin:10px auto 0;line-height:2.1">
+        <!-- Root domains on purpose — insurers reshuffle their deep links; home pages don't rot. -->
+        <a class="ins-link" href="https://www.newindia.co.in" target="_blank" rel="noopener nofollow">New India Assurance</a>
+        <a class="ins-link" href="https://www.icicilombard.com" target="_blank" rel="noopener nofollow">ICICI Lombard</a>
+        <a class="ins-link" href="https://www.hdfcergo.com" target="_blank" rel="noopener nofollow">HDFC ERGO</a>
+        <a class="ins-link" href="https://www.bajajallianz.com" target="_blank" rel="noopener nofollow">Bajaj Allianz</a>
+        <a class="ins-link" href="https://www.tataaig.com" target="_blank" rel="noopener nofollow">Tata AIG</a>
+        <a class="ins-link" href="https://orientalinsurance.org.in" target="_blank" rel="noopener nofollow">Oriental Insurance</a>
+        <a class="ins-link" href="https://uiic.co.in" target="_blank" rel="noopener nofollow">United India</a>
+        <a class="ins-link" href="https://nationalinsurance.nic.co.in" target="_blank" rel="noopener nofollow">National Insurance</a>
+        <a class="ins-link" href="https://www.reliancegeneral.co.in" target="_blank" rel="noopener nofollow">Reliance General</a>
+        <a class="ins-link" href="https://www.cholainsurance.com" target="_blank" rel="noopener nofollow">Chola MS</a>
+        <a class="ins-link" href="https://www.shriramgi.com" target="_blank" rel="noopener nofollow">Shriram General</a>
+        <a class="ins-link" href="https://www.iffcotokio.co.in" target="_blank" rel="noopener nofollow">IFFCO Tokio</a>
+        <a class="ins-link" href="https://www.sbigeneral.in" target="_blank" rel="noopener nofollow">SBI General</a>
+        <a class="ins-link" href="https://www.godigit.com" target="_blank" rel="noopener nofollow">Go Digit</a>
+        <a class="ins-link" href="https://www.magmainsurance.com" target="_blank" rel="noopener nofollow">Magma General</a>
+      </p>
+      <p class="muted" style="text-align:center;font-size:0.78rem;margin-top:16px">** Conditions apply. Premium depends on vehicle age, class, tonnage, claim history and insurer underwriting. FleetWorks facilitates quotes from licensed insurers/intermediaries and is not itself an insurer.</p>
     </div>
   </section>
 
@@ -376,8 +479,13 @@
         </div>
         <div class="feature-tile">
           <span class="ft-ic"><i data-icon="receipt" data-icon-size="20"></i></span>
-          <h4>Bills, Read Automatically</h4>
-          <p>Snap a photo or upload a PDF of any bill — on-device OCR reads the amount, vendor and line items for you.</p>
+          <h4>Bills Checked, Not Just Read</h4>
+          <p>OCR reads the invoice; the AI then checks it against your own repair history — a second diagnostic charge, a part replaced twice in six months, a rate above what you usually pay. It shows the evidence and you decide.</p>
+        </div>
+        <div class="feature-tile">
+          <span class="ft-ic"><i data-icon="shieldCheck" data-icon-size="20"></i></span>
+          <h4>No AI Black Box</h4>
+          <p>Every AI judgement shows the numbers behind it and how many of your own past jobs it compared against. Nothing is approved, rejected or paid on the AI&rsquo;s word alone — it advises, you decide, and the reasoning is kept.</p>
         </div>
         <div class="feature-tile">
           <span class="ft-ic"><i data-icon="tow" data-icon-size="20"></i></span>
@@ -479,6 +587,47 @@
   </section>
 
   <!-- ======= CTA STRIP ======= -->
+  <!-- ======= TRY ONE ======= -->
+  <!-- Three doors, because visitors arrive with three different problems: the
+       truck is down now, the books are a mess, or the policy is expiring. One
+       generic "Sign up" makes all three read the wrong page. -->
+  <section class="section" id="try">
+    <div class="container">
+      <div class="section-head">
+        <h2>Try any one. That&rsquo;s all it takes.</h2>
+        <p>You don&rsquo;t have to move your whole fleet office on day one. Pick whichever hurts most today — the rest will make sense afterwards.</p>
+      </div>
+      <div class="try-grid">
+
+        <article class="try-card">
+          <span class="try-ic"><i data-icon="wrench" data-icon-size="24"></i></span>
+          <h3>Book a service</h3>
+          <p>Breakdown, tyre, battery, bodywork. A rated workshop, genuine parts, price agreed before work starts.</p>
+          <button class="btn btn-primary btn-block" onclick="openBooking()">Book a Service</button>
+          <span class="try-note">Takes 30 seconds · 24&times;7</span>
+        </article>
+
+        <article class="try-card featured">
+          <span class="try-tag">Most owners start here</span>
+          <span class="try-ic"><i data-icon="gauge" data-icon-size="24"></i></span>
+          <h3>Try the fleet CRM</h3>
+          <p>Every vehicle, driver, diesel fill and document in one place. Compliance alerts before the fine, GST-ready books, Tally export.</p>
+          <a href="fleet.html#account" class="btn btn-primary btn-block">Start 15-Day Free Trial</a>
+          <span class="try-note">No card · No hardware to fit</span>
+        </article>
+
+        <article class="try-card">
+          <span class="try-ic"><i data-icon="shieldCheck" data-icon-size="24"></i></span>
+          <h3>Get insurance quotes</h3>
+          <p>Vehicle, carrier&rsquo;s liability and public liability — compared across insurers by licensed partners, in one form.</p>
+          <a href="insurance.html" class="btn btn-primary btn-block">Get Quotes</a>
+          <span class="try-note">Already a user? We fill it from your fleet</span>
+        </article>
+
+      </div>
+    </div>
+  </section>
+
   <section class="cta-strip">
     <div class="container cta-inner">
       <div>
@@ -503,6 +652,7 @@
         <h4>Platform</h4>
         <a href="#platform">Overview</a>
         <a href="#services">Services</a>
+        <a href="#ai">AI</a>
         <a href="#owners">For Fleet Owners</a>
         <a href="#everything">Everything Built In</a>
         <a href="fleet.html">Fleet Manager</a>
@@ -525,8 +675,8 @@
     </div>
     <div class="footer-bottom">
       <div class="container">
-        <span>© 2026 FleetWorks Private Limited. All rights reserved.</span>
-        <span>Terms · <a href="privacy.html" style="display:inline;color:inherit">Privacy</a> · Refund Policy</span>
+        <span>© 2026 FleetWorks Private Limited. All rights reserved. &nbsp;·&nbsp; CIN: U45200TN2026PTC197335</span>
+        <span><a href="terms.html" style="display:inline;color:inherit">Terms</a> · <a href="privacy.html" style="display:inline;color:inherit">Privacy</a> · <a href="refund.html" style="display:inline;color:inherit">Refund Policy</a></span>
       </div>
     </div>
   </footer>
@@ -546,13 +696,25 @@
             <label>Mobile Number
               <input type="tel" name="phone" placeholder="10-digit number" maxlength="10" pattern="[6-9][0-9]{9}" required />
             </label>
-            <label>City
-              <select name="city" required>
-                <option value="">Select city</option>
-                <option>Delhi NCR</option><option>Mumbai</option><option>Chennai</option>
-                <option>Bengaluru</option><option>Hyderabad</option><option>Pune</option>
-                <option>Kolkata</option><option>Ahmedabad</option><option>Other</option>
+            <label>State
+              <select name="state" id="bookState" required>
+                <option value="">Select state</option>
               </select>
+            </label>
+          </div>
+          <div class="form-row">
+            <label>District
+              <select name="district" id="bookDistrict" required disabled>
+                <option value="">Select state first</option>
+              </select>
+            </label>
+            <label>Town
+              <!-- Tamil Nadu districts get a town dropdown (with Other); every
+                   other state types the town in — see js/geo-india.js. -->
+              <select name="townSel" id="bookTownSel" required hidden disabled>
+                <option value="">Select district first</option>
+              </select>
+              <input type="text" name="town" id="bookTownText" placeholder="Your town / city" hidden disabled />
             </label>
           </div>
           <div class="form-row">
@@ -604,6 +766,13 @@
                 <option>EV Charging</option>
                 <option>Washing &amp; Detailing</option>
                 <option>Full HCV Maintenance</option>
+                <optgroup label="Insurance &amp; Compliance">
+                  <option>HCV Insurance Quote</option>
+                  <option>RTO Work — Fitness / Permit / Transfer</option>
+                  <option>PUC Certificate</option>
+                  <option>FASTag — New / Recharge</option>
+                  <option>GPS / AIS-140 Installation</option>
+                </optgroup>
                 <option>Partner Workshop Enquiry</option>
               </select>
             </label>
@@ -611,6 +780,7 @@
           <label>Describe the Issue (optional)
             <textarea name="issue" rows="3" placeholder="e.g. Engine overheating, brake noise, need 2 new rear tyres..."></textarea>
           </label>
+          <p class="field-error" id="bookingErr" hidden style="color:#f87171"></p>
           <button type="submit" class="btn btn-primary btn-block">Confirm Booking Request</button>
         </form>
       </div>
@@ -626,6 +796,7 @@
 
   <script src="js/icons.js"></script>
   <script src="js/backend.js"></script>
+  <script src="js/geo-india.js"></script>
   <script src="js/main.js"></script>
   <script>
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");

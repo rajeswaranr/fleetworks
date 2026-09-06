@@ -31,12 +31,47 @@
 
 "use strict";
 
+const PAY_BASES = ["monthly", "weekly", "daily", "trip", "tonnage", "custom"];
+function normPayBasis(v) {
+  return PAY_BASES.includes(v) ? v : "monthly";
+}
+
 function coreDbBacked() {
   if (!(window.fwCloud && fwCloud.user())) return false;
   const appRole = fwCloud.appRole && fwCloud.appRole();
   if (appRole === "admin") return false;
   const kind = fwCloud.accountKindCached && fwCloud.accountKindCached();
   return !kind || kind === "owner";
+}
+
+// ---------- Expense categories ----------
+// The suggestion list a fleet actually works with, held in the database rather
+// than a constant, so a type entered on a phone shows up on the desktop and an
+// operator can retire types they never use. The field itself stays free text —
+// this is memory, not a constraint.
+async function dbLoadExpenseCategories() {
+  const org = await dbOrgId(); if (!org) return null;
+  let rows = await fwCloud.authGet("expense_categories",
+    `select=name,is_active,sort_order&org_id=eq.${org}&is_active=eq.true&order=sort_order.asc,name.asc`);
+  // A brand-new org has none. Seed the shipped list once, then re-read — doing
+  // it lazily avoids needing a hook on organisation creation, and the seeder is
+  // idempotent so a race just inserts nothing the second time.
+  if (rows && rows.length === 0) {
+    await fwCloud.authRpc("seed_expense_categories", { p_org: org }).catch(() => null);
+    rows = await fwCloud.authGet("expense_categories",
+      `select=name,is_active,sort_order&org_id=eq.${org}&is_active=eq.true&order=sort_order.asc,name.asc`);
+  }
+  return rows ? rows.map(r => r.name) : null;
+}
+
+// Remembers a category the moment it is used. Conflicts are ignored by the
+// unique index, so saving an existing category is a no-op rather than an error.
+async function dbAddExpenseCategory(name) {
+  const org = await dbOrgId(); if (!org) return false;
+  const clean = String(name || "").trim();
+  if (!clean) return false;
+  return fwCloud.authInsert("expense_categories",
+    { org_id: org, name: clean, is_default: false, sort_order: 500 });
 }
 
 let _dbOrgId = null;
@@ -166,6 +201,7 @@ function dbRowToDriver(row, vehicleExtId) {
     name: row.name, phone: row.phone || "", dlNo: row.dl_no, dlExpiry: row.dl_expiry,
     vehicleId: vehicleExtId !== undefined ? vehicleExtId : (row.vehicles ? row.vehicles.ext_id : "") || "",
     upiId: row.upi_id || undefined, bankAccount: row.bank_account || undefined, bankIfsc: row.bank_ifsc || undefined,
+    payBasis: normPayBasis(row.pay_basis),
   };
 }
 function driverToDbRow(d, orgId) {
@@ -173,6 +209,7 @@ function driverToDbRow(d, orgId) {
     org_id: orgId, ext_id: d.id, name: d.name, phone: d.phone || null, dl_no: d.dlNo, dl_expiry: d.dlExpiry || null,
     vehicle_id: d.vehicleId ? dbVehicleUuid(d.vehicleId) : null,
     upi_id: d.upiId || null, bank_account: d.bankAccount || null, bank_ifsc: d.bankIfsc || null,
+    pay_basis: normPayBasis(d.payBasis),
   };
 }
 async function dbCreateDriver(d) {
@@ -191,6 +228,7 @@ async function dbUpdateDriver(extId, patch) {
   if ("upiId" in patch) dbPatch.upi_id = patch.upiId || null;
   if ("bankAccount" in patch) dbPatch.bank_account = patch.bankAccount || null;
   if ("bankIfsc" in patch) dbPatch.bank_ifsc = patch.bankIfsc || null;
+  if ("payBasis" in patch) dbPatch.pay_basis = normPayBasis(patch.payBasis);
   return fwCloud.authPatch(`drivers?id=eq.${d.dbId}`, dbPatch);
 }
 // Used when a vehicle is created with a driver pre-assigned — patches the

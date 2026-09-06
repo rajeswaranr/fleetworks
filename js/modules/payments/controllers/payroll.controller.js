@@ -85,6 +85,7 @@ async function renderPayroll() {
     }
   }
 
+  refreshPeriodFields();
   await renderPayrollHistory(org);
 }
 
@@ -93,17 +94,275 @@ async function renderPayrollHistory(org) {
   if (!el) return;
   const rows = await fwCloud.authGet("salary_payments", `select=*&org_id=eq.${org}&order=initiated_at.desc&limit=50`);
   if (!rows || !rows.length) { el.innerHTML = "<p class='muted'>No salary payments logged yet.</p>"; return; }
-  el.innerHTML = `<table class="chart-table-el"><thead><tr><th>Date</th><th>Driver</th><th>Period</th><th>Amount</th><th>Method</th><th>Source</th><th>Status</th><th>Ref</th></tr></thead><tbody>` +
+  // Kept so the edit modal can populate itself without another round trip.
+  PAY_HISTORY = rows;
+  el.innerHTML = `<table class="chart-table-el"><thead><tr><th>Logged</th><th>Driver</th><th>Basis</th><th>For</th><th>Payable</th><th>Paid</th><th>Amount</th><th>Method</th><th>Source</th><th>Status</th><th>Ref</th><th></th></tr></thead><tbody>` +
     rows.map(r => {
       const d = db.drivers.find(x => x.id === r.driver_ext_id);
       const cls = r.status === "success" ? "ok" : r.status === "failed" ? "overdue" : "soon";
-      return `<tr><td>${fmtDate(r.initiated_at)}</td><td>${esc(d ? d.name : r.driver_ext_id)}</td><td>${esc(r.period || "")}</td>
-        <td>${fmtINR(r.amount)}</td><td>${esc(r.method || "")}</td>
+      // Only manual rows are editable. A Cashfree row mirrors what the gateway
+      // actually did, so changing it here would put the books permanently out of
+      // step with Cashfree — the database refuses it too, this just doesn't
+      // offer a button that would fail.
+      const edited = r.updated_at ? ` <span class="muted" style="font-size:0.72rem" title="Edited ${fmtDate(r.updated_at)}">(edited)</span>` : "";
+      const action = r.source === "manual"
+        ? `<button class="link-btn" onclick="openEditPay('${r.id}')">Edit</button>`
+        : `<span class="muted" style="font-size:0.75rem" title="Gateway records can't be edited">locked</span>`;
+      const basis = { daily: "Daily", weekly: "Weekly", monthly: "Monthly", trip: "Per trip", tonnage: "Per tonne", custom: "Custom" }[r.pay_basis] || "Monthly";
+      const qtyRate = (r.qty && r.rate) ? `<br /><span class="muted" style="font-size:0.72rem">${r.qty} × ${fmtINR(r.rate)}</span>` : "";
+      const dash = "<span class='muted'>—</span>";
+      return `<tr><td>${fmtDate(r.initiated_at)}${edited}</td><td>${esc(d ? d.name : r.driver_ext_id)}</td>
+        <td><span class="fw-badge">${basis}</span></td>
+        <td>${esc(fmtPeriod(r.period))}</td>
+        <td>${r.payable_date ? fmtDate(r.payable_date) : dash}</td>
+        <td>${r.paid_date ? fmtDate(r.paid_date) : dash}</td>
+        <td>${fmtINR(r.amount)}${qtyRate}</td><td>${esc(r.method || "")}</td>
         <td>${r.source === "manual" ? "<span class='fw-badge upcoming'>Manual</span>" : "<span class='fw-badge ok'>Cashfree</span>"}</td>
         <td><span class="fw-badge ${cls}">${esc(r.status)}</span></td>
-        <td title="${esc(r.failure_reason || "")}">${esc(r.utr || r.transfer_ref)}</td></tr>`;
+        <td title="${esc(r.failure_reason || "")}">${esc(r.utr || r.transfer_ref)}</td>
+        <td style="white-space:nowrap">${action}</td></tr>`;
     }).join("") + "</tbody></table>";
 }
+
+// ---- Monthly salary vs daily wage ------------------------------------------
+// A monthly driver is paid for a month ("2026-08"); a daily-wage driver is paid
+// for a specific day ("2026-08-02"). Recording a day's wage against a whole
+// month loses which day it was and makes several payments in one month
+// indistinguishable, so the period field changes shape to match the driver.
+function driverPayBasis(extId) {
+  const d = db.drivers.find(x => x.id === extId);
+  return normPayBasis(d && d.payBasis);
+}
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const thisMonthISO = () => new Date().toISOString().slice(0, 7);
+// A weekly period is stored as the week-ENDING date, so it sorts and reads like
+// any other date. <input type="week"> was rejected: unsupported in Safari and
+// Firefox, and it shows "2026-W32", which nobody can match to a payslip.
+// Sunday is taken as the week end — the common convention for Indian weekly
+// wage cycles; change the 7 here if an operator settles on a different day.
+function weekEndingISO(from) {
+  const d = from ? new Date(from) : new Date();
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));   // advance to the coming Sunday
+  return d.toISOString().slice(0, 10);
+}
+
+// What each basis needs from the period field: an input type, a label, and the
+// value to pre-fill when it's empty. Trip/tonnage/custom settlements happen on
+// a day, so they use a date; what distinguishes them is the qty x rate pair.
+const PERIOD_FIELD = {
+  monthly: { type: "month", label: "Salary for month ", fill: thisMonthISO },
+  weekly:  { type: "date",  label: "Week ending ",      fill: weekEndingISO },
+  daily:   { type: "date",  label: "Pay date ",         fill: todayISO },
+  trip:    { type: "date",  label: "Settled on ",       fill: todayISO,
+             qty: "Number of trips",  rate: "Salary per trip (₹)" },
+  tonnage: { type: "date",  label: "Settled on ",       fill: todayISO,
+             qty: "Tonnes carried",   rate: "Rate per tonne (₹)" },
+  custom:  { type: "date",  label: "Settled on ",       fill: todayISO },
+};
+
+// Shows/hides the qty x rate row and relabels it for the basis. qty and rate
+// explain the amount; they never enforce it, because operators round the
+// figure, deduct advances, and add bata on top of the arithmetic.
+function setQtyRateRow(prefix, basis) {
+  const row = document.getElementById(prefix + "QtyRateRow");
+  if (!row) return;
+  const spec = PERIOD_FIELD[normPayBasis(basis)];
+  row.hidden = !spec.qty;
+  if (spec.qty) {
+    const put = (id, text) => {
+      const el = document.getElementById(id);
+      const t = el && [...el.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+      if (t) t.textContent = text;
+    };
+    put(prefix + "QtyLabel", spec.qty + " ");
+    put(prefix + "RateLabel", spec.rate + " ");
+  } else {
+    const q = document.getElementById(prefix + "Qty"), r = document.getElementById(prefix + "Rate");
+    if (q) q.value = ""; if (r) r.value = "";
+  }
+}
+
+// qty x rate -> amount, but only while the owner hasn't typed an amount of
+// their own (tracked the same way as the payable-date autofill).
+function wireQtyRateCalc(prefix, form) {
+  const q = document.getElementById(prefix + "Qty"), r = document.getElementById(prefix + "Rate");
+  if (!q || !r || !form) return;
+  const amt = form.querySelector('input[name="amount"]');
+  const recalc = () => {
+    if (!amt || amt.dataset.userSet === "1") return;
+    const v = Number(q.value) * Number(r.value);
+    if (v > 0) amt.value = Math.round(v * 100) / 100;
+  };
+  q.addEventListener("input", recalc);
+  r.addEventListener("input", recalc);
+  amt?.addEventListener("input", e => { if (e.isTrusted) e.target.dataset.userSet = "1"; });
+}
+wireQtyRateCalc("manual", document.getElementById("manualSalaryForm"));
+wireQtyRateCalc("edit", document.getElementById("editPayForm"));
+
+// Swaps one period input between a month and a date picker. Defaults daily
+// drivers to today, since a wage is nearly always logged on the day it's paid.
+function setPeriodField(labelId, inputId, basis, keepValue) {
+  const label = document.getElementById(labelId);
+  const input = document.getElementById(inputId);
+  if (!label || !input) return;
+  const spec = PERIOD_FIELD[normPayBasis(basis)];
+  if (input.type !== spec.type) {
+    input.type = spec.type;
+    input.value = "";           // a month value is invalid in a date input, and vice versa
+  }
+  // label's first text node — leaves the nested <input> and any hint alone
+  const textNode = [...label.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+  if (textNode) textNode.textContent = spec.label;
+  if (!input.value && !keepValue) input.value = spec.fill();
+}
+
+// Wires a driver <select> so its period field follows the chosen driver.
+function bindPeriodToDriver(selectId, labelId, inputId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const apply = () => {
+    const b = driverPayBasis(sel.value);
+    setPeriodField(labelId, inputId, b);
+    if (selectId === "manualSalaryDriver") setQtyRateRow("manual", b);
+  };
+  sel.addEventListener("change", apply);
+  apply();
+}
+bindPeriodToDriver("manualSalaryDriver", "manualPeriodLabel", "manualSalaryPeriod");
+bindPeriodToDriver("payReqDriver", "payReqPeriodLabel", "payReqPeriod");
+bindPeriodToDriver("paySalaryDriver", "paySalaryPeriodLabel", "paySalaryPeriod");
+// Also on load, not only via renderPayroll — that returns early when the owner
+// isn't signed in or has no drivers yet, which would leave "Paid on" blank on a
+// form that is otherwise perfectly usable.
+syncManualDates();
+
+// The selects are filled in by renderPayroll, which runs after the bindings
+// above — so without this the field would keep a month picker until the user
+// manually changed driver, even when the pre-selected one is on a daily wage.
+// Sensible defaults on the manual form: paid today, and for a daily wage the
+// payable date follows the day worked unless the user has set it themselves.
+function syncManualDates() {
+  const paid = document.getElementById("manualPaidDate");
+  const payable = document.getElementById("manualPayableDate");
+  const period = document.getElementById("manualSalaryPeriod");
+  const sel = document.getElementById("manualSalaryDriver");
+  if (paid && !paid.value) paid.value = todayISO();
+  if (payable && period && sel && driverPayBasis(sel.value) !== "monthly" && period.type === "date") {
+    if (!payable.value || payable.dataset.autofilled === "1") {
+      payable.value = period.value;
+      payable.dataset.autofilled = "1";
+    }
+  }
+}
+document.getElementById("manualSalaryPeriod")?.addEventListener("change", syncManualDates);
+document.getElementById("manualPayableDate")?.addEventListener("input", e => { e.target.dataset.autofilled = "0"; });
+
+function refreshPeriodFields() {
+  const pairs = [
+    ["manualSalaryDriver", "manualPeriodLabel", "manualSalaryPeriod"],
+    ["payReqDriver", "payReqPeriodLabel", "payReqPeriod"],
+    ["paySalaryDriver", "paySalaryPeriodLabel", "paySalaryPeriod"],
+  ];
+  for (const [sel, lab, inp] of pairs) {
+    const s = document.getElementById(sel);
+    if (s) setPeriodField(lab, inp, driverPayBasis(s.value));
+  }
+  const ms = document.getElementById("manualSalaryDriver");
+  if (ms) setQtyRateRow("manual", driverPayBasis(ms.value));
+  syncManualDates();
+}
+
+// How a stored period reads back: "2026-08-02" for a day, "2026-08" for a month.
+function fmtPeriod(period) {
+  if (!period) return "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(period) ? fmtDate(period) : period;
+}
+
+// ---- Editing a manually logged payment -------------------------------------
+let PAY_HISTORY = [];
+
+window.openEditPay = function (id) {
+  const r = PAY_HISTORY.find(x => x.id === id);
+  if (!r) return;
+  const d = db.drivers.find(x => x.id === r.driver_ext_id);
+  const form = document.getElementById("editPayForm");
+  form.reset();
+  form.id.value = r.id;
+  // Match the picker to how this driver is paid, then restore the stored value
+  // — keepValue stops the default (today / this month) overwriting the record.
+  // The row's own pay_basis, not the driver's current one — a driver switched
+  // from monthly to daily must not make their old monthly rows render as days.
+  const rowBasis = r.pay_basis || driverPayBasis(r.driver_ext_id);
+  setPeriodField("editPayPeriodLabel", "editPayPeriod", rowBasis, true);
+  setQtyRateRow("edit", rowBasis);
+  form.qty.value = r.qty ?? "";
+  form.rate.value = r.rate ?? "";
+  const editAmt = form.querySelector('input[name="amount"]');
+  if (editAmt) editAmt.dataset.userSet = "1";   // editing starts from the stored amount — never auto-overwrite it
+  form.period.value = r.period || "";
+  form.payableDate.value = r.payable_date || "";
+  form.paidDate.value = r.paid_date || "";
+  form.amount.value = r.amount;
+  form.method.value = r.method || "upi";
+  form.status.value = r.status === "reversed" ? "reversed" : "success";
+  form.utr.value = r.utr || "";
+  form.notes.value = r.notes || "";
+  document.getElementById("editPayWho").textContent =
+    `${d ? d.name : r.driver_ext_id} · logged ${fmtDate(r.initiated_at)}`;
+  document.getElementById("editPayErr").hidden = true;
+  document.getElementById("editPayModal").style.display = "flex";
+};
+function closeEditPay() { document.getElementById("editPayModal").style.display = "none"; }
+document.getElementById("editPayCancel")?.addEventListener("click", closeEditPay);
+
+document.getElementById("editPayForm")?.addEventListener("submit", async e => {
+  e.preventDefault();
+  const form = e.target, errEl = document.getElementById("editPayErr");
+  errEl.hidden = true;
+  const fd = Object.fromEntries(new FormData(form));
+  const amount = Number(fd.amount);
+  if (!(amount > 0)) { errEl.textContent = "Enter an amount above zero."; errEl.hidden = false; return; }
+  // source and org_id are deliberately not sent — they're what the RLS check
+  // pins, and there is no legitimate reason for an edit to change either.
+  // Keep payable_date in step with the period for daily rows — editing the day
+  // worked without moving payable_date would leave the two disagreeing.
+  const row = PAY_HISTORY.find(x => x.id === fd.id);
+  const basis = row?.pay_basis || driverPayBasis(row?.driver_ext_id);
+  const ok = await fwCloud.authPatch(`salary_payments?id=eq.${fd.id}`, {
+    period: fd.period || null,
+    payable_date: fd.payableDate || (basis === "monthly" ? null : (fd.period || null)),
+    paid_date: fd.paidDate || null,
+    qty: fd.qty ? +fd.qty : null,
+    rate: fd.rate ? +fd.rate : null,
+    amount,
+    method: fd.method,
+    status: fd.status,
+    utr: (fd.utr || "").trim() || null,
+    notes: (fd.notes || "").trim() || null,
+  });
+  if (!ok) { errEl.textContent = "Could not save the change. Please try again."; errEl.hidden = false; return; }
+  closeEditPay();
+  toast("Payment updated.", "ok");
+  renderPayroll();
+});
+
+document.getElementById("editPayDelete")?.addEventListener("click", async () => {
+  const form = document.getElementById("editPayForm");
+  const id = form.id.value;
+  const r = PAY_HISTORY.find(x => x.id === id);
+  if (!confirmDestructive(`Delete this salary payment from your books?${r ? `\n\n${fmtINR(r.amount)}${r.period ? " · " + r.period : ""}` : ""}\n\nThis removes the record entirely — edit it instead if you just need to correct a figure.`)) return;
+  const ok = await fwCloud.authDelete("salary_payments", `id=eq.${id}`);
+  if (!ok) {
+    const errEl = document.getElementById("editPayErr");
+    errEl.textContent = "Could not delete that record.";
+    errEl.hidden = false;
+    return;
+  }
+  closeEditPay();
+  toast("Payment removed from your books.", "ok");
+  renderPayroll();
+});
 
 window.openPayoutModal = function (driverExtId, driverName) {
   const modal = document.getElementById("payoutModal");
@@ -214,15 +473,15 @@ async function renderBankInfo() {
   const driver = db.drivers.find(d => d.id === form.driverExtId.value);
   if (!driver || !driver.bankAccount || !driver.bankIfsc) { box.innerHTML = ""; return; }
   const text = buildBankInfoText(driver);
-  let qrHtml = "";
-  try {
-    await loadQrCode();
-    qrHtml = `<div id="payNowBankQrImg" style="width:180px;height:180px;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0"></div>`;
-  } catch { /* QR is a nice-to-have here — the copyable text still works without it */ }
-  box.innerHTML = `${qrHtml}
-    <div class="chart-card" style="padding:10px;margin-top:${qrHtml ? "8px" : "0"};font-size:0.82rem;white-space:pre-line">${esc(text)}</div>
+  // The bank QR is disabled for now. Unlike the UPI one it was never a payment
+  // instruction — it encoded the account number and IFSC as plain text, which no
+  // banking app can pay from, so it added nothing the copyable block below
+  // doesn't already do while putting an account number into a scannable image.
+  // To restore: rebuild qrHtml with loadQrCode() and call new QRCode(...) as
+  // renderUpiQr still does.
+  box.innerHTML = `
+    <div class="chart-card" style="padding:10px;font-size:0.82rem;white-space:pre-line">${esc(text)}</div>
     <button type="button" class="link-btn" id="copyBankInfoBtn" style="margin-top:4px">${FWIcon("document", { size: 13 })} Copy for NEFT/IMPS</button>`;
-  if (qrHtml) new QRCode(document.getElementById("payNowBankQrImg"), { text, width: 178, height: 178, correctLevel: QRCode.CorrectLevel.M });
   document.getElementById("copyBankInfoBtn")?.addEventListener("click", async () => {
     try { await navigator.clipboard.writeText(text); toast("Bank details copied."); }
     catch { toast("Could not copy — select the text above manually.", "err"); }
@@ -313,9 +572,13 @@ window.markRequestPaid = async function (id) {
   // Best-effort books entry: salary_payments exists only once schema-payroll.sql has been run.
   const org = await (window.getMyOrgId ? getMyOrgId() : null);
   if (org) {
+    const aprBasis = driverPayBasis(r.driver_ext_id);
     await fwCloud.authInsert("salary_payments", {
       org_id: org, driver_ext_id: r.driver_ext_id, period: r.period, amount: +r.amount,
       method: "upi", source: "manual", status: "success",
+      pay_basis: aprBasis,
+      payable_date: aprBasis === "monthly" ? null : r.period,
+      paid_date: todayISO(),
       utr: utr.trim() || null, notes: r.note || null,
       transfer_ref: "apr" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       initiated_by: fwCloud.uid(),
@@ -388,9 +651,22 @@ document.getElementById("manualSalaryForm")?.addEventListener("submit", async e 
   if (!org) { errEl.textContent = "No organization found yet — save something once while signed in, then retry."; errEl.hidden = false; return; }
   const btn = e.target.querySelector("button[type=submit]");
   btn.disabled = true;
+  // A daily driver's period field holds the day worked, which is the payable
+  // date; a monthly driver's holds a month, which has no single payable date.
+  // pay_basis is stored on the payment so this row still reads correctly if the
+  // driver is later switched to the other basis.
+  const basis = driverPayBasis(fd.driverExtId);
   const ok = await fwCloud.authInsert("salary_payments", {
     org_id: org, driver_ext_id: fd.driverExtId, period: fd.period, amount: +fd.amount,
     method: fd.method, source: "manual", status: "success",
+    pay_basis: basis,
+    // Both bases carry a payable date. For a daily wage it defaults to the day
+    // worked; for a monthly salary it's the due date, which is a separate thing
+    // from the month itself — salary for July may fall due on 5 August.
+    payable_date: fd.payableDate || (basis === "monthly" ? null : fd.period),
+    paid_date: fd.paidDate || todayISO(),
+    qty: fd.qty ? +fd.qty : null,
+    rate: fd.rate ? +fd.rate : null,
     utr: (fd.utr || "").trim() || null, notes: (fd.notes || "").trim() || null,
     transfer_ref: "man" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
     initiated_by: fwCloud.uid(),

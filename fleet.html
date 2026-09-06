@@ -238,6 +238,7 @@
         <button class="side-item tab-btn" data-tab="account"><i data-icon="plus"></i><span>Add Entry — Diesel / Expense</span></button>
         <button class="side-item tab-btn" data-tab="khata"><i data-icon="driver"></i><span>Driver Khata</span></button>
         <button class="side-item tab-btn" data-tab="payroll"><i data-icon="rupee"></i><span>Payroll — Pay Drivers</span></button>
+        <button class="side-item tab-btn" data-tab="whatsapp"><i data-icon="chat"></i><span>WhatsApp — Drivers</span></button>
         <button class="side-item tab-btn" data-tab="expensehistory"><i data-icon="receipt"></i><span>Expenses</span></button>
         <button class="side-item tab-btn" data-tab="fuel"><i data-icon="fuel"></i><span>Fuel</span></button>
         <button class="side-item tab-btn" data-tab="toll"><i data-icon="mapPin"></i><span>Toll &amp; FASTag</span></button>
@@ -290,7 +291,6 @@
         <div class="app-top-actions">
           <span class="top-org" id="topOrg"></span>
           <button class="btn btn-sm sos-btn" id="sosBtn"><i data-icon="alert" data-icon-size="14"></i> SOS</button>
-          <button class="btn btn-primary btn-sm" id="demoBtn">Load Demo Fleet</button>
         </div>
       </header>
       <main class="app-content">
@@ -299,9 +299,8 @@
         <div id="emptyState" class="empty-state" hidden>
           <div class="empty-icon"><i data-icon="truck" data-icon-size="46"></i></div>
           <h2>No fleet data yet</h2>
-          <p>Load the demo fleet to explore compliance, fuel, inspections, issues and the AI Copilot — or sign in and add your vehicles in My Account.</p>
-          <button class="btn btn-primary" onclick="loadDemoFleet()">Load Demo Fleet</button>
-          <button class="btn btn-outline" onclick="document.querySelector('#tabBar .tab-btn[data-tab=account]').click()">My Account</button>
+          <p>Sign in and add your vehicles in My Account to get started with compliance, fuel, inspections, issues and the AI Copilot.</p>
+          <button class="btn btn-primary" onclick="document.querySelector('#tabBar .tab-btn[data-tab=account]').click()">My Account</button>
         </div>
 
         <!-- ======= GETTING STARTED (signed-in landing, no vehicles yet) ======= -->
@@ -317,7 +316,6 @@
               <button class="btn btn-primary btn-lg" onclick="document.querySelector('#tabBar .tab-btn[data-tab=addvehicle]').click()">
                 <i data-icon="truck" data-icon-size="18"></i> Add Your First Vehicle
               </button>
-              <p class="muted" style="margin-top:10px;font-size:0.82rem">Just exploring? <button type="button" class="link-btn" onclick="loadDemoFleet()">Load a demo fleet instead</button></p>
             </div>
           </div>
         </div>
@@ -571,6 +569,11 @@
           <span class="lt-count" id="dashUpdated"></span>
           <span class="lt-spacer"></span>
         </div>
+        <!-- Grafana-style summary dashboard — rendered by js/gf-dashboard.js -->
+        <section id="gfOpsGrid" style="padding:0 0 4px"></section>
+        <!-- Maintenance KPIs: what is broken, what is waiting, and how long
+             each is costing. Rendered by renderOpsStats() in js/analytics.js. -->
+        <section class="stat-row" id="opsStatRow"></section>
         <section class="dash-grid" id="dashGrid"></section>
       </section>
 
@@ -603,7 +606,37 @@
 
       <!-- ======= FLEETFIN DASHBOARD ======= -->
       <section class="tab-panel" id="tab-fin">
+        <!-- Grafana-style summary dashboard — rendered by js/gf-dashboard.js -->
+        <section id="gfFinGrid" style="padding:0 0 4px"></section>
         <section class="stat-row" id="finStatRow" aria-label="Money at a glance"></section>
+
+        <!-- One action, two records: the recharge lands in the books as an
+             expense AND updates that vehicle's FASTag balance, so the money and
+             the tag never disagree. -->
+        <section class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="rupee" data-icon-size="20"></i></span> Log a FASTag Recharge</h2>
+              <p class="muted">Records the expense against the vehicle and updates its FASTag balance in one go. Balances and days-remaining live in <strong>Toll &amp; FASTag</strong>.</p>
+            </div>
+          </div>
+          <form id="finFastagForm" class="entry-form">
+            <div class="form-row">
+              <label>Vehicle<select name="vehicleId" id="finFastagVehicle" required></select></label>
+              <label>Recharge amount (₹)<input type="number" name="amount" min="1" required placeholder="e.g. 5000" inputmode="numeric" /></label>
+            </div>
+            <div class="form-row">
+              <label>Date<input type="date" name="date" required /></label>
+              <label>Balance after recharge (₹)
+                <input type="number" name="balanceAfter" min="0" placeholder="optional — if you saw it" />
+                <span class="field-hint">Leave blank and we add the recharge to the last known balance.</span>
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Save Recharge</button>
+            <p class="field-error" id="finFastagErr" hidden></p>
+          </form>
+        </section>
+
         <section class="dash-grid" id="finGrid"></section>
 
         <section class="chart-card">
@@ -762,6 +795,19 @@
               <label>Assigned Vehicle
                 <select name="vehicleId" id="driverVehicle"><option value="">Not assigned</option></select>
               </label>
+              <label>Salary Basis
+                <select name="payBasis" id="driverPayBasis">
+                  <option value="monthly">Monthly salary</option>
+                  <option value="weekly">Weekly wage</option>
+                  <option value="daily">Daily wage</option>
+                  <option value="trip">Per trip</option>
+                  <option value="tonnage">Per tonne</option>
+                  <option value="custom">Custom arrangement</option>
+                </select>
+                <span class="field-hint">Decides how payments are logged for this driver — month, week, day, trips × rate, tonnes × rate, or free-form.</span>
+              </label>
+            </div>
+            <div class="form-row">
               <label>UPI ID (for one-tap salary pay)
                 <input type="text" name="upiId" placeholder="e.g. driver@okhdfcbank" />
               </label>
@@ -803,8 +849,18 @@
               <label>Driver
                 <select name="driverExtId" id="manualSalaryDriver" required></select>
               </label>
-              <label>Period
-                <input type="month" name="period" required />
+              <label id="manualPeriodLabel">Salary for month
+                <!-- label + input type swap to a date picker for daily-wage
+                     drivers — see setPeriodField in js/payroll.js -->
+                <input type="month" name="period" id="manualSalaryPeriod" required />
+              </label>
+            </div>
+            <div class="form-row" id="manualQtyRateRow" hidden>
+              <label id="manualQtyLabel">Number of trips
+                <input type="number" name="qty" id="manualQty" min="0.01" step="any" />
+              </label>
+              <label id="manualRateLabel">Salary per trip (₹)
+                <input type="number" name="rate" id="manualRate" min="0.01" step="any" />
               </label>
             </div>
             <div class="form-row">
@@ -820,6 +876,14 @@
               </label>
             </div>
             <div class="form-row">
+              <label>Payable on
+                <input type="date" name="payableDate" id="manualPayableDate" />
+                <span class="field-hint">When this salary or wage falls due.</span>
+              </label>
+              <label>Paid on
+                <input type="date" name="paidDate" id="manualPaidDate" required />
+                <span class="field-hint">The day the money actually left — may differ from the payable date.</span>
+              </label>
               <label>UPI Ref / UTR (optional)
                 <input type="text" name="utr" placeholder="e.g. 402816123456" />
               </label>
@@ -850,8 +914,10 @@
               <label>Driver
                 <select name="driverExtId" id="payReqDriver" required></select>
               </label>
-              <label>Period
-                <input type="month" name="period" required />
+              <label id="payReqPeriodLabel">Salary for month
+                <!-- label + input type swap to a date picker for daily-wage
+                     drivers — see setPeriodField in js/payroll.js -->
+                <input type="month" name="period" id="payReqPeriod" required />
               </label>
             </div>
             <div class="form-row">
@@ -883,8 +949,10 @@
               <label>Driver
                 <select name="driverExtId" id="paySalaryDriver" required></select>
               </label>
-              <label>Period
-                <input type="month" name="period" required />
+              <label id="paySalaryPeriodLabel">Salary for month
+                <!-- label + input type swap to a date picker for daily-wage
+                     drivers — see setPeriodField in js/payroll.js -->
+                <input type="month" name="period" id="paySalaryPeriod" required />
               </label>
             </div>
             <div class="form-row">
@@ -906,6 +974,71 @@
       </section>
 
       <!-- ======= PAYOUT SETUP MODAL ======= -->
+      <!-- Correct a manually logged salary payment. Cashfree rows never open
+           this — they mirror the gateway and are read-only. -->
+      <div id="editPayModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:center;justify-content:center;padding:16px">
+        <div class="chart-card" style="max-width:440px;width:100%">
+          <h2>Edit salary payment</h2>
+          <p class="muted" id="editPayWho" style="margin-bottom:12px"></p>
+          <form id="editPayForm" class="entry-form">
+            <input type="hidden" name="id" />
+            <div class="form-row">
+              <label id="editPayPeriodLabel">Salary for month
+                <!-- label + input type swap to a date picker for daily-wage
+                     drivers — see setPeriodField in js/payroll.js -->
+                <input type="month" name="period" id="editPayPeriod" required />
+              </label>
+              <label>Amount (₹)
+                <input type="number" name="amount" min="1" required />
+              </label>
+            </div>
+            <div class="form-row" id="editQtyRateRow" hidden>
+              <label id="editQtyLabel">Number of trips
+                <input type="number" name="qty" id="editQty" min="0.01" step="any" />
+              </label>
+              <label id="editRateLabel">Salary per trip (₹)
+                <input type="number" name="rate" id="editRate" min="0.01" step="any" />
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Paid via
+                <select name="method">
+                  <option value="upi">Your UPI app</option>
+                  <option value="bank">Bank transfer</option>
+                  <option value="cash">Cash</option>
+                </select>
+              </label>
+              <label>Status
+                <select name="status">
+                  <option value="success">Success</option>
+                  <option value="reversed">Reversed / bounced</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>Payable on
+                <input type="date" name="payableDate" id="editPayableDate" />
+              </label>
+              <label>Paid on
+                <input type="date" name="paidDate" id="editPaidDate" />
+              </label>
+            </div>
+            <label>UPI Ref / UTR (optional)
+              <input type="text" name="utr" />
+            </label>
+            <label>Notes (optional)
+              <input type="text" name="notes" maxlength="200" />
+            </label>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+              <button type="submit" class="btn btn-primary"><i data-icon="check" data-icon-size="16"></i> Save Changes</button>
+              <button type="button" class="btn btn-outline" id="editPayCancel">Cancel</button>
+              <button type="button" class="btn btn-outline" id="editPayDelete" style="color:#b91c1c;border-color:#b91c1c;margin-left:auto">Delete</button>
+            </div>
+            <p class="field-error" id="editPayErr" hidden></p>
+          </form>
+        </div>
+      </div>
+
       <div id="payoutModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:center;justify-content:center;padding:16px">
         <div class="chart-card" style="max-width:440px;width:100%">
           <h2 id="payoutModalTitle">Set up payout</h2>
@@ -961,6 +1094,58 @@
           </form>
         </div>
       </div>
+
+      <!-- Bill entry + AI review. Wider than the edit modal because a bill is a
+           table, not a field, and the assessment has to show its evidence
+           beside the lines it is talking about. -->
+      <div id="billModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:330;display:none;align-items:center;justify-content:center;padding:16px">
+        <div class="chart-card" style="max-width:820px;width:100%;max-height:90vh;overflow:auto">
+          <div class="chart-head">
+            <div>
+              <h2 id="billTitle">Enter the workshop bill</h2>
+              <p class="muted" id="billSub"></p>
+            </div>
+          </div>
+          <div id="billLines"></div>
+          <button type="button" class="link-btn" id="billAddLine">+ Add line</button>
+          <div class="form-row" style="margin-top:10px">
+            <label>Expense category (for your books)
+              <input type="text" id="billCategory" list="expenseCategoryList" placeholder="e.g. Clutch" />
+            </label>
+            <p style="text-align:right;margin:auto 0 0;font-weight:700">Bill total: <span id="billTotal">&#8377;0</span></p>
+          </div>
+          <p class="field-error" id="billErr" hidden></p>
+          <div id="billReviewOut"></div>
+          <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+            <button type="button" class="btn btn-primary" id="billCheckBtn">Check this bill</button>
+            <button type="button" class="btn btn-outline" id="billCloseJobBtn">Close job card &amp; record expense</button>
+            <button type="button" class="btn btn-outline" id="billCancel">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ======= WHATSAPP ======= -->
+      <section class="tab-panel" id="tab-whatsapp">
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="chat" data-icon-size="22"></i></span> WhatsApp to your drivers</h2>
+              <p class="muted">Allotments, wages, khata statements and the daily attendance check &mdash; sent to the app drivers already use.</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <button class="btn btn-primary btn-sm" id="waBtnWelcomeAll"><i data-icon="chat" data-icon-size="14"></i> Send welcome to all</button>
+            </div>
+          </div>
+          <div id="waStatus"></div>
+          <p class="muted" style="margin-top:12px">A driver must opt in before FleetWorks may message them, and can opt out at any time. Their reply opens a 24-hour window in which further messages are free.</p>
+          <div id="waContacts" style="margin-top:14px"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Recent messages</h2><p class="muted">Every message sent and received, with its delivery status.</p></div></div>
+          <div id="waMessages"></div>
+        </div>
+      </section>
 
       <!-- ======= FUEL ======= -->
       <section class="tab-panel" id="tab-fuel">
@@ -1439,6 +1624,8 @@
 
       <!-- ======= FLEETIQ DASHBOARD ======= -->
       <section class="tab-panel" id="tab-analytics">
+        <!-- Grafana-style summary dashboard — rendered by js/gf-dashboard.js -->
+        <section id="gfIqGrid" style="padding:0 0 4px"></section>
         <div class="chart-card">
           <div class="chart-head">
             <div>
@@ -1580,7 +1767,7 @@
                 <div class="form-row">
                   <label>What was it for?
                     <input type="text" name="category" list="expenseCategoryList" required maxlength="60"
-                      placeholder="e.g. Tyre Puncture, DEF, RTO — or type a new one" />
+                      placeholder="e.g. FASTag Recharge, Tyre Puncture, DEF — or type a new one" />
                   </label>
                   <label>Amount (₹)
                     <input type="number" name="amount" min="1" placeholder="e.g. 12500" required inputmode="numeric" />
@@ -1720,6 +1907,11 @@
   <script src="js/modules/security/security.module.js"></script>
   <script src="js/modules/iot-telemetry/iot-telemetry.module.js"></script>
   <script src="js/modules/index.js"></script>
+  <script src="js/billreview.js"></script>
+  <script src="js/whatsapp.js"></script>
+  <script src="js/invoices.js"></script>
+  <script src="js/xgboost.js"></script>
+  <script src="js/gf-dashboard.js"></script>
   <script>
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
     // Deep-link: fleet.html#analytics / #account / #fuel ... activates that tab

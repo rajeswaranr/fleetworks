@@ -332,31 +332,178 @@ function legendHTML(items) {
 
 // ---------- Render: stat tiles ----------
 // FleetFin — the money picture (actuals only)
+// The month before `key`. Written out rather than using Date arithmetic on a
+// "YYYY-MM" string, which silently breaks across a January boundary.
+function prevMonthKey(key) {
+  const [y, m] = key.split("-").map(Number);
+  return m === 1 ? (y - 1) + "-12" : y + "-" + String(m - 1).padStart(2, "0");
+}
+
+/* Month-on-month delta as a rendered fragment. An executive reading a tile
+   wants direction before magnitude — "up 12%" answers the question that a bare
+   rupee figure only raises. `goodDown` flips the colour for costs, where a fall
+   is the good outcome and a rise is not. */
+function momDelta(now, prev, goodDown) {
+  if (!prev) return '<span class="stat-sub">no prior month to compare</span>';
+  const pct = ((now - prev) / Math.abs(prev)) * 100;
+  if (!isFinite(pct)) return '<span class="stat-sub">—</span>';
+  const up = pct >= 0;
+  // Under half a percent is noise, not a trend, and colouring it implies a
+  // signal that isn't there.
+  const flat = Math.abs(pct) < 0.5;
+  const good = flat ? null : (goodDown ? !up : up);
+  const colour = good === null ? "" : good ? "#006300" : DASH_PAL.critical;
+  const arrow = flat ? "→" : up ? "▲" : "▼";
+  return `<span class="stat-sub" style="color:${colour}">${arrow} ${Math.abs(pct).toFixed(0)}% vs ${monthLabel(prevMonthKey(todayKey()))}</span>`;
+}
+
 function renderStats() {
   const el = document.getElementById("finStatRow");
   if (!el) return;
   const nowK = todayKey();
-  const thisMonth = db.expenses.filter(e => monthKey(e.date) === nowK).reduce((s, e) => s + e.amount, 0);
-  const fuelMonth = (db.fuelLogs || []).filter(f => monthKey(f.date) === nowK).reduce((s, f) => s + f.amount, 0);
+  const prevK = prevMonthKey(nowK);
+  const sumExp = k => db.expenses.filter(e => monthKey(e.date) === k).reduce((s, e) => s + e.amount, 0);
+  const sumFuel = k => (db.fuelLogs || []).filter(f => monthKey(f.date) === k).reduce((s, f) => s + f.amount, 0);
+  const sumRev = k => (db.trips || []).filter(t => monthKey(t.date) === k).reduce((s, t) => s + t.freight, 0);
+
+  const thisMonth = sumExp(nowK);
+  const fuelMonth = sumFuel(nowK);
   const driverMonth = driverSpend("all", nowK);
   const allInMonth = thisMonth + fuelMonth + driverMonth;
-  const revMonth = (db.trips || []).filter(t => monthKey(t.date) === nowK).reduce((s, t) => s + t.freight, 0);
+  const revMonth = sumRev(nowK);
   const profMonth = revMonth - allInMonth;
+
+  const pExp = sumExp(prevK), pFuel = sumFuel(prevK), pDriver = driverSpend("all", prevK);
+  const pAllIn = pExp + pFuel + pDriver;
+  const pRev = sumRev(prevK);
+  const pProf = pRev - pAllIn;
+
+  // Margin says whether the fleet is actually a business this month. Profit in
+  // rupees hides it: the same lakh of profit is healthy on 5 lakh of freight
+  // and thin on 50.
+  const margin = revMonth ? (profMonth / revMonth) * 100 : null;
+  const pMargin = pRev ? (pProf / pRev) * 100 : null;
+
+  // Utilisation: vehicles that actually earned this month against the fleet
+  // that was paid for. An idle truck costs nearly as much as a busy one.
+  const earned = new Set((db.trips || []).filter(t => monthKey(t.date) === nowK).map(t => t.vehicleId));
+  const fleetSize = (db.vehicles || []).length;
+  const util = fleetSize ? (earned.size / fleetSize) * 100 : null;
+
+  // Revenue forecast uses the same least-squares regression as the spend
+  // forecast, so finance never has to reconcile two different methods.
+  const revSeries = monthlySeries((db.trips || []).map(t => ({ date: t.date, amount: t.freight })));
+  const revFcArr = revSeries.length >= 3 ? forecastMonthly(revSeries.slice(-12), 1) : [];
+  const revFc = revFcArr.length ? revFcArr[0].amount : null;
+
+  // Per-vehicle revenue, and the spread. The average alone hides the truck that
+  // is carrying the fleet and the one that is not paying for itself.
+  const byVeh = {};
+  for (const t of (db.trips || [])) {
+    if (monthKey(t.date) !== nowK) continue;
+    byVeh[t.vehicleId] = (byVeh[t.vehicleId] || 0) + t.freight;
+  }
+  const vehEarnings = Object.entries(byVeh);
+  const revPerVeh = fleetSize && revMonth ? revMonth / fleetSize : null;
+  let bestWorst = null;
+  if (vehEarnings.length >= 2) {
+    const sorted = vehEarnings.sort((a, b) => b[1] - a[1]);
+    const nameOf = id => ((db.vehicles || []).find(v => v.id === id) || {}).name || id;
+    const [bId, bAmt] = sorted[0], [wId, wAmt] = sorted[sorted.length - 1];
+    bestWorst = {
+      label: nameOf(bId) + " / " + nameOf(wId),
+      sub: fmtINR(bAmt) + " vs " + fmtINR(wAmt) + " this month",
+    };
+  }
   const vs = vehicleStats();
   const fleetCpk = mean(vs.filter(v => v.costPerKm > 0).map(v => v.costPerKm));
   const indCpk = mean(vs.map(v => v.industry));
   const deltaPct = indCpk ? ((fleetCpk - indCpk) / indCpk) * 100 : 0;
   const deltaGood = deltaPct <= 0;
   el.innerHTML = `
-    <div class="stat-tile"><span class="stat-label">Total expenses this month</span><span class="stat-value">${fmtINR(allInMonth)}</span><span class="stat-sub">maintenance + diesel + driver pay</span></div>
-    <div class="stat-tile"><span class="stat-label">Maintenance this month</span><span class="stat-value">${fmtINR(thisMonth)}</span><span class="stat-sub">${nowK ? monthLabel(nowK) : ""}</span></div>
-    <div class="stat-tile"><span class="stat-label">Diesel this month</span><span class="stat-value">${fmtINR(fuelMonth)}</span><span class="stat-sub">from fuel logs</span></div>
-    <div class="stat-tile"><span class="stat-label">Driver pay this month</span><span class="stat-value">${fmtINR(driverMonth)}</span><span class="stat-sub">salaries + net khata advances</span></div>
+    <div class="stat-tile"><span class="stat-label">Total expenses this month</span><span class="stat-value">${fmtINR(allInMonth)}</span>${momDelta(allInMonth, pAllIn, true)}</div>
+    <div class="stat-tile"><span class="stat-label">Maintenance this month</span><span class="stat-value">${fmtINR(thisMonth)}</span>${momDelta(thisMonth, pExp, true)}</div>
+    <div class="stat-tile"><span class="stat-label">Diesel this month</span><span class="stat-value">${fmtINR(fuelMonth)}</span>${momDelta(fuelMonth, pFuel, true)}</div>
+    <div class="stat-tile"><span class="stat-label">Driver pay this month</span><span class="stat-value">${fmtINR(driverMonth)}</span>${momDelta(driverMonth, pDriver, true)}</div>
     <div class="stat-tile"><span class="stat-label">Fleet cost per km</span><span class="stat-value">₹${fleetCpk.toFixed(2)}</span>
       <span class="stat-sub" style="color:${deltaGood ? "#006300" : DASH_PAL.critical}">${deltaGood ? "▼" : "▲"} ${Math.abs(deltaPct).toFixed(0)}% vs industry ₹${indCpk.toFixed(2)}</span></div>
-    <div class="stat-tile"><span class="stat-label">Freight this month</span><span class="stat-value">${fmtINR(revMonth)}</span><span class="stat-sub">from logged trips</span></div>
-    <div class="stat-tile"><span class="stat-label">Profit this month</span><span class="stat-value" style="color:${profMonth >= 0 ? "#006300" : DASH_PAL.critical}">${profMonth < 0 ? "−" : ""}${fmtINR(Math.abs(profMonth))}</span><span class="stat-sub">freight − all expenses</span></div>
+    <div class="stat-tile"><span class="stat-label">Freight this month</span><span class="stat-value">${fmtINR(revMonth)}</span>${momDelta(revMonth, pRev, false)}</div>
+    <div class="stat-tile"><span class="stat-label">Profit this month</span><span class="stat-value" style="color:${profMonth >= 0 ? "#006300" : DASH_PAL.critical}">${profMonth < 0 ? "−" : ""}${fmtINR(Math.abs(profMonth))}</span>${momDelta(profMonth, pProf, false)}</div>
+    <div class="stat-tile"><span class="stat-label">Operating margin</span><span class="stat-value" style="color:${margin == null ? "" : margin >= 0 ? "#006300" : DASH_PAL.critical}">${margin == null ? "—" : margin.toFixed(1) + "%"}</span>
+      ${margin == null ? '<span class="stat-sub">log trips to see margin</span>' : momDelta(margin, pMargin, false)}</div>
+    <div class="stat-tile"><span class="stat-label">Fleet utilisation</span><span class="stat-value">${util == null ? "—" : Math.round(util) + "%"}</span>
+      <span class="stat-sub">${util == null ? "add vehicles to track" : earned.size + " of " + fleetSize + " earned this month"}</span></div>
+    <div class="stat-tile"><span class="stat-label">Revenue forecast</span><span class="stat-value">${revFc == null ? "—" : fmtINR(revFc)}</span><span class="stat-sub">${revFc == null ? "log trips to forecast" : "next month, same regression as spend"}</span></div>
+    <div class="stat-tile"><span class="stat-label">Revenue per vehicle</span><span class="stat-value">${revPerVeh == null ? "—" : fmtINR(revPerVeh)}</span><span class="stat-sub">${revPerVeh == null ? "needs trips + vehicles" : "this month, fleet average"}</span></div>
+    <div class="stat-tile"><span class="stat-label">Best / worst earner</span><span class="stat-value" style="font-size:1.1rem">${bestWorst ? bestWorst.label : "—"}</span><span class="stat-sub">${bestWorst ? bestWorst.sub : "log trips per vehicle"}</span></div>
     <div class="stat-tile"><span class="stat-label">GST credit, this quarter</span><span class="stat-value" style="color:#006300">${fmtINR(itcQuarter())}</span><span class="stat-sub">ITC from captured GST bills</span></div>`;
+}
+
+// FleetOps — the maintenance picture: what is broken, what is waiting, and what
+// each is costing in days off the road.
+//
+// Turnaround and downtime are the two numbers a workshop conversation actually
+// turns on, and neither existed before: a fleet owner who cannot say "your last
+// three jobs averaged 4.2 days" has no basis to push back on the fourth.
+const DAY_MS = 86400000;
+const daysBetween = (a, b) => (a && b) ? Math.max(0, Math.round((new Date(b) - new Date(a)) / DAY_MS)) : null;
+
+function workOrderStats() {
+  const wos = db.workOrders || [];
+  const done = [], open = [];
+  for (const w of wos) {
+    // Completed is inferred from the date rather than a status string, because
+    // status vocabulary drifts across the app while the date does not.
+    if (w.completedAt || w.completed_at) done.push(w); else open.push(w);
+  }
+  const tats = done
+    .map(w => daysBetween(w.openedAt || w.opened_at, w.completedAt || w.completed_at))
+    .filter(d => d !== null);
+  // Vehicles sitting open right now, and how long each has been down.
+  const today = new Date().toISOString().slice(0, 10);
+  const openAges = open
+    .map(w => daysBetween(w.openedAt || w.opened_at, today))
+    .filter(d => d !== null);
+  return {
+    done, open, tats, openAges,
+    avgTat: tats.length ? tats.reduce((a, b) => a + b, 0) / tats.length : null,
+    worstTat: tats.length ? Math.max(...tats) : null,
+    downDays: openAges.reduce((a, b) => a + b, 0),
+    stuck: open.filter((w, i) => openAges[i] != null && openAges[i] > 7).length,
+  };
+}
+
+function renderOpsStats() {
+  const el = document.getElementById("opsStatRow");
+  if (!el) return;
+  const s = workOrderStats();
+  const issues = db.issues || [];
+  const openIssues = issues.filter(i => !(i.resolvedAt || i.resolved_at));
+  const critical = openIssues.filter(i => /high|critical/i.test(i.severity || "")).length;
+
+  // Issue resolution is a different clock from workshop turnaround — an issue
+  // can sit unlogged for days before a work order is even opened.
+  const resTimes = issues
+    .map(i => daysBetween(i.reportedAt || i.reported_at, i.resolvedAt || i.resolved_at))
+    .filter(d => d !== null);
+  const avgRes = resTimes.length ? resTimes.reduce((a, b) => a + b, 0) / resTimes.length : null;
+
+  // Maintenance spend forecast reuses the same regression as FleetFin, so ops
+  // and finance never quote different numbers for the same thing.
+  const monthly = monthlySeries(db.expenses);
+  const fc = forecastMonthly(monthly.slice(-12), 1);
+  const nextMonth = fc.length ? fc[0].amount : null;
+
+  const tone = (v, warn, bad) => v == null ? "" : v >= bad ? DASH_PAL.critical : v >= warn ? DASH_PAL.serious : "#006300";
+
+  el.innerHTML = `
+    <div class="stat-tile"><span class="stat-label">Open issues</span><span class="stat-value" style="color:${openIssues.length ? DASH_PAL.serious : "#006300"}">${openIssues.length}</span><span class="stat-sub">${critical} high severity</span></div>
+    <div class="stat-tile"><span class="stat-label">Pending work orders</span><span class="stat-value" style="color:${s.open.length ? DASH_PAL.serious : "#006300"}">${s.open.length}</span><span class="stat-sub">${s.stuck} open over a week</span></div>
+    <div class="stat-tile"><span class="stat-label">Avg turnaround</span><span class="stat-value" style="color:${tone(s.avgTat, 4, 7)}">${s.avgTat == null ? "—" : s.avgTat.toFixed(1) + " d"}</span><span class="stat-sub">${s.tats.length ? "across " + s.tats.length + " completed job" + (s.tats.length === 1 ? "" : "s") : "no completed jobs yet"}</span></div>
+    <div class="stat-tile"><span class="stat-label">Worst turnaround</span><span class="stat-value" style="color:${tone(s.worstTat, 7, 14)}">${s.worstTat == null ? "—" : s.worstTat + " d"}</span><span class="stat-sub">longest single repair</span></div>
+    <div class="stat-tile"><span class="stat-label">Vehicle-days down now</span><span class="stat-value" style="color:${tone(s.downDays, 5, 15)}">${s.downDays || 0}</span><span class="stat-sub">${s.open.length} vehicle${s.open.length === 1 ? "" : "s"} off the road</span></div>
+    <div class="stat-tile"><span class="stat-label">Avg issue resolution</span><span class="stat-value" style="color:${tone(avgRes, 5, 10)}">${avgRes == null ? "—" : avgRes.toFixed(1) + " d"}</span><span class="stat-sub">reported to resolved</span></div>
+    <div class="stat-tile"><span class="stat-label">Maintenance forecast</span><span class="stat-value">${nextMonth == null ? "—" : fmtINR(nextMonth)}</span><span class="stat-sub">next month, from your history</span></div>`;
 }
 
 // FleetIQ — what the AI sees ahead, and what acting on it is worth
@@ -1286,6 +1433,7 @@ function renderAnalyticsAll() {
   });
 
   renderStats();
+  renderOpsStats();
   renderIQStats();
   renderCharts();
   renderPredictions();

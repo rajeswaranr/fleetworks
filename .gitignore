@@ -6,3 +6,16 @@ supabase/.temp/
 
 # Local generated seed data / browser storage state
 .tmp/
+
+# Environment variables (Supabase credentials, API keys)
+.env
+.env.local
+.env.*.local
+
+# Node dependencies
+node_modules/
+npm-debug.log
+
+# Scraper temp files
+/tmp/
+/server/scraper/node_modules/

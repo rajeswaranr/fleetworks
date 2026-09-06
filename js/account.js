@@ -381,7 +381,9 @@ document.getElementById("qeExpForm").addEventListener("submit", async e => {
   } else {
     db.expenses.push(ex);
   }
-  if (typeof renderExpenseCategoryList === "function") renderExpenseCategoryList();
+  // Remember the type for every device on this account, not just this tab.
+  if (typeof rememberExpenseCategory === "function") rememberExpenseCategory(ex.category);
+  else if (typeof renderExpenseCategoryList === "function") renderExpenseCategoryList();
   afterQuickSave(e.target);
 });
 

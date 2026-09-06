@@ -87,6 +87,27 @@
 
       <div class="chart-card">
         <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="shieldCheck" data-icon-size="18"></i></span> Reset a User's Password</h2><p class="muted">For a locked-out owner, partner or team member who rings in. Issues a temporary password to read out — they can change it after signing in. Every reset is logged below.</p></div>
+        </div>
+        <form id="pwResetForm" class="entry-form" style="margin-bottom:14px">
+          <div class="form-row">
+            <label>User's Email
+              <input type="email" name="email" placeholder="owner@example.com" required autocomplete="off" />
+            </label>
+            <button type="submit" class="btn btn-primary" style="align-self:end">Issue Temporary Password</button>
+          </div>
+          <p class="field-error" id="pwResetErr" hidden></p>
+        </form>
+        <div id="pwResetOut" hidden style="margin-bottom:14px;padding:14px;border:1px solid #0ca30c;border-radius:10px;background:#0ca30c10">
+          <p style="margin:0 0 6px"><strong>Temporary password for <span id="pwResetWho"></span></strong></p>
+          <p style="margin:0 0 8px;font-family:ui-monospace,Consolas,monospace;font-size:1.35rem;letter-spacing:1px" id="pwResetPw"></p>
+          <p class="muted" style="font-size:0.8rem;margin:0">Read this out now — it isn't stored anywhere and can't be shown again. Tell them to change it from their account page after signing in.</p>
+        </div>
+        <div class="chart-scroll"><div id="pwResetLog"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
           <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="phone" data-icon-size="18"></i></span> Customer Booking Leads</h2><p class="muted">Newest first — call within 15 minutes!</p></div>
           <button class="btn btn-outline btn-sm" onclick="loadAll()">↻ Refresh</button>
         </div>
@@ -102,28 +123,118 @@
 
       <div class="chart-card">
         <div class="chart-head">
-          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="search" data-icon-size="18"></i></span> Vendor Leads (Sourced)</h2><p class="muted">Scraped candidates awaiting a BDM call before they become real partners — upload the JSON output from a Google Maps scrape</p></div>
+          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="shieldCheck" data-icon-size="18"></i></span> Insurance Quote Requests</h2><p class="muted">Sorted by policy expiry — the ones expiring soonest are the ones to call today. Pass these to a licensed insurance partner.</p></div>
+          <button class="btn btn-outline btn-sm" onclick="loadInsuranceQuotes()">↻ Refresh</button>
+        </div>
+        <div class="chart-scroll"><div id="insuranceTable"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="search" data-icon-size="18"></i></span> Unverified — Needs Review</h2><p class="muted">Freshly sourced shops. Check the Google category and rating, then Verify the genuine HCV ones or Reject the car-shop strays. You can also upload a scrape JSON here.</p></div>
         </div>
         <form id="leadUploadForm" class="entry-form" style="margin-bottom:14px">
           <div class="form-row">
             <label>Service Category
               <select name="serviceCategory" required>
-                <option value="mechanic">Mechanic</option>
-                <option value="electrician">Electrician</option>
-                <option value="battery">Battery</option>
-                <option value="tyre">Tyre</option>
-                <option value="puncture">Puncture Repair</option>
+                <optgroup label="Running repairs">
+                  <option value="mechanic">Mechanic</option>
+                  <option value="electrician">Auto Electrician</option>
+                  <option value="battery">Battery</option>
+                  <option value="tyre">Tyre</option>
+                  <option value="puncture">Puncture Repair</option>
+                </optgroup>
+                <optgroup label="Systems">
+                  <option value="hydraulic">Hydraulic (Hyva / Tipper)</option>
+                  <option value="injector">Diesel Injector / FIP</option>
+                  <option value="radiator">Radiator</option>
+                  <option value="spring">Leaf Spring / Suspension</option>
+                </optgroup>
+                <optgroup label="Body trades">
+                  <option value="bodyshop">Body Works (Denting / Painting / Body Building)</option>
+                  <option value="welding">Welding / Fabrication</option>
+                  <option value="windshield">Windshield / Glass</option>
+                </optgroup>
+                <optgroup label="Supply">
+                  <option value="spareparts">Spare Parts</option>
+                </optgroup>
                 <option value="other">Other</option>
               </select>
             </label>
-            <label>City<input type="text" name="city" required placeholder="e.g. Coimbatore" /></label>
+            <label>City (optional — auto-detected from address if left blank)<input type="text" name="city" placeholder="only if you scraped a single city" /></label>
             <label>JSON file<input type="file" name="file" accept=".json" required /></label>
           </div>
           <button type="submit" class="btn btn-primary">Upload</button>
           <p class="field-error" id="leadUploadErr" hidden></p>
           <p class="muted" id="leadUploadResult" style="font-size:0.85rem;margin-top:6px"></p>
         </form>
-        <div class="chart-scroll"><div id="vendorLeadsTable"></div></div>
+        <div class="chart-scroll"><div id="unverifiedTable"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="shieldCheck" data-icon-size="18"></i></span> Verified Vendor Leads</h2><p class="muted">Confirmed HCV shops — assign a BDM and work them through the pipeline</p></div>
+        </div>
+        <div class="chart-scroll"><div id="verifiedTable"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="settings" data-icon-size="18"></i></span> Google Maps Sourcing</h2><p class="muted">Save a vendor type + city, then hit Scrape Now — results land in Vendor Leads above. Shops already on file are skipped automatically.</p></div>
+        </div>
+        <form id="scraperConfigForm" class="entry-form" style="margin-bottom:14px">
+          <div class="form-row">
+            <label>Vendor Type
+              <select name="vendorType" required>
+                <optgroup label="Running repairs">
+                  <option value="mechanic">Mechanic</option>
+                  <option value="electrician">Auto Electrician</option>
+                  <option value="battery">Battery</option>
+                  <option value="tyre">Tyre</option>
+                  <option value="puncture">Puncture Repair</option>
+                </optgroup>
+                <optgroup label="Systems">
+                  <option value="hydraulic">Hydraulic (Hyva / Tipper)</option>
+                  <option value="injector">Diesel Injector / FIP</option>
+                  <option value="radiator">Radiator</option>
+                  <option value="spring">Leaf Spring / Suspension</option>
+                </optgroup>
+                <optgroup label="Body trades">
+                  <option value="bodyshop">Body Works (Denting / Painting / Body Building)</option>
+                  <option value="welding">Welding / Fabrication</option>
+                  <option value="windshield">Windshield / Glass</option>
+                </optgroup>
+                <optgroup label="Supply">
+                  <option value="spareparts">Spare Parts</option>
+                </optgroup>
+              </select>
+            </label>
+            <label>City
+              <input type="text" name="city" placeholder="e.g. Chennai" required />
+            </label>
+            <button type="submit" class="btn btn-primary" style="align-self:end">+ Add Config</button>
+          </div>
+        </form>
+        <div class="chart-scroll"><div id="configsTable"></div></div>
+        <div id="scrapeProgress" hidden style="margin-top:14px;padding:14px;border:1px solid var(--line,#e3e8ef);border-radius:10px;background:#f8fafc">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+            <strong id="scrapeStage">Starting…</strong>
+            <span class="muted" id="scrapeElapsed" style="font-size:0.8rem"></span>
+          </div>
+          <div style="height:6px;background:#e3e8ef;border-radius:3px;overflow:hidden">
+            <div id="scrapeBar" style="height:100%;width:30%;background:var(--amber,#f59e0b);border-radius:3px;transition:width .4s ease"></div>
+          </div>
+          <div id="scrapePhrases" class="muted" style="font-size:0.78rem;margin-top:8px"></div>
+          <div id="scrapeResults" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="clock" data-icon-size="18"></i></span> Sourcing History</h2><p class="muted">Every scrape run — what was found, how many were new, and why any failed</p></div>
+          <button class="btn btn-outline btn-sm" onclick="loadScraperRuns()">↻ Refresh</button>
+        </div>
+        <div class="chart-scroll"><div id="runsTable"></div></div>
       </div>
     </div>
   </main>
@@ -137,6 +248,7 @@
   <script src="js/modules/auth/view-models/auth.viewmodel.js"></script>
   <script src="js/modules/auth/auth.module.js"></script>
   <script src="js/auth-reset.js"></script>
+  <script src="js/geo-india.js"></script>
   <script>
     "use strict";
     const $ = id => document.getElementById(id);
@@ -211,6 +323,7 @@
     }
 
     let STAFF = [], LEADS = [], VENDORS = [], VENDOR_LEADS = [];
+    let SHOW_REJECTED = false;
 
     function bdmOptions(selectedId) {
       const active = STAFF.filter(s => s.active);
@@ -287,19 +400,93 @@
           <td><select onchange="assignVendor('${v.id}', this.value)">${bdmOptions(v.assigned_to)}</select></td></tr>`).join("") + "</tbody></table>"
         : "<p class='muted'>No vendor applications yet.</p>";
 
-      const STATUS_ACTIONS = { new: ["contacted", "rejected"], contacted: ["qualified", "rejected"], qualified: ["converted", "rejected"], rejected: ["new"], converted: [] };
-      const STATUS_LABEL = { new: "New", contacted: "Contacted", qualified: "Qualified", rejected: "Rejected", converted: "Converted" };
-      $("vendorLeadsTable").innerHTML = vendorLeads.length ?
+      renderLeadTables();
+    }
+
+    // Two tables, one gate. Unverified is a data-quality queue — is this really
+    // an HCV shop? Verified is the BDM pipeline, where status and assignment
+    // start to mean something. Rejected rows leave both and are only counted,
+    // so a bad scrape doesn't bury the good leads.
+    const STATUS_ACTIONS = { new: ["contacted", "rejected"], contacted: ["qualified", "rejected"], qualified: ["converted", "rejected"], rejected: ["new"], converted: [] };
+    const STATUS_LABEL = { new: "New", contacted: "Contacted", qualified: "Qualified", rejected: "Rejected", converted: "Converted" };
+
+    // Dealerships and franchise outlets, by name. The absence of a website is a
+    // decent proxy for "small independent" but not a reliable one — a live scan
+    // flagged "Tata ace truck showroom" as a local garage purely because it had
+    // no site and few reviews. Names give the signal that metadata doesn't.
+    //
+    // Only unambiguous markers belong here. "service centre" is deliberately
+    // absent: "Sairanjan service center" is exactly the sort of independent shop
+    // we're hunting for, and excluding the phrase would lose it.
+    const CHAIN_MARKERS = [
+      "tata motors", "tata ace", "mahindra", "ashok leyland", "eicher",
+      "bharatbenz", "bharat benz", "volvo", "daimler", "maruti", "hyundai",
+      "bosch car service", "showroom", "authorised", "authorized",
+      "pvt ltd", "pvt. ltd", "private limited", " llp", "dealership",
+    ];
+    const looksLikeChain = name => {
+      const n = String(name || "").toLowerCase();
+      return CHAIN_MARKERS.some(m => n.includes(m));
+    };
+
+    // The partners we actually want are the small independent garages: a shed, a
+    // phone number, no website, a handful of reviews. Google ranks exactly those
+    // last, so the console has to pull them back up — otherwise a BDM works down
+    // from the top and spends the day calling Mahindra showrooms.
+    // A phone number is non-negotiable; without one there's no way to approach them.
+    function isLocalGarage(l) {
+      return !l.website && !!l.phone
+        && (l.review_count == null || l.review_count < 25)
+        && !looksLikeChain(l.business_name);
+    }
+
+    function leadIdentity(l) {
+      const badge = isLocalGarage(l)
+        ? ` <span class="fw-badge" style="background:#0ca30c18;color:#0ca30c;font-size:0.68rem;padding:2px 6px;border-radius:4px;white-space:nowrap" title="No website, few reviews — the small independent shops we're after">local garage</span>` : "";
+      return `<td><strong>${esc(l.business_name)}</strong>${badge}${l.website ? `<br /><a href="${esc(l.website)}" target="_blank" rel="noopener" class="muted" style="font-size:0.78rem">${esc(l.website)}</a>` : `<br /><span class="muted" style="font-size:0.72rem">no website</span>`}</td>
+        <td>${esc(l.service_category || "")}${l.google_category ? `<br /><span class="muted" style="font-size:0.72rem">${esc(l.google_category)}</span>` : ""}</td>
+        <td>${esc(l.city || "")}</td>
+        <td>${l.phone ? `<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a>` : "<span class='muted'>—</span>"}</td>
+        <td>${l.rating != null ? `${l.rating}★ (${l.review_count || 0})` : "<span class='muted'>—</span>"}</td>`;
+    }
+
+    function renderLeadTables() {
+      const rejected = VENDOR_LEADS.filter(l => l.status === "rejected");
+      const unverified = VENDOR_LEADS.filter(l => !l.verified && l.status !== "rejected");
+      const verified = VENDOR_LEADS.filter(l => l.verified && l.status !== "rejected");
+
+      const rejectedNote = rejected.length
+        ? `<p class="muted" style="font-size:0.8rem;margin-top:8px">${rejected.length} rejected — <button class="link-btn" onclick="toggleRejected()">${SHOW_REJECTED ? "hide" : "show"} them</button></p>` : "";
+
+      // Small local garages first — they're the target, and Google buried them.
+      const byLocalFirst = (a, b) => (isLocalGarage(b) - isLocalGarage(a));
+      const queue = (SHOW_REJECTED ? unverified.concat(rejected) : unverified.slice()).sort(byLocalFirst);
+      const localCount = unverified.filter(isLocalGarage).length;
+      $("unverifiedTable").innerHTML = (queue.length
+        ? `<table class="chart-table-el"><thead><tr><th>Business</th><th>Category</th><th>City</th><th>Phone</th><th>Rating</th><th>Review</th></tr></thead><tbody>` +
+          queue.map(l => {
+            const id = escAttr(JSON.stringify(l.id));
+            const actions = l.status === "rejected"
+              ? `<span class="status-pill" style="background:#ef444420;color:#ef4444;border-color:#ef4444">Rejected</span>
+                 <button class="link-btn" onclick='setLeadStatus(${id},"new")'>Restore</button>`
+              : `<button class="link-btn" style="color:#0ca30c;font-weight:600" onclick='verifyLead(${id},true)'>✓ Verify</button>
+                 <button class="link-btn" style="color:#b91c1c" onclick='rejectLead(${id},${escAttr(JSON.stringify(l.business_name))})'>Reject</button>`;
+            return `<tr${l.status === "rejected" ? ' style="opacity:.55"' : ""}>${leadIdentity(l)}
+            <td style="white-space:nowrap">${actions}</td></tr>`;
+          }).join("") + "</tbody></table>"
+        : "<p class='muted'>Nothing waiting for review — run a scrape above.</p>")
+        + (unverified.length ? `<p class="muted" style="font-size:0.8rem;margin-top:8px"><strong>${localCount}</strong> of ${unverified.length} look like small local garages (no website, few reviews) — those are listed first.</p>` : "")
+        + rejectedNote;
+
+      $("verifiedTable").innerHTML = verified.length ?
         `<table class="chart-table-el"><thead><tr><th>Business</th><th>Category</th><th>City</th><th>Phone</th><th>Rating</th><th>Status</th><th>Assigned to</th><th></th></tr></thead><tbody>` +
-        vendorLeads.map(l => `<tr><td><strong>${esc(l.business_name)}</strong>${l.website ? `<br /><a href="${esc(l.website)}" target="_blank" rel="noopener" class="muted" style="font-size:0.78rem">${esc(l.website)}</a>` : ""}</td>
-          <td>${esc(l.service_category || "")}</td><td>${esc(l.city || "")}</td>
-          <td>${l.phone ? `<a href="tel:${esc(l.phone)}">${esc(l.phone)}</a>` : "<span class='muted'>—</span>"}</td>
-          <td>${l.rating != null ? `${l.rating}★ (${l.review_count || 0})` : "<span class='muted'>—</span>"}</td>
+        verified.map(l => `<tr>${leadIdentity(l)}
           <td><span class="status-pill">${STATUS_LABEL[l.status] || l.status}</span></td>
           <td><select onchange="assignVendorLead('${l.id}', this.value)">${bdmOptions(l.assigned_to)}</select></td>
-          <td style="white-space:nowrap">${(STATUS_ACTIONS[l.status] || []).map(s => `<button class="link-btn" onclick="setLeadStatus('${l.id}','${s}')">${STATUS_LABEL[s]}</button>`).join(" ")}</td>
-          </tr>`).join("") + "</tbody></table>"
-        : "<p class='muted'>No sourced leads yet — upload a scrape above.</p>";
+          <td style="white-space:nowrap">${(STATUS_ACTIONS[l.status] || []).map(s => `<button class="link-btn" onclick="setLeadStatus('${l.id}','${s}')">${STATUS_LABEL[s]}</button>`).join(" ")}
+            <button class="link-btn muted" onclick='verifyLead(${escAttr(JSON.stringify(l.id))},false)' title="Send back to the review queue">↩</button>
+          </td></tr>`).join("") + "</tbody></table>"
+        : "<p class='muted'>No verified leads yet — verify one from the queue above.</p>";
     }
 
     window.assignLead = async function (id, staffId) {
@@ -319,12 +506,361 @@
       catch (ex) { alert(ex.message); }
     };
 
+    // Verification gate. Moving a lead between the two tables is just this flag
+    // — status and assignment are left alone, so sending one back for a second
+    // look never loses the BDM's work on it.
+    window.verifyLead = async function (id, makeVerified) {
+      try {
+        await patchRow("vendor_leads", id, makeVerified
+          ? { verified: true, verified_at: new Date().toISOString() }
+          : { verified: false, verified_at: null });
+        await loadAll();
+      } catch (ex) { alert(ex.message); }
+    };
+    window.rejectLead = async function (id, name) {
+      // Worth spelling out: because de-duplication is on place_id, a rejected
+      // shop will NOT come back on the next scrape of the same city. That's the
+      // intent — reject once, stay rejected — but it's not obvious.
+      if (!confirm(`Reject "${name}"?\n\nIt leaves the review queue. Future scrapes of this city won't re-add it, and you can restore it from "show rejected".`)) return;
+      try { await patchRow("vendor_leads", id, { status: "rejected" }); await loadAll(); }
+      catch (ex) { alert(ex.message); }
+    };
+    window.toggleRejected = function () { SHOW_REJECTED = !SHOW_REJECTED; renderLeadTables(); };
+
+    // ===== Insurance quote requests =====
+    // Ordered by policy expiry, nulls last: a policy lapsing in nine days is a
+    // different call from one lapsing in four months, and expiry is the only
+    // field on this desk that carries a deadline.
+    const INS_STATUS = { new: "New", contacted: "Contacted", quoted: "Quoted", converted: "Converted", lost: "Lost" };
+    const INS_NEXT = { new: ["contacted", "lost"], contacted: ["quoted", "lost"], quoted: ["converted", "lost"], lost: ["new"], converted: [] };
+
+    async function loadInsuranceQuotes() {
+      try {
+        const rows = await fetchTable("insurance_quotes",
+          "select=*&order=policy_expiry.asc.nullslast,created_at.desc&limit=300");
+        $("insuranceTable").innerHTML = rows.length ? renderInsurance(rows)
+          : "<p class='muted'>No insurance quote requests yet — they arrive from the Get Quotes page.</p>";
+      } catch (ex) {
+        $("insuranceTable").innerHTML = `<p class="muted" style="color:#b91c1c">${esc(ex.message)}</p>`;
+      }
+    }
+
+    function renderInsurance(rows) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      return `<table class="chart-table-el"><thead><tr><th>Expiry</th><th>Owner</th><th>Phone</th><th>Fleet</th><th>Vehicle</th><th>Current cover</th><th>Where</th><th>Status</th><th>Assigned to</th><th></th></tr></thead><tbody>` +
+        rows.map(q => {
+          // Days-to-expiry is the whole point of this table, so it gets colour.
+          let exp = "<span class='muted'>—</span>";
+          if (q.policy_expiry) {
+            const d = Math.round((new Date(q.policy_expiry) - today) / 86400000);
+            const tone = d < 0 ? "#b91c1c" : d <= 15 ? "#b91c1c" : d <= 45 ? "#c2820a" : "#0ca30c";
+            const label = d < 0 ? `Lapsed ${-d}d ago` : d === 0 ? "Today" : `${d}d left`;
+            exp = `<strong style="color:${tone}">${label}</strong><br /><span class="muted" style="font-size:0.72rem">${fmtDT(q.policy_expiry).split(",")[0]}</span>`;
+          }
+          const veh = [q.make_model, q.manufacture_year, q.gvw_kg ? q.gvw_kg + "kg" : null].filter(Boolean).join(" · ");
+          const cover = [q.cover_type, q.current_insurer, q.ncb_percent != null ? "NCB " + q.ncb_percent + "%" : null,
+                         q.claims_last_year ? q.claims_last_year + " claim(s)" : null].filter(Boolean).join("<br />");
+          const fleet = q.fleet_size > 1
+            ? `<strong>${q.fleet_size}</strong> vehicles${q.vehicles_json ? ' <span class="fw-badge ok" title="Pulled from their FleetWorks account">from app</span>' : ""}`
+            : "1";
+          return `<tr>
+            <td style="white-space:nowrap">${exp}</td>
+            <td><strong>${esc(q.owner_name || "")}</strong>${q.business_name ? `<br /><span class="muted" style="font-size:0.76rem">${esc(q.business_name)}</span>` : ""}<br /><span class="muted" style="font-size:0.7rem">${esc(q.ref || "")}</span></td>
+            <td><a href="tel:+91${esc(q.phone)}"><strong>${esc(q.phone)}</strong></a></td>
+            <td>${fleet}</td>
+            <td>${esc(q.vehicle_class || "")}${veh ? `<br /><span class="muted" style="font-size:0.74rem">${esc(veh)}</span>` : ""}</td>
+            <td style="font-size:0.8rem">${cover || "<span class='muted'>—</span>"}</td>
+            <td style="font-size:0.8rem">${esc([q.town, q.district, q.state].filter(Boolean).join(", "))}</td>
+            <td><span class="status-pill">${INS_STATUS[q.status] || q.status}</span></td>
+            <td><select onchange="assignInsurance('${q.id}', this.value)">${bdmOptions(q.assigned_to)}</select></td>
+            <td style="white-space:nowrap">${(INS_NEXT[q.status] || []).map(s => `<button class="link-btn" onclick="setInsuranceStatus('${q.id}','${s}')">${INS_STATUS[s]}</button>`).join(" ")}</td>
+          </tr>`;
+        }).join("") + "</tbody></table>";
+    }
+
+    window.assignInsurance = async function (id, staffId) {
+      try { await patchRow("insurance_quotes", id, { assigned_to: staffId || null }); await loadInsuranceQuotes(); }
+      catch (ex) { alert(ex.message); }
+    };
+    window.setInsuranceStatus = async function (id, status) {
+      try { await patchRow("insurance_quotes", id, { status }); await loadInsuranceQuotes(); }
+      catch (ex) { alert(ex.message); }
+    };
+
+    // ===== Admin-issued password reset =====
+    // Works without SMTP: the admin sets a temporary password and reads it out
+    // over the phone. The service-role work happens inside the edge function —
+    // this page only ever sees the generated password, and only once.
+    const PW_RESET_FN_URL = FW_BACKEND.url + "/functions/v1/admin-reset-password";
+
+    async function loadPwResetLog() {
+      try {
+        const rows = await fetchTable("admin_password_resets", "select=*&order=created_at.desc&limit=25");
+        $("pwResetLog").innerHTML = rows.length
+          ? `<table class="chart-table-el"><thead><tr><th>When</th><th>User</th><th>Reset by</th></tr></thead><tbody>` +
+            rows.map(r => `<tr><td>${fmtDT(r.created_at)}</td><td><strong>${esc(r.target_email)}</strong></td>
+              <td>${esc(r.performed_email || "—")}</td></tr>`).join("") + "</tbody></table>"
+          : "<p class='muted'>No password resets issued yet.</p>";
+      } catch (ex) {
+        $("pwResetLog").innerHTML = `<p class="muted" style="color:#b91c1c">${esc(ex.message)}</p>`;
+      }
+    }
+
+    $("pwResetForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const errEl = $("pwResetErr"), out = $("pwResetOut");
+      errEl.hidden = true; out.hidden = true;
+      const email = new FormData(e.target).get("email").trim();
+      if (!confirmDestructive(`Issue a new temporary password for ${email}?\n\nTheir current password stops working immediately.`)) return;
+      const btn = e.target.querySelector("button[type=submit]");
+      const label = btn.textContent; btn.disabled = true; btn.textContent = "Working…";
+      try {
+        const r = await fetch(PW_RESET_FN_URL, {
+          method: "POST",
+          headers: { ...authHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ email })
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || `Reset failed (${r.status})`);
+        $("pwResetWho").textContent = j.email;
+        $("pwResetPw").textContent = j.password;
+        out.hidden = false;
+        if (j.warning) { errEl.textContent = j.warning; errEl.hidden = false; }
+        e.target.reset();
+        await loadPwResetLog();
+      } catch (ex) {
+        errEl.textContent = ex.message; errEl.hidden = false;
+      } finally {
+        btn.disabled = false; btn.textContent = label;
+      }
+    });
+
+    // ===== Google Maps sourcing (Outscraper, via the vendor-scrape edge function) =====
+    // The Outscraper API key lives as a Supabase secret and is only ever read
+    // inside the edge function — it never reaches this page. Configs and runs are
+    // plain admin-gated tables, so they're read straight over REST like the rest
+    // of this console.
+    const SCRAPE_FN_URL = FW_BACKEND.url + "/functions/v1/vendor-scrape";
+    const SCRAPE_LIMIT = 20;   // places per run; the function caps this at 100
+
+    let SCRAPER_CONFIGS = [], SCRAPER_RUNS = [];
+
+    async function loadScraperConfigs() {
+      try {
+        SCRAPER_CONFIGS = await fetchTable("scraper_configs", "select=*&order=created_at.desc&limit=200");
+        renderConfigs();
+      } catch (ex) {
+        $("configsTable").innerHTML = `<p class="muted" style="color:#b91c1c">${esc(ex.message)}</p>`;
+      }
+    }
+
+    async function loadScraperRuns() {
+      try {
+        SCRAPER_RUNS = await fetchTable("scraper_runs", "select=*&order=created_at.desc&limit=50");
+        renderRuns();
+      } catch (ex) {
+        $("runsTable").innerHTML = `<p class="muted" style="color:#b91c1c">${esc(ex.message)}</p>`;
+      }
+    }
+
+    function renderConfigs() {
+      if (!SCRAPER_CONFIGS.length) {
+        $("configsTable").innerHTML = "<p class='muted'>No configs yet — add one above to start scraping.</p>";
+        return;
+      }
+      $("configsTable").innerHTML = `<table class="chart-table-el"><thead><tr><th>Vendor Type</th><th>City</th><th></th></tr></thead><tbody>` +
+        SCRAPER_CONFIGS.map(c => {
+          const args = `${escAttr(JSON.stringify(c.id))},${escAttr(JSON.stringify(c.vendor_type))},${escAttr(JSON.stringify(c.city))}`;
+          return `<tr><td><strong>${esc(c.vendor_type)}</strong></td>
+          <td>${esc(c.city)}</td>
+          <td style="white-space:nowrap">
+            <button class="link-btn" onclick='triggerScrape(this,${args},false)'>Scrape Now</button>
+            <button class="link-btn" style="font-weight:600" onclick='triggerScrape(this,${args},true)' title="Searches each locality inside this city separately — much better at finding small independent garages">Deep Scan ⌄</button>
+            <button class="link-btn" style="color:#b91c1c" onclick='deleteConfig(${args})'>Remove</button>
+          </td></tr>`;
+        }).join("") + "</tbody></table>";
+    }
+
+    function renderRuns() {
+      if (!SCRAPER_RUNS.length) {
+        $("runsTable").innerHTML = "<p class='muted'>No scrape runs yet.</p>";
+        return;
+      }
+      const STATUS_COLORS = { pending: "#999", running: "#f59e0b", completed: "#10b981", failed: "#ef4444" };
+      $("runsTable").innerHTML = `<table class="chart-table-el"><thead><tr><th>When</th><th>Type</th><th>City</th><th>Status</th><th>Found</th><th>New</th><th>Duped</th><th>Error</th></tr></thead><tbody>` +
+        SCRAPER_RUNS.map(r => {
+          const color = STATUS_COLORS[r.status] || "#666";
+          return `<tr><td>${fmtDT(r.created_at)}</td><td>${esc(r.vendor_type || "—")}</td>
+            <td>${esc(r.city || "—")}</td>
+            <td><span class="status-pill" style="background:${color}20;color:${color};border-color:${color}">${esc(r.status)}</span></td>
+            <td>${r.records_found || 0}</td>
+            <td style="color:#10b981"><strong>${r.records_new || 0}</strong></td>
+            <td style="color:#999">${r.records_duped || 0}</td>
+            <td>${r.error_message ? `<span title="${esc(r.error_message)}" style="color:#ef4444;cursor:help">Error</span>` : "—"}</td></tr>`;
+        }).join("") + "</tbody></table>";
+    }
+
+    // The edge function scrapes and ingests in one round trip, so this waits on a
+    // single request rather than polling. That takes ~10-60s, so the button has to
+    // show it's working — otherwise the console just looks frozen.
+    // A config's city matched (case-insensitively) against the TN district
+    // list gives Deep Scan its towns — js/geo-india.js is the single source of
+    // truth, so the edge function doesn't carry a second copy of 304 towns.
+    function districtTowns(city) {
+      if (!window.TN_TOWNS) return null;
+      const key = Object.keys(TN_TOWNS).find(d => d.toLowerCase() === String(city).trim().toLowerCase());
+      // The edge function caps a run at 15 towns (each is a paid query and the
+      // whole run shares one time budget). Slice here too so the confirm
+      // dialog never promises towns that would be silently dropped.
+      return key ? TN_TOWNS[key].slice(0, 15) : null;
+    }
+
+    window.triggerScrape = async function (btn, configId, vendorType, city, deep) {
+      const towns = deep ? districtTowns(city) : null;
+      const blurb = deep
+        ? (towns
+          ? `DEEP SCAN — ${vendorType} across ${towns.length} towns of ${city}:\n${towns.slice(0, 6).join(", ")}${towns.length > 6 ? "…" : ""}.\n\nEach town is searched separately — that's where the small independent garages Google buries actually surface. ${towns.length} searches instead of 3, so it costs proportionally more.`
+          : `DEEP SCAN — ${vendorType} in ${city}.\n\nNo town list is on file for ${city} (only Tamil Nadu districts have one), so this runs like a normal scrape unless it's Chennai.`)
+        : `Search Google Maps for ${vendorType} businesses serving trucks/lorries/buses in ${city}?\n\nThree HCV phrases, up to ${SCRAPE_LIMIT} results each. Takes up to a minute.`;
+      if (!confirm(blurb + "\n\nNew shops go to the review queue; ones already on file are skipped.")) return;
+      const label = btn.textContent;
+      btn.textContent = "Scraping…";
+      btn.disabled = true;
+
+      const panel = $("scrapeProgress");
+      panel.hidden = false;
+      $("scrapeStage").textContent = "Starting…";
+      $("scrapePhrases").textContent = "";
+      $("scrapeResults").innerHTML = "";
+      $("scrapeBar").style.width = "8%";
+      $("scrapeBar").style.background = "var(--amber,#f59e0b)";  // clear the red left by a previous failure
+      panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+
+      const t0 = Date.now();
+      const tick = setInterval(() => {
+        $("scrapeElapsed").textContent = Math.round((Date.now() - t0) / 1000) + "s";
+      }, 500);
+
+      // The scrape is one synchronous request, so the console can't see inside
+      // it. The edge function writes its stage to scraper_runs.progress as it
+      // goes, and this polls that row — what's shown is real server state, not
+      // an animation pretending to be one. runId only arrives with the final
+      // response, so until then match on the most recent running row.
+      let stop = false;
+      (async function pollProgress() {
+        while (!stop) {
+          await new Promise(r => setTimeout(r, 1500));
+          if (stop) break;
+          try {
+            const rows = await fetchTable("scraper_runs",
+              "select=progress,status,records_found&status=eq.running&order=created_at.desc&limit=1");
+            if (rows[0]?.progress && !stop) {
+              $("scrapeStage").textContent = rows[0].progress;
+              if (/saving/i.test(rows[0].progress)) $("scrapeBar").style.width = "75%";
+              else $("scrapeBar").style.width = "40%";
+            }
+          } catch { /* a failed poll must never disturb the scrape itself */ }
+        }
+      })();
+
+      try {
+        const r = await fetch(SCRAPE_FN_URL, {
+          method: "POST",
+          headers: { ...authHeaders(), "Content-Type": "application/json" },
+          body: JSON.stringify({ configId, vendorType, city, limit: SCRAPE_LIMIT, deep: !!deep, localities: towns || undefined })
+        });
+        const result = await r.json().catch(() => ({}));
+        stop = true; clearInterval(tick);
+        if (!r.ok) throw new Error(result.error || `Scrape failed (${r.status})`);
+
+        $("scrapeBar").style.width = "100%";
+        $("scrapeStage").textContent = `Done — ${result.added} new, ${result.skipped} already on file`;
+        $("scrapePhrases").innerHTML = "Searched: " + (result.queries || []).map(q => `<em>${esc(q)}</em>`).join(" · ");
+
+        const noId = (result.noPlaceId
+          ? `<p class="muted" style="font-size:0.78rem">${result.noPlaceId} had no Google place id and were skipped — they can't be de-duplicated.</p>` : "")
+          + (result.droppedLmv
+          ? `<p class="muted" style="font-size:0.78rem">${result.droppedLmv} filtered out as car / two-wheeler shops, not HCV.</p>` : "");
+        const leads = result.leads || [];
+        $("scrapeResults").innerHTML = leads.length
+          ? `<p style="font-size:0.85rem;margin-bottom:6px"><strong>Added to the review queue below:</strong></p>
+             <table class="chart-table-el"><tbody>${leads.map(l => `<tr>
+               <td><strong>${esc(l.business_name)}</strong></td>
+               <td class="muted" style="font-size:0.78rem">${esc(l.google_category || "")}</td>
+               <td>${esc(l.city || "")}</td>
+               <td>${l.phone ? esc(l.phone) : "<span class='muted'>no phone</span>"}</td>
+               <td>${l.rating != null ? l.rating + "★ (" + (l.review_count || 0) + ")" : "<span class='muted'>—</span>"}</td>
+             </tr>`).join("")}</tbody></table>${noId}`
+          : `<p class="muted" style="font-size:0.85rem">No new shops — everything found was already on file.</p>${noId}`;
+
+        await Promise.all([loadScraperRuns(), loadAll()]);
+      } catch (ex) {
+        stop = true; clearInterval(tick);
+        $("scrapeBar").style.width = "100%";
+        $("scrapeBar").style.background = "#ef4444";
+        $("scrapeStage").textContent = "Failed";
+        $("scrapeResults").innerHTML = `<p class="field-error">${esc(ex.message)}</p>`;
+        await loadScraperRuns();
+      } finally {
+        stop = true; clearInterval(tick);
+        btn.textContent = label;
+        btn.disabled = false;
+      }
+    };
+
+    window.deleteConfig = async function (configId, vendorType, city) {
+      if (!confirmDestructive(`Delete the "${vendorType} — ${city}" scrape configuration? Leads already sourced with it are kept.`)) return;
+      try {
+        await deleteRow("scraper_configs", configId);
+        await loadScraperConfigs();
+      } catch (ex) {
+        alert("Error: " + ex.message);
+      }
+    };
+
+    $("scraperConfigForm").addEventListener("submit", async e => {
+      e.preventDefault();
+      const fd = Object.fromEntries(new FormData(e.target));
+      try {
+        await postRow("scraper_configs", { vendor_type: fd.vendorType, city: fd.city.trim() });
+        e.target.reset();
+        await loadScraperConfigs();
+      } catch (ex) {
+        // vendor_type + city is unique, so re-adding the same pair is a no-op
+        // worth naming rather than showing the raw Postgres constraint error.
+        alert(/duplicate key|already exists/i.test(ex.message)
+          ? "That vendor type and city are already configured."
+          : ex.message);
+      }
+    });
+
+    // Tamil Nadu's main HCV/trucking hubs — checked against each record's
+    // own address text so one scrape covering the whole state can be
+    // uploaded in a single go (category still comes from the upload form,
+    // since that's genuinely one-per-run; city isn't, since a single run
+    // is expected to span many cities).
+    // Mirrors TN_LOCALITIES + TN_CITIES in supabase/functions/vendor-scrape, so a
+    // lead gets the same city tag whether it was scraped or uploaded as JSON.
+    // Localities first — first match wins, and for a breakdown network the
+    // suburb beats the metro it sits inside.
+    const TN_CITIES = [
+      "Padiyanallur", "Pullilyon", "Kavanur", "Gerugambakkam", "Mowlivakkam",
+      "Thiruverkadu", "Ambattur", "Avadi", "Poonamallee", "Sriperumbudur",
+      "Tambaram", "Chromepet", "Guduvancheri", "Redhills", "Manali", "Ennore",
+      "Chennai", "Coimbatore", "Madurai", "Tiruchirappalli", "Trichy", "Salem",
+      "Tirunelveli", "Erode", "Vellore", "Thoothukudi", "Tuticorin", "Dindigul", "Namakkal",
+      "Karur", "Hosur", "Krishnagiri", "Thanjavur", "Nagercoil", "Cuddalore", "Kanchipuram"];
+    function detectCity(address, fallback) {
+      if (address) for (const c of TN_CITIES) if (address.toLowerCase().includes(c.toLowerCase())) return c;
+      return fallback || null;
+    }
     // Maps a gosom/google-maps-scraper JSON record onto our vendor_leads
     // columns. Unmapped fields aren't lost — the whole original record is
-    // kept in `raw` too. serviceCategory/city come from the upload form
-    // (the scraper itself has no concept of either), applied to every row
-    // in that file.
-    function mapScrapedRecord(rec, serviceCategory, city) {
+    // kept in `raw` too. serviceCategory comes from the upload form (one
+    // category per run); city is auto-detected per record from its own
+    // address, falling back to the form's city field only if given.
+    function mapScrapedRecord(rec, serviceCategory, cityFallback) {
+      const address = rec.complete_address || rec.address || null;
       return {
         source: "google_maps_scraper",
         service_category: serviceCategory,
@@ -333,8 +869,8 @@
         google_category: rec.category || null,
         phone: rec.phone || null,
         website: rec.website || null,
-        address: rec.complete_address || rec.address || null,
-        city: city,
+        address,
+        city: detectCity(address, cityFallback),
         latitude: rec.latitude != null ? rec.latitude : null,
         longitude: rec.longitude != null ? rec.longitude : null,
         rating: rec.review_rating != null ? rec.review_rating : null,
@@ -417,6 +953,10 @@
       $("consoleView").hidden = false;
       $("logoutBtn").hidden = false;
       loadAll().catch(err => alert(err.message));
+      loadScraperConfigs().catch(err => console.warn("Scraper configs unavailable:", err.message));
+      loadScraperRuns().catch(err => console.warn("Scraper runs unavailable:", err.message));
+      loadPwResetLog().catch(err => console.warn("Password reset log unavailable:", err.message));
+      loadInsuranceQuotes().catch(err => console.warn("Insurance quotes unavailable:", err.message));
     }
     function logout() {
       session = null;

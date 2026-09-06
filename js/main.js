@@ -101,12 +101,91 @@ function saveLead(data) {
   }
 }
 
+// ---------- State -> District -> Town cascade ----------
+// Districts come from IN_DISTRICTS (all India); towns from TN_TOWNS (Tamil
+// Nadu only — the current market). Elsewhere the town is typed in: a dropdown
+// that silently omits someone's town is worse than a text field.
+const bookState = document.getElementById("bookState");
+const bookDistrict = document.getElementById("bookDistrict");
+const bookTownSel = document.getElementById("bookTownSel");
+const bookTownText = document.getElementById("bookTownText");
+
+// Exactly one town control is active at a time. The inactive one must drop its
+// `required` too — validateForm sees hidden fields, and a hidden required
+// control would block the submit with nothing visible to fix.
+function activateTown(control) {
+  for (const el of [bookTownSel, bookTownText]) {
+    const on = el === control;
+    el.hidden = !on;
+    el.disabled = !on;
+    el.required = on;
+    if (!on) { el.value = ""; el.classList.remove("invalid"); }
+  }
+}
+
+if (bookState && window.IN_DISTRICTS) {
+  bookState.innerHTML = '<option value="">Select state</option>' +
+    Object.keys(IN_DISTRICTS).map((s) => `<option>${s}</option>`).join("");
+
+  bookState.addEventListener("change", () => {
+    const districts = IN_DISTRICTS[bookState.value] || [];
+    bookDistrict.disabled = !districts.length;
+    bookDistrict.innerHTML = districts.length
+      ? '<option value="">Select district</option>' + districts.map((d) => `<option>${d}</option>`).join("")
+      : '<option value="">Select state first</option>';
+    activateTown(bookTownText); // placeholder until a district is picked
+    bookTownText.hidden = true; bookTownText.disabled = true; bookTownText.required = false;
+  });
+
+  bookDistrict.addEventListener("change", () => {
+    const towns = (window.TN_TOWNS || {})[bookDistrict.value];
+    if (towns && bookState.value === "Tamil Nadu") {
+      bookTownSel.innerHTML = '<option value="">Select town</option>' +
+        towns.map((t) => `<option>${t}</option>`).join("") +
+        '<option value="__other">Other…</option>';
+      activateTown(bookTownSel);
+    } else {
+      bookTownText.placeholder = "Your town / city";
+      activateTown(bookTownText);
+    }
+  });
+
+  // "Other…" inside a TN district swaps to the text field so an unlisted
+  // town never blocks a booking.
+  bookTownSel.addEventListener("change", () => {
+    if (bookTownSel.value === "__other") {
+      bookTownText.placeholder = "Type your town in " + bookDistrict.value;
+      activateTown(bookTownText);
+      bookTownText.focus();
+    }
+  });
+}
+
 // ---------- Modal booking form ----------
 bookingForm.addEventListener("submit", (e) => {
   e.preventDefault();
-  if (!validateForm(bookingForm)) return;
+  const errEl = document.getElementById("bookingErr");
+  if (!validateForm(bookingForm)) {
+    // Never block silently: on the dark modal the red borders alone were
+    // invisible until landing.css got its .invalid override, and a blocked
+    // submit read as a dead Confirm button.
+    if (errEl) {
+      const badPhone = bookingForm.elements.phone.classList.contains("invalid") && bookingForm.elements.phone.value.trim() !== "";
+      errEl.textContent = badPhone
+        ? "Enter a valid 10-digit mobile number (starting 6–9)."
+        : "Please fill the highlighted fields.";
+      errEl.hidden = false;
+    }
+    return;
+  }
+  if (errEl) errEl.hidden = true;
 
   const data = Object.fromEntries(new FormData(bookingForm));
+  // The leads table keeps its single city column; compose "Town, District,
+  // State" into it so no schema change is needed and the admin console shows
+  // the full location in the column it already renders.
+  const town = (data.townSel && data.townSel !== "__other" ? data.townSel : data.town || "").trim();
+  data.city = [town, data.district, data.state].filter(Boolean).join(", ");
   data.ref = makeRef();
   saveLead(data);
 
