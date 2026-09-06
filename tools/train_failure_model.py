@@ -3,7 +3,7 @@
 
 Run this when there is new service history; it is a batch job, not a service.
 Nothing in the product depends on Python at runtime — the output is a JSON file
-that js/xgboost.js evaluates directly, so the exact model tested here is the one
+that js/modules/fleet-iq/xgboost.js evaluates directly, so the exact model tested here is the one
 that runs, and no new infrastructure is involved.
 
     pip install xgboost pandas scikit-learn supabase

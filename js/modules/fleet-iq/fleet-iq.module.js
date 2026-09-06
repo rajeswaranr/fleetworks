@@ -53,7 +53,7 @@
         { workspace: "iq", tab: "forecasting", label: "Forecasting", icon: "trendUp" },
         { workspace: "iq", tab: "recommend", label: "Recommendations", icon: "checkCircle" },
       ],
-      capabilities: ["fleet_iq.predictions", "fleet_iq.analytics", "fleet_iq.what_if"],
+      capabilities: ["fleet_iq.predictions", "fleet_iq.analytics", "fleet_iq.what_if", "fleet_iq.xgboost", "fleet_iq.executive_dashboard"],
       init(ctx) {
         ctx.platform.registerCapability("fleet_iq.predictions", {
           predictParts: FleetIQ.predictParts,
@@ -69,6 +69,8 @@
           whatIfBase: FleetIQ.whatIfBase,
           projectWhatIf: FleetIQ.projectWhatIf,
         });
+        ctx.platform.registerCapability("fleet_iq.xgboost", window.fwXgb || {});
+        ctx.platform.registerCapability("fleet_iq.executive_dashboard", { render: window.renderGfDash });
       },
     });
     return true;

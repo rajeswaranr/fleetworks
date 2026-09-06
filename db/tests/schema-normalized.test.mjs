@@ -38,7 +38,7 @@ async function stubs() {
   `);
 }
 
-// ---- realistic fleet blob, mirrors js/fleet.js loadDemoFleet shape ----
+// ---- realistic fleet blob, mirrors the FleetOps controller loadDemoFleet shape ----
 function demoBlob() {
   const d = (n) => { const x = new Date(); x.setDate(x.getDate() + n); return x.toISOString().slice(0, 10); };
   return {

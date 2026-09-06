@@ -41,17 +41,19 @@
       description: "Issues, inspections, reminders, work orders, parts, documents, and tyre readings.",
       dependencies: ["fleet_core", "fleet_ops"],
       permissions: ["maintenance.view", "maintenance.manage", "issues.view", "issues.manage"],
-      tables: ["issues", "work_orders", "reminders", "inspections", "parts", "documents", "tyre_readings"],
+      tables: ["issues", "work_orders", "work_order_lines", "bill_reviews", "reminders", "inspections", "parts", "documents", "tyre_readings"],
+      edgeFunctions: ["bill-review"],
       navigation: [
         { workspace: "ops", tab: "issues", label: "Issues", icon: "alert" },
         { workspace: "ops", tab: "reminders", label: "Service Reminders", icon: "clock" },
         { workspace: "ops", tab: "tyres", label: "Tyres", icon: "tire" },
       ],
-      capabilities: ["maintenance.workflow", "maintenance.inventory", "maintenance.documents"],
+      capabilities: ["maintenance.workflow", "maintenance.inventory", "maintenance.documents", "maintenance.bill_review"],
       init(ctx) {
         ctx.platform.registerCapability("maintenance.workflow", Maintenance);
         ctx.platform.registerCapability("maintenance.inventory", { savePart: Maintenance.savePart });
         ctx.platform.registerCapability("maintenance.documents", { createDocument: Maintenance.createDocument });
+        ctx.platform.registerCapability("maintenance.bill_review", { open: window.openBillEntry });
       },
     });
     return true;

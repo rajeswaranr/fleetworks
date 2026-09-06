@@ -12,7 +12,7 @@
 
    Local object shape is UNCHANGED from the blob era on purpose — every
    existing render function, dropdown populator, and search/filter in
-   fleet.js/analytics.js/account.js keeps working untouched, because
+   the module controllers and account.js keep working untouched, because
    db.vehicles/db.drivers/... are still plain in-memory arrays of the same
    shape; only WHERE they're populated from and WHERE writes go changed.
 

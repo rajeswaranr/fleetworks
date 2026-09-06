@@ -13,7 +13,7 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = resolve(fileURLToPath(new URL('.', import.meta.url)));
-const src = readFileSync(resolve(__dirname, '../js/invoices.js'), 'utf8');
+const src = readFileSync(resolve(__dirname, '../js/modules/invoicing/controllers/invoices.controller.js'), 'utf8');
 
 function load() {
   const sandbox = { console, document: { getElementById: () => null, addEventListener() {}, querySelectorAll: () => [], readyState: 'complete' }, db: { settings: {} } };

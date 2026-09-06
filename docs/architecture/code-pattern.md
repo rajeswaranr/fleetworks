@@ -135,6 +135,7 @@ js/platform/api-client.js
 ```text
 js/modules/auth/
 js/modules/bulk-import/
+js/modules/communications/
 js/modules/driver-map/
 js/modules/driver-portal/
 js/modules/fleet-core/
@@ -142,6 +143,8 @@ js/modules/fleet-fin/
 js/modules/fleet-iq/
 js/modules/fleet-ops/
 js/modules/garage-ops/
+js/modules/insurance/
+js/modules/invoicing/
 js/modules/iot-telemetry/
 js/modules/llm-gateway/
 js/modules/maintenance/
@@ -171,6 +174,10 @@ These are the actual controller files in the current repo:
 ```text
 js/modules/fleet-ops/controllers/fleet.controller.js
 js/modules/fleet-iq/controllers/analytics.controller.js
+js/modules/fleet-iq/controllers/dashboard.controller.js
+js/modules/maintenance/controllers/bill-review.controller.js
+js/modules/communications/controllers/whatsapp.controller.js
+js/modules/invoicing/controllers/invoices.controller.js
 js/modules/garage-ops/controllers/garage.controller.js
 js/modules/bulk-import/controllers/bulkimport.controller.js
 js/modules/service-workflow/controllers/workflow.controller.js

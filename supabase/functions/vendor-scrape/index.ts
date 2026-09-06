@@ -140,7 +140,7 @@ const TN_CITIES = [
 //
 // This built-in map only covers Chennai. For every other Tamil Nadu district
 // the admin console sends the district's own town list with the request
-// (js/geo-india.js is the single source of truth for that data — duplicating
+// (js/shared/geo-india.js is the single source of truth for that data — duplicating
 // 304 towns here would just let the two copies drift apart).
 const LOCALITIES_OF: Record<string, string[]> = {
   chennai: [

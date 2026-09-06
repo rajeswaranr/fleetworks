@@ -47,7 +47,9 @@
 
   window.FWTelemetry = window.FWTelemetry || Telemetry;
 
-  if (window.FWPlatform) {
+  function registerPlatformModule() {
+    if (!window.FWPlatform) return false;
+    if (FWPlatform.getModule && FWPlatform.getModule("iot_telemetry")) return true;
     FWPlatform.registerModule({
       id: "iot_telemetry",
       name: "IoT Telemetry",
@@ -59,6 +61,7 @@
       permissions: ["telemetry.read", "telemetry.ingest", "telemetry.manage_devices"],
       tables: Telemetry.expectedTables,
       endpoints: ["/iot/ingest", "/iot/devices", "/telemetry/latest", "/telemetry/alerts"],
+      edgeFunctions: ["telemetry-ingest"],
       capabilities: ["telemetry.ingestion", "telemetry.latest", "telemetry.normalize"],
       adapters: Telemetry.ingestionModes,
       init(ctx) {
@@ -67,5 +70,8 @@
         ctx.platform.registerCapability("telemetry.normalize", { event: Telemetry.normalizeEvent });
       },
     });
+    return true;
   }
+
+  if (!registerPlatformModule()) setTimeout(registerPlatformModule, 0);
 })();

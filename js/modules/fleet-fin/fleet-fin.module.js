@@ -40,16 +40,17 @@
       description: "Fuel logs, expenses, GST bills, trips, driver khata, and financial summaries.",
       dependencies: ["fleet_core"],
       permissions: ["finance.view", "finance.manage", "fuel.manage", "expenses.manage"],
-      tables: ["fuel_logs", "expenses", "trips", "driver_ledger", "expense_change_requests"],
+      tables: ["fuel_logs", "expenses", "expense_categories", "trips", "driver_ledger", "expense_change_requests", "fastag_accounts", "fastag_balance_log"],
       navigation: [
         { workspace: "fin", tab: "fuel", label: "Diesel & Mileage", icon: "fuel" },
         { workspace: "fin", tab: "expensehistory", label: "Expenses", icon: "receipt" },
         { workspace: "fin", tab: "gstbills", label: "Bills & GST", icon: "receipt" },
       ],
-      capabilities: ["fleet_fin.entries", "fleet_fin.summary"],
+      capabilities: ["fleet_fin.entries", "fleet_fin.summary", "fleet_fin.fastag"],
       init(ctx) {
         ctx.platform.registerCapability("fleet_fin.entries", FleetFin);
         ctx.platform.registerCapability("fleet_fin.summary", { viewModel: FleetFin.summary });
+        ctx.platform.registerCapability("fleet_fin.fastag", { render: window.renderFastag });
       },
     });
     return true;

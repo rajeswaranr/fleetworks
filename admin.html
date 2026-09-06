@@ -248,7 +248,7 @@
   <script src="js/modules/auth/view-models/auth.viewmodel.js"></script>
   <script src="js/modules/auth/auth.module.js"></script>
   <script src="js/auth-reset.js"></script>
-  <script src="js/geo-india.js"></script>
+  <script src="js/shared/geo-india.js"></script>
   <script>
     "use strict";
     const $ = id => document.getElementById(id);
@@ -704,7 +704,7 @@
     // single request rather than polling. That takes ~10-60s, so the button has to
     // show it's working — otherwise the console just looks frozen.
     // A config's city matched (case-insensitively) against the TN district
-    // list gives Deep Scan its towns — js/geo-india.js is the single source of
+    // list gives Deep Scan its towns — js/shared/geo-india.js is the single source of
     // truth, so the edge function doesn't carry a second copy of 304 towns.
     function districtTowns(city) {
       if (!window.TN_TOWNS) return null;

@@ -1,6 +1,6 @@
 # Current FleetWorks Folder Structure
 
-Prepared on: 2026-08-13
+Updated on: 2026-09-06
 
 ## Purpose
 
@@ -15,15 +15,19 @@ fleetworks/
   admin.html
   dashboard.html
   driver.html
+  devices.html
   fleet.html
   garage.html
   index.html
+  insurance.html
   my.html
   partner.html
   privacy.html
+  refund.html
   reset.html
   signin.html
   team.html
+  terms.html
   why.html
 
   css/
@@ -44,6 +48,7 @@ fleetworks/
     legacy/
     modules/
     platform/
+    shared/
     vendor/
 
   db/
@@ -105,6 +110,10 @@ Active page controllers now live inside module folders:
 ```text
 js/modules/fleet-ops/controllers/fleet.controller.js
 js/modules/fleet-iq/controllers/analytics.controller.js
+js/modules/fleet-iq/controllers/dashboard.controller.js
+js/modules/maintenance/controllers/bill-review.controller.js
+js/modules/communications/controllers/whatsapp.controller.js
+js/modules/invoicing/controllers/invoices.controller.js
 js/modules/garage-ops/controllers/garage.controller.js
 js/modules/bulk-import/controllers/bulkimport.controller.js
 js/modules/service-workflow/controllers/workflow.controller.js
@@ -139,6 +148,7 @@ Current modules include:
 ```text
 auth
 bulk-import
+communications
 driver-map
 driver-portal
 fleet-core
@@ -146,6 +156,8 @@ fleet-fin
 fleet-iq
 fleet-ops
 garage-ops
+insurance
+invoicing
 iot-telemetry
 llm-gateway
 maintenance
@@ -153,6 +165,18 @@ payments
 security
 service-workflow
 team-access
+```
+
+Shared reference data that is used by more than one page or module lives in
+`js/shared/`. India state, district, and town data is maintained in
+`js/shared/geo-india.js`.
+
+Feature-owned supporting code also remains inside its module boundary:
+
+```text
+js/modules/fleet-iq/xgboost.js
+js/modules/insurance/domain/premium-estimator.domain.js
+js/modules/iot-telemetry/adapters/device-simulator.adapter.js
 ```
 
 ## Current Database And Supabase Files
@@ -178,6 +202,12 @@ supabase/functions/payroll-add-beneficiary/
 supabase/functions/payroll-transfer/
 supabase/functions/payroll-webhook/
 supabase/functions/team-invite/
+supabase/functions/admin-reset-password/
+supabase/functions/bill-review/
+supabase/functions/telemetry-ingest/
+supabase/functions/vendor-scrape/
+supabase/functions/whatsapp-send/
+supabase/functions/whatsapp-webhook/
 ```
 
 ## Current Tests

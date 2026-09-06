@@ -17,7 +17,7 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = resolve(fileURLToPath(new URL('.', import.meta.url)));
-const src = readFileSync(resolve(__dirname, '../js/xgboost.js'), 'utf8');
+const src = readFileSync(resolve(__dirname, '../js/modules/fleet-iq/xgboost.js'), 'utf8');
 
 function load() {
   const sandbox = { console, fetch: () => Promise.resolve({ ok: false }), Math, Number, Object, Array, isNaN, Date };

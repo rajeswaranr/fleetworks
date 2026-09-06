@@ -1,6 +1,6 @@
 # Current FleetWorks Database Structure
 
-Prepared on: 2026-08-15
+Updated on: 2026-09-06
 
 ## Purpose
 
@@ -44,7 +44,32 @@ auth.users
               -> documents
               -> driver_ledger
               -> payroll records by driver_ext_id
+          -> expense_categories
+          -> fastag_accounts -> fastag_balance_log
+          -> devices -> telemetry -> adas_events
+          -> work_order_lines -> bill_reviews
+          -> whatsapp_contacts -> whatsapp_messages
+          -> parties -> sales_invoices -> sales_invoice_lines
 ```
+
+## Recent Migration-Backed Modules
+
+The following tables were added after the original normalized-core design and
+are owned by explicit application modules:
+
+| Module | Tables | Important relationships |
+| --- | --- | --- |
+| FleetFin | `expense_categories`, `fastag_accounts`, `fastag_balance_log` | Categories and FASTag accounts belong to an organization; balance logs belong to a FASTag account. |
+| Maintenance | `work_order_lines`, `bill_reviews` | Both belong to a work order and organization; review results retain the owner's recorded outcome. |
+| IoT Telemetry | `devices`, `telemetry`, `adas_events` | Devices belong to an organization and may link to a vehicle; telemetry and ADAS events belong to devices. |
+| Communications | `whatsapp_contacts`, `whatsapp_messages`, `whatsapp_templates` | Contacts and messages are organization-scoped; messages may reference a contact and business record. |
+| Invoicing | `parties`, `items`, `sales_invoices`, `sales_invoice_lines` | Parties and items belong to an organization; invoice lines belong to a sales invoice. |
+| Insurance | `insurance_quotes` | Quote requests retain vehicle, policy, contact, coverage, and workflow status details. |
+| Driver operations | `driver_entries`, `driver_attendance`, `driver_locations` | Driver-generated operational records are organization- and driver-scoped. |
+
+Authoritative definitions and RLS policies remain in timestamp order under
+`supabase/migrations/`. Module manifests declare the tables and Edge Functions
+used at runtime.
 
 Important rules:
 
