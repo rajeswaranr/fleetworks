@@ -231,8 +231,19 @@
           <!-- ======= PAYMENTS ======= -->
           <section class="tab-panel" id="tab-gpay">
             <section class="stat-row" id="gPayTiles"></section>
+
+            <!-- Bank / UPI registration -->
+            <div class="chart-card" style="margin-bottom:16px">
+              <div class="chart-head"><div>
+                <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="rupee" data-icon-size="20"></i></span> Your Payout Account</h2>
+                <p class="muted">Register once — FleetWorks credits each fortnightly payout directly to this account</p>
+              </div></div>
+              <div id="gPayBankTile"><p class="muted">Loading…</p></div>
+            </div>
+
+            <!-- Payout history -->
             <div class="chart-card">
-              <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="rupee" data-icon-size="22"></i></span> Payout History</h2><p class="muted">FleetWorks settles completed job cards every fortnight — 1st &amp; 16th of each month</p></div></div>
+              <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="chartBar" data-icon-size="20"></i></span> Payout History</h2><p class="muted">FleetWorks settles completed job cards every fortnight — 1st &amp; 16th of each month</p></div></div>
               <div class="chart-scroll"><div id="gPayTable"></div></div>
               <p class="disclaimer">Payouts are gross job value minus the FleetWorks platform fee (10%). GST invoices for the fee are available in your email each cycle.</p>
             </div>
@@ -284,6 +295,48 @@
     </div>
   </div>
 
+  <!-- ===== Bank / UPI registration modal ===== -->
+  <div id="gPayBankModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:center;justify-content:center;padding:16px">
+    <div class="onboard-card" style="max-width:480px;width:100%">
+      <h2 id="gPayBankModalTitle">Payout Account Details</h2>
+      <p class="muted" style="margin-bottom:16px">Your account number is sent directly to Cashfree and never stored on our servers — only a masked copy is kept for display.</p>
+      <form id="gPayBankForm" class="entry-form">
+        <label>Account Holder Name (as in bank)
+          <input type="text" name="accountHolderName" placeholder="Full name on account" required />
+        </label>
+        <label>Payout Method
+          <select name="method" id="gPayBankMethod">
+            <option value="bank">Current Account (Bank Transfer)</option>
+            <option value="upi">UPI ID</option>
+          </select>
+        </label>
+        <div id="gPayBankBankFields">
+          <div class="form-row">
+            <label>Current Account Number
+              <input type="text" name="bankAccountNumber" placeholder="Account number" autocomplete="off" />
+            </label>
+            <label>IFSC Code
+              <input type="text" name="bankIfsc" placeholder="e.g. SBIN0001234" maxlength="11" style="text-transform:uppercase" autocomplete="off" />
+            </label>
+          </div>
+        </div>
+        <div id="gPayBankUpiFields" hidden>
+          <label>UPI ID
+            <input type="text" name="upiId" placeholder="e.g. workshopname@okicici" autocomplete="off" />
+          </label>
+        </div>
+        <label>GSTIN <small>(optional — required for GST invoices on platform fee)</small>
+          <input type="text" name="gstin" placeholder="15-character GSTIN" maxlength="15" style="text-transform:uppercase" />
+        </label>
+        <p class="field-error" id="gPayBankErr" hidden></p>
+        <div style="display:flex;gap:10px;margin-top:4px">
+          <button type="submit" class="btn btn-primary">Save Payout Details</button>
+          <button type="button" class="btn btn-outline" id="gPayBankModalClose">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script src="js/icons.js"></script>
   <script src="js/backend.js"></script>
   <script src="js/modules/auth/domain/auth.domain.js"></script>
@@ -308,5 +361,6 @@
   <script src="js/modules/service-workflow/service-workflow.module.js"></script>
   <script src="js/modules/garage-ops/controllers/garage.controller.js"></script>
   <script src="js/modules/service-workflow/controllers/workflow.controller.js"></script>
+  <script src="js/garage-pay.js"></script>
 </body>
 </html>

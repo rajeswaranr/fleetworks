@@ -55,13 +55,20 @@ Deno.serve(async (req) => {
   const status = mapStatus(eventType);
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
-  await admin.from("salary_payments").update({
+  const patch = {
     status,
     cf_transfer_id: data.cf_transfer_id ? String(data.cf_transfer_id) : undefined,
     utr: data.transfer_utr || undefined,
     failure_reason: status === "failed" ? (data.status_code || data.status || "Transfer failed") : undefined,
     completed_at: (status === "success" || status === "failed" || status === "reversed") ? new Date().toISOString() : undefined,
-  }).eq("transfer_ref", transferRef);
+  };
+
+  // Transfer refs are prefixed: "sal…" = salary, "ven…" = vendor; update the right table.
+  if (transferRef.startsWith("ven")) {
+    await admin.from("vendor_payments").update(patch).eq("transfer_ref", transferRef);
+  } else {
+    await admin.from("salary_payments").update(patch).eq("transfer_ref", transferRef);
+  }
 
   // Always 200 — Cashfree retries on non-2xx, and a missing/unknown transfer_ref
   // (e.g. a test event) shouldn't trigger retries.
