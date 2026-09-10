@@ -165,6 +165,7 @@
           <div class="side-children">
             <button class="side-item tab-btn" data-tab="vehicles"><span>Vehicle List &amp; RTO</span></button>
             <button class="side-item tab-btn" data-tab="trips"><span>Trips &amp; Loads</span></button>
+            <button class="side-item tab-btn" data-tab="sites"><span>Sites &amp; Projects</span></button>
             <button class="side-item tab-btn" data-tab="assignments"><span>Assignments</span></button>
             <button class="side-item tab-btn" data-tab="drivers"><span>Drivers &amp; Contacts</span></button>
             <button class="side-item tab-btn" data-tab="meters"><span>Meter History</span></button>
@@ -569,6 +570,23 @@
           <span class="lt-count" id="dashUpdated"></span>
           <span class="lt-spacer"></span>
         </div>
+        <!-- Global filter bar — filters Status Board + KPI dashboards by site/supervisor/driver -->
+        <div class="dash-filter-bar" id="dashFilterBar" style="display:flex;align-items:center;gap:10px;padding:0 0 12px;flex-wrap:wrap">
+          <strong style="font-size:0.82rem;color:var(--text-muted)">Filter:</strong>
+          <button class="fw-chip is-active" id="fltAll" onclick="setDashFilter('all')">All</button>
+          <select id="fltSite" onchange="setDashFilter('site',this.value)" style="height:28px;font-size:0.82rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 8px">
+            <option value="">— Site / Project —</option>
+          </select>
+          <select id="fltSupervisor" onchange="setDashFilter('supervisor',this.value)" style="height:28px;font-size:0.82rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 8px">
+            <option value="">— Supervisor —</option>
+          </select>
+          <select id="fltDriver" onchange="setDashFilter('driver',this.value)" style="height:28px;font-size:0.82rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 8px">
+            <option value="">— Driver —</option>
+          </select>
+          <span id="fltLabel" class="muted" style="font-size:0.78rem"></span>
+        </div>
+        <!-- Vehicle Status Board — per-vehicle: site, supervisor, driver, status, age of pendency -->
+        <section id="vehicleStatusBoard" style="margin-bottom:16px"></section>
         <!-- Grafana-style summary dashboard — rendered by the FleetIQ dashboard controller. -->
         <section id="gfOpsGrid" style="padding:0 0 4px"></section>
         <!-- Maintenance KPIs: what is broken, what is waiting, and how long
@@ -606,6 +624,18 @@
 
       <!-- ======= FLEETFIN DASHBOARD ======= -->
       <section class="tab-panel" id="tab-fin">
+        <!-- Filter bar (mirrors the ops dashboard filter — same global state) -->
+        <div class="dash-filter-bar" style="display:flex;align-items:center;gap:10px;padding:0 0 12px;flex-wrap:wrap">
+          <strong style="font-size:0.82rem;color:var(--text-muted)">Filter:</strong>
+          <button class="fw-chip is-active" id="fltAllFin" onclick="setDashFilter('all')">All</button>
+          <select id="fltSiteFin" onchange="setDashFilter('site',this.value)" style="height:28px;font-size:0.82rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 8px">
+            <option value="">— Site / Project —</option>
+          </select>
+          <select id="fltDriverFin" onchange="setDashFilter('driver',this.value)" style="height:28px;font-size:0.82rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 8px">
+            <option value="">— Driver —</option>
+          </select>
+          <span id="fltLabelFin" class="muted" style="font-size:0.78rem"></span>
+        </div>
         <!-- Grafana-style summary dashboard — rendered by the FleetIQ dashboard controller. -->
         <section id="gfFinGrid" style="padding:0 0 4px"></section>
         <section class="stat-row" id="finStatRow" aria-label="Money at a glance"></section>

@@ -314,62 +314,73 @@ function renderDashboard() {
   const months = monthKeys(6);
   const mL = months.map(m => new Date(m + "-01").toLocaleDateString("en-IN", { month: "short" }));
 
-  // reminders / renewals
+  // filter-aware data scope
+  const fVehs  = filteredVehicles ? filteredVehicles() : db.vehicles;
+  const fVIds  = new Set(fVehs.map(v => v.id));
+  const fExps  = db.expenses.filter(e => !e.vehicleId || fVIds.has(e.vehicleId));
+  const fFuels = db.fuelLogs.filter(f => !f.vehicleId || fVIds.has(f.vehicleId));
+  const fIssues= db.issues.filter(i => !i.vehicleId || fVIds.has(i.vehicleId));
+  const fWOs   = db.workOrders.filter(w => !w.vehicleId || fVIds.has(w.vehicleId));
+
+  // reminders / renewals (vehicle-scoped by filter)
   const rs = reminderStatus();
-  const remO = rs.filter(r => r.overdue).length, remS = rs.filter(r => r.dueSoon).length;
+  const remO = rs.filter(r => r.overdue && (!r.vehicleId || fVIds.has(r.vehicleId))).length;
+  const remS = rs.filter(r => r.dueSoon && (!r.vehicleId || fVIds.has(r.vehicleId))).length;
   const radar = radarItems();
   const seg = cat => {
-    const it = radar.filter(i => i.cat === cat);
+    const it = radar.filter(i => i.cat === cat && (!i.vehicleId || fVIds.has(i.vehicleId)));
     return [it.filter(i => i.days < 0).length, it.filter(i => i.days >= 0 && i.days <= warnDays()).length];
   };
   const [vrO, vrS] = seg("vehicle"), [drO, drS] = seg("driver"), [wtO, wtS] = seg("warranty");
 
-  // issues
-  const openIss = db.issues.filter(i => i.status !== "Resolved");
+  // issues (filter-scoped)
+  const openIss  = fIssues.filter(i => i.status !== "Resolved");
   const highOpen = openIss.filter(i => i.severity === "High").length;
-  const resolved = db.issues.filter(i => i.resolvedAt);
+  const resolved = fIssues.filter(i => i.resolvedAt);
   const avgResolve = resolved.length ? (resolved.reduce((s, i) => s + (new Date(i.resolvedAt) - new Date(i.createdAt)) / 86400000, 0) / resolved.length) : 0;
-  const issM = months.map(m => db.issues.filter(i => i.createdAt && i.createdAt.startsWith(m)).length);
+  const issM = months.map(m => fIssues.filter(i => i.createdAt && i.createdAt.startsWith(m)).length);
 
   // job cards / vehicle status / assignments
-  const openWO = db.workOrders.filter(w => w.status !== "Completed");
+  const openWO = fWOs.filter(w => w.status !== "Completed");
   const oldestWO = openWO.length ? Math.max(...openWO.map(w => Math.round((now - new Date(w.createdAt)) / 86400000))) : 0;
   const inShop = new Set(openWO.map(w => w.vehicleId)).size;
-  const assigned = new Set(db.drivers.filter(d => d.vehicleId).map(d => d.vehicleId)).size;
+  const fDriverVehIds = new Set(db.drivers.filter(d => d.vehicleId && fVIds.has(d.vehicleId)).map(d => d.vehicleId));
+  const assigned = fDriverVehIds.size;
 
-  // costs
+  // costs (filter-scoped)
   const sumM = (arr, key) => months.map(m => arr.filter(x => x[key] && x[key].startsWith(m)).reduce((s, x) => s + x.amount, 0));
-  const fuelM = sumM(db.fuelLogs, "date"), svcM = sumM(db.expenses, "date");
+  const fuelM = sumM(fFuels, "date"), svcM = sumM(fExps, "date");
   const totM = months.map((_, i) => fuelM[i] + svcM[i]);
 
-  // cost per km (lifetime, from odometer spans)
+  // cost per km (filter-scoped, from odometer spans)
   let km = 0;
-  db.vehicles.forEach(v => { const f = vehicleFills(v.id); if (f.length > 1) km += f[f.length - 1].odo - f[0].odo; });
-  const costAll = db.expenses.reduce((s, e) => s + e.amount, 0) + db.fuelLogs.reduce((s, f) => s + f.amount, 0);
+  fVehs.forEach(v => { const f = vehicleFills(v.id); if (f.length > 1) km += f[f.length - 1].odo - f[0].odo; });
+  const costAll = fExps.reduce((s, e) => s + e.amount, 0) + fFuels.reduce((s, f) => s + f.amount, 0);
   const cpk = km ? costAll / km : 0;
 
-  // top repair spend categories
+  // top repair spend categories (filter-scoped)
   const byCat = {};
-  db.expenses.forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
+  fExps.forEach(e => byCat[e.category] = (byCat[e.category] || 0) + e.amount);
   const topCats = Object.entries(byCat).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const maxCat = topCats.length ? topCats[0][1] : 1;
 
-  // meters
-  const meters = db.vehicles.map(v => { const f = vehicleFills(v.id); return { name: v.name, odo: f.length ? f[f.length - 1].odo : 0 }; })
+  // meters (filter-scoped)
+  const meters = fVehs.map(v => { const f = vehicleFills(v.id); return { name: v.name, odo: f.length ? f[f.length - 1].odo : 0 }; })
     .sort((a, b) => b.odo - a.odo).slice(0, 5);
   const maxOdo = meters.length ? meters[0].odo : 1;
 
-  // inspections
-  const insp30 = db.inspections.filter(i => (now - new Date(i.date)) / 86400000 <= 30).length;
-  const items = db.inspections.reduce((s, i) => s + i.results.length, 0);
-  const fails = db.inspections.reduce((s, i) => s + i.results.filter(r => !r.ok).length, 0);
+  // inspections (filter-scoped)
+  const fInsp = db.inspections.filter(i => !i.vehicleId || fVIds.has(i.vehicleId));
+  const insp30 = fInsp.filter(i => (now - new Date(i.date)) / 86400000 <= 30).length;
+  const items  = fInsp.reduce((s, i) => s + i.results.length, 0);
+  const fails  = fInsp.reduce((s, i) => s + i.results.filter(r => !r.ok).length, 0);
   const failRate = items ? Math.round(fails / items * 100) : 0;
   const onTime = rs.length ? Math.round(rs.filter(r => !r.overdue).length / rs.length * 100) : 100;
 
-  // tyres
-  const worn = db.vehicles.reduce((n, v) => n + Object.values(latestReadings(v.id)).filter(r => r.treadDepth <= minTread()).length, 0);
+  // tyres (filter-scoped)
+  const worn = fVehs.reduce((n, v) => n + Object.values(latestReadings(v.id)).filter(r => r.treadDepth <= minTread()).length, 0);
 
-  // breakdown ageing (open issues by age bucket)
+  // breakdown ageing (open issues by age bucket, filter-scoped)
   const ages = [0, 0, 0, 0];
   openIss.forEach(i => {
     if (!i.createdAt) return;
@@ -377,14 +388,14 @@ function renderDashboard() {
     if (d <= 7) ages[0]++; else if (d <= 30) ages[1]++; else if (d <= 90) ages[2]++; else ages[3]++;
   });
 
-  // inspection item failures per month
-  const failM = months.map(m => db.inspections.filter(i => i.date && i.date.startsWith(m))
+  // inspection item failures per month (filter-scoped)
+  const failM = months.map(m => fInsp.filter(i => i.date && i.date.startsWith(m))
     .reduce((s, i) => s + i.results.filter(r => !r.ok).length, 0));
 
-  // regulatory non-compliance by document type (+ driver DLs)
+  // regulatory non-compliance by document type (filter-scoped)
   const regRows = Object.entries(DOC_LABELS).map(([k, label]) => {
     let o = 0, s = 0;
-    db.vehicles.forEach(v => {
+    fVehs.forEach(v => {
       const till = v.compliance && v.compliance[k];
       if (!till) return;
       const d = daysUntil(till);
@@ -393,31 +404,32 @@ function renderDashboard() {
     return { label, o, s };
   });
   let dlO = 0, dlS = 0;
-  db.drivers.forEach(d => {
+  db.drivers.filter(d => !d.vehicleId || fVIds.has(d.vehicleId)).forEach(d => {
     if (!d.dlExpiry) return;
     const x = daysUntil(d.dlExpiry);
     if (x < 0) dlO++; else if (x <= warnDays()) dlS++;
   });
   regRows.push({ label: "Driver DL", o: dlO, s: dlS });
 
-  // recent activity
+  // recent activity (filter-scoped)
   const acts = [
-    ...db.issues.map(i => ({ d: i.resolvedAt || i.createdAt, t: `${vName(i.vehicleId)} — ${i.title} (${i.status})`, ic: i.status === "Resolved" ? "checkCircle" : "wrench" })),
-    ...db.workOrders.filter(w => w.completedAt).map(w => ({ d: w.completedAt, t: `Job card closed: ${w.title} · ${fmtINR(w.finalCost || 0)}`, ic: "checkCircle" })),
-    ...db.inspections.map(i => ({ d: i.date, t: `Inspection ${i.passed ? "passed" : "failed"} — ${vName(i.vehicleId)}`, ic: "clipboardCheck" }))
+    ...fIssues.map(i => ({ d: i.resolvedAt || i.createdAt, t: `${vName(i.vehicleId)} — ${i.title} (${i.status})`, ic: i.status === "Resolved" ? "checkCircle" : "wrench" })),
+    ...fWOs.filter(w => w.completedAt).map(w => ({ d: w.completedAt, t: `Job card closed: ${w.title} · ${fmtINR(w.finalCost || 0)}`, ic: "checkCircle" })),
+    ...fInsp.map(i => ({ d: i.date, t: `Inspection ${i.passed ? "passed" : "failed"} — ${vName(i.vehicleId)}`, ic: "clipboardCheck" }))
   ].filter(a => a.d).sort((a, b) => b.d.localeCompare(a.d)).slice(0, 6);
 
+  const filterNote = _dashFilter.by !== "all" ? ` <span class="muted" style="font-size:0.72rem">· ${_dashFilter.label}</span>` : "";
   const R = "#c62828", A = "#b26a00", G = "#148a4e", N = "#0f1e33";
   grid.innerHTML = [
-    dw("Service Reminders", dwPair(remO, "Overdue", remO ? R : G, remS, "Due Soon", remS ? A : G)),
+    dw("Service Reminders" + filterNote, dwPair(remO, "Overdue", remO ? R : G, remS, "Due Soon", remS ? A : G)),
     dw("Vehicle Renewals · RTO", dwPair(vrO, "Overdue", vrO ? R : G, vrS, "Due Soon", vrS ? A : G)),
     dw("Driver Renewals · DL", dwPair(drO, "Overdue", drO ? R : G, drS, "Due Soon", drS ? A : G)),
     dw("Warranties", dwPair(wtO, "Expired", wtO ? R : G, wtS, "Expiring", wtS ? A : G)),
     dw("Open Issues", `<div class="dw-pair"><div><span class="dw-big">${openIss.length}</span><span class="dw-sub">Open now</span></div><div><span class="dw-big" style="color:${highOpen ? R : G}">${highOpen}</span><span class="dw-sub">Critical</span></div></div>` + miniBars(issM, mL, PAL.serious)),
     dw("Time to Resolve", `<span class="dw-big">${avgResolve ? avgResolve.toFixed(1) : "—"}<small>days</small></span><span class="dw-sub">Average, resolved issues</span>`),
     dw("Job Cards", dwPair(openWO.length, "In workshop", openWO.length ? A : G, oldestWO, "Oldest (days)", oldestWO > 5 ? R : N)),
-    dw("Vehicle Status", dwPair(db.vehicles.length - inShop, "Active", G, inShop, "In Shop", inShop ? A : G)),
-    dw("Assignments", dwPair(assigned, "Assigned", N, Math.max(db.vehicles.length - assigned, 0), "Unassigned", db.vehicles.length - assigned ? A : G)),
+    dw("Vehicle Status", dwPair(fVehs.length - inShop, "Active", G, inShop, "In Shop", inShop ? A : G)),
+    dw("Assignments", dwPair(assigned, "Assigned", N, Math.max(fVehs.length - assigned, 0), "Unassigned", fVehs.length - assigned ? A : G)),
     dw("On-Time Maintenance", `<span class="dw-big" style="color:${onTime >= 90 ? G : onTime >= 70 ? A : R}">${onTime}%</span><span class="dw-sub">PM schedules on time</span>`),
     dw("Inspections · 30 days", dwPair(insp30, "Submitted", N, failRate + "%", "Item fail rate", failRate ? A : G)),
     dw("Tyre Health", `<span class="dw-big" style="color:${worn ? R : G}">${worn}</span><span class="dw-sub">Tyres at/under ${minTread()}mm</span>`),
@@ -431,17 +443,17 @@ function renderDashboard() {
       `<div class="dw-act">${FWIcon(a.ic, { size: 14, cls: "ic-muted" })}<span>${esc(a.t)}</span><time>${fmtDate(a.d)}</time></div>`).join("") || "<span class='dw-sub'>No activity yet</span>", "dw-w2")
   ].join("");
 
-  // cost widgets live on the FleetFin dashboard
+  // cost widgets live on the FleetFin dashboard (filter-scoped)
   const finGrid = document.getElementById("finGrid");
   if (finGrid) finGrid.innerHTML = [
-    dw("Fuel Costs", miniBars(fuelM, mL, PAL.s1) + `<span class="dw-sub">This month: <strong>${fmtINR(fuelM[fuelM.length - 1])}</strong></span>`),
+    dw("Fuel Costs" + filterNote, miniBars(fuelM, mL, PAL.s1) + `<span class="dw-sub">This month: <strong>${fmtINR(fuelM[fuelM.length - 1])}</strong></span>`),
     dw("Service Costs", miniBars(svcM, mL, PAL.s3) + `<span class="dw-sub">This month: <strong>${fmtINR(svcM[svcM.length - 1])}</strong></span>`),
     dw("Total Costs", miniBars(totM, mL, PAL.s2) + `<span class="dw-sub">6-month total: <strong>${fmtINR(totM.reduce((a, b) => a + b, 0))}</strong></span>`),
     dw("Cost per km", `<span class="dw-big">₹${cpk ? cpk.toFixed(1) : "—"}</span><span class="dw-sub">All-in, from ${km.toLocaleString("en-IN")} km logged</span>`),
     dw("Top Repair Spend", topCats.map(([c, amt]) =>
       `<div class="dw-rank"><span class="dw-rank-l">${esc(c)}</span><span class="dw-rank-bar"><i style="width:${Math.round(amt / maxCat * 100)}%"></i></span><span class="dw-rank-v">${fmtINR(amt)}</span></div>`).join("") || "<span class='dw-sub'>No expenses yet</span>", "dw-w2"),
     dw("Recurrent Expenses", Object.entries(byCat)
-      .map(([c, amt]) => ({ c, amt, n: db.expenses.filter(e => e.category === c).length }))
+      .map(([c, amt]) => ({ c, amt, n: fExps.filter(e => e.category === c).length }))
       .filter(x => x.n >= 3).sort((a, b) => b.n - a.n).slice(0, 5)
       .map(x => `<div class="dw-rank"><span class="dw-rank-l">${esc(x.c)}</span><span class="dw-rank-v">${x.n}×</span><span class="dw-rank-v">avg ${fmtINR(x.amt / x.n)}</span></div>`).join("") || "<span class='dw-sub'>No repeating categories yet</span>", "dw-w2")
   ].join("");
@@ -924,6 +936,852 @@ function renderDrivers() {
     }).join("") + "</tbody></table>"
     : "<p class='muted'>No drivers added yet.</p>";
 }
+
+// ---------- Render: purchase orders ----------
+// In-memory store — loaded fresh from Supabase every renderAll() for signed-in orgs.
+// Unsigned/demo mode shows an empty list (no PO support without an account).
+let _pos = [];        // purchase_orders rows
+let _poLines = {};    // { poId: [lines] }
+
+const PO_STATUS_META = {
+  draft:     { label: "Draft",    cls: "upcoming" },
+  approved:  { label: "Approved", cls: "ok" },
+  ordered:   { label: "Ordered",  cls: "soon" },
+  partial:   { label: "Partial",  cls: "soon" },
+  received:  { label: "Received", cls: "ok" },
+  cancelled: { label: "Cancelled",cls: "overdue" },
+};
+
+async function loadPOs() {
+  if (!coreDbBacked()) { _pos = []; _poLines = {}; return; }
+  const rows = await fwCloud.authGet("purchase_orders",
+    "select=*&order=created_at.desc") || [];
+  _pos = rows;
+  // load lines for visible POs (limit to 100 most recent for performance)
+  const ids = rows.slice(0, 100).map(r => r.id);
+  if (ids.length) {
+    const lines = await fwCloud.authGet("purchase_order_lines",
+      `select=*&po_id=in.(${ids.join(",")})&order=created_at.asc`) || [];
+    _poLines = {};
+    lines.forEach(l => { (_poLines[l.po_id] = _poLines[l.po_id] || []).push(l); });
+  } else {
+    _poLines = {};
+  }
+}
+
+function renderPurchaseOrders() {
+  const box = document.getElementById("poList");
+  if (!box) return;
+  if (!coreDbBacked()) {
+    box.innerHTML = "<p class='muted'>Sign in to raise and track purchase orders.</p>";
+    return;
+  }
+  if (!_pos.length) {
+    box.innerHTML = `<p class='muted' style='text-align:center;padding:32px'>No purchase orders yet — click <strong>New PO</strong> to raise one.</p>`;
+    return;
+  }
+  const open   = _pos.filter(p => !["received","cancelled"].includes(p.status));
+  const closed = _pos.filter(p => ["received","cancelled"].includes(p.status));
+
+  function poCard(p) {
+    const vm  = PO_STATUS_META[p.status] || { label: p.status, cls: "upcoming" };
+    const veh = p.vehicle_id ? (db.vehicles.find(v => v.dbId === p.vehicle_id || v.id === p.vehicle_id)?.name || "Vehicle") : "";
+    const lines = _poLines[p.id] || [];
+    const linesHtml = lines.length
+      ? `<details style="margin-top:6px"><summary style="font-size:0.78rem;cursor:pointer;color:var(--text-muted)">
+           ${lines.length} line item${lines.length > 1 ? "s" : ""} — ₹${fmtINR(p.total_amount || 0)} incl. GST</summary>
+           <div style="overflow-x:auto;margin-top:6px">
+           <table class="chart-table-el" style="font-size:0.78rem">
+             <thead><tr><th>Part</th><th>Part No.</th><th>Make</th><th>S/N</th><th>Qty</th><th>Unit ₹</th><th>GST%</th><th>Total ₹</th></tr></thead>
+             <tbody>${lines.map(l => `<tr>
+               <td>${esc(l.part_name)}</td>
+               <td>${l.part_number ? esc(l.part_number) : "<span class='muted'>—</span>"}</td>
+               <td>${l.make ? esc(l.make) : "<span class='muted'>—</span>"}</td>
+               <td>${l.serial_number ? esc(l.serial_number) : "<span class='muted'>—</span>"}</td>
+               <td style="text-align:right">${+l.quantity} ${esc(l.unit)}</td>
+               <td style="text-align:right">${fmtINR(l.unit_price)}</td>
+               <td style="text-align:right">${l.gst_rate}%</td>
+               <td style="text-align:right">${fmtINR(l.line_total)}</td>
+             </tr>`).join("")}</tbody>
+           </table></div></details>`
+      : `<p class="muted" style="font-size:0.78rem;margin-top:4px">No line items yet.</p>`;
+    const actions = [];
+    if (p.status === "draft")    actions.push(`<button class="link-btn" onclick="poSetStatus('${p.id}','approved')">Approve</button>`);
+    if (p.status === "approved") actions.push(`<button class="link-btn" onclick="poSetStatus('${p.id}','ordered')">Mark Ordered</button>`);
+    if (["approved","ordered","partial"].includes(p.status))
+                                 actions.push(`<button class="link-btn" onclick="poMarkReceived('${p.id}')">Mark Received</button>`);
+    if (!["received","cancelled"].includes(p.status))
+                                 actions.push(`<button class="link-btn" onclick="openEditPO('${p.id}')">Edit</button>`);
+    if (!["received","cancelled"].includes(p.status))
+                                 actions.push(`<button class="link-btn" style="color:#ef4444" onclick="poCancelConfirm('${p.id}')">Cancel</button>`);
+    return `<div class="pred-row" id="po-${p.id}">
+      <div class="pred-main">
+        <span class="fw-chip is-pending"><span class="fw-badge ${vm.cls}" style="margin:0">${vm.label}</span></span>
+        <strong>${esc(p.po_number)}</strong> — ${esc(p.vendor_name)}
+        ${veh ? `<span class="muted"> · ${esc(veh)}</span>` : ""}
+        <span class="muted" style="font-size:0.8rem"> · ${fmtDate(p.order_date)}</span>
+      </div>
+      ${linesHtml}
+      <div class="pred-detail" style="margin-top:6px">${actions.join(" ")}</div>
+    </div>`;
+  }
+
+  box.innerHTML =
+    (open.length  ? open.map(poCard).join("")  : "<p class='muted'>No open POs.</p>") +
+    (closed.length
+      ? `<details class="chart-table" style="margin-top:12px"><summary>Completed / Cancelled (${closed.length})</summary>
+         ${closed.map(poCard).join("")}</details>`
+      : "");
+}
+
+// ── PO modal helpers ───────────────────────────────────────────────────────
+function poLineRow(l) {
+  // l is an existing line object, or null for a blank row
+  const v = l || {};
+  return `<tr class="po-line-row">
+    <td><input type="text" class="po-line-part" value="${escAttr(v.part_name||"")}" placeholder="Part name *" required style="width:100%;min-width:120px" /></td>
+    <td><input type="text" class="po-line-partno" value="${escAttr(v.part_number||"")}" placeholder="Part no." style="width:90px" /></td>
+    <td><input type="text" class="po-line-make" value="${escAttr(v.make||"")}" placeholder="Brand" style="width:80px" /></td>
+    <td><input type="text" class="po-line-sn" value="${escAttr(v.serial_number||"")}" placeholder="S/N" style="width:90px" /></td>
+    <td><input type="number" class="po-line-qty" value="${v.quantity||1}" min="0.001" step="any" style="width:60px" /></td>
+    <td><select class="po-line-unit" style="width:64px">
+      ${["pcs","set","litre","kg","metre"].map(u => `<option${(v.unit||"pcs")===u?" selected":""}>${u}</option>`).join("")}
+    </select></td>
+    <td><input type="number" class="po-line-price" value="${v.unit_price||""}" min="0" step="any" placeholder="0.00" style="width:80px" /></td>
+    <td><input type="number" class="po-line-gst" value="${v.gst_rate??18}" min="0" max="100" step="any" style="width:56px" /></td>
+    <td><button type="button" class="link-btn" style="color:#ef4444" onclick="this.closest('tr').remove()">✕</button></td>
+  </tr>`;
+}
+
+function openNewPO() {
+  openEditModal("New Purchase Order", `
+    <div class="form-row">
+      <label>Vehicle<select name="vehicleId">${vehicleOptionsHtml("")}</select></label>
+      <label>Order Date<input type="date" name="orderDate" value="${today()}" required /></label>
+    </div>
+    <div class="form-row">
+      <label>Vendor name<input type="text" name="vendorName" required placeholder="e.g. Bosch Parts Dealer" /></label>
+      <label>Vendor contact<input type="text" name="vendorContact" placeholder="Phone / email" /></label>
+    </div>
+    <div class="form-row">
+      <label>Vendor GSTIN<input type="text" name="vendorGstin" maxlength="15" placeholder="15-char GST number" /></label>
+      <label>Expected delivery<input type="date" name="expectedDelivery" /></label>
+    </div>
+    <label>Notes<textarea name="notes" rows="2" style="width:100%"></textarea></label>
+    <h3 style="margin:12px 0 6px">Line Items</h3>
+    <div style="overflow-x:auto">
+    <table class="chart-table-el" id="poLineTable" style="width:100%;font-size:0.82rem">
+      <thead><tr><th>Part *</th><th>Part No.</th><th>Make</th><th>S/N</th><th>Qty</th><th>Unit</th><th>Unit ₹ *</th><th>GST %</th><th></th></tr></thead>
+      <tbody id="poLineTbody">${poLineRow(null)}</tbody>
+    </table></div>
+    <button type="button" class="link-btn" onclick="document.getElementById('poLineTbody').insertAdjacentHTML('beforeend', poLineRow(null))" style="margin-top:6px">${FWIcon("plus",{size:13})} Add line</button>
+  `, async fd => {
+    const lines = collectPoLines();
+    if (!lines) throw new Error("Fix the line items first (part name and unit price required for each row).");
+    const orgId = await dbOrgId();
+    if (!orgId) throw new Error("Could not determine your organisation — check your session.");
+    const vehRow = fd.vehicleId ? db.vehicles.find(v => v.id === fd.vehicleId) : null;
+    const totals = calcPoTotals(lines);
+    const po = await fwCloud.authInsertRet("purchase_orders", {
+      org_id: orgId,
+      vehicle_id: vehRow?.dbId || null,
+      vendor_name: fd.vendorName.trim(),
+      vendor_gstin: fd.vendorGstin.trim() || null,
+      vendor_contact: fd.vendorContact.trim() || null,
+      order_date: fd.orderDate,
+      expected_delivery: fd.expectedDelivery || null,
+      notes: fd.notes.trim() || null,
+      subtotal: totals.subtotal,
+      total_gst: totals.gst,
+      total_amount: totals.total,
+      created_by: fwCloud.uid(),
+    });
+    if (!po) throw new Error("Could not save — check your connection and try again.");
+    for (const l of lines) {
+      await fwCloud.authInsert("purchase_order_lines", { ...l, po_id: po.id, org_id: orgId });
+    }
+    closeEditModal();
+    toast(`PO ${po.po_number} created.`);
+    await loadPOs(); renderPurchaseOrders();
+  });
+}
+
+function openEditPO(id) {
+  const p = _pos.find(x => x.id === id);
+  if (!p) return;
+  const lines = _poLines[id] || [];
+  const vehLocalId = p.vehicle_id
+    ? (db.vehicles.find(v => v.dbId === p.vehicle_id)?.id || "")
+    : "";
+  openEditModal("Edit Purchase Order", `
+    <div class="form-row">
+      <label>Vehicle<select name="vehicleId">${vehicleOptionsHtml(vehLocalId)}</select></label>
+      <label>Order Date<input type="date" name="orderDate" value="${p.order_date}" required /></label>
+    </div>
+    <div class="form-row">
+      <label>Vendor name<input type="text" name="vendorName" value="${escAttr(p.vendor_name)}" required /></label>
+      <label>Vendor contact<input type="text" name="vendorContact" value="${escAttr(p.vendor_contact||"")}" /></label>
+    </div>
+    <div class="form-row">
+      <label>Vendor GSTIN<input type="text" name="vendorGstin" value="${escAttr(p.vendor_gstin||"")}" maxlength="15" /></label>
+      <label>Expected delivery<input type="date" name="expectedDelivery" value="${p.expected_delivery||""}" /></label>
+    </div>
+    <label>Notes<textarea name="notes" rows="2" style="width:100%">${esc(p.notes||"")}</textarea></label>
+    <h3 style="margin:12px 0 6px">Line Items</h3>
+    <div style="overflow-x:auto">
+    <table class="chart-table-el" style="width:100%;font-size:0.82rem">
+      <thead><tr><th>Part *</th><th>Part No.</th><th>Make</th><th>S/N</th><th>Qty</th><th>Unit</th><th>Unit ₹ *</th><th>GST %</th><th></th></tr></thead>
+      <tbody id="poLineTbody">${lines.map(poLineRow).join("") || poLineRow(null)}</tbody>
+    </table></div>
+    <button type="button" class="link-btn" onclick="document.getElementById('poLineTbody').insertAdjacentHTML('beforeend', poLineRow(null))" style="margin-top:6px">${FWIcon("plus",{size:13})} Add line</button>
+  `, async fd => {
+    const lines2 = collectPoLines();
+    if (!lines2) throw new Error("Fix the line items first.");
+    const vehRow = fd.vehicleId ? db.vehicles.find(v => v.id === fd.vehicleId) : null;
+    const totals = calcPoTotals(lines2);
+    const ok = await fwCloud.authPatch(`purchase_orders?id=eq.${id}`, {
+      vehicle_id: vehRow?.dbId || null,
+      vendor_name: fd.vendorName.trim(),
+      vendor_gstin: fd.vendorGstin.trim() || null,
+      vendor_contact: fd.vendorContact.trim() || null,
+      order_date: fd.orderDate,
+      expected_delivery: fd.expectedDelivery || null,
+      notes: fd.notes.trim() || null,
+      subtotal: totals.subtotal,
+      total_gst: totals.gst,
+      total_amount: totals.total,
+    });
+    if (!ok) throw new Error("Could not save — check your connection and try again.");
+    // replace lines: delete old, insert new
+    const orgId = await dbOrgId();
+    await fwCloud.authDelete("purchase_order_lines", `po_id=eq.${id}`);
+    for (const l of lines2) {
+      await fwCloud.authInsert("purchase_order_lines", { ...l, po_id: id, org_id: orgId });
+    }
+    closeEditModal();
+    toast("Purchase order updated.");
+    await loadPOs(); renderPurchaseOrders();
+  });
+}
+
+function collectPoLines() {
+  const rows = document.querySelectorAll("#poLineTbody .po-line-row");
+  const out = [];
+  for (const row of rows) {
+    const partName = (row.querySelector(".po-line-part")?.value || "").trim();
+    const price    = parseFloat(row.querySelector(".po-line-price")?.value || "0");
+    if (!partName) return null;
+    if (isNaN(price) || price < 0) return null;
+    out.push({
+      part_name:     partName,
+      part_number:   (row.querySelector(".po-line-partno")?.value || "").trim() || null,
+      make:          (row.querySelector(".po-line-make")?.value   || "").trim() || null,
+      serial_number: (row.querySelector(".po-line-sn")?.value     || "").trim() || null,
+      quantity:      parseFloat(row.querySelector(".po-line-qty")?.value  || "1") || 1,
+      unit:          row.querySelector(".po-line-unit")?.value || "pcs",
+      unit_price:    price,
+      gst_rate:      parseFloat(row.querySelector(".po-line-gst")?.value  || "18") || 0,
+    });
+  }
+  return out.length ? out : null;
+}
+
+function calcPoTotals(lines) {
+  let subtotal = 0, gst = 0;
+  for (const l of lines) {
+    const base = l.quantity * l.unit_price;
+    const g    = Math.round(base * l.gst_rate) / 100;
+    subtotal  += base;
+    gst       += g;
+  }
+  return { subtotal: Math.round(subtotal * 100) / 100, gst: Math.round(gst * 100) / 100, total: Math.round((subtotal + gst) * 100) / 100 };
+}
+
+async function poSetStatus(id, status) {
+  const ok = await fwCloud.authPatch(`purchase_orders?id=eq.${id}`, { status });
+  if (!ok) { toast("Could not update — try again.", "warn"); return; }
+  toast(`PO marked ${status}.`);
+  await loadPOs(); renderPurchaseOrders();
+}
+
+async function poMarkReceived(id) {
+  const p = _pos.find(x => x.id === id);
+  if (!p) return;
+  const lines = _poLines[id] || [];
+  // post expense — category "Spare Parts", items = line details, vendor = po vendor
+  const vehLocalId = p.vehicle_id
+    ? (db.vehicles.find(v => v.dbId === p.vehicle_id)?.id || "")
+    : "";
+  const expenseData = {
+    vehicleId: vehLocalId || null,
+    date: today(),
+    category: "Spare Parts",
+    amount: p.total_amount || 0,
+    title: `PO ${p.po_number} — ${p.vendor_name}`,
+    vendor: p.vendor_name,
+    gstin: p.vendor_gstin || undefined,
+    billNo: p.po_number,
+    items: lines.map(l => ({
+      description: [l.part_name, l.part_number, l.make].filter(Boolean).join(" / "),
+      partNumber: l.part_number || undefined,
+      serialNumber: l.serial_number || undefined,
+      make: l.make || undefined,
+      qty: l.quantity,
+      unit: l.unit,
+      unitPrice: l.unit_price,
+      gstRate: l.gst_rate,
+      gstAmount: Math.round(l.quantity * l.unit_price * l.gst_rate) / 100,
+      amount: Math.round(l.quantity * l.unit_price * (1 + l.gst_rate / 100) * 100) / 100,
+    })),
+  };
+  const saved = coreDbBacked() ? await dbCreateExpense(expenseData) : null;
+  if (coreDbBacked() && !saved) { toast("Could not post expense — check your connection.", "warn"); return; }
+  if (saved) db.expenses.push(saved);
+
+  const patch = { status: "received", received_date: today() };
+  if (saved) patch.expense_id = saved.id;
+  await fwCloud.authPatch(`purchase_orders?id=eq.${id}`, patch);
+  toast(`PO ${p.po_number} received — expense posted to ${vehLocalId ? "vehicle & " : ""}accounts.`);
+  await loadPOs(); renderPurchaseOrders();
+  renderExpenseHistory(); renderOverview();
+}
+
+async function poCancelConfirm(id) {
+  const p = _pos.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm(`Cancel PO ${p.po_number}?`)) return;
+  await poSetStatus(id, "cancelled");
+}
+
+// Expose globals needed for inline onclick= attributes
+window.openNewPO    = openNewPO;
+window.openEditPO   = openEditPO;
+window.poSetStatus  = poSetStatus;
+window.poMarkReceived = poMarkReceived;
+window.poCancelConfirm = poCancelConfirm;
+window.poLineRow    = poLineRow;
+
+// ════════════════════════════════════════════════════════════════════════════
+// SITES & PROJECTS
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── in-memory state ────────────────────────────────────────────────────────
+let _sites    = [];   // site rows from DB
+let _siteVeh  = {};   // { siteId: [site_vehicle_assignments rows] }
+let _siteStaff = {};  // { siteId: [site_staff_assignments rows] }
+// reverse map: vehicleDbId → { site, sva row }
+let _vehSiteMap  = {};
+// vehicle manual status overrides: vehicleId → 'moving'|'halted'|null
+const _vstatus = {};
+
+// ── global dashboard filter ────────────────────────────────────────────────
+let _dashFilter = { by: "all", value: "", label: "" };
+
+window.setDashFilter = function(by, value) {
+  if (by === "all") {
+    _dashFilter = { by: "all", value: "", label: "" };
+  } else {
+    if (!value) { _dashFilter = { by: "all", value: "", label: "" }; by = "all"; }
+    else {
+      const labels = { site: "Site", supervisor: "Supervisor", driver: "Driver" };
+      _dashFilter = { by, value, label: labels[by] + ": " + value };
+    }
+  }
+  syncFilterBarUI();
+  renderVehicleStatusBoard();
+  renderDashboard();
+};
+
+function syncFilterBarUI() {
+  const { by, value, label } = _dashFilter;
+  // "All" button
+  ["fltAll","fltAllFin"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle("is-active", by === "all");
+  });
+  // reset all selects to blank when filter is "all"
+  if (by === "all") {
+    ["fltSite","fltSiteFin","fltSupervisor","fltDriver","fltDriverFin"].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = "";
+    });
+  }
+  // labels
+  ["fltLabel","fltLabelFin"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = label;
+  });
+}
+
+function filteredVehicles() {
+  const { by, value } = _dashFilter;
+  if (by === "all" || !value) return db.vehicles;
+  if (by === "site") {
+    const svaRows = _siteVeh[value] || [];
+    const vDbIds  = new Set(svaRows.filter(r => !r.removed_date).map(r => r.vehicle_id));
+    return db.vehicles.filter(v => vDbIds.has(v.dbId));
+  }
+  if (by === "supervisor") {
+    const siteIds = _sites.filter(s => s.supervisor_name === value || s.supervisor_user_id === value).map(s => s.id);
+    const vDbIds  = new Set();
+    siteIds.forEach(sid => (_siteVeh[sid] || []).filter(r => !r.removed_date).forEach(r => vDbIds.add(r.vehicle_id)));
+    return db.vehicles.filter(v => vDbIds.has(v.dbId));
+  }
+  if (by === "driver") {
+    const d = db.drivers.find(d => d.id === value || d.name === value);
+    return d && d.vehicleId ? db.vehicles.filter(v => v.id === d.vehicleId) : [];
+  }
+  return db.vehicles;
+}
+
+// ── data load ──────────────────────────────────────────────────────────────
+async function loadSites() {
+  if (!coreDbBacked()) { _sites = []; _siteVeh = {}; _siteStaff = {}; _vehSiteMap = {}; return; }
+  _sites = await fwCloud.authGet("sites", "select=*&status=neq.cancelled&order=created_at.desc") || [];
+  if (!_sites.length) { _siteVeh = {}; _siteStaff = {}; _vehSiteMap = {}; return; }
+  const ids = _sites.map(s => s.id);
+  const vaRows = await fwCloud.authGet("site_vehicle_assignments",
+    `select=*&site_id=in.(${ids.join(",")})&order=assigned_date.desc`) || [];
+  const ssRows = await fwCloud.authGet("site_staff_assignments",
+    `select=*&site_id=in.(${ids.join(",")})&left_date=is.null&order=joined_date.desc`) || [];
+  _siteVeh   = {};
+  _siteStaff = {};
+  _vehSiteMap = {};
+  vaRows.forEach(r => {
+    (_siteVeh[r.site_id] = _siteVeh[r.site_id] || []).push(r);
+    if (!r.removed_date) _vehSiteMap[r.vehicle_id] = { site: _sites.find(s => s.id === r.site_id), sva: r };
+  });
+  ssRows.forEach(r => { (_siteStaff[r.site_id] = _siteStaff[r.site_id] || []).push(r); });
+  populateFilterDropdowns();
+}
+
+function populateFilterDropdowns() {
+  const siteOpts = _sites.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("");
+  ["fltSite","fltSiteFin"].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = `<option value="">— Site / Project —</option>${siteOpts}`;
+    el.value = cur;
+  });
+
+  const sups = [...new Set(_sites.filter(s => s.supervisor_name).map(s => s.supervisor_name))];
+  const supOpts = sups.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  const supEl = document.getElementById("fltSupervisor");
+  if (supEl) supEl.innerHTML = `<option value="">— Supervisor —</option>${supOpts}`;
+
+  const drvOpts = db.drivers.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join("");
+  ["fltDriver","fltDriverFin"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = `<option value="">— Driver —</option>${drvOpts}`;
+  });
+}
+
+// ── vehicle status helpers ─────────────────────────────────────────────────
+const OP_STATUS = {
+  moving:    { label: "Moving",    cls: "ok",       icon: "trendUp" },
+  halted:    { label: "Halted",    cls: "soon",     icon: "pause" },
+  repair:    { label: "In Repair", cls: "overdue",  icon: "wrench" },
+  planned:   { label: "Planned",   cls: "upcoming", icon: "calendar" },
+  no_driver: { label: "No Driver", cls: "soon",     icon: "driver" },
+  active:    { label: "Active",    cls: "ok",       icon: "check" },
+};
+
+function vehicleOpStatus(v) {
+  if (_vstatus[v.id]) return _vstatus[v.id];
+  if (db.workOrders.some(w => w.status !== "Completed" && w.vehicleId === v.id)) return "repair";
+  if (db.reminders.some(r => r.dueDate === today() && (r.vehicleId === v.id || !r.vehicleId))) return "planned";
+  if (!db.drivers.find(d => d.vehicleId === v.id)) return "no_driver";
+  return "active";
+}
+
+function vehiclePendency(v) {
+  const now = Date.now();
+  const ages = [
+    ...db.issues.filter(i => i.status !== "Resolved" && i.vehicleId === v.id && i.createdAt)
+      .map(i => Math.round((now - new Date(i.createdAt)) / 86400000)),
+    ...db.workOrders.filter(w => w.status !== "Completed" && w.vehicleId === v.id && w.createdAt)
+      .map(w => Math.round((now - new Date(w.createdAt)) / 86400000)),
+  ];
+  return ages.length ? Math.max(...ages) : 0;
+}
+
+// ── Vehicle Status Board ───────────────────────────────────────────────────
+function renderVehicleStatusBoard() {
+  const el = document.getElementById("vehicleStatusBoard");
+  if (!el) return;
+  const vehs = filteredVehicles();
+  if (!vehs.length) { el.innerHTML = ""; return; }
+
+  // Build summary counts
+  const counts = { moving: 0, halted: 0, repair: 0, planned: 0, no_driver: 0, active: 0 };
+  vehs.forEach(v => counts[vehicleOpStatus(v)]++);
+
+  const summaryTiles = Object.entries(counts).map(([k, n]) => {
+    if (!n && k !== "active") return "";
+    const m = OP_STATUS[k];
+    return `<div class="vsb-tile" onclick="setVsbStatusFilter('${k}')" title="Click to filter">
+      <span class="fw-badge ${m.cls}" style="font-size:0.7rem">${FWIcon(m.icon,{size:12})} ${m.label}</span>
+      <span class="vsb-count">${n}</span>
+    </div>`;
+  }).filter(Boolean).join("");
+
+  // Build rows
+  const rows = vehs.map(v => {
+    const driver   = db.drivers.find(d => d.vehicleId === v.id);
+    const siteInfo = _vehSiteMap[v.dbId];
+    const site     = siteInfo?.site;
+    const opSt     = vehicleOpStatus(v);
+    const stMeta   = OP_STATUS[opSt] || OP_STATUS.active;
+    const pendAge  = vehiclePendency(v);
+
+    // staff at this site
+    const siteStaff = site ? (_siteStaff[site.id] || []) : [];
+    const siteSup   = site ? (site.supervisor_name || "—") : "—";
+
+    const pendCell = pendAge > 0
+      ? `<span class="fw-badge ${pendAge > 14 ? "overdue" : pendAge > 7 ? "soon" : "upcoming"}">${pendAge}d</span>`
+      : `<span class="muted">—</span>`;
+
+    // manual status toggle buttons
+    const isMov = _vstatus[v.id] === "moving";
+    const isHalt= _vstatus[v.id] === "halted";
+    return `<tr>
+      <td><strong>${esc(v.name)}</strong><br/><span class="muted" style="font-size:0.75rem">${esc(v.type)}</span></td>
+      <td>${site ? `<strong>${esc(site.name)}</strong><br/><span class="muted" style="font-size:0.73rem">${esc(SITE_TYPE_LABELS[site.project_type]||site.project_type)}</span>` : `<span class="muted">—</span>`}</td>
+      <td>${site?.manager_name ? esc(site.manager_name) : `<span class="muted">—</span>`}</td>
+      <td>${siteSup !== "—" ? esc(siteSup) : `<span class="muted">—</span>`}</td>
+      <td>${driver ? esc(driver.name) : `<span class="fw-badge soon" style="font-size:0.7rem">No Driver</span>`}</td>
+      <td><span class="fw-badge ${stMeta.cls}" style="font-size:0.72rem">${FWIcon(stMeta.icon,{size:12})} ${stMeta.label}</span>
+          <div style="display:inline-flex;gap:4px;margin-left:6px">
+            <button class="link-btn" style="font-size:0.72rem;padding:2px 6px;border:1px solid var(--border);border-radius:6px;${isMov?"background:var(--accent-dim)":""}" onclick="toggleVStatus('${v.id}','moving')" title="Mark Moving">▶ Mov</button>
+            <button class="link-btn" style="font-size:0.72rem;padding:2px 6px;border:1px solid var(--border);border-radius:6px;${isHalt?"background:var(--accent-dim)":""}" onclick="toggleVStatus('${v.id}','halted')" title="Mark Halted">⏸ Halt</button>
+          </div>
+      </td>
+      <td>${pendCell}</td>
+      <td>
+        <button class="link-btn" onclick="openAssignVehicleToSite('${v.id}')">${FWIcon("mapPin",{size:13})} Site</button>
+      </td>
+    </tr>`;
+  }).join("");
+
+  el.innerHTML = `<div class="chart-card" style="padding:0;overflow:hidden">
+    <div class="chart-head" style="padding:12px 16px 8px">
+      <div><h2 style="margin:0">Fleet Status Board</h2>
+      <p class="muted" style="margin:2px 0 0;font-size:0.8rem">Live deployment view — ${vehs.length} vehicle${vehs.length===1?"":"s"}${_dashFilter.by!=="all"?" · filtered":""}. Move/Halt is manual; Repair/Planned/No Driver are auto-derived.</p></div>
+    </div>
+    <div style="display:flex;gap:10px;padding:0 16px 12px;flex-wrap:wrap">${summaryTiles}</div>
+    <div style="overflow-x:auto">
+    <table class="chart-table-el" style="width:100%">
+      <thead><tr>
+        <th>Vehicle</th><th>Site / Project</th><th>Manager</th><th>Supervisor</th>
+        <th>Driver</th><th>Status</th><th>Pending Age</th><th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div></div>`;
+  if (window.FWIcons) FWIcons.hydrate(el);
+}
+
+window.toggleVStatus = function(vehId, newSt) {
+  _vstatus[vehId] = _vstatus[vehId] === newSt ? null : newSt;
+  renderVehicleStatusBoard();
+};
+
+// ── Sites render ───────────────────────────────────────────────────────────
+const SITE_TYPE_LABELS = {
+  intercity: "Intercity", local_movement: "Local Movement", long_haul: "Long Haul",
+  depot: "Depot", yard: "Yard", customer_site: "Customer Site",
+  construction: "Construction", mining: "Mining", agriculture: "Agriculture",
+  logistics_hub: "Logistics Hub", other: "Other",
+};
+
+function renderSites() {
+  const box = document.getElementById("sitesList");
+  if (!box) return;
+  if (!coreDbBacked()) {
+    box.innerHTML = "<p class='muted'>Sign in to manage sites and projects.</p>"; return;
+  }
+  if (!_sites.length) {
+    box.innerHTML = `<p class='muted' style='text-align:center;padding:32px'>No sites or projects yet — click <strong>New Site</strong> to create one.</p>`;
+    return;
+  }
+  box.innerHTML = _sites.map(s => {
+    const vvas   = (_siteVeh[s.id]   || []).filter(r => !r.removed_date);
+    const ssas   = (_siteStaff[s.id] || []).filter(r => !r.left_date);
+    const typeLbl= SITE_TYPE_LABELS[s.project_type] || s.project_type;
+    const stMeta = { active: "ok", paused: "soon", completed: "upcoming", cancelled: "overdue" }[s.status] || "upcoming";
+    const vehNames = vvas.map(r => {
+      const v = db.vehicles.find(x => x.dbId === r.vehicle_id); return v ? v.name : "?";
+    });
+    const staffRoles = ssas.reduce((m, r) => { m[r.staff_role] = (m[r.staff_role]||0)+1; return m; }, {});
+    return `<div class="pred-row site-card" id="site-${s.id}" style="border-left:3px solid ${s.site_type==="project"?"#a855f7":"#22d3ee"}">
+      <div class="pred-main">
+        <span class="fw-badge ${stMeta}" style="font-size:0.7rem">${s.status}</span>
+        <strong style="margin-left:8px">${esc(s.name)}</strong>
+        <span class="fw-chip is-pending" style="margin-left:8px;font-size:0.75rem">${s.site_type==="project"?"Project":"Site"} · ${esc(typeLbl)}</span>
+        ${s.location ? `<span class="muted" style="font-size:0.78rem"> · ${FWIcon("mapPin",{size:12})} ${esc(s.location)}</span>` : ""}
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;font-size:0.8rem">
+        ${s.manager_name    ? `<span>${FWIcon("driver",{size:13})} Manager: <strong>${esc(s.manager_name)}</strong></span>` : ""}
+        ${s.supervisor_name ? `<span>${FWIcon("eye",{size:13})} Supervisor: <strong>${esc(s.supervisor_name)}</strong></span>` : ""}
+        <span>${FWIcon("truck",{size:13})} <strong>${vehNames.length}</strong> truck${vehNames.length===1?"":"s"}${vehNames.length ? ": " + vehNames.slice(0,4).map(esc).join(", ") + (vehNames.length>4?" +":"") : ""}</span>
+        ${Object.entries(staffRoles).map(([r,n]) => `<span>${FWIcon("driver",{size:12})} ${n} ${r}${n>1?"s":""}</span>`).join("")}
+        ${s.start_date ? `<span class="muted">Start: ${fmtDate(s.start_date)}</span>` : ""}
+        ${s.end_date   ? `<span class="muted">End: ${fmtDate(s.end_date)}</span>` : ""}
+      </div>
+      <div class="pred-detail" style="margin-top:8px">
+        <button class="link-btn" onclick="openEditSite('${s.id}')">${FWIcon("document",{size:13})} Edit</button>
+        <button class="link-btn" onclick="openAssignSiteVehicles('${s.id}')">${FWIcon("truck",{size:13})} Vehicles</button>
+        <button class="link-btn" onclick="openAssignSiteStaff('${s.id}')">${FWIcon("driver",{size:13})} Staff</button>
+        <button class="link-btn" style="color:#ef4444" onclick="siteArchive('${s.id}')">${FWIcon("trash",{size:13})} Archive</button>
+      </div>
+    </div>`;
+  }).join("");
+  if (window.FWIcons) FWIcons.hydrate(box);
+}
+
+// ── Site CRUD ──────────────────────────────────────────────────────────────
+const SITE_TYPE_OPTIONS = [
+  ["intercity","Intercity"], ["local_movement","Local Movement"], ["long_haul","Long Haul"],
+  ["depot","Depot"], ["yard","Yard"], ["customer_site","Customer Site"],
+  ["construction","Construction"], ["mining","Mining"], ["agriculture","Agriculture"],
+  ["logistics_hub","Logistics Hub"], ["other","Other"],
+];
+
+function siteFormHtml(s) {
+  s = s || {};
+  return `
+    <div class="form-row">
+      <label>Name *<input type="text" name="name" value="${escAttr(s.name||"")}" required placeholder="e.g. Chennai Hub" /></label>
+      <label>Category
+        <select name="siteType">
+          <option value="site"${s.site_type!=="project"?" selected":""}>Site / Depot</option>
+          <option value="project"${s.site_type==="project"?" selected":""}>Project</option>
+        </select>
+      </label>
+    </div>
+    <div class="form-row">
+      <label>Project / Movement Type
+        <select name="projectType">
+          ${SITE_TYPE_OPTIONS.map(([v,l]) => `<option value="${v}"${(s.project_type||"other")===v?" selected":""}>${l}</option>`).join("")}
+        </select>
+      </label>
+      <label>Status
+        <select name="status">
+          ${["active","paused","completed","cancelled"].map(st => `<option${(s.status||"active")===st?" selected":""}>${st}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+    <div class="form-row">
+      <label>Location / City<input type="text" name="location" value="${escAttr(s.location||"")}" placeholder="e.g. Chennai, TN" /></label>
+      <label>Address<input type="text" name="address" value="${escAttr(s.address||"")}" placeholder="Full address / GPS" /></label>
+    </div>
+    <div class="form-row">
+      <label>Manager name<input type="text" name="managerName" value="${escAttr(s.manager_name||"")}" placeholder="Name of site manager" /></label>
+      <label>Supervisor name<input type="text" name="supervisorName" value="${escAttr(s.supervisor_name||"")}" placeholder="On-site supervisor" /></label>
+    </div>
+    <div class="form-row">
+      <label>Start date<input type="date" name="startDate" value="${s.start_date||""}" /></label>
+      <label>End date<input type="date" name="endDate" value="${s.end_date||""}" /></label>
+    </div>
+    <label>Notes<textarea name="notes" rows="2" style="width:100%">${esc(s.notes||"")}</textarea></label>`;
+}
+
+window.openNewSite = async function() {
+  openEditModal("New Site / Project", siteFormHtml(null), async fd => {
+    const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
+    const row = {
+      org_id: orgId, name: fd.name.trim(), site_type: fd.siteType,
+      project_type: fd.projectType, location: fd.location.trim()||null,
+      address: fd.address.trim()||null, manager_name: fd.managerName.trim()||null,
+      supervisor_name: fd.supervisorName.trim()||null,
+      start_date: fd.startDate||null, end_date: fd.endDate||null,
+      status: fd.status, notes: fd.notes.trim()||null, created_by: fwCloud.uid(),
+    };
+    const ok = await fwCloud.authInsert("sites", row);
+    if (!ok) throw new Error("Could not save — check your connection.");
+    toast(`Site "${fd.name.trim()}" created.`);
+    closeEditModal();
+    await loadSites(); renderSites(); renderVehicleStatusBoard(); populateFilterDropdowns();
+  });
+};
+
+window.openEditSite = async function(id) {
+  const s = _sites.find(x => x.id === id); if (!s) return;
+  openEditModal("Edit Site / Project", siteFormHtml(s), async fd => {
+    const ok = await fwCloud.authPatch(`sites?id=eq.${id}`, {
+      name: fd.name.trim(), site_type: fd.siteType, project_type: fd.projectType,
+      location: fd.location.trim()||null, address: fd.address.trim()||null,
+      manager_name: fd.managerName.trim()||null, supervisor_name: fd.supervisorName.trim()||null,
+      start_date: fd.startDate||null, end_date: fd.endDate||null,
+      status: fd.status, notes: fd.notes.trim()||null,
+    });
+    if (!ok) throw new Error("Could not save — check your connection.");
+    toast("Site updated.");
+    closeEditModal();
+    await loadSites(); renderSites(); renderVehicleStatusBoard(); populateFilterDropdowns();
+  });
+};
+
+window.siteArchive = async function(id) {
+  const s = _sites.find(x => x.id === id); if (!s) return;
+  if (!confirm(`Archive "${s.name}"? It will be hidden but data is preserved.`)) return;
+  await fwCloud.authPatch(`sites?id=eq.${id}`, { status: "cancelled" });
+  toast("Site archived.");
+  await loadSites(); renderSites(); renderVehicleStatusBoard();
+};
+
+// ── Assign vehicles to site ────────────────────────────────────────────────
+window.openAssignSiteVehicles = function(siteId) {
+  const s = _sites.find(x => x.id === siteId); if (!s) return;
+  const active = (_siteVeh[siteId] || []).filter(r => !r.removed_date);
+  const assignedDbIds = new Set(active.map(r => r.vehicle_id));
+
+  openEditModal(`Assign Vehicles — ${s.name}`,
+    `<p class="muted" style="font-size:0.82rem;margin-bottom:10px">Tick trucks currently deployed at this site. Unticking removes the assignment (history kept).</p>
+     <div id="siteVehPicker">${db.vehicles.map(v => {
+       const checked = assignedDbIds.has(v.dbId) ? "checked" : "";
+       const otherSite = v.dbId && !assignedDbIds.has(v.dbId) ? _vehSiteMap[v.dbId] : null;
+       const note = otherSite ? ` <span class="muted">(currently at ${esc(otherSite.site?.name||"?")})</span>` : "";
+       return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">
+         <input type="checkbox" name="veh_${v.id}" value="${v.dbId}" ${checked} />
+         <strong>${esc(v.name)}</strong> <span class="muted">${esc(v.type)}</span>${note}
+       </label>`;
+     }).join("")}</div>`,
+    async fd => {
+      const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
+      // figure out additions and removals
+      const nowChecked = new Set(
+        db.vehicles.filter(v => fd[`veh_${v.id}`] === "on" || fd[`veh_${v.id}`] === v.dbId || document.querySelector(`input[name="veh_${v.id}"]`)?.checked)
+          .map(v => v.dbId)
+      );
+      // Use the DOM to read checkboxes (FormData only gives "on" for checked)
+      const domChecked = new Set(
+        [...document.querySelectorAll('#siteVehPicker input[type=checkbox]:checked')].map(i => i.value)
+      );
+      // Remove unchecked vehicles currently assigned here
+      for (const r of active) {
+        if (!domChecked.has(r.vehicle_id)) {
+          await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${r.id}`, { removed_date: today() });
+        }
+      }
+      // Add newly checked vehicles (remove from any current site first)
+      for (const dbId of domChecked) {
+        if (assignedDbIds.has(dbId)) continue; // already assigned here
+        // Remove from previous site if any
+        const prev = _vehSiteMap[dbId];
+        if (prev) {
+          await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${prev.sva.id}`, { removed_date: today() });
+        }
+        await fwCloud.authInsert("site_vehicle_assignments", {
+          site_id: siteId, vehicle_id: dbId, org_id: orgId, assigned_date: today(),
+        });
+      }
+      toast("Vehicle assignments saved.");
+      closeEditModal();
+      await loadSites(); renderSites(); renderVehicleStatusBoard();
+    }
+  );
+  // Fix: FormData approach loses checkboxes — override the submit to read DOM
+};
+
+// ── Assign staff to site ────────────────────────────────────────────────────
+window.openAssignSiteStaff = function(siteId) {
+  const s = _sites.find(x => x.id === siteId); if (!s) return;
+  const active = (_siteStaff[siteId] || []).filter(r => !r.left_date);
+
+  const staffList = active.length
+    ? active.map(r => `<div class="pred-row" style="padding:8px 0" id="ssa-${r.id}">
+        <span class="fw-badge upcoming" style="font-size:0.7rem">${r.staff_role}</span>
+        <strong style="margin:0 8px">${esc(r.staff_name)}</strong>
+        <span class="muted" style="font-size:0.76rem">since ${fmtDate(r.joined_date)}</span>
+        <button class="link-btn" style="color:#ef4444;float:right" onclick="removeSiteStaff('${r.id}','${siteId}')">Remove</button>
+      </div>`).join("")
+    : "<p class='muted'>No staff assigned yet.</p>";
+
+  const driverOpts = db.drivers.map(d =>
+    `<option value="${d.id}|driver|${escAttr(d.name)}">${esc(d.name)} (driver)</option>`).join("");
+
+  openEditModal(`Staff — ${s.name}`,
+    `<div id="siteStaffList">${staffList}</div>
+     <h3 style="margin:16px 0 8px">Add Staff Member</h3>
+     <div class="form-row">
+       <label>Name<input type="text" name="staffName" placeholder="Full name" /></label>
+       <label>Role
+         <select name="staffRole">
+           <option value="driver">Driver</option>
+           <option value="supervisor">Supervisor</option>
+           <option value="helper">Helper</option>
+           <option value="operator">Operator</option>
+           <option value="manager">Manager</option>
+         </select>
+       </label>
+     </div>
+     <div class="form-row">
+       <label>OR pick a driver from fleet<select name="driverPick">
+         <option value="">— pick driver —</option>${driverOpts}
+       </select></label>
+       <label>Joined date<input type="date" name="joinedDate" value="${today()}" /></label>
+     </div>`,
+    async fd => {
+      const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
+      let name = (fd.staffName||"").trim();
+      let role = fd.staffRole;
+      let driverExtId = null;
+      if (fd.driverPick && fd.driverPick !== "") {
+        const [drvId, drvRole, drvName] = fd.driverPick.split("|");
+        if (!name) name = drvName;
+        if (!role || role === "driver") role = drvRole;
+        driverExtId = drvId;
+      }
+      if (!name) throw new Error("Enter a staff member name or pick a driver.");
+      const ok = await fwCloud.authInsert("site_staff_assignments", {
+        site_id: siteId, org_id: orgId, staff_name: name, staff_role: role,
+        driver_ext_id: driverExtId || null, joined_date: fd.joinedDate || today(),
+      });
+      if (!ok) throw new Error("Could not save — check your connection.");
+      toast(`${name} added to ${s.name}.`);
+      closeEditModal();
+      await loadSites(); renderSites(); renderVehicleStatusBoard();
+    }
+  );
+};
+
+window.removeSiteStaff = async function(ssaId, siteId) {
+  if (!confirm("Remove this staff member from the site?")) return;
+  await fwCloud.authPatch(`site_staff_assignments?id=eq.${ssaId}`, { left_date: today() });
+  toast("Staff member removed from site.");
+  await loadSites(); renderSites();
+};
+
+// ── Assign vehicle to site from the Status Board ───────────────────────────
+window.openAssignVehicleToSite = function(vehLocalId) {
+  const v = db.vehicles.find(x => x.id === vehLocalId); if (!v) return;
+  const cur = _vehSiteMap[v.dbId];
+  const siteOpts = _sites.filter(s => s.status === "active").map(s =>
+    `<option value="${s.id}"${cur?.site?.id===s.id?" selected":""}>${esc(s.name)}</option>`).join("");
+
+  openEditModal(`Assign Site — ${v.name}`,
+    `<label>Current site: <strong>${cur ? esc(cur.site?.name||"Unknown") : "None"}</strong></label>
+     <label style="margin-top:12px;display:block">Assign to site
+       <select name="siteId">
+         <option value="">— None —</option>${siteOpts}
+       </select>
+     </label>
+     <label>From date<input type="date" name="fromDate" value="${today()}" /></label>`,
+    async fd => {
+      const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
+      if (cur) await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${cur.sva.id}`, { removed_date: today() });
+      if (fd.siteId) {
+        await fwCloud.authInsert("site_vehicle_assignments", {
+          site_id: fd.siteId, vehicle_id: v.dbId, org_id: orgId, assigned_date: fd.fromDate || today(),
+        });
+      }
+      const siteName = fd.siteId ? (_sites.find(s=>s.id===fd.siteId)?.name || "site") : "none";
+      toast(`${v.name} → ${fd.siteId ? siteName : "unassigned"}.`);
+      closeEditModal();
+      await loadSites(); renderSites(); renderVehicleStatusBoard();
+    }
+  );
+};
 
 // ---------- Render: work orders (job cards) ----------
 function renderWorkOrders() {
@@ -3215,6 +4073,24 @@ function buildDynamicPanels() {
     <div class="chart-scroll"><div id="fastagTable"></div></div>
   </div>`);
 
+  mk("purchaseorders", `<div class="chart-card">
+    <div class="chart-head">
+      <div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="receipt" data-icon-size="22"></i></span> Purchase Orders</h2>
+      <p class="muted">Raise spare-part purchase orders against vendors — tracked from draft to delivery and posted to accounts on receipt.</p></div>
+      <button class="btn btn-primary" onclick="openNewPO()">${FWIcon("plus",{size:14})} New PO</button>
+    </div>
+    <div id="poList"></div>
+  </div>`);
+
+  mk("sites", `<div class="chart-card">
+    <div class="chart-head">
+      <div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="mapPin" data-icon-size="22"></i></span> Sites &amp; Projects</h2>
+      <p class="muted">Create sites, depots and projects — assign trucks, managers and supervisors. Vehicles show up on the Status Board with their site and supervisor.</p></div>
+      <button class="btn btn-primary" onclick="openNewSite()">${FWIcon("plus",{size:14})} New Site</button>
+    </div>
+    <div id="sitesList"></div>
+  </div>`);
+
   [
     ["faults", "Faults", "Engine fault codes surface here automatically with the OBD / telematics integration.", "alert"],
     ["invoices", "Invoices", "Customer and vendor invoices arrive with the billing module.", "document"],
@@ -3222,7 +4098,7 @@ function buildDynamicPanels() {
     ["recalls", "Recalls", "Manufacturer recall tracking for your vehicle makes is on the way.", "bell"],
     ["charging", "EV Charging", "Charging sessions, kWh and cost per km arrive with the EV module.", "charge"],
     ["places", "Places", "Saved depots, customer sites and geofences arrive with the GPS integration.", "mapPin"],
-    ["purchaseorders", "Purchase Orders", "Raise and track spare-part purchase orders against vendors.", "receipt"],
+    // purchaseorders is a live feature — panel built above via mk("purchaseorders",...)
     ["programs", "Service Programs", "Bundle service tasks into recurring programs and assign vehicles to them.", "calendarClock"],
     ["inspschedules", "Inspection Schedules", "Assign inspection forms to vehicles on a repeating schedule.", "clipboardCheck"]
   ].forEach(([id, t, d, ic]) => mk(id, soonCard(t, d, ic)));
@@ -3518,6 +4394,9 @@ function renderAll() {
   renderAssignments(); renderMeters(); renderExpenseHistory(); renderExpenseApprovals(); renderReplacement();
   renderItemFailures(); renderForms(); renderServiceHistory(); renderServiceTasks();
   renderFastag();
+  renderPurchaseOrders();
+  renderSites(); renderVehicleStatusBoard();
+  populateFilterDropdowns();
   renderVendors(); renderIntegrations(); renderReports();
   if (window.renderAnalyticsAll) renderAnalyticsAll();
   if (window.renderGfDash) renderGfDash();
@@ -3542,6 +4421,8 @@ loadExpenseCategories();
 bindFastagForm();
 bindFinFastagForm();
 loadFastag();
+loadPOs();
+loadSites();
 
 // Trips & khata entry forms (panels are built dynamically above)
 document.getElementById("tripForm")?.addEventListener("submit", async e => {
