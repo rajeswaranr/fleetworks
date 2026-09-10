@@ -1519,13 +1519,18 @@ function renderSites() {
         <span class="fw-chip is-pending" style="margin-left:8px;font-size:0.75rem">${s.site_type==="project"?"Project":"Site"} · ${esc(typeLbl)}</span>
         ${s.location ? `<span class="muted" style="font-size:0.78rem"> · ${FWIcon("mapPin",{size:12})} ${esc(s.location)}</span>` : ""}
       </div>
-      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px;font-size:0.8rem">
-        ${s.manager_name    ? `<span>${FWIcon("driver",{size:13})} Manager: <strong>${esc(s.manager_name)}</strong></span>` : ""}
-        ${s.supervisor_name ? `<span>${FWIcon("eye",{size:13})} Supervisor: <strong>${esc(s.supervisor_name)}</strong></span>` : ""}
-        <span>${FWIcon("truck",{size:13})} <strong>${vehNames.length}</strong> truck${vehNames.length===1?"":"s"}${vehNames.length ? ": " + vehNames.slice(0,4).map(esc).join(", ") + (vehNames.length>4?" +":"") : ""}</span>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:0.8rem">
+        ${s.client_name     ? `<span>${FWIcon("document",{size:12})} Client: <strong>${esc(s.client_name)}</strong>${s.client_contact?` · ${esc(s.client_contact)}`:""}</span>` : ""}
+        ${s.manager_name    ? `<span>${FWIcon("driver",{size:12})} Manager: <strong>${esc(s.manager_name)}</strong></span>` : ""}
+        ${s.supervisor_name ? `<span>${FWIcon("eye",{size:12})} Supervisor: <strong>${esc(s.supervisor_name)}</strong></span>` : ""}
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:0.8rem">
+        <span>${FWIcon("truck",{size:12})} <strong>${vehNames.length}</strong> truck${vehNames.length===1?"":"s"}${vehNames.length ? ": " + vehNames.slice(0,4).map(esc).join(", ") + (vehNames.length>4?" +"+(vehNames.length-4)+" more":"") : ""}</span>
         ${Object.entries(staffRoles).map(([r,n]) => `<span>${FWIcon("driver",{size:12})} ${n} ${r}${n>1?"s":""}</span>`).join("")}
-        ${s.start_date ? `<span class="muted">Start: ${fmtDate(s.start_date)}</span>` : ""}
-        ${s.end_date   ? `<span class="muted">End: ${fmtDate(s.end_date)}</span>` : ""}
+        ${(() => { const bl = BILLING_BASIS_OPTIONS.find(b=>b[0]===s.billing_basis); return bl ? `<span>${FWIcon("receipt",{size:12})} <strong>${bl[1]}</strong>${s.rate_per_unit?` · ₹${fmtINR(s.rate_per_unit)}/${bl[1].split(" ").pop()}`:""}${s.target_quantity?` · Target: ${s.target_quantity} ${bl[1].split(" ").pop()}`:""}</span>` : ""; })()}
+        ${s.contract_value  ? `<span>${FWIcon("rupee",{size:12})} Contract: <strong>${fmtINR(s.contract_value)}</strong></span>` : ""}
+        ${s.contract_start  ? `<span class="muted">From ${fmtDate(s.contract_start)}${s.contract_end?" to "+fmtDate(s.contract_end):""}</span>` : ""}
+        ${(s.vehicle_types||[]).length ? `<span class="muted">${(s.vehicle_types).join(", ")}</span>` : ""}
       </div>
       <div class="pred-detail" style="margin-top:8px">
         <button class="link-btn" onclick="openEditSite('${s.id}')">${FWIcon("document",{size:13})} Edit</button>
@@ -1540,17 +1545,36 @@ function renderSites() {
 
 // ── Site CRUD ──────────────────────────────────────────────────────────────
 const SITE_TYPE_OPTIONS = [
-  ["intercity","Intercity"], ["local_movement","Local Movement"], ["long_haul","Long Haul"],
-  ["depot","Depot"], ["yard","Yard"], ["customer_site","Customer Site"],
-  ["construction","Construction"], ["mining","Mining"], ["agriculture","Agriculture"],
-  ["logistics_hub","Logistics Hub"], ["other","Other"],
+  ["intercity","Intercity Movement"], ["local_movement","Local Movement"],
+  ["long_haul","Long Haul"], ["depot","Depot / Warehouse"],
+  ["yard","Yard / Parking"], ["customer_site","Customer Site"],
+  ["construction","Construction"], ["mining","Mining / Quarry"],
+  ["agriculture","Agriculture"], ["logistics_hub","Logistics Hub"],
+  ["other","Other"],
+];
+
+const BILLING_BASIS_OPTIONS = [
+  ["trip",           "Per Trip",          "Per completed trip / load"],
+  ["tonnage",        "Per MT / Tonnage",  "Per metric tonne transported"],
+  ["monthly_rental", "Monthly Rental",    "Fixed monthly rate per vehicle"],
+  ["hourly",         "Hourly",            "Per hour of vehicle deployment"],
+  ["km_based",       "Per KM",            "Rate per kilometre run"],
+  ["custom",         "Custom",            "Custom or negotiated terms"],
+];
+
+const VEHICLE_TYPE_OPTIONS = [
+  "Tipper","Trailer","Tanker","Container Truck","Flatbed","LMV / Pickup",
+  "Maxi Cab","Bus","Mini Truck","Crane","Compactor","Concrete Mixer",
+  "Reefer","Car Carrier","Other",
 ];
 
 function siteFormHtml(s) {
   s = s || {};
+  const curVTypes = s.vehicle_types || [];
+  const curBilling = s.billing_basis || "trip";
   return `
     <div class="form-row">
-      <label>Name *<input type="text" name="name" value="${escAttr(s.name||"")}" required placeholder="e.g. Chennai Hub" /></label>
+      <label>Name *<input type="text" name="name" value="${escAttr(s.name||"")}" required placeholder="e.g. Hyderabad Metro — Phase 2" /></label>
       <label>Category
         <select name="siteType">
           <option value="site"${s.site_type!=="project"?" selected":""}>Site / Depot</option>
@@ -1570,35 +1594,115 @@ function siteFormHtml(s) {
         </select>
       </label>
     </div>
+
+    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)" />
+    <p style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin:0 0 8px">Client &amp; Location</p>
     <div class="form-row">
-      <label>Location / City<input type="text" name="location" value="${escAttr(s.location||"")}" placeholder="e.g. Chennai, TN" /></label>
-      <label>Address<input type="text" name="address" value="${escAttr(s.address||"")}" placeholder="Full address / GPS" /></label>
+      <label>Client / Company name<input type="text" name="clientName" value="${escAttr(s.client_name||"")}" placeholder="Who is the work for?" /></label>
+      <label>Client contact<input type="text" name="clientContact" value="${escAttr(s.client_contact||"")}" placeholder="Phone / email" /></label>
     </div>
     <div class="form-row">
-      <label>Manager name<input type="text" name="managerName" value="${escAttr(s.manager_name||"")}" placeholder="Name of site manager" /></label>
-      <label>Supervisor name<input type="text" name="supervisorName" value="${escAttr(s.supervisor_name||"")}" placeholder="On-site supervisor" /></label>
+      <label>Location / City<input type="text" name="location" value="${escAttr(s.location||"")}" placeholder="e.g. Hyderabad, Telangana" /></label>
+      <label>Address / GPS<input type="text" name="address" value="${escAttr(s.address||"")}" placeholder="Full address or coordinates" /></label>
+    </div>
+
+    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)" />
+    <p style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin:0 0 8px">People</p>
+    <div class="form-row">
+      <label>Manager<input type="text" name="managerName" value="${escAttr(s.manager_name||"")}" placeholder="Manager responsible for this site" /></label>
+      <label>Supervisor<input type="text" name="supervisorName" value="${escAttr(s.supervisor_name||"")}" placeholder="On-site daily supervisor" /></label>
+    </div>
+
+    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)" />
+    <p style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin:0 0 8px">Service &amp; Billing</p>
+    <div class="form-row">
+      <label>Billing basis
+        <select name="billingBasis" id="siteBillingBasis" onchange="siteFormBillingChange()">
+          ${BILLING_BASIS_OPTIONS.map(([v,l,d]) => `<option value="${v}"${curBilling===v?" selected":""} title="${d}">${l}</option>`).join("")}
+        </select>
+      </label>
+      <label><span id="siteBillingRateLabel">Rate per Trip (₹)</span>
+        <input type="number" name="ratePerUnit" min="0" step="0.01" value="${s.rate_per_unit||""}" placeholder="0.00" />
+      </label>
     </div>
     <div class="form-row">
-      <label>Start date<input type="date" name="startDate" value="${s.start_date||""}" /></label>
-      <label>End date<input type="date" name="endDate" value="${s.end_date||""}" /></label>
+      <label>Target quantity <span class="muted" style="font-size:0.75rem" id="siteTargetLabel">(planned trips)</span>
+        <input type="number" name="targetQty" min="0" step="any" value="${s.target_quantity||""}" placeholder="optional" />
+      </label>
+      <label>Total contract value (₹)
+        <input type="number" name="contractValue" min="0" step="0.01" value="${s.contract_value||""}" placeholder="Total ₹ amount" />
+      </label>
+    </div>
+
+    <p style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin:8px 0 6px">Vehicle types deployed at this site</p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="siteVTypeGrid">
+      ${VEHICLE_TYPE_OPTIONS.map(t => `<label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:8px;cursor:pointer;${curVTypes.includes(t)?"background:var(--accent-dim);border-color:var(--accent)":""}">
+        <input type="checkbox" name="vtype_${t.replace(/[^a-zA-Z]/g,"_")}" value="${escAttr(t)}" ${curVTypes.includes(t)?"checked":""} style="margin:0" />${esc(t)}
+      </label>`).join("")}
+    </div>
+
+    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)" />
+    <p style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin:0 0 8px">Schedule</p>
+    <div class="form-row">
+      <label>Contract / Work starts<input type="date" name="contractStart" value="${s.contract_start||s.start_date||""}" /></label>
+      <label>Contract / Work ends<input type="date" name="contractEnd" value="${s.contract_end||s.end_date||""}" /></label>
     </div>
     <label>Notes<textarea name="notes" rows="2" style="width:100%">${esc(s.notes||"")}</textarea></label>`;
+}
+
+// Updates rate label when billing basis changes
+window.siteFormBillingChange = function() {
+  const sel  = document.getElementById("siteBillingBasis");
+  const lbl  = document.getElementById("siteBillingRateLabel");
+  const tl   = document.getElementById("siteTargetLabel");
+  if (!sel || !lbl) return;
+  const labels = {
+    trip: ["Rate per Trip (₹)", "(planned trips)"],
+    tonnage: ["Rate per MT (₹)", "(target MT)"],
+    monthly_rental: ["Monthly rate per vehicle (₹)", "(months)"],
+    hourly: ["Rate per hour (₹)", "(target hours)"],
+    km_based: ["Rate per KM (₹)", "(target KMs)"],
+    custom: ["Custom rate (₹)", "(quantity)"],
+  };
+  const [rl, tl2] = labels[sel.value] || ["Rate (₹)", ""];
+  lbl.textContent = rl;
+  if (tl) tl.textContent = tl2;
+};
+
+function siteRowFromForm(fd, orgId, extra) {
+  const vtypes = VEHICLE_TYPE_OPTIONS.filter(t =>
+    document.querySelector(`input[name="vtype_${t.replace(/[^a-zA-Z]/g,"_")}"]`)?.checked
+  );
+  return {
+    org_id: orgId, name: (fd.name||"").trim(),
+    site_type: fd.siteType, project_type: fd.projectType,
+    location: (fd.location||"").trim()||null,
+    address:  (fd.address||"").trim()||null,
+    client_name:    (fd.clientName||"").trim()||null,
+    client_contact: (fd.clientContact||"").trim()||null,
+    manager_name:    (fd.managerName||"").trim()||null,
+    supervisor_name: (fd.supervisorName||"").trim()||null,
+    billing_basis:   fd.billingBasis || "trip",
+    rate_per_unit:   fd.ratePerUnit  ? +fd.ratePerUnit  : null,
+    target_quantity: fd.targetQty    ? +fd.targetQty    : null,
+    contract_value:  fd.contractValue? +fd.contractValue: null,
+    vehicle_types:   vtypes,
+    contract_start:  fd.contractStart || null,
+    contract_end:    fd.contractEnd   || null,
+    start_date:      fd.contractStart || null,
+    end_date:        fd.contractEnd   || null,
+    status: fd.status,
+    notes:  (fd.notes||"").trim()||null,
+    ...(extra||{}),
+  };
 }
 
 window.openNewSite = async function() {
   openEditModal("New Site / Project", siteFormHtml(null), async fd => {
     const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
-    const row = {
-      org_id: orgId, name: fd.name.trim(), site_type: fd.siteType,
-      project_type: fd.projectType, location: fd.location.trim()||null,
-      address: fd.address.trim()||null, manager_name: fd.managerName.trim()||null,
-      supervisor_name: fd.supervisorName.trim()||null,
-      start_date: fd.startDate||null, end_date: fd.endDate||null,
-      status: fd.status, notes: fd.notes.trim()||null, created_by: fwCloud.uid(),
-    };
-    const ok = await fwCloud.authInsert("sites", row);
+    const ok = await fwCloud.authInsert("sites", siteRowFromForm(fd, orgId, { created_by: fwCloud.uid() }));
     if (!ok) throw new Error("Could not save — check your connection.");
-    toast(`Site "${fd.name.trim()}" created.`);
+    toast(`"${(fd.name||"").trim()}" created.`);
     closeEditModal();
     await loadSites(); renderSites(); renderVehicleStatusBoard(); populateFilterDropdowns();
   });
@@ -1607,13 +1711,8 @@ window.openNewSite = async function() {
 window.openEditSite = async function(id) {
   const s = _sites.find(x => x.id === id); if (!s) return;
   openEditModal("Edit Site / Project", siteFormHtml(s), async fd => {
-    const ok = await fwCloud.authPatch(`sites?id=eq.${id}`, {
-      name: fd.name.trim(), site_type: fd.siteType, project_type: fd.projectType,
-      location: fd.location.trim()||null, address: fd.address.trim()||null,
-      manager_name: fd.managerName.trim()||null, supervisor_name: fd.supervisorName.trim()||null,
-      start_date: fd.startDate||null, end_date: fd.endDate||null,
-      status: fd.status, notes: fd.notes.trim()||null,
-    });
+    const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
+    const ok = await fwCloud.authPatch(`sites?id=eq.${id}`, siteRowFromForm(fd, orgId));
     if (!ok) throw new Error("Could not save — check your connection.");
     toast("Site updated.");
     closeEditModal();
@@ -1629,58 +1728,105 @@ window.siteArchive = async function(id) {
   await loadSites(); renderSites(); renderVehicleStatusBoard();
 };
 
-// ── Assign vehicles to site ────────────────────────────────────────────────
+// ── Assign vehicles to site (with per-vehicle billing) ────────────────────
 window.openAssignSiteVehicles = function(siteId) {
   const s = _sites.find(x => x.id === siteId); if (!s) return;
-  const active = (_siteVeh[siteId] || []).filter(r => !r.removed_date);
-  const assignedDbIds = new Set(active.map(r => r.vehicle_id));
+  const active       = (_siteVeh[siteId] || []).filter(r => !r.removed_date);
+  const assignedDbIds= new Set(active.map(r => r.vehicle_id));
+  const activeBySvId = Object.fromEntries(active.map(r => [r.vehicle_id, r]));
 
-  openEditModal(`Assign Vehicles — ${s.name}`,
-    `<p class="muted" style="font-size:0.82rem;margin-bottom:10px">Tick trucks currently deployed at this site. Unticking removes the assignment (history kept).</p>
-     <div id="siteVehPicker">${db.vehicles.map(v => {
-       const checked = assignedDbIds.has(v.dbId) ? "checked" : "";
-       const otherSite = v.dbId && !assignedDbIds.has(v.dbId) ? _vehSiteMap[v.dbId] : null;
-       const note = otherSite ? ` <span class="muted">(currently at ${esc(otherSite.site?.name||"?")})</span>` : "";
-       return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">
-         <input type="checkbox" name="veh_${v.id}" value="${v.dbId}" ${checked} />
-         <strong>${esc(v.name)}</strong> <span class="muted">${esc(v.type)}</span>${note}
-       </label>`;
-     }).join("")}</div>`,
-    async fd => {
-      const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
-      // figure out additions and removals
-      const nowChecked = new Set(
-        db.vehicles.filter(v => fd[`veh_${v.id}`] === "on" || fd[`veh_${v.id}`] === v.dbId || document.querySelector(`input[name="veh_${v.id}"]`)?.checked)
-          .map(v => v.dbId)
-      );
-      // Use the DOM to read checkboxes (FormData only gives "on" for checked)
-      const domChecked = new Set(
-        [...document.querySelectorAll('#siteVehPicker input[type=checkbox]:checked')].map(i => i.value)
-      );
-      // Remove unchecked vehicles currently assigned here
-      for (const r of active) {
-        if (!domChecked.has(r.vehicle_id)) {
-          await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${r.id}`, { removed_date: today() });
-        }
+  const billingOpts = BILLING_BASIS_OPTIONS.map(([v,l]) =>
+    `<option value="${v}"${v===s.billing_basis?" selected":""}>${l}</option>`).join("");
+
+  const rows = db.vehicles.map(v => {
+    const cur  = activeBySvId[v.dbId];
+    const chk  = cur ? "checked" : "";
+    const other= !cur && v.dbId ? _vehSiteMap[v.dbId] : null;
+    const otherNote = other ? `<span class="muted" style="font-size:0.73rem">(at ${esc(other.site?.name||"?")})</span>` : "";
+    return `<div class="sva-row" style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600">
+        <input type="checkbox" class="sva-chk" data-dbid="${v.dbId}" ${chk} />
+        ${esc(v.name)} <span class="muted" style="font-weight:400;font-size:0.8rem">${esc(v.type)}</span> ${otherNote}
+      </label>
+      <div class="sva-detail" style="display:${cur?"flex":"none"};gap:10px;margin-top:8px;flex-wrap:wrap">
+        <label style="font-size:0.8rem">Billing basis
+          <select class="sva-billing" style="height:28px;font-size:0.8rem">
+            <option value="site_default">Use site default (${BILLING_BASIS_OPTIONS.find(b=>b[0]===s.billing_basis)?.[1]||s.billing_basis})</option>
+            ${billingOpts}
+          </select>
+        </label>
+        <label style="font-size:0.8rem">Rate (₹) <span class="muted">(blank = use site rate)</span>
+          <input type="number" class="sva-rate" min="0" step="0.01" value="${cur?.rate_per_unit||""}" placeholder="${s.rate_per_unit||"0"}" style="width:90px;height:28px;font-size:0.8rem" />
+        </label>
+        <label style="font-size:0.8rem">Assigned from
+          <input type="date" class="sva-date" value="${cur?.assigned_date||today()}" style="height:28px;font-size:0.8rem" />
+        </label>
+      </div>
+    </div>`;
+  }).join("");
+
+  // toggle detail pane when checkbox changes
+  const html = `<p class="muted" style="font-size:0.82rem;margin-bottom:10px">Tick trucks for this site. Each vehicle can have its own billing basis and rate, or inherit the site default.</p>
+    <div id="svaList">${rows}</div>`;
+
+  openEditModal(`Assign Vehicles — ${s.name}`, html, async () => {
+    const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
+    const rows2 = document.querySelectorAll("#svaList .sva-row");
+    const domChecked = new Set();
+    const perVeh = {};
+    rows2.forEach(row => {
+      const chk = row.querySelector(".sva-chk");
+      if (!chk) return;
+      const dbId = chk.dataset.dbid;
+      if (chk.checked) {
+        domChecked.add(dbId);
+        perVeh[dbId] = {
+          billing: row.querySelector(".sva-billing")?.value || "site_default",
+          rate:    row.querySelector(".sva-rate")?.value    || null,
+          date:    row.querySelector(".sva-date")?.value    || today(),
+        };
       }
-      // Add newly checked vehicles (remove from any current site first)
-      for (const dbId of domChecked) {
-        if (assignedDbIds.has(dbId)) continue; // already assigned here
-        // Remove from previous site if any
+    });
+    // Remove unchecked
+    for (const r of active) {
+      if (!domChecked.has(r.vehicle_id)) {
+        await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${r.id}`, { removed_date: today() });
+      }
+    }
+    // Add new + update existing
+    for (const dbId of domChecked) {
+      const p = perVeh[dbId] || {};
+      const patch = {
+        billing_basis: p.billing !== "site_default" ? p.billing : "site_default",
+        rate_per_unit: p.rate ? +p.rate : null,
+      };
+      if (assignedDbIds.has(dbId)) {
+        const existing = activeBySvId[dbId];
+        if (existing) await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${existing.id}`, patch);
+      } else {
         const prev = _vehSiteMap[dbId];
-        if (prev) {
-          await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${prev.sva.id}`, { removed_date: today() });
-        }
+        if (prev) await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${prev.sva.id}`, { removed_date: today() });
         await fwCloud.authInsert("site_vehicle_assignments", {
-          site_id: siteId, vehicle_id: dbId, org_id: orgId, assigned_date: today(),
+          site_id: siteId, vehicle_id: dbId, org_id: orgId,
+          assigned_date: p.date || today(),
+          billing_basis: patch.billing_basis, rate_per_unit: patch.rate_per_unit,
         });
       }
-      toast("Vehicle assignments saved.");
-      closeEditModal();
-      await loadSites(); renderSites(); renderVehicleStatusBoard();
     }
-  );
-  // Fix: FormData approach loses checkboxes — override the submit to read DOM
+    toast("Vehicle assignments saved.");
+    closeEditModal();
+    await loadSites(); renderSites(); renderVehicleStatusBoard();
+  });
+
+  // Bind checkbox toggles to show/hide detail after modal renders
+  requestAnimationFrame(() => {
+    document.querySelectorAll("#svaList .sva-chk").forEach(chk => {
+      chk.addEventListener("change", () => {
+        const detail = chk.closest(".sva-row")?.querySelector(".sva-detail");
+        if (detail) detail.style.display = chk.checked ? "flex" : "none";
+      });
+    });
+  });
 };
 
 // ── Assign staff to site ────────────────────────────────────────────────────
