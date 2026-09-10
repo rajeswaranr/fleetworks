@@ -1,4 +1,4 @@
-/* ============ FleetWorks — garage-ops/controllers/garage ============
+﻿/* ============ FleetWorks — garage-ops/controllers/garage ============
    Partner workshop dashboard: job cards with the full estimate →
    owner-approval → repair (photos + inspection) → completion flow,
    spares stock, ratings & complaints, service advisor, and the
@@ -147,7 +147,7 @@ function loadDemoGarage() {
   G = {
     profile: {
       name: "Annai Auto Works", city: "Salem", phone: "9500123456", gstin: "33AAPCA1234F1Z6",
-      advisor: { name: "Karthikeyan R", role: "FleetWorks Service Advisor — Salem cluster", phone: "9740799722", email: "partners@fleetworks.in" }
+      advisor: { name: "Karthikeyan R", role: "FleetWorks Service Advisor — Salem cluster", phone: "9444960009", email: "partners@fleetworks.in" }
     },
     jobs, stock, payouts, complaints, demo: true
   };

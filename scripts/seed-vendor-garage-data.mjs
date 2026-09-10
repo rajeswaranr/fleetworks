@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -246,7 +246,7 @@ export function buildGarageSeed(options = {}) {
       advisor: {
         name: "Karthikeyan R",
         role: "FleetWorks Service Advisor — South cluster",
-        phone: "9740799722",
+        phone: "9444960009",
         email: "partners@fleetworks.in",
       },
     },

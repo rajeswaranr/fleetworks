@@ -1,4 +1,4 @@
--- ============ FleetWorks — WhatsApp messaging ============
+﻿-- ============ FleetWorks — WhatsApp messaging ============
 -- Schema and template definitions for driver allotment, wages paid, khata
 -- statements and attendance over WhatsApp. Built now so the code is ready when
 -- Meta business verification clears — that is the long pole, it takes days, and
@@ -19,7 +19,7 @@
 create table if not exists whatsapp_contacts (
   id            uuid primary key default gen_random_uuid(),
   org_id        uuid not null references organizations(id) on delete cascade,
-  phone         text not null,                 -- E.164, e.g. +919740799722
+  phone         text not null,                 -- E.164, e.g. +919444960009
   name          text,
   role          text not null default 'driver'
                 check (role in ('owner','driver','supervisor','partner','other')),

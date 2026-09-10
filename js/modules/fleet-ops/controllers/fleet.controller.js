@@ -1,4 +1,4 @@
-/* ============ FleetWorks — fleet-ops/controllers/fleet ============
+﻿/* ============ FleetWorks — fleet-ops/controllers/fleet ============
    Fleet Manager: RTO compliance, fuel & mileage, digital inspections,
    AI-prioritised issues, PM reminders, parts inventory, and the
    Smart Assessments insights feed. Shares the "ff_fleet" localStorage
@@ -3659,7 +3659,7 @@ function openSOS() {
       <input id="sosWhat" type="text" placeholder="e.g. Engine overheated near Salem toll" />
     </label>
     <div class="sos-actions">
-      <a class="btn btn-outline" href="tel:+919740799722">${FWIcon("phone", { size: 15 })} Call Helpline</a>
+      <a class="btn btn-outline" href="tel:+919444960009">${FWIcon("phone", { size: 15 })} Call Helpline</a>
       <button type="button" class="btn btn-primary" id="sosSend">${FWIcon("alert", { size: 15 })} Send SOS on WhatsApp</button>
     </div>
     <button type="button" class="link-btn sos-close" id="sosClose">Close</button>
@@ -3690,7 +3690,7 @@ function openSOS() {
     const msg = "BREAKDOWN SOS\nVehicle: " + (vid ? vName(vid) : "—") + "\nIssue: " + what +
       "\nFleet: " + ((db.settings && db.settings.businessName) || "FleetWorks owner") +
       "\nPlease arrange the nearest partner workshop.";
-    const go = loc => window.open("https://wa.me/919740799722?text=" +
+    const go = loc => window.open("https://wa.me/919444960009?text=" +
       encodeURIComponent(msg + (loc ? "\nLocation: https://maps.google.com/?q=" + loc : "")), "_blank");
     if (navigator.geolocation) {
       let done = false;
