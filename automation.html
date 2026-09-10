@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FleetWorks Automation</title>
+  <meta name="description" content="Intent-based workflow automation for your fleet — define rules in plain English or pick from templates." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/landing.css" />
+  <link rel="icon" type="image/png" href="icons/icon-96.png" />
+  <meta name="theme-color" content="#05070f" />
+  <style>
+    /* ── Scoped automation page styles ── */
+    body { background: #05070f; color: #f1f5f9; font-family: 'Poppins', sans-serif; }
+
+    .auto-shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .auto-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      background: rgba(5,7,15,0.9);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .auto-brand {
+      font-size: 1.05rem;
+      font-weight: 700;
+      background: linear-gradient(120deg, #6366f1, #a855f7 55%, #22d3ee);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: -0.01em;
+    }
+    .auto-brand span { font-weight: 400; opacity: 0.7; color: #94a3b8; -webkit-text-fill-color: #94a3b8; }
+    .auto-header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* ── Main layout ── */
+    .auto-main {
+      max-width: 780px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 36px 20px 64px;
+    }
+
+    /* ── Section label ── */
+    .auto-section-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #475569;
+      margin: 0 0 10px;
+    }
+
+    /* ── Intent box ── */
+    .auto-intent-wrap {
+      margin-bottom: 32px;
+    }
+    .auto-intent-hero {
+      margin-bottom: 20px;
+    }
+    .auto-intent-hero h1 {
+      font-size: 1.55rem;
+      font-weight: 800;
+      line-height: 1.2;
+      text-wrap: balance;
+      background: linear-gradient(120deg, #f1f5f9, #a855f7 60%, #22d3ee);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin: 0 0 6px;
+    }
+    .auto-intent-hero p {
+      font-size: 0.88rem;
+      color: #64748b;
+      margin: 0;
+    }
+
+    .auto-intent-box {
+      position: relative;
+      border-radius: 14px;
+      padding: 2px;
+      background: rgba(255,255,255,0.06);
+      transition: background 0.2s;
+    }
+    .auto-intent-box:focus-within {
+      background: linear-gradient(120deg, #6366f1, #a855f7 55%, #22d3ee);
+    }
+    .auto-intent-inner {
+      background: #0b0f1e;
+      border-radius: 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    #autoIntentInput {
+      width: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #f1f5f9;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.95rem;
+      padding: 16px 18px 10px;
+      resize: none;
+      min-height: 72px;
+      box-sizing: border-box;
+      line-height: 1.5;
+    }
+    #autoIntentInput::placeholder { color: #334155; }
+    .auto-intent-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px 10px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .auto-intent-hint {
+      font-size: 0.72rem;
+      color: #334155;
+    }
+    #autoIntentBtn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 8px 18px;
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(120deg, #6366f1, #a855f7 55%, #22d3ee);
+      color: #fff;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    #autoIntentBtn:disabled { opacity: 0.55; cursor: not-allowed; }
+    #autoIntentBtn:not(:disabled):hover { opacity: 0.88; }
+
+    /* ── Intent error ── */
+    #autoIntentErr {
+      margin-top: 8px;
+      font-size: 0.82rem;
+      color: #f87171;
+      padding: 10px 14px;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 8px;
+    }
+
+    /* ── Intent preview ── */
+    #autoIntentPreview {
+      margin-top: 12px;
+      background: rgba(99,102,241,0.06);
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+    .auto-preview-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .auto-preview-head strong { font-size: 0.95rem; color: #f1f5f9; }
+    #autoPreviewDesc { font-size: 0.82rem; color: #94a3b8; margin: 2px 0 10px; }
+    .auto-preview-row {
+      display: flex;
+      gap: 8px;
+      font-size: 0.78rem;
+      margin-bottom: 6px;
+      align-items: flex-start;
+    }
+    .auto-preview-row .label {
+      min-width: 60px;
+      color: #6366f1;
+      font-weight: 600;
+      padding-top: 1px;
+    }
+    .auto-preview-row code {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-size: 0.73rem;
+      color: #a5b4fc;
+      font-family: ui-monospace, monospace;
+      word-break: break-all;
+    }
+    .auto-preview-btns { display: flex; gap: 8px; margin-top: 14px; }
+    #autoPreviewSave {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 8px 20px;
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(120deg, #6366f1, #a855f7);
+      color: #fff;
+      cursor: pointer;
+    }
+    #autoPreviewDiscard {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.82rem;
+      padding: 8px 16px;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      background: transparent;
+      color: #94a3b8;
+      cursor: pointer;
+    }
+
+    /* ── Active rules ── */
+    #autoRulesList {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 36px;
+    }
+    .auto-rule-card {
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 14px 16px;
+      transition: border-color 0.15s;
+    }
+    .auto-rule-card:hover { border-color: rgba(99,102,241,0.25); }
+    .auto-rule-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .auto-rule-meta {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .auto-rule-meta strong {
+      font-size: 0.9rem;
+      color: #f1f5f9;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .auto-rule-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .auto-rule-foot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+
+    /* ── Toggle switch ── */
+    .auto-toggle { position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer; }
+    .auto-toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .auto-toggle-track {
+      position: absolute;
+      inset: 0;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.1);
+      transition: background 0.2s;
+    }
+    .auto-toggle-track::after {
+      content: '';
+      position: absolute;
+      left: 3px; top: 3px;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #64748b;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .auto-toggle input:checked + .auto-toggle-track {
+      background: linear-gradient(120deg, #6366f1, #a855f7);
+    }
+    .auto-toggle input:checked + .auto-toggle-track::after {
+      transform: translateX(16px);
+      background: #fff;
+    }
+
+    /* ── Template grid ── */
+    #autoTemplates {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 10px;
+      margin-bottom: 36px;
+    }
+    .auto-tmpl-card {
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .auto-tmpl-card:hover {
+      background: rgba(99,102,241,0.05);
+      border-color: rgba(99,102,241,0.3);
+    }
+    .auto-tmpl-card .ic-tile { flex-shrink: 0; }
+    .auto-tmpl-card strong { font-size: 0.85rem; display: block; }
+
+    /* ── History table ── */
+    .auto-hist-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid rgba(255,255,255,0.07); }
+    .auto-hist-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .auto-hist-table th {
+      background: rgba(255,255,255,0.04);
+      color: #475569;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      padding: 10px 14px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .auto-hist-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      color: #cbd5e1;
+    }
+    .auto-hist-table tr:last-child td { border-bottom: none; }
+
+    /* ── Empty states ── */
+    .auto-empty {
+      text-align: center;
+      padding: 28px 16px;
+      color: #475569;
+      font-size: 0.83rem;
+    }
+
+    /* ── Access denied ── */
+    #autoAccessDenied {
+      text-align: center;
+      padding: 60px 20px;
+      color: #64748b;
+    }
+
+    /* ── Badge colors from landing.css / style.css ── */
+    .fw-badge.ok { background: rgba(52,211,153,0.12); color: #34d399; border: 1px solid rgba(52,211,153,0.2); }
+    .fw-badge.overdue { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+
+    /* ── Run now btn ── */
+    #autoRunNowBtn {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 8px 16px;
+      border: 1px solid rgba(99,102,241,0.35);
+      border-radius: 8px;
+      background: rgba(99,102,241,0.08);
+      color: #a5b4fc;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    #autoRunNowBtn:hover:not(:disabled) { background: rgba(99,102,241,0.18); }
+    #autoRunNowBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Light theme tokens ── */
+    @media (prefers-color-scheme: light) {
+      :root:not([data-theme="dark"]) {
+        --auto-bg: #f8fafc;
+        --auto-surface: rgba(0,0,0,0.03);
+        --auto-border: rgba(0,0,0,0.08);
+        --auto-text: #0f172a;
+        --auto-muted: #64748b;
+      }
+    }
+    :root[data-theme="light"] {
+      --auto-bg: #f8fafc;
+      --auto-surface: rgba(0,0,0,0.03);
+      --auto-border: rgba(0,0,0,0.08);
+      --auto-text: #0f172a;
+      --auto-muted: #64748b;
+    }
+
+    @media (max-width: 520px) {
+      .auto-intent-hero h1 { font-size: 1.25rem; }
+      #autoTemplates { grid-template-columns: 1fr; }
+      .auto-header { padding: 12px 16px; }
+      .auto-main { padding: 24px 14px 48px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="auto-shell">
+
+  <!-- ── HEADER ── -->
+  <header class="auto-header">
+    <img src="assets/logo-mark.svg" width="28" height="28" alt="" />
+    <span class="auto-brand">Fleet<em style="font-style:normal">Works</em> <span>Automation</span></span>
+    <div class="auto-header-right">
+      <button id="autoRunNowBtn">▶ Run All Now</button>
+      <a href="fleet.html" class="btn btn-outline btn-sm" style="font-size:0.78rem">← Fleet Manager</a>
+    </div>
+  </header>
+
+  <!-- ── APP ── -->
+  <main class="auto-main" id="autoApp">
+
+    <!-- ACCESS DENIED -->
+    <div id="autoAccessDenied" hidden>
+      <p style="font-size:1.1rem;font-weight:600;color:#f1f5f9;margin-bottom:8px">Owner or Manager access required</p>
+      <p>Sign in as a fleet owner or manager to manage automation rules.</p>
+      <a href="fleet.html" class="btn btn-primary" style="margin-top:16px">Go to Fleet Manager</a>
+    </div>
+
+    <!-- ── INTENT INPUT ── -->
+    <div class="auto-intent-wrap">
+      <div class="auto-intent-hero">
+        <h1>Intent-based automation</h1>
+        <p>Describe what you want in plain English — FleetWorks AI turns it into a live rule.</p>
+      </div>
+
+      <div class="auto-intent-box">
+        <div class="auto-intent-inner">
+          <textarea
+            id="autoIntentInput"
+            rows="3"
+            placeholder="e.g. "Remind me 15 days before any vehicle's insurance or PUC expires" or "Auto-create a work order when a high-severity issue stays open for more than 5 days""
+          ></textarea>
+          <div class="auto-intent-actions">
+            <span class="auto-intent-hint">Enter ↵ to send · plain English, Hindi or Hinglish</span>
+            <button id="autoIntentBtn">
+              <i data-icon="zap" data-icon-size="13"></i> Build Rule
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <p id="autoIntentErr" hidden></p>
+
+      <!-- AI preview before saving -->
+      <div id="autoIntentPreview" hidden>
+        <div class="auto-preview-head">
+          <div>
+            <strong id="autoPreviewName"></strong>
+            <p id="autoPreviewDesc"></p>
+          </div>
+          <span class="fw-badge ok" style="white-space:nowrap;flex-shrink:0">AI parsed ✓</span>
+        </div>
+        <div class="auto-preview-row">
+          <span class="label">Trigger</span>
+          <code id="autoPreviewTrigger"></code>
+        </div>
+        <div class="auto-preview-row">
+          <span class="label">Action</span>
+          <code id="autoPreviewAction"></code>
+        </div>
+        <div class="auto-preview-btns">
+          <button id="autoPreviewSave">Save Rule</button>
+          <button id="autoPreviewDiscard">Discard</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ACTIVE RULES ── -->
+    <p class="auto-section-label">Active Rules</p>
+    <div id="autoRulesList">
+      <div class="auto-empty">Loading…</div>
+    </div>
+
+    <!-- ── TEMPLATES ── -->
+    <p class="auto-section-label">Built-in templates — click to add</p>
+    <div id="autoTemplates"></div>
+
+    <!-- ── RUN HISTORY ── -->
+    <p class="auto-section-label">Recent runs</p>
+    <div class="auto-hist-wrap">
+      <div id="autoHistory">
+        <div class="auto-empty">Loading…</div>
+      </div>
+    </div>
+
+  </main>
+
+</div><!-- /auto-shell -->
+
+<footer style="text-align:center;padding:16px;color:#334155;font-size:0.7rem">
+  © 2026 FleetWorks Private Limited · <em>Where Every Fleet Learns.</em>
+</footer>
+
+<script src="js/icons.js"></script>
+<script src="js/backend.js"></script>
+<script src="js/modules/auth/domain/auth.domain.js"></script>
+<script src="js/modules/auth/ports/auth-repository.port.js"></script>
+<script src="js/modules/auth/adapters/supabase-auth.repository.js"></script>
+<script src="js/modules/auth/use-cases/auth.usecases.js"></script>
+<script src="js/modules/auth/view-models/auth.viewmodel.js"></script>
+<script src="js/modules/auth/auth.module.js"></script>
+<script src="js/cloudstore.js"></script>
+<script src="js/automation.js"></script>
+</body>
+</html>
