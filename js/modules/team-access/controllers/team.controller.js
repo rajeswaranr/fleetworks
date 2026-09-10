@@ -125,6 +125,21 @@ window.openVehicle = async function (vehId, extId, name, access) {
         </select>
         <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="tvSaveIssue('${vehId}')">${FWIcon("alert", { size: 14 })} Report Problem</button>
       </div>
+      <div class="wf-form" style="margin:14px 0">
+        <p class="muted" style="font-size:0.8rem;margin-bottom:6px"><strong>Inspection</strong> — pre-trip / post-trip / weekly check</p>
+        <div class="form-row">
+          <select id="tvInspType" style="padding:9px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit">
+            <option value="pre-trip">Pre-trip</option>
+            <option value="post-trip">Post-trip</option>
+            <option value="weekly">Weekly</option>
+          </select>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;white-space:nowrap">
+            <input type="checkbox" id="tvInspPassed" checked /> All checks passed
+          </label>
+        </div>
+        <textarea id="tvInspNotes" placeholder="Faults found or notes (optional)" style="width:100%;margin-top:6px;padding:9px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit;min-height:60px;resize:vertical;box-sizing:border-box"></textarea>
+        <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="tvSaveInspection('${vehId}')">${FWIcon("checkCircle", { size: 14 })} Save Inspection</button>
+      </div>
       <p class="field-error" id="tvErr" hidden></p>`;
   }
 
@@ -136,7 +151,7 @@ window.openVehicle = async function (vehId, extId, name, access) {
     `<h3 style="font-size:0.85rem;color:var(--navy);margin:14px 0 6px">Issues</h3>` +
     listHTML(iss, "No issues reported.", i => `<div class="pred-row" style="padding:8px 4px"><div class="pred-detail" style="font-size:0.85rem"><span class="fw-badge ${i.status === "Resolved" ? "ok" : "soon"}">${esc(i.status || "Open")}</span> ${esc(i.title || "")}</div></div>`) +
     `<h3 style="font-size:0.85rem;color:var(--navy);margin:14px 0 6px">Inspections</h3>` +
-    listHTML(insp, "No inspections yet.", n => `<div class="pred-row" style="padding:8px 4px"><div class="pred-detail" style="font-size:0.85rem">${fmtDate(n.inspection_date)} · ${n.passed ? "Passed ✓" : "Faults found"}</div></div>`);
+    listHTML(insp, "No inspections yet.", n => `<div class="pred-row" style="padding:8px 4px"><div class="pred-detail" style="font-size:0.85rem">${fmtDate(n.inspection_date)}${n.results && n.results.type ? " · " + esc(n.results.type) : ""} · ${n.passed ? "Passed ✓" : "Faults found"}</div></div>`);
 
   body.innerHTML = html;
   if (window.FWIcons) FWIcons.hydrate(body);
@@ -235,6 +250,20 @@ window.tvSaveIssue = async function (vehId) {
   else tvErr("Could not save — check your access for this vehicle.");
 };
 
+window.tvSaveInspection = async function (vehId) {
+  const type = document.getElementById("tvInspType").value;
+  const passed = document.getElementById("tvInspPassed").checked;
+  const notes = (document.getElementById("tvInspNotes").value || "").trim();
+  const ok = await fwCloud.authInsert("inspections", {
+    org_id: ORG, vehicle_id: vehId,
+    inspection_date: today(),
+    passed,
+    results: { type, notes: notes || null, logged_by: fwCloud.uid() },
+  });
+  if (ok) { toast(passed ? "Inspection saved — all clear." : "Inspection saved — faults recorded."); document.getElementById("teamVehModal").style.display = "none"; }
+  else tvErr("Could not save — check your access for this vehicle.");
+};
+
 document.getElementById("teamVehModalClose").addEventListener("click", () => { document.getElementById("teamVehModal").style.display = "none"; });
 
 async function unlock() {
@@ -281,9 +310,12 @@ async function unlock() {
 
   const assigns = await fwCloud.authGet("vehicle_assignments", `select=vehicle_ext_id,access&user_id=eq.${uid}&org_id=eq.${ORG}`) || [];
   ASSIGN = Object.fromEntries(assigns.map(a => [a.vehicle_ext_id, a.access]));
-  document.getElementById("teamAccessNote").textContent = m.role === "driver"
-    ? "Tap a vehicle to log diesel, expenses or a problem, and see its recent history."
-    : "Tap a vehicle to see its recent fuel, expenses, issues and inspections.";
+  const hasUpdateAccess = Object.values(ASSIGN).includes("update");
+  document.getElementById("teamAccessNote").textContent = FWTeamAccessDomain
+    ? FWTeamAccessDomain.accessNote(m.role, hasUpdateAccess)
+    : m.role === "driver"
+      ? (hasUpdateAccess ? "Tap a vehicle to log diesel, trips, expenses or a problem, and see its recent history." : "Tap a vehicle to see its recent fuel, expenses, issues and inspections.")
+      : (hasUpdateAccess ? "Vehicles marked 'Can update' let you log fuel, expenses, inspections and report problems. View-only vehicles show history." : "Tap a vehicle to see its recent fuel, expenses, issues and inspections.");
   await loadVehicles();
 }
 

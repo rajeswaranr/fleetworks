@@ -7,13 +7,15 @@
     const data = input || {};
     const membership = FWTeamAccessDomain.normalizeMembership(data.membership);
     const role = membership.role;
+    const assignmentMap = data.assignmentMap || FWTeamAccessDomain.assignmentMap(data.assignments || []);
+    const hasUpdateAccess = Object.values(assignmentMap).includes("update");
     return {
       role,
       roleLabel: FWTeamAccessDomain.roleLabel(role),
       name: FWTeamAccessDomain.profileName(data.profile, data.email),
-      accessNote: FWTeamAccessDomain.accessNote(role),
+      accessNote: FWTeamAccessDomain.accessNote(role, hasUpdateAccess),
       canUsePortal: FWTeamAccessDomain.canUseTeamPortal(membership),
-      assignmentMap: data.assignmentMap || FWTeamAccessDomain.assignmentMap(data.assignments || []),
+      assignmentMap,
       vehicles: data.vehicles || [],
     };
   }

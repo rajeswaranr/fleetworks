@@ -61,10 +61,19 @@
     return "";
   }
 
-  function accessNote(role) {
-    return normalizeRole(role) === "driver"
-      ? "Tap a vehicle to log diesel, expenses or a problem, and see its recent history."
-      : "Tap a vehicle to see its recent fuel, expenses, issues and inspections.";
+  function accessNote(role, hasUpdateAccess) {
+    const r = normalizeRole(role);
+    if (r === "driver") {
+      return hasUpdateAccess
+        ? "Tap a vehicle to log diesel, trips, expenses or a problem, and see its recent history."
+        : "Tap a vehicle to see its recent fuel, expenses, issues and inspections.";
+    }
+    if (r === "supervisor") {
+      return hasUpdateAccess
+        ? "Vehicles marked 'Can update' let you log fuel, expenses, inspections and report problems. View-only vehicles show history."
+        : "Tap a vehicle to see its recent fuel, expenses, issues and inspections.";
+    }
+    return "";
   }
 
   function profileName(profile, email) {
