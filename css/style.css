@@ -965,7 +965,7 @@ i[data-icon] { display: inline-flex; align-items: center; justify-content: cente
 /* ============================================================
    Enterprise app shell (Fleet Manager) — left tree nav + content
    ============================================================ */
-.app-body { background: var(--bg-alt); }
+.app-body { background: #dbeeff; }
 .app-shell { display: flex; min-height: 100vh; align-items: stretch; }
 
 /* ---- sidebar ---- */
@@ -1010,7 +1010,7 @@ i[data-icon] { display: inline-flex; align-items: center; justify-content: cente
 .app-top-actions { margin-left: auto; }
 .side-toggle { display: none; flex-direction: column; gap: 5px; background: none; border: none; cursor: pointer; padding: 6px; }
 .side-toggle span { width: 22px; height: 2.5px; background: var(--navy); border-radius: 2px; }
-.app-content { padding: 26px; width: 100%; max-width: 1240px; }
+.app-content { padding: 26px; width: 100%; max-width: 1240px; background: #dbeeff; min-height: 100vh; }
 .app-content .tab-panel { animation: none; }
 
 /* backdrop for the mobile drawer */

@@ -1,3 +1,6 @@
+// Global date helper — available to all controllers that load after dbcore.js
+window.today = window.today || (() => new Date().toISOString().slice(0, 10));
+
 /* ============ FleetWorks — dbcore.js ============
    DB-direct data layer for all 12 core entities: vehicles, drivers,
    expenses, fuel logs, issues, work orders, reminders, inspections, parts,

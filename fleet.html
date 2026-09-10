@@ -156,6 +156,7 @@
         <div data-ws="ops" hidden>
         <div class="side-pillar ops"><span class="pp"></span>Fleet<em>Ops</em></div>
         <button class="side-item tab-btn" data-tab="overview"><i data-icon="gauge"></i><span>FleetOps Dashboard</span></button>
+        <button class="side-item tab-btn" data-tab="dispatch"><i data-icon="calendar"></i><span>Daily Dispatch</span></button>
         <button class="side-item tab-btn side-cta" data-tab="addvehicle"><i data-icon="truck"></i><span>Add Vehicle</span></button>
         <button class="side-item tab-btn" data-tab="servicereq"><i data-icon="tow"></i><span>Book Service — Live Status</span></button>
         <button class="side-item tab-btn" data-tab="map"><i data-icon="mapPin"></i><span>Fleet Map</span></button>
@@ -540,6 +541,33 @@
               <p>See tomorrow, today. Forecasting, anomaly detection, recurrent-issue hunting, deviation analysis and AI recommendations that keep trucks earning.</p>
               <span class="hub-cta">Open FleetIQ &rarr;</span>
             </button>
+          </div>
+
+          <!-- SMS Notification Settings — home page -->
+          <div class="chart-card" style="margin-bottom:16px" id="hubNotifCard">
+            <div class="chart-head">
+              <div>
+                <h2 class="head-ic"><span class="ic-tile info"><i data-icon="bell" data-icon-size="20"></i></span> SMS Notifications</h2>
+                <p class="muted">Choose which events trigger an SMS to the owner's mobile</p>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="saveNotifSettings()"><i data-icon="check" data-icon-size="13"></i> Save</button>
+            </div>
+            <div id="hubNotifSettings" style="padding:4px 0 8px"></div>
+          </div>
+
+          <!-- Sites & Projects — full-width on home page -->
+          <div class="chart-card" style="margin-bottom:16px">
+            <div class="chart-head">
+              <div>
+                <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="map" data-icon-size="20"></i></span> Sites &amp; Projects</h2>
+                <p class="muted">Deployment sites, construction yards, logistics hubs — assign trucks, managers and supervisors</p>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-primary btn-sm" onclick="openNewSite()"><i data-icon="plus" data-icon-size="14"></i> New Site / Project</button>
+                <button class="btn btn-outline btn-sm" onclick="switchTab('sites')">View All &rarr;</button>
+              </div>
+            </div>
+            <div id="hubSitesList" style="padding:0 4px 4px"></div>
           </div>
 
           <div class="hub-sub">
@@ -1890,8 +1918,8 @@
   <script src="js/modules/fleet-iq/use-cases/fleet-iq.usecases.js"></script>
   <script src="js/modules/fleet-iq/view-models/fleet-iq.viewmodel.js"></script>
   <script src="js/modules/fleet-iq/fleet-iq.module.js"></script>
-  <script src="js/modules/fleet-ops/controllers/fleet.controller.js"></script>
   <script src="js/dbcore.js"></script>
+  <script src="js/modules/fleet-ops/controllers/fleet.controller.js"></script>
   <script src="js/modules/fleet-iq/controllers/analytics.controller.js"></script>
   <script src="js/account.js"></script>
   <script src="js/modules/payments/domain/payment.domain.js"></script>

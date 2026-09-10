@@ -462,6 +462,138 @@ function renderDashboard() {
   if (upd) upd.textContent = "Live · updated " + now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// SMS NOTIFICATION SETTINGS (home page)
+// ════════════════════════════════════════════════════════════════════════════
+
+const SMS_NOTIF_EVENTS = [
+  { key: "sos",            label: "SOS / Breakdown alert",        desc: "Instantly when driver triggers SOS" },
+  { key: "halt",           label: "Vehicle Halt / Breakdown",     desc: "When dispatch status changes to Halt or Maintenance" },
+  { key: "driver_assign",  label: "Driver Assigned to Vehicle",   desc: "When a driver is linked to a vehicle" },
+  { key: "supervisor_assign", label: "Supervisor Assigned to Site", desc: "When a supervisor is assigned to a site" },
+  { key: "dispatch_plan",  label: "Daily Dispatch Plan Ready",    desc: "When today's plan is created" },
+  { key: "loading_done",   label: "Loading Done",                 desc: "When dispatch task type = loading is completed" },
+  { key: "unloading_done", label: "Unloading Done",               desc: "When dispatch task type = unloading is completed" },
+  { key: "workorder",      label: "New Job Card Raised",          desc: "When a work order is created" },
+  { key: "workorder_done", label: "Job Card Completed",           desc: "When a work order is marked completed" },
+  { key: "salary_paid",    label: "Salary / Payment Sent",        desc: "When a driver payment is processed" },
+  { key: "document",       label: "Document Expiry Reminder",     desc: "30 days and 7 days before expiry" },
+  { key: "payment",        label: "Payment Request from Driver",  desc: "When driver raises a payment request" },
+];
+
+function renderNotifSettings() {
+  const el = document.getElementById("hubNotifSettings");
+  if (!el) return;
+  const prefs = db.settings?.smsNotifs || {};
+  const ownerPhone = db.settings?.ownerPhone || db.settings?.contactPhone || "";
+
+  el.innerHTML = `
+    <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <label style="font-size:0.85rem;font-weight:600">Owner mobile for SMS:</label>
+      <input type="tel" id="notifPhone" value="${escAttr(ownerPhone)}" placeholder="e.g. 9876543210"
+        style="border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:0.85rem;width:180px;background:var(--surface);color:var(--text)" />
+      <span class="muted" style="font-size:0.76rem">All SMS alerts go to this number</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px">
+      ${SMS_NOTIF_EVENTS.map(ev => `
+        <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;cursor:pointer">
+          <input type="checkbox" data-notif="${ev.key}" ${prefs[ev.key] !== false ? "checked" : ""}
+            style="margin-top:3px;accent-color:var(--brand);width:16px;height:16px;flex-shrink:0" />
+          <span>
+            <strong style="font-size:0.85rem;display:block">${esc(ev.label)}</strong>
+            <span class="muted" style="font-size:0.76rem">${esc(ev.desc)}</span>
+          </span>
+        </label>`).join("")}
+    </div>`;
+}
+
+window.saveNotifSettings = async function() {
+  const phoneEl = document.getElementById("notifPhone");
+  const phone   = (phoneEl?.value || "").trim();
+  const prefs   = {};
+  document.querySelectorAll("#hubNotifSettings [data-notif]").forEach(cb => {
+    prefs[cb.dataset.notif] = cb.checked;
+  });
+  db.settings = { ...db.settings, ownerPhone: phone, smsNotifs: prefs };
+  if (typeof coreDbBacked === "function" && coreDbBacked()) {
+    const orgId = await dbOrgId();
+    if (orgId) await fwCloud.authPatch(`organizations?id=eq.${orgId}`, { settings: db.settings });
+  }
+  saveStore();
+  toast("Notification settings saved.");
+};
+
+// returns true if a given event is enabled in settings (default on)
+function smsEnabled(eventKey) {
+  const prefs = db.settings?.smsNotifs;
+  if (!prefs) return true;
+  return prefs[eventKey] !== false;
+}
+
+// ── SMS helper ─────────────────────────────────────────────────────────────
+// Fire-and-forget — never blocks the UI. Silently skips if not signed in,
+// if MSG91 secrets are not yet configured, or if the event is toggled off.
+async function sendSms(event, recipients) {
+  if (!window.fwCloud || !fwCloud.user()) return;
+  if (!smsEnabled(event)) return;
+  const valid = recipients.filter(r => (r.mobile || r.mobiles || "").replace(/\D/g,"").length >= 10);
+  if (!valid.length) return;
+  try {
+    await fwCloud.authFn("send-sms", { event, recipients: valid });
+  } catch (e) {
+    console.warn("SMS send failed (non-blocking):", e);
+  }
+}
+
+// ── nav helper ─────────────────────────────────────────────────────────────
+window.switchTab = function(tabName) {
+  document.querySelector(`#tabBar .tab-btn[data-tab="${tabName}"]`)?.click();
+};
+
+// ── Hub Sites & Projects summary (home page) ───────────────────────────────
+function renderHubSites() {
+  const el = document.getElementById("hubSitesList");
+  if (!el) return;
+  if (!coreDbBacked()) {
+    el.innerHTML = "<p class='muted' style='padding:8px'>Sign in to manage sites and projects.</p>";
+    return;
+  }
+  const active = _sites.filter(s => s.status === "active");
+  if (!active.length) {
+    el.innerHTML = `<p class='muted' style='padding:10px 4px'>No active sites yet — create your first site or project above.</p>`;
+    return;
+  }
+  const BILLING_LABELS = { trip:"Per Trip", tonnage:"Per MT", monthly_rental:"Monthly Rental", hourly:"Hourly", km_based:"Per KM", custom:"Custom" };
+  const PTYPE_LABELS   = { intercity:"Intercity", local_movement:"Local", long_haul:"Long Haul", depot:"Depot", yard:"Yard", customer_site:"Customer Site", construction:"Construction", mining:"Mining", agriculture:"Agriculture", logistics_hub:"Logistics Hub", other:"Other" };
+  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;padding:4px 0 8px">` +
+    active.map(s => {
+      const vehs   = (_siteVeh[s.id] || []).filter(a => !a.removed_date).length;
+      const staff  = (_siteStaff[s.id] || []).filter(a => !a.left_date).length;
+      const billing= BILLING_LABELS[s.billing_basis] || s.billing_basis || "";
+      const ptype  = PTYPE_LABELS[s.project_type] || s.project_type || "";
+      return `<div style="border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <strong style="font-size:0.97rem">${esc(s.name)}</strong>
+          <span class="fw-badge upcoming" style="font-size:0.7rem">${ptype}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:0.8rem;color:var(--text-muted);margin-bottom:10px">
+          <span>${FWIcon("truck",{size:12})} <strong>${vehs}</strong> vehicle${vehs!==1?"s":""}</span>
+          <span>${FWIcon("driver",{size:12})} <strong>${staff}</strong> staff</span>
+          ${billing ? `<span>${FWIcon("rupee",{size:12})} ${billing}</span>` : "<span></span>"}
+          ${s.supervisor_name ? `<span>${FWIcon("user",{size:12})} ${esc(s.supervisor_name)}</span>` : "<span></span>"}
+          ${s.client_name ? `<span style="grid-column:1/-1">${FWIcon("user",{size:12})} Client: ${esc(s.client_name)}</span>` : ""}
+          ${s.manager_name ? `<span style="grid-column:1/-1">${FWIcon("user",{size:12})} Manager: ${esc(s.manager_name)}</span>` : ""}
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-outline btn-sm" onclick="openAssignSiteVehicles('${s.id}')">${FWIcon("truck",{size:13})} Assign Vehicles</button>
+          <button class="btn btn-outline btn-sm" onclick="openAssignSiteStaff('${s.id}')">${FWIcon("driver",{size:13})} Assign Staff</button>
+          <button class="btn btn-outline btn-sm" onclick="openEditSite('${s.id}')">${FWIcon("document",{size:13})} Edit Site</button>
+        </div>
+      </div>`;
+    }).join("") + `</div>`;
+  if (window.FWIcons) FWIcons.hydrate(el);
+}
+
 function renderOverview() {
   const insights = computeInsights();
   if (window.renderGfOps) renderGfOps();
@@ -1262,6 +1394,260 @@ window.poCancelConfirm = poCancelConfirm;
 window.poLineRow    = poLineRow;
 
 // ════════════════════════════════════════════════════════════════════════════
+// DAILY DISPATCH
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── dispatch state ─────────────────────────────────────────────────────────
+let _dispatch = [];   // rows for the selected date
+
+const DISPATCH_STATUS = {
+  planned:     { label: "Planned",     cls: "upcoming", icon: "clock",       next: ["running","halt","maintenance","cancelled"] },
+  running:     { label: "Running",     cls: "ok",       icon: "trendUp",     next: ["halt","maintenance","completed"] },
+  halt:        { label: "Halt",        cls: "soon",     icon: "pause",       next: ["running","maintenance","completed","cancelled"] },
+  maintenance: { label: "Maintenance", cls: "overdue",  icon: "wrench",      next: ["halt","running","completed","cancelled"] },
+  completed:   { label: "Completed",   cls: "ok",       icon: "checkCircle", next: [] },
+  cancelled:   { label: "Cancelled",   cls: "overdue",  icon: "close",       next: ["planned"] },
+};
+
+const TASK_TYPES = ["trip","loading","unloading","standby","service","idle","other"];
+
+// ── load dispatch for date ─────────────────────────────────────────────────
+window.loadDispatch = async function() {
+  const dateEl = document.getElementById("dispatchDate");
+  const date   = dateEl ? dateEl.value : today();
+  if (!coreDbBacked()) { _dispatch = []; renderDispatch(); return; }
+  _dispatch = await fwCloud.authGet("daily_dispatch",
+    `select=*&dispatch_date=eq.${date}&order=created_at.asc`) || [];
+  renderDispatch();
+};
+
+// ── render dispatch board ─────────────────────────────────────────────────
+function renderDispatch() {
+  const sumEl  = document.getElementById("dispatchSummary");
+  const board  = document.getElementById("dispatchBoard");
+  if (!board) return;
+
+  const dateEl = document.getElementById("dispatchDate");
+  const date   = dateEl ? dateEl.value : today();
+
+  if (!coreDbBacked()) {
+    board.innerHTML = "<p class='muted'>Sign in to use the Daily Dispatch board.</p>"; return;
+  }
+
+  // Build a map: vehicleId → dispatch row (null if not yet planned)
+  const byVeh = Object.fromEntries(_dispatch.map(r => [r.vehicle_id, r]));
+
+  // Filter by active dashboard filter (site / supervisor)
+  const vehs = filteredVehicles ? filteredVehicles() : db.vehicles;
+
+  // Summary counts
+  const counts = { planned:0, running:0, halt:0, maintenance:0, completed:0, cancelled:0, notset:0 };
+  vehs.forEach(v => {
+    const r = byVeh[v.dbId];
+    if (r) counts[r.status] = (counts[r.status]||0)+1;
+    else counts.notset++;
+  });
+
+  if (sumEl) {
+    sumEl.innerHTML = Object.entries(counts).filter(([,n]) => n > 0).map(([k, n]) => {
+      const m = DISPATCH_STATUS[k] || { label: "Not Set", cls: "upcoming", icon: "truck" };
+      return `<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;border:1px solid var(--border);font-size:0.82rem">
+        <span class="fw-badge ${m.cls}" style="font-size:0.68rem;margin:0">${m.label}</span>
+        <strong>${n}</strong>
+      </div>`;
+    }).join("") + (vehs.length === 0 ? "<p class='muted' style='padding:4px'>No vehicles — add vehicles first.</p>" : "");
+  }
+
+  if (!vehs.length) { board.innerHTML = ""; return; }
+
+  // Build table rows
+  const rows = vehs.map(v => {
+    const r      = byVeh[v.dbId];
+    const driver = r?.driver_name || (db.drivers.find(d => d.vehicleId === v.id)?.name) || "—";
+    const sm     = r ? (DISPATCH_STATUS[r.status] || DISPATCH_STATUS.planned) : null;
+    const site   = _vehSiteMap[v.dbId]?.site;
+
+    // Status badge + quick-action buttons
+    const stBadge = sm
+      ? `<span class="fw-badge ${sm.cls}" style="font-size:0.72rem">${FWIcon(sm.icon,{size:12})} ${sm.label}</span>`
+      : `<span class="fw-badge upcoming" style="font-size:0.72rem">Not set</span>`;
+
+    const quickBtns = r
+      ? (DISPATCH_STATUS[r.status]?.next || []).map(ns => {
+          const nm = DISPATCH_STATUS[ns];
+          return `<button class="link-btn" style="font-size:0.72rem;padding:3px 8px;border:1px solid var(--border);border-radius:6px"
+            onclick="dispatchUpdateStatus('${r.id}','${ns}')">${FWIcon(nm.icon,{size:12})} ${nm.label}</button>`;
+        }).join("")
+      : `<button class="link-btn" style="font-size:0.72rem;padding:3px 8px;border:1px solid var(--border);border-radius:6px"
+           onclick="openDispatchRow('${v.id}','${v.dbId}')">+ Plan</button>`;
+
+    const timeSince = r?.status_updated_at
+      ? `<span class="muted" style="font-size:0.72rem">${timeSinceStr(r.status_updated_at)}</span>` : "";
+
+    const taskText = r?.task_description
+      ? `<span style="font-size:0.76rem">${esc(r.destination||"")}${r.destination&&r.task_description?" · ":""} ${esc(r.task_description)}</span>` : "";
+
+    return `<tr id="dd-${v.id}">
+      <td>
+        <strong>${esc(v.name)}</strong><br/>
+        <span class="muted" style="font-size:0.75rem">${esc(v.type)}${site?" · "+esc(site.name):""}</span>
+      </td>
+      <td>
+        <span style="font-size:0.85rem">${esc(driver)}</span>
+        <button class="link-btn" style="font-size:0.72rem;margin-left:4px" onclick="openDispatchRow('${v.id}','${v.dbId}')" title="Edit dispatch">${FWIcon("document",{size:12})}</button>
+      </td>
+      <td>${stBadge} ${timeSince}</td>
+      <td>${taskText}</td>
+      <td style="white-space:nowrap">${quickBtns}</td>
+    </tr>`;
+  }).join("");
+
+  board.innerHTML = `<div style="overflow-x:auto"><table class="chart-table-el" style="width:100%">
+    <thead><tr>
+      <th>Vehicle</th><th>Driver</th><th>Status</th><th>Task / Destination</th><th>Actions</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+  if (window.FWIcons) FWIcons.hydrate(board);
+}
+
+function timeSinceStr(ts) {
+  if (!ts) return "";
+  const mins = Math.round((Date.now() - new Date(ts)) / 60000);
+  if (mins < 1)  return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h ago`;
+  return `${Math.floor(hrs/24)}d ago`;
+}
+
+// ── open dispatch row editor ───────────────────────────────────────────────
+window.openDispatchRow = async function(vehLocalId, vehDbId) {
+  const v    = db.vehicles.find(x => x.id === vehLocalId); if (!v) return;
+  const dateEl = document.getElementById("dispatchDate");
+  const date   = dateEl ? dateEl.value : today();
+  const existing = _dispatch.find(r => r.vehicle_id === vehDbId);
+  const defDriver = db.drivers.find(d => d.vehicleId === vehLocalId);
+  const site      = _vehSiteMap[vehDbId]?.site;
+
+  const driverOpts = db.drivers.map(d =>
+    `<option value="${d.id}|${escAttr(d.name)}"${existing?.driver_ext_id===d.id||(!existing&&d.vehicleId===vehLocalId)?" selected":""}>${esc(d.name)}</option>`).join("");
+
+  const statusOpts = Object.entries(DISPATCH_STATUS)
+    .filter(([k]) => !["completed","cancelled"].includes(k))
+    .map(([k,m]) => `<option value="${k}"${(existing?.status||"planned")===k?" selected":""}>${m.label}</option>`).join("");
+
+  const taskOpts = TASK_TYPES.map(t => `<option${(existing?.task_type||"trip")===t?" selected":""}>${t}</option>`).join("");
+
+  openEditModal(`Dispatch — ${v.name} · ${fmtDate(date)}`, `
+    <div class="form-row">
+      <label>Driver for today
+        <select name="driverPick">
+          <option value="">— Type name below —</option>${driverOpts}
+        </select>
+      </label>
+      <label>Or enter name<input type="text" name="driverName" value="${escAttr(existing?.driver_name||defDriver?.name||"")}" placeholder="Driver name" /></label>
+    </div>
+    <div class="form-row">
+      <label>Movement status<select name="status">${statusOpts}</select></label>
+      <label>Task type<select name="taskType">${taskOpts}</select></label>
+    </div>
+    <div class="form-row">
+      <label>Destination<input type="text" name="destination" value="${escAttr(existing?.destination||"")}" placeholder="e.g. Madurai, TN" /></label>
+      <label>Load details<input type="text" name="loadDetail" value="${escAttr(existing?.load_detail||"")}" placeholder="e.g. 20 MT sand" /></label>
+    </div>
+    <div class="form-row">
+      <label>Task description<input type="text" name="taskDesc" value="${escAttr(existing?.task_description||"")}" placeholder="Brief task note" /></label>
+      <label>Planned start<input type="time" name="plannedStart" value="${existing?.planned_start||""}" /></label>
+    </div>
+    <label>Notes<textarea name="notes" rows="2" style="width:100%">${esc(existing?.notes||"")}</textarea></label>
+  `, async fd => {
+    const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
+    // resolve driver
+    let driverExtId = null, driverName = (fd.driverName||"").trim();
+    if (fd.driverPick && fd.driverPick !== "") {
+      const [dId, dName] = fd.driverPick.split("|");
+      driverExtId = dId;
+      if (!driverName) driverName = dName;
+    }
+    const row = {
+      org_id: orgId, vehicle_id: vehDbId, dispatch_date: date,
+      site_id: site?.id || null,
+      driver_ext_id: driverExtId||null, driver_name: driverName||null,
+      status: fd.status || "planned",
+      task_type: fd.taskType || "trip",
+      task_description: (fd.taskDesc||"").trim()||null,
+      destination: (fd.destination||"").trim()||null,
+      load_detail: (fd.loadDetail||"").trim()||null,
+      planned_start: fd.plannedStart||null,
+      notes: (fd.notes||"").trim()||null,
+    };
+    let ok;
+    if (existing) {
+      ok = await fwCloud.authPatch(`daily_dispatch?id=eq.${existing.id}`, row);
+    } else {
+      ok = await fwCloud.authInsert("daily_dispatch", { ...row, created_by: fwCloud.uid() });
+    }
+    if (!ok) throw new Error("Could not save — check your connection.");
+    toast(`${v.name} dispatch saved.`);
+    closeEditModal();
+    await loadDispatch();
+  });
+};
+
+// ── quick status update ────────────────────────────────────────────────────
+window.dispatchUpdateStatus = async function(dispId, newStatus) {
+  const ok = await fwCloud.authPatch(`daily_dispatch?id=eq.${dispId}`, {
+    status: newStatus,
+    actual_start: newStatus === "running" ? new Date().toTimeString().slice(0,5) : undefined,
+    completed_at: newStatus === "completed" ? new Date().toTimeString().slice(0,5) : undefined,
+  });
+  if (!ok) { toast("Could not update — try again.", "warn"); return; }
+  const row = _dispatch.find(r => r.id === dispId);
+  if (row) {
+    row.status = newStatus;
+    row.status_updated_at = new Date().toISOString();
+  }
+  const st = DISPATCH_STATUS[newStatus];
+  toast(`Status → ${st?.label || newStatus}.`);
+
+  // SMS on halt or maintenance — notify owner
+  if (newStatus === "halt" || newStatus === "maintenance") {
+    const veh = row ? db.vehicles.find(v => v.dbId === row.vehicle_id) : null;
+    const ownerPhone = db.settings?.ownerPhone || db.settings?.contactPhone || "";
+    if (ownerPhone && veh) {
+      const supName = row.supervisor_name || "Supervisor";
+      sendSms("halt", [{ mobile: ownerPhone, var1: veh.name, var2: supName, var3: st?.label || newStatus }]);
+    }
+  }
+
+  renderDispatch();
+};
+
+// ── plan all un-planned vehicles for today ─────────────────────────────────
+window.dispatchPlanAll = async function() {
+  const dateEl = document.getElementById("dispatchDate");
+  const date   = dateEl ? dateEl.value : today();
+  const orgId  = await dbOrgId(); if (!orgId) return;
+  const already= new Set(_dispatch.map(r => r.vehicle_id));
+  let added = 0;
+  for (const v of db.vehicles) {
+    if (!v.dbId || already.has(v.dbId)) continue;
+    const driver = db.drivers.find(d => d.vehicleId === v.id);
+    const site   = _vehSiteMap[v.dbId]?.site;
+    await fwCloud.authInsert("daily_dispatch", {
+      org_id: orgId, vehicle_id: v.dbId, dispatch_date: date,
+      site_id: site?.id||null,
+      driver_ext_id: driver?.id||null, driver_name: driver?.name||null,
+      status: "planned", task_type: "trip", created_by: fwCloud.uid(),
+    });
+    added++;
+  }
+  toast(added ? `${added} vehicle${added>1?"s":""} added to today's plan.` : "All vehicles already planned.");
+  await loadDispatch();
+};
+
+// ════════════════════════════════════════════════════════════════════════════
 // SITES & PROJECTS
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -1704,7 +2090,7 @@ window.openNewSite = async function() {
     if (!ok) throw new Error("Could not save — check your connection.");
     toast(`"${(fd.name||"").trim()}" created.`);
     closeEditModal();
-    await loadSites(); renderSites(); renderVehicleStatusBoard(); populateFilterDropdowns();
+    await loadSites(); renderSites(); renderHubSites(); renderVehicleStatusBoard(); populateFilterDropdowns();
   });
 };
 
@@ -1716,7 +2102,7 @@ window.openEditSite = async function(id) {
     if (!ok) throw new Error("Could not save — check your connection.");
     toast("Site updated.");
     closeEditModal();
-    await loadSites(); renderSites(); renderVehicleStatusBoard(); populateFilterDropdowns();
+    await loadSites(); renderSites(); renderHubSites(); renderVehicleStatusBoard(); populateFilterDropdowns();
   });
 };
 
@@ -1725,7 +2111,7 @@ window.siteArchive = async function(id) {
   if (!confirm(`Archive "${s.name}"? It will be hidden but data is preserved.`)) return;
   await fwCloud.authPatch(`sites?id=eq.${id}`, { status: "cancelled" });
   toast("Site archived.");
-  await loadSites(); renderSites(); renderVehicleStatusBoard();
+  await loadSites(); renderSites(); renderHubSites(); renderVehicleStatusBoard();
 };
 
 // ── Assign vehicles to site (with per-vehicle billing) ────────────────────
@@ -1815,7 +2201,7 @@ window.openAssignSiteVehicles = function(siteId) {
     }
     toast("Vehicle assignments saved.");
     closeEditModal();
-    await loadSites(); renderSites(); renderVehicleStatusBoard();
+    await loadSites(); renderSites(); renderHubSites(); renderVehicleStatusBoard();
   });
 
   // Bind checkbox toggles to show/hide detail after modal renders
@@ -1886,7 +2272,7 @@ window.openAssignSiteStaff = function(siteId) {
       if (!ok) throw new Error("Could not save — check your connection.");
       toast(`${name} added to ${s.name}.`);
       closeEditModal();
-      await loadSites(); renderSites(); renderVehicleStatusBoard();
+      await loadSites(); renderSites(); renderHubSites(); renderVehicleStatusBoard();
     }
   );
 };
@@ -1895,7 +2281,7 @@ window.removeSiteStaff = async function(ssaId, siteId) {
   if (!confirm("Remove this staff member from the site?")) return;
   await fwCloud.authPatch(`site_staff_assignments?id=eq.${ssaId}`, { left_date: today() });
   toast("Staff member removed from site.");
-  await loadSites(); renderSites();
+  await loadSites(); renderSites(); renderHubSites();
 };
 
 // ── Assign vehicle to site from the Status Board ───────────────────────────
@@ -1924,7 +2310,7 @@ window.openAssignVehicleToSite = function(vehLocalId) {
       const siteName = fd.siteId ? (_sites.find(s=>s.id===fd.siteId)?.name || "site") : "none";
       toast(`${v.name} → ${fd.siteId ? siteName : "unassigned"}.`);
       closeEditModal();
-      await loadSites(); renderSites(); renderVehicleStatusBoard();
+      await loadSites(); renderSites(); renderHubSites(); renderVehicleStatusBoard();
     }
   );
 };
@@ -4237,6 +4623,19 @@ function buildDynamicPanels() {
     <div id="sitesList"></div>
   </div>`);
 
+  mk("dispatch", `<div class="chart-card">
+    <div class="chart-head" style="flex-wrap:wrap;gap:10px">
+      <div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="calendar" data-icon-size="22"></i></span> Daily Dispatch</h2>
+      <p class="muted">Assign drivers and set movement status for each vehicle — Planned, Running, Halt or Maintenance. Updated by supervisors throughout the day.</p></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="date" id="dispatchDate" value="${new Date().toISOString().slice(0,10)}" onchange="loadDispatch()" style="height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 8px;font-size:0.85rem" />
+        <button class="btn btn-primary" onclick="dispatchPlanAll()">${FWIcon("plus",{size:14})} Plan All Vehicles</button>
+      </div>
+    </div>
+    <div id="dispatchSummary" style="display:flex;gap:10px;flex-wrap:wrap;padding:0 0 12px"></div>
+    <div id="dispatchBoard"></div>
+  </div>`);
+
   [
     ["faults", "Faults", "Engine fault codes surface here automatically with the OBD / telematics integration.", "alert"],
     ["invoices", "Invoices", "Customer and vendor invoices arrive with the billing module.", "document"],
@@ -4541,8 +4940,9 @@ function renderAll() {
   renderItemFailures(); renderForms(); renderServiceHistory(); renderServiceTasks();
   renderFastag();
   renderPurchaseOrders();
-  renderSites(); renderVehicleStatusBoard();
+  renderNotifSettings(); renderSites(); renderHubSites(); renderVehicleStatusBoard();
   populateFilterDropdowns();
+  renderDispatch();
   renderVendors(); renderIntegrations(); renderReports();
   if (window.renderAnalyticsAll) renderAnalyticsAll();
   if (window.renderGfDash) renderGfDash();
@@ -4569,6 +4969,7 @@ bindFinFastagForm();
 loadFastag();
 loadPOs();
 loadSites();
+loadDispatch();
 
 // Trips & khata entry forms (panels are built dynamically above)
 document.getElementById("tripForm")?.addEventListener("submit", async e => {
@@ -4697,7 +5098,6 @@ function openSOS() {
   document.getElementById("sosSend").addEventListener("click", async () => {
     const vid = document.getElementById("sosVeh").value;
     const what = document.getElementById("sosWhat").value.trim() || "Breakdown on road";
-    const today = new Date().toISOString().slice(0, 10);
     if (vid) {
       const iss = { vehicleId: vid, title: "Breakdown: " + what, severity: "High", status: "In Progress", createdAt: today, source: "Breakdown SOS" };
       if (typeof coreDbBacked === "function" && coreDbBacked()) {
@@ -4714,6 +5114,11 @@ function openSOS() {
       }
       saveStore(); renderAll();
     }
+    // SMS alert to owner
+    const ownerPhone = db.settings?.ownerPhone || db.settings?.contactPhone || "";
+    const vLabel = vid ? vName(vid) : "Unknown vehicle";
+    sendSms("sos", [{ mobile: ownerPhone, var1: vLabel, var2: "Driver", var3: what || "Breakdown on road" }]);
+
     const msg = "BREAKDOWN SOS\nVehicle: " + (vid ? vName(vid) : "—") + "\nIssue: " + what +
       "\nFleet: " + ((db.settings && db.settings.businessName) || "FleetWorks owner") +
       "\nPlease arrange the nearest partner workshop.";
