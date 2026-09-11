@@ -304,6 +304,282 @@ window.sendTripTime = async function(milestoneId) {
 
 buildTripPanel();
 
+// ---------- Active trip fetch + workflow (from Supabase trips table) ----------
+let _activeTrip = null;
+let _tripPollInterval = null;
+
+async function loadActiveTrip() {
+  if (!DVID) return;
+  try {
+    const res = await fetch(
+      FW_BACKEND.url + "/rest/v1/trips?select=id,org_id,from_loc,to_loc,cargo_description,status,driver_name,planned_start,planned_end,fastag_balance,fastag_balance_at" +
+      "&vehicle_id=eq." + DVID +
+      "&status=in.(assigned,acknowledged,started)" +
+      "&order=planned_start.asc&limit=1",
+      { headers: { "apikey": FW_BACKEND.anonKey, "Accept": "application/json" } }
+    );
+    const rows = res.ok ? await res.json() : [];
+    _activeTrip = rows[0] || null;
+    renderActiveTripBanner();
+    if (_activeTrip) loadTripRequests(_activeTrip.id, _activeTrip.org_id);
+    if (_activeTrip?.fastag_balance != null) renderFastagBalance(_activeTrip);
+  } catch { /* silent — best effort */ }
+}
+
+function renderActiveTripBanner() {
+  const el = document.getElementById("activeTripBanner");
+  if (!el) return;
+  if (!_activeTrip) {
+    el.innerHTML = `<p class="muted" style="margin:0">தற்போது எந்த பயணமும் ஒதுக்கப்படவில்லை.</p>`;
+    document.getElementById("tripWorkflowActions")?.setAttribute("hidden", "");
+    return;
+  }
+  const t = _activeTrip;
+  const ST = { assigned: "ஒதுக்கப்பட்டது", acknowledged: "உறுதிப்படுத்தப்பட்டது", started: "பயணத்தில்" };
+  const SC = { assigned: "#2563eb", acknowledged: "#7c3aed", started: "#d97706" };
+  el.innerHTML = `
+    <div class="trip-active-card" style="background:var(--card);border-radius:14px;padding:14px 16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <strong style="color:var(--navy);font-size:1rem">${esc(t.from_loc||"—")} → ${esc(t.to_loc||"—")}</strong>
+        <span style="background:${SC[t.status]||"#64748b"}20;color:${SC[t.status]||"#64748b"};border:1px solid ${SC[t.status]||"#64748b"}40;border-radius:20px;padding:2px 10px;font-size:0.75rem;font-weight:600">${ST[t.status]||t.status}</span>
+      </div>
+      ${t.cargo_description ? `<p class="muted" style="margin:0 0 6px;font-size:0.85rem">சரக்கு: ${esc(t.cargo_description)}</p>` : ""}
+      ${t.planned_start ? `<p class="muted" style="margin:0;font-size:0.8rem">திட்டமிட்ட தொடக்கம்: ${new Date(t.planned_start).toLocaleString("ta-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})}</p>` : ""}
+    </div>`;
+  const actions = document.getElementById("tripWorkflowActions");
+  if (actions) {
+    actions.removeAttribute("hidden");
+    // Show/hide acknowledge button
+    const ackBtn = document.getElementById("btnAcknowledge");
+    if (ackBtn) ackBtn.style.display = t.status === "assigned" ? "" : "none";
+    const startBtn = document.getElementById("btnStartTrip");
+    if (startBtn) startBtn.style.display = t.status === "acknowledged" ? "" : "none";
+  }
+}
+
+function renderFastagBalance(trip) {
+  const el = document.getElementById("fastagBalanceCard");
+  if (!el || trip.fastag_balance == null) return;
+  el.removeAttribute("hidden");
+  const bal = trip.fastag_balance;
+  const low = bal < 1000;
+  const balAt = trip.fastag_balance_at ? new Date(trip.fastag_balance_at).toLocaleDateString("ta-IN",{day:"2-digit",month:"short"}) : "";
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div>
+        <div style="font-size:0.75rem;color:var(--muted);margin-bottom:2px">FASTag இருப்பு${balAt ? " · " + balAt : ""}</div>
+        <div style="font-size:1.3rem;font-weight:700;color:${low ? "#d97706" : "#059669"}">₹${bal.toLocaleString("en-IN")}</div>
+        ${low ? `<div style="font-size:0.75rem;color:#d97706;margin-top:2px">⚠ குறைந்த இருப்பு — உரிமையாளரை தொடர்பு கொள்ளுங்கள்</div>` : ""}
+      </div>
+      <span style="font-size:2rem">🛣️</span>
+    </div>`;
+}
+
+async function loadTripRequests(tripId, orgId) {
+  try {
+    const res = await fetch(
+      FW_BACKEND.url + "/rest/v1/trip_requests?select=id,request_type,amount,reason,status,paid_amount,created_at" +
+      "&trip_id=eq." + tripId +
+      "&order=created_at.desc&limit=10",
+      { headers: { "apikey": FW_BACKEND.anonKey, "Accept": "application/json" } }
+    );
+    const reqs = res.ok ? await res.json() : [];
+    renderTripRequestsDriver(reqs, tripId, orgId);
+  } catch { /* silent */ }
+}
+
+function renderTripRequestsDriver(reqs, tripId, orgId) {
+  const el = document.getElementById("driverRequestsList");
+  if (!el) return;
+  if (!reqs.length) { el.innerHTML = `<p class="muted" style="padding:8px 0;margin:0">கோரிக்கைகள் இல்லை.</p>`; return; }
+  const TYPE = { diesel: "டீசல்", advance: "அட்வான்ஸ்", toll: "டோல்" };
+  const ST   = { pending: "காத்திருக்கிறது", approved: "அனுமதிக்கப்பட்டது ✓", paid: "பணம் கொடுக்கப்பட்டது ✓", rejected: "நிராகரிக்கப்பட்டது ✗" };
+  const SC   = { pending: "#d97706", approved: "#2563eb", paid: "#059669", rejected: "#dc2626" };
+  el.innerHTML = reqs.map(r => `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="flex:1">
+        <strong>${TYPE[r.request_type]||r.request_type}</strong>
+        ${r.reason ? `<span class="muted"> · ${esc(r.reason)}</span>` : ""}
+        <div style="font-size:0.8rem;color:${SC[r.status]||"#64748b"};margin-top:2px">${ST[r.status]||r.status}</div>
+        ${r.status === "approved" && r.paid_amount ? `<div style="font-size:0.85rem;font-weight:600;color:#059669">அனுமதி: ₹${Number(r.paid_amount).toLocaleString("en-IN")}</div>` : ""}
+      </div>
+      <div style="text-align:right">
+        <div style="font-weight:700">₹${Number(r.amount||0).toLocaleString("en-IN")}</div>
+        ${r.status === "approved" ? `<button class="trip-btn trip-btn-y" style="font-size:0.75rem;padding:4px 8px;margin-top:4px" onclick="markReqPaid('${r.id}','${tripId}','${orgId}')">பணம் பெற்றேன்</button>` : ""}
+      </div>
+    </div>`).join("");
+
+  // Send browser notification for newly approved requests
+  reqs.filter(r => r.status === "approved").forEach(r => {
+    const key = "notified_" + r.id;
+    if (!localStorage.getItem(key)) {
+      showDriverNotification("அனுமதிக்கப்பட்டது ✓", (TYPE[r.request_type]||r.request_type) + " ₹" + Number(r.paid_amount||r.amount||0).toLocaleString("en-IN") + " — உரிமையாளர் அனுமதி கொடுத்தார்");
+      localStorage.setItem(key, "1");
+    }
+  });
+}
+
+window.markReqPaid = async function(reqId, tripId, orgId) {
+  try {
+    await fetch(FW_BACKEND.url + "/rest/v1/trip_requests?id=eq." + reqId, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey, "Prefer": "return=minimal" },
+      body: JSON.stringify({ status: "paid", paid_at: new Date().toISOString() })
+    });
+    flash(true, "பணம் பெற்றதை உறுதிப்படுத்தினீர்கள்.");
+    loadTripRequests(tripId, orgId);
+  } catch { flash(false, "புதுப்பிக்க முடியவில்லை — மீண்டும் முயற்சிக்கவும்."); }
+};
+
+window.sendTripAcknowledge = async function() {
+  if (!_activeTrip) return;
+  const btn = document.getElementById("btnAcknowledge");
+  if (btn) btn.disabled = true;
+  try {
+    await fetch(FW_BACKEND.url + "/rest/v1/trips?id=eq." + _activeTrip.id, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey, "Prefer": "return=minimal" },
+      body: JSON.stringify({ status: "acknowledged", acknowledged_at: new Date().toISOString() })
+    });
+    await send("trip_ack", { trip_id: _activeTrip.id, timestamp: new Date().toISOString() });
+    flash(true, "பயண ஒதுக்கீடு உறுதிப்படுத்தப்பட்டது!");
+    _activeTrip.status = "acknowledged";
+    renderActiveTripBanner();
+  } catch { flash(false, "உறுதிப்படுத்த முடியவில்லை — மீண்டும் முயற்சிக்கவும்."); if (btn) btn.disabled = false; }
+};
+
+window.sendTripStart = async function() {
+  if (!_activeTrip) return;
+  const btn = document.getElementById("btnStartTrip");
+  if (btn) btn.disabled = true;
+  try {
+    await fetch(FW_BACKEND.url + "/rest/v1/trips?id=eq." + _activeTrip.id, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey, "Prefer": "return=minimal" },
+      body: JSON.stringify({ status: "started", actual_start: new Date().toISOString() })
+    });
+    await send("trip_status", { milestone: "trip_started", trip_id: _activeTrip.id, timestamp: new Date().toISOString() });
+    flash(true, "பயணம் தொடங்கியது! வாழ்த்துக்கள்!");
+    _activeTrip.status = "started";
+    renderActiveTripBanner();
+  } catch { flash(false, "புதுப்பிக்க முடியவில்லை — மீண்டும் முயற்சிக்கவும்."); if (btn) btn.disabled = false; }
+};
+
+window.submitTripRequest = async function(type) {
+  if (!_activeTrip) { flash(false, "தற்போது செயலில் உள்ள பயணம் இல்லை."); return; }
+  const amtId = type === "diesel" ? "reqDieselAmt" : "reqAdvanceAmt";
+  const reasonId = type === "diesel" ? "reqDieselReason" : "reqAdvanceReason";
+  const amt = +document.getElementById(amtId)?.value;
+  const reason = document.getElementById(reasonId)?.value.trim() || "";
+  if (!amt || amt < 1) { flash(false, "தொகை உள்ளிடவும்."); return; }
+  try {
+    const r = await fetch(FW_BACKEND.url + "/rest/v1/trip_requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey, "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        trip_id: _activeTrip.id,
+        org_id: _activeTrip.org_id,
+        request_type: type,
+        amount: amt,
+        reason: reason || null,
+        status: "pending"
+      })
+    });
+    if (!r.ok) throw new Error();
+    flash(true, (type === "diesel" ? "டீசல்" : "அட்வான்ஸ்") + " கோரிக்கை அனுப்பப்பட்டது — உரிமையாளர் அனுமதித்தால் இங்கே தெரியும்.");
+    document.getElementById(amtId).value = "";
+    document.getElementById(reasonId).value = "";
+    // also log to driver_entries so owner sees it in notification centre
+    await send(type === "diesel" ? "diesel_request" : "advance_request", {
+      trip_id: _activeTrip.id, amount: amt, reason, timestamp: new Date().toISOString()
+    });
+    loadTripRequests(_activeTrip.id, _activeTrip.org_id);
+  } catch { flash(false, "கோரிக்கை அனுப்ப முடியவில்லை — மீண்டும் முயற்சிக்கவும்."); }
+};
+
+// Android / Web Push notification support
+function showDriverNotification(title, body) {
+  if ("Notification" in window && Notification.permission === "granted") {
+    new Notification(title, { body, icon: "icons/icon-96.png", badge: "icons/icon-96.png" });
+  }
+}
+
+async function requestNotificationPermission() {
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "default") {
+    const perm = await Notification.requestPermission();
+    if (perm === "granted") {
+      showDriverNotification("FleetWorks", "அறிவிப்புகள் இயக்கப்பட்டன — உரிமையாளர் அனுமதி கொடுக்கும்போது நீங்கள் அறிவிக்கப்படுவீர்கள்.");
+    }
+  }
+}
+
+// Poll for active trip and request updates every 30s
+function startTripPolling() {
+  loadActiveTrip();
+  _tripPollInterval = setInterval(() => {
+    if (_activeTrip) loadTripRequests(_activeTrip.id, _activeTrip.org_id);
+    else loadActiveTrip();
+  }, 30000);
+}
+
+// Update Trip Status tab HTML to include workflow controls
+function patchTripPanelHtml() {
+  const panel = document.getElementById("dTripPanel");
+  if (!panel) return;
+  const workflowHtml = `
+    <div id="activeTripBanner" style="margin-bottom:12px">
+      <p class="muted" style="margin:0">பயணம் தேடுகிறது…</p>
+    </div>
+    <div id="fastagBalanceCard" style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px" hidden></div>
+    <div id="tripWorkflowActions" hidden>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <button id="btnAcknowledge" class="btn btn-primary" onclick="sendTripAcknowledge()">
+          <i data-icon="check" data-icon-size="15"></i> பயண ஒதுக்கீடை உறுதிப்படுத்து
+        </button>
+        <button id="btnStartTrip" class="btn btn-primary" style="background:#059669" onclick="sendTripStart()">
+          <i data-icon="truck" data-icon-size="15"></i> பயணம் தொடங்கு
+        </button>
+      </div>
+
+      <!-- Diesel request -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:12px">
+        <div style="font-weight:600;margin-bottom:10px;color:var(--navy)"><i data-icon="fuel" data-icon-size="15" style="vertical-align:middle;margin-right:4px"></i> டீசல் கோரிக்கை</div>
+        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+          <input type="number" id="reqDieselAmt" placeholder="தொகை ₹" inputmode="numeric" style="flex:1;min-width:100px;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:0.9rem" />
+          <input type="text" id="reqDieselReason" placeholder="காரணம் (விரும்பினால்)" style="flex:2;min-width:120px;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:0.9rem" />
+          <button class="btn btn-primary btn-sm" onclick="submitTripRequest('diesel')">அனுப்பு</button>
+        </div>
+      </div>
+
+      <!-- Advance request -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:14px">
+        <div style="font-weight:600;margin-bottom:10px;color:var(--navy)"><i data-icon="wallet" data-icon-size="15" style="vertical-align:middle;margin-right:4px"></i> அட்வான்ஸ் கோரிக்கை</div>
+        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap">
+          <input type="number" id="reqAdvanceAmt" placeholder="தொகை ₹" inputmode="numeric" style="flex:1;min-width:100px;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:0.9rem" />
+          <input type="text" id="reqAdvanceReason" placeholder="காரணம் (விரும்பினால்)" style="flex:2;min-width:120px;border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:0.9rem" />
+          <button class="btn btn-primary btn-sm" onclick="submitTripRequest('advance')">அனுப்பு</button>
+        </div>
+      </div>
+
+      <!-- My requests list -->
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px">
+        <div style="font-weight:600;margin-bottom:8px;color:var(--navy)">என் கோரிக்கைகள்</div>
+        <div id="driverRequestsList"><p class="muted" style="margin:0">ஏற்றுகிறது…</p></div>
+      </div>
+    </div>`;
+
+  // Prepend workflow section before existing milestone content
+  panel.insertAdjacentHTML("afterbegin", workflowHtml);
+  if (window.FWIcon) panel.querySelectorAll("[data-icon]").forEach(i => {
+    if (!i.innerHTML.includes("svg")) i.innerHTML = FWIcon(i.dataset.icon, { size: parseInt(i.dataset.iconSize||16) });
+  });
+}
+
+patchTripPanelHtml();
+requestNotificationPermission();
+startTripPolling();
+
 // ---------- Documents tab ----------
 const DOC_FIELDS = [
   { key: "fc_due",             label: "ஃபிட்னஸ் சான்றிதழ் (FC)",  isDate: true },

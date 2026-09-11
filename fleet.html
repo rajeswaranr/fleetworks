@@ -820,6 +820,66 @@
         </div>
       </section>
 
+      <!-- ======= TRIPS & LOADS ======= -->
+      <section class="tab-panel" id="tab-trips">
+
+        <!-- Active trip requests (diesel / advance) needing approval -->
+        <div class="chart-card" id="tripRequestsCard" hidden>
+          <div class="chart-head">
+            <div><h2>Pending Approvals</h2><p class="muted">Driver requests waiting for your action</p></div>
+          </div>
+          <div id="tripRequestsList"></div>
+        </div>
+
+        <!-- Active trips (assigned / started) -->
+        <div class="chart-card">
+          <div class="chart-head">
+            <div><h2>Active Trips</h2><p class="muted">Assigned and in-progress trips — tap to manage</p></div>
+            <button class="btn btn-primary btn-sm" onclick="openPlanTripModal()"><i data-icon="plus" data-icon-size="14"></i> Plan Trip</button>
+          </div>
+          <div id="activeTripsTable"><p class="muted" style="padding:12px">No active trips. Click <strong>Plan Trip</strong> to start.</p></div>
+        </div>
+
+        <!-- Trip history log -->
+        <div class="chart-card">
+          <div class="chart-head">
+            <div><h2>Trip Log</h2><p class="muted">All completed trips and freight revenue</p></div>
+            <button class="btn btn-outline btn-sm" onclick="openLegacyTripForm()"><i data-icon="plus" data-icon-size="14"></i> Quick Log</button>
+          </div>
+          <div class="chart-scroll" id="tripsTable"></div>
+        </div>
+
+        <!-- Profit analysis -->
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Profit per Vehicle</h2></div></div>
+          <div class="chart-scroll" id="profitTable"></div>
+        </div>
+
+        <!-- Quick log form (legacy) -->
+        <div class="chart-card" id="legacyTripFormCard" hidden>
+          <div class="chart-head"><div><h2>Log a Trip</h2></div></div>
+          <form id="tripForm" class="entry-form">
+            <div class="form-row">
+              <label>Vehicle <select name="vehicleId" id="tripVehicleSelect" required></select></label>
+              <label>Date <input type="date" name="date" required /></label>
+            </div>
+            <div class="form-row">
+              <label>From <input type="text" name="from" placeholder="Loading point" required /></label>
+              <label>To <input type="text" name="to" placeholder="Delivery point" required /></label>
+            </div>
+            <div class="form-row">
+              <label>Freight (₹) <input type="number" name="freight" min="0" step="0.01" required inputmode="numeric" /></label>
+              <label>KM <input type="number" name="km" min="0" step="0.1" inputmode="decimal" /></label>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button type="submit" class="btn btn-primary">Save Trip</button>
+              <button type="button" class="btn btn-outline" onclick="document.getElementById('legacyTripFormCard').hidden=true">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+      </section>
+
       <!-- ======= DRIVERS ======= -->
       <section class="tab-panel" id="tab-drivers">
         <div class="chart-card">
@@ -1195,6 +1255,60 @@
             <button type="button" class="btn btn-primary" id="billCheckBtn">Check this bill</button>
             <button type="button" class="btn btn-outline" id="billCloseJobBtn">Close job card &amp; record expense</button>
             <button type="button" class="btn btn-outline" id="billCancel">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Plan Trip Modal -->
+      <div id="planTripModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto">
+        <div class="chart-card" style="max-width:600px;width:100%;margin:auto">
+          <div class="chart-head">
+            <div><h2>Plan a Trip</h2><p class="muted">Assign vehicle, driver, route and dates</p></div>
+            <button type="button" class="link-btn" onclick="closePlanTripModal()">✕</button>
+          </div>
+          <form id="planTripForm" class="entry-form">
+            <div class="form-row">
+              <label>Vehicle <select name="vehicleId" id="planTripVehicle" required></select></label>
+              <label>Driver <select name="driverId" id="planTripDriver" required><option value="">Select driver…</option></select></label>
+            </div>
+            <div class="form-row">
+              <label>From (Loading Point) <input type="text" name="from_loc" placeholder="e.g. Chennai Port" required /></label>
+              <label>To (Delivery Point) <input type="text" name="to_loc" placeholder="e.g. Trichy Depot" required /></label>
+            </div>
+            <label>Cargo Description <input type="text" name="cargo_description" placeholder="e.g. 18 MT Steel Coils" /></label>
+            <div class="form-row">
+              <label>Planned Start <input type="datetime-local" name="planned_start" required /></label>
+              <label>Planned End <input type="datetime-local" name="planned_end" /></label>
+            </div>
+            <div class="form-row">
+              <label>Freight (₹) <input type="number" name="freight" min="0" step="0.01" placeholder="0" inputmode="numeric" /></label>
+              <label>KM (estimated) <input type="number" name="km" min="0" step="1" placeholder="0" inputmode="numeric" /></label>
+            </div>
+            <p class="field-error" id="planTripErr" hidden></p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+              <button type="submit" class="btn btn-primary">Assign &amp; Notify Driver</button>
+              <button type="button" class="btn btn-outline" onclick="closePlanTripModal()">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Approve Request Modal -->
+      <div id="approveReqModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:center;justify-content:center;padding:16px">
+        <div class="chart-card" style="max-width:440px;width:100%">
+          <div class="chart-head">
+            <div><h2 id="approveReqTitle">Approve Request</h2><p class="muted" id="approveReqSub"></p></div>
+            <button type="button" class="link-btn" onclick="closeApproveModal()">✕</button>
+          </div>
+          <div class="entry-form">
+            <label>Approved Amount (₹)
+              <input type="number" id="approveReqAmt" step="0.01" inputmode="numeric" required />
+            </label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-primary" onclick="confirmApproveRequest()">Approve</button>
+              <button class="btn btn-outline" style="background:#fef2f2;color:#d03b3b;border-color:#f5c6c6" onclick="confirmRejectRequest()">Reject</button>
+              <button class="btn btn-outline" onclick="closeApproveModal()">Cancel</button>
+            </div>
           </div>
         </div>
       </div>

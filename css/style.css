@@ -1359,6 +1359,14 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .loc-status.tracking { background:#e7faea; color:#0ca30c; }
 .loc-status.off { background:#f7f9fc; color:var(--muted,#8a94a6); }
 
+/* Owner — Trip request approval rows */
+.trip-req-row { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+.trip-req-row:last-child { border-bottom:none; }
+.trip-req-icon { width:38px; height:38px; border-radius:10px; background:var(--navy-10,#e8edf5); display:flex; align-items:center; justify-content:center; flex:none; }
+.trip-req-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; font-size:0.85rem; }
+.trip-req-body strong { font-size:0.92rem; }
+.trip-req-amt { font-size:1.05rem; font-weight:700; color:var(--navy); flex:none; }
+
 /* Driver — Documents */
 .doc-card { border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:10px; }
 .doc-card-head { background:var(--navy); color:#fff; padding:9px 13px; font-size:0.82rem; font-weight:700; display:flex; align-items:center; gap:8px; }

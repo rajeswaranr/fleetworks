@@ -859,6 +859,285 @@ function openEditTrip(id) {
   });
 }
 
+// ---------- Trip Workflow Engine (owner side) ----------
+
+const TRIP_STATUS_LABEL = {
+  planned: "Planned", assigned: "Assigned", acknowledged: "Acknowledged",
+  started: "In Progress", completed: "Completed", cancelled: "Cancelled"
+};
+const TRIP_STATUS_COLOR = {
+  planned: "#64748b", assigned: "#2563eb", acknowledged: "#7c3aed",
+  started: "#d97706", completed: "#059669", cancelled: "#dc2626"
+};
+
+let _tripWorkflowInterval = null;
+
+async function loadActiveTripWorkflow() {
+  if (!window.fwCloud || !fwCloud.user()) return;
+  try {
+    const sb = fwCloud.supabase();
+    // Active trips
+    const { data: trips } = await sb.from("trips")
+      .select("id,vehicle_id,from_loc,to_loc,cargo_description,status,driver_name,planned_start,planned_end,actual_start,freight,km")
+      .in("status", ["planned","assigned","acknowledged","started"])
+      .order("planned_start", { ascending: true })
+      .limit(20);
+
+    renderActiveTrips(trips || []);
+
+    // Pending requests
+    const { data: reqs } = await sb.from("trip_requests")
+      .select("id,trip_id,request_type,amount,reason,status,created_at,trips(from_loc,to_loc,vehicle_id,driver_name)")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true })
+      .limit(20);
+
+    renderTripRequests(reqs || []);
+  } catch (e) {
+    console.warn("Trip workflow load failed:", e);
+  }
+}
+
+function renderActiveTrips(trips) {
+  const el = document.getElementById("activeTripsTable");
+  if (!el) return;
+  if (!trips.length) {
+    el.innerHTML = "<p class='muted' style='padding:12px'>No active trips. Click <strong>Plan Trip</strong> to start.</p>";
+    return;
+  }
+  el.innerHTML = `<table class="chart-table-el"><thead><tr>
+    <th>Vehicle</th><th>Driver</th><th>Route</th><th>Cargo</th><th>Status</th><th>Planned</th><th></th>
+  </tr></thead><tbody>` +
+  trips.map(t => {
+    const veh = (db.vehicles || []).find(v => v.id === t.vehicle_id);
+    const st = TRIP_STATUS_LABEL[t.status] || t.status;
+    const sc = TRIP_STATUS_COLOR[t.status] || "#64748b";
+    return `<tr>
+      <td><strong>${esc(veh ? veh.name : t.vehicle_id)}</strong></td>
+      <td>${esc(t.driver_name || "—")}</td>
+      <td>${esc(t.from_loc || "—")} → ${esc(t.to_loc || "—")}</td>
+      <td class="muted">${esc(t.cargo_description || "—")}</td>
+      <td><span class="fw-badge" style="background:${sc}20;color:${sc};border:1px solid ${sc}40">${st}</span></td>
+      <td class="muted">${t.planned_start ? fmtDate(t.planned_start.slice(0,10)) : "—"}</td>
+      <td>
+        ${t.status === "started" ? `<button class="link-btn" onclick="completeTripWorkflow('${t.id}')">Complete</button>` : ""}
+        ${t.status === "assigned" || t.status === "acknowledged" ? `<button class="link-btn" onclick="cancelTripWorkflow('${t.id}')">Cancel</button>` : ""}
+      </td>
+    </tr>`;
+  }).join("") + "</tbody></table>";
+  if (window.FWIcon) el.querySelectorAll("[data-icon]").forEach(i => { i.innerHTML = FWIcon(i.dataset.icon, {size:+i.dataset.iconSize||14}); });
+}
+
+function renderTripRequests(reqs) {
+  const card = document.getElementById("tripRequestsCard");
+  const el = document.getElementById("tripRequestsList");
+  if (!card || !el) return;
+  card.hidden = reqs.length === 0;
+  if (!reqs.length) return;
+
+  const TYPE_ICON = { diesel: "fuel", advance: "wallet", toll: "mapPin" };
+  const TYPE_LABEL = { diesel: "Diesel", advance: "Advance", toll: "Toll" };
+
+  el.innerHTML = reqs.map(r => {
+    const trip = r.trips || {};
+    const veh = (db.vehicles || []).find(v => v.id === trip.vehicle_id);
+    return `<div class="trip-req-row">
+      <div class="trip-req-icon"><i data-icon="${TYPE_ICON[r.request_type]||'alert'}" data-icon-size="18"></i></div>
+      <div class="trip-req-body">
+        <strong>${TYPE_LABEL[r.request_type]||r.request_type} Request</strong>
+        <span class="muted">${esc(veh ? veh.name : "")} · ${esc(trip.driver_name || "")} · ${trip.from_loc||""} → ${trip.to_loc||""}</span>
+        ${r.reason ? `<span class="muted">${esc(r.reason)}</span>` : ""}
+      </div>
+      <div class="trip-req-amt">₹${fmtINR(r.amount || 0)}</div>
+      <button class="btn btn-primary btn-sm" onclick="openApproveModal('${r.id}','${r.request_type}',${r.amount||0},'${esc(trip.driver_name||"")}')">Approve</button>
+    </div>`;
+  }).join("");
+
+  if (window.FWIcon) el.querySelectorAll("[data-icon]").forEach(i => { i.innerHTML = FWIcon(i.dataset.icon, {size:+i.dataset.iconSize||18}); });
+}
+
+// Plan trip modal
+window.openPlanTripModal = function() {
+  const modal = document.getElementById("planTripModal");
+  if (!modal) return;
+  // populate vehicle select
+  const vs = document.getElementById("planTripVehicle");
+  vs.innerHTML = vehicleOptionsHtml("");
+  // populate driver select
+  const ds = document.getElementById("planTripDriver");
+  ds.innerHTML = '<option value="">Select driver…</option>' +
+    (db.drivers || []).filter(d => d.linkToken).map(d =>
+      `<option value="${d.id}" data-token="${d.linkToken}" data-name="${escAttr(d.name)}">${esc(d.name)}</option>`
+    ).join("");
+  // default planned_start to now rounded to next hour
+  const now = new Date(); now.setMinutes(0,0,0); now.setHours(now.getHours()+1);
+  const f = document.querySelector("#planTripForm [name='planned_start']");
+  if (f) f.value = now.toISOString().slice(0,16);
+  modal.style.display = "flex";
+};
+window.closePlanTripModal = function() {
+  const modal = document.getElementById("planTripModal");
+  if (modal) modal.style.display = "none";
+};
+
+document.getElementById("planTripForm")?.addEventListener("submit", async e => {
+    e.preventDefault();
+    const form = e.target;
+    const fd = Object.fromEntries(new FormData(form));
+    const errEl = document.getElementById("planTripErr");
+    const btn = form.querySelector("button[type=submit]");
+    btn.disabled = true; errEl.hidden = true;
+    try {
+      const sb = fwCloud.supabase();
+      const driverOpt = document.querySelector(`#planTripDriver option[value="${fd.driverId}"]`);
+      const driverName = driverOpt ? driverOpt.dataset.name : "";
+      const driverToken = driverOpt ? driverOpt.dataset.token : "";
+
+      // fetch FASTag balance for vehicle
+      let fastagBal = null, fastagAt = null;
+      try {
+        const { data: ft } = await sb.from("fastag_accounts")
+          .select("balance,balance_at").eq("vehicle_id", fd.vehicleId).eq("is_active", true).single();
+        if (ft) { fastagBal = ft.balance; fastagAt = ft.balance_at; }
+      } catch { /* FASTag optional */ }
+
+      const { error } = await sb.from("trips").insert({
+        org_id: fwCloud.orgId(),
+        vehicle_id: fd.vehicleId,
+        driver_id: fd.driverId || null,
+        driver_name: driverName,
+        driver_link_token: driverToken,
+        from_loc: fd.from_loc.trim(),
+        to_loc: fd.to_loc.trim(),
+        cargo_description: fd.cargo_description.trim() || null,
+        planned_start: fd.planned_start || null,
+        planned_end: fd.planned_end || null,
+        freight: +fd.freight || null,
+        km: +fd.km || null,
+        trip_date: fd.planned_start ? fd.planned_start.slice(0,10) : new Date().toISOString().slice(0,10),
+        status: "assigned",
+        fastag_balance: fastagBal,
+        fastag_balance_at: fastagAt,
+      });
+      if (error) throw error;
+      toast("Trip assigned — driver will see it in their app.");
+      closePlanTripModal();
+      form.reset();
+      loadActiveTripWorkflow();
+    } catch (err) {
+      errEl.textContent = "Could not save — " + (err.message || "check connection.");
+      errEl.hidden = false;
+    }
+    btn.disabled = false;
+});
+
+// Complete / cancel trip
+window.completeTripWorkflow = async function(tripId) {
+  if (!confirm("Mark this trip as completed?")) return;
+  try {
+    const { error } = await fwCloud.supabase().from("trips")
+      .update({ status: "completed", actual_end: new Date().toISOString() })
+      .eq("id", tripId).eq("org_id", fwCloud.orgId());
+    if (error) throw error;
+    toast("Trip marked complete.");
+    loadActiveTripWorkflow();
+  } catch { toast("Could not update — check connection.", true); }
+};
+window.cancelTripWorkflow = async function(tripId) {
+  if (!confirm("Cancel this trip?")) return;
+  try {
+    const { error } = await fwCloud.supabase().from("trips")
+      .update({ status: "cancelled" }).eq("id", tripId).eq("org_id", fwCloud.orgId());
+    if (error) throw error;
+    toast("Trip cancelled.");
+    loadActiveTripWorkflow();
+  } catch { toast("Could not update — check connection.", true); }
+};
+
+// Approve request modal
+let _pendingReqId = null;
+window.openApproveModal = function(reqId, type, amount, driverName) {
+  _pendingReqId = reqId;
+  document.getElementById("approveReqTitle").textContent = (type === "diesel" ? "Diesel" : type === "advance" ? "Advance" : "Toll") + " Request";
+  document.getElementById("approveReqSub").textContent = "From " + driverName;
+  document.getElementById("approveReqAmt").value = amount || "";
+  document.getElementById("approveReqModal").style.display = "flex";
+};
+window.closeApproveModal = function() {
+  document.getElementById("approveReqModal").style.display = "none";
+  _pendingReqId = null;
+};
+window.confirmApproveRequest = async function() {
+  if (!_pendingReqId) return;
+  const amt = +document.getElementById("approveReqAmt").value;
+  if (!amt) { alert("Enter an approved amount."); return; }
+  const sb = fwCloud.supabase();
+  try {
+    // 1. Approve the request
+    const { data: req, error } = await sb.from("trip_requests")
+      .update({ status: "approved", paid_amount: amt, approved_at: new Date().toISOString(), approved_by: fwCloud.user()?.email || "owner" })
+      .eq("id", _pendingReqId)
+      .select("request_type,trip_id,org_id").single();
+    if (error) throw error;
+
+    // 2. Auto-create FleetFin entries when approved
+    if (req) {
+      try {
+        // Fetch trip to get vehicle_id + driver_id
+        const { data: trip } = await sb.from("trips")
+          .select("vehicle_id,driver_id,driver_name,from_loc,to_loc").eq("id", req.trip_id).single();
+
+        const today = new Date().toISOString().slice(0, 10);
+        if (req.request_type === "diesel" && trip?.vehicle_id) {
+          // Create fuel log entry
+          await sb.from("fuel_logs").insert({
+            org_id: req.org_id, vehicle_id: trip.vehicle_id,
+            date: today, litres: 0, amount: amt,
+            note: "Trip diesel advance — " + (trip.from_loc || "") + "→" + (trip.to_loc || ""),
+          });
+        } else if (req.request_type === "advance" && trip?.driver_id) {
+          // Create driver ledger advance entry
+          await sb.from("driver_ledger").insert({
+            org_id: req.org_id, driver_id: trip.driver_id,
+            entry_date: today, type: "advance", amount: amt,
+            note: "Trip advance — " + (trip.from_loc || "") + "→" + (trip.to_loc || ""),
+          });
+        }
+      } catch { /* FleetFin entry optional, don't block */ }
+    }
+
+    toast("Request approved — driver notified. FleetFin updated.");
+    closeApproveModal();
+    loadActiveTripWorkflow();
+  } catch { toast("Could not approve — check connection.", true); }
+};
+window.confirmRejectRequest = async function() {
+  if (!_pendingReqId) return;
+  if (!confirm("Reject this request?")) return;
+  try {
+    const { error } = await fwCloud.supabase().from("trip_requests")
+      .update({ status: "rejected" }).eq("id", _pendingReqId);
+    if (error) throw error;
+    toast("Request rejected.");
+    closeApproveModal();
+    loadActiveTripWorkflow();
+  } catch { toast("Could not reject — check connection.", true); }
+};
+
+// Legacy trip form toggle
+window.openLegacyTripForm = function() {
+  const card = document.getElementById("legacyTripFormCard");
+  if (!card) return;
+  card.hidden = false;
+  const vs = document.getElementById("tripVehicleSelect");
+  if (vs) vs.innerHTML = vehicleOptionsHtml("");
+  const d = card.querySelector('[name="date"]');
+  if (d) d.value = new Date().toISOString().slice(0,10);
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+// Poll for new requests every 45s while trips tab is active (started by activateTab)
+
 // ---------- Render: driver khata ----------
 const KHATA_LABEL = { advance: "Advance given", expense: "Trip expense", settlement: "Cash returned" };
 function renderKhata() {
@@ -4435,6 +4714,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "smsnotif")        renderNotifSettings();
   if (tabName === "sites")           { loadSites().then(() => { renderSites(); renderHubSites(); }); }
   if (tabName === "purchaseinvoices") renderPurchaseInvoices();
+  if (tabName === "trips") { renderTrips(); loadActiveTripWorkflow(); }
   return true;
 }
 
