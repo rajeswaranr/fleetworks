@@ -34,10 +34,12 @@
     </div>
 
     <div id="drvApp">
-      <div class="tab-bar" id="drvTabs">
-        <button class="tab-btn active" data-tab="fuel"><i data-icon="fuel" data-icon-size="16"></i> Diesel</button>
-        <button class="tab-btn" data-tab="issue"><i data-icon="alert" data-icon-size="16"></i> Problem</button>
-        <button class="tab-btn" data-tab="check"><i data-icon="clipboardCheck" data-icon-size="16"></i> Daily Check</button>
+      <div class="tab-bar" id="drvTabs" style="overflow-x:auto;flex-wrap:nowrap;gap:4px">
+        <button class="tab-btn active" data-tab="fuel" style="white-space:nowrap"><i data-icon="fuel" data-icon-size="16"></i> Diesel</button>
+        <button class="tab-btn" data-tab="issue" style="white-space:nowrap"><i data-icon="alert" data-icon-size="16"></i> Problem</button>
+        <button class="tab-btn" data-tab="check" style="white-space:nowrap"><i data-icon="clipboardCheck" data-icon-size="16"></i> Check</button>
+        <button class="tab-btn" data-tab="trip" style="white-space:nowrap"><i data-icon="mapPin" data-icon-size="16"></i> Trip Status</button>
+        <button class="tab-btn" data-tab="docs" style="white-space:nowrap"><i data-icon="document" data-icon-size="16"></i> Documents</button>
       </div>
 
       <!-- Diesel -->
@@ -86,15 +88,39 @@
 
       <!-- Daily check -->
       <section class="tab-panel" id="dtab-check">
-        <div class="chart-card">
-          <div class="chart-head"><div><h2>Daily 10-Point Check</h2><p class="muted">Untick anything that's not OK, then submit</p></div></div>
-          <form id="dCheckForm" class="entry-form">
-            <div id="dCheckList" class="drv-checklist"></div>
-            <label>Odometer (km, optional)
-              <input type="number" name="odo" min="0" placeholder="meter reading" inputmode="numeric" />
+        <div class="chart-card" style="padding:0;overflow:hidden">
+          <div class="chk-score-bar">
+            <span><i data-icon="clipboardCheck" data-icon-size="16" style="vertical-align:middle;margin-right:6px"></i>Vehicle Inspection</span>
+            <span>Score: <span class="chk-score-num" id="dCheckScore">—</span></span>
+          </div>
+          <form id="dCheckForm" style="padding:14px">
+            <div class="chk-wrap">
+              <table class="chk-table">
+                <thead><tr><th>ITEMS</th><th>OK</th><th>NOT OK</th><th>REMARKS</th></tr></thead>
+                <tbody id="dCheckList"></tbody>
+              </table>
+            </div>
+            <label style="margin-bottom:10px;display:block">Odometer (km, optional)
+              <input type="number" name="odo" min="0" placeholder="meter reading" inputmode="numeric" style="display:block;width:100%;margin-top:4px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem" />
             </label>
             <button type="submit" class="btn btn-primary btn-block"><i data-icon="clipboardCheck" data-icon-size="16"></i> Submit Daily Check</button>
           </form>
+        </div>
+      </section>
+
+      <!-- Trip Status -->
+      <section class="tab-panel" id="dtab-trip">
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Trip Status</h2><p class="muted">Tap each milestone as it happens — malik ko call nahi karna padega</p></div></div>
+          <div id="dTripPanel"></div>
+        </div>
+      </section>
+
+      <!-- Documents -->
+      <section class="tab-panel" id="dtab-docs">
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Vehicle Documents</h2><p class="muted">Traffic police ko dikhaane ke liye</p></div></div>
+          <div id="dDocsPanel"></div>
         </div>
       </section>
 

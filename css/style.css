@@ -1298,6 +1298,80 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .drv-check-row:has(input:not(:checked)) { background: #fdeaea; }
 .drv-status { text-align: center; font-weight: 700; margin: 14px 0; font-size: 0.9rem; }
 
+/* Driver — Inspection checklist table */
+.chk-score-bar { display:flex; justify-content:space-between; align-items:center; padding:9px 13px; background:var(--navy); color:#fff; border-radius:10px 10px 0 0; font-size:0.85rem; font-weight:600; margin-bottom:0; }
+.chk-score-num { font-size:1.15rem; font-weight:800; color:#6bde6b; }
+.chk-wrap { overflow-x:auto; border:1px solid var(--border); border-top:none; border-radius:0 0 10px 10px; margin-bottom:14px; }
+.chk-table { width:100%; border-collapse:collapse; font-size:0.8rem; }
+.chk-table thead th { background:var(--surface,#f4f6f9); color:var(--muted,#8a94a6); padding:6px 4px; text-align:center; font-size:0.67rem; letter-spacing:0.07em; font-weight:700; border-bottom:1px solid var(--border); }
+.chk-table thead th:first-child { text-align:left; padding-left:10px; min-width:130px; }
+.chk-table tbody tr { border-bottom:1px solid var(--border); transition:background 0.15s; }
+.chk-table tbody tr:last-child { border-bottom:none; }
+.chk-table tbody tr.row-notok { background:#fef2f2; }
+.chk-item-cell { padding:8px 5px 8px 10px; }
+.chk-item-inner { display:flex; align-items:center; gap:7px; color:var(--navy); font-weight:500; }
+.chk-item-inner i { color:var(--amber,#f6a609); flex:none; }
+.chk-radio-cell { text-align:center; padding:8px 3px; }
+.chk-radio { width:17px; height:17px; cursor:pointer; }
+.chk-ok-radio { accent-color:#0ca30c; }
+.chk-notok-radio { accent-color:#e53e3e; }
+.chk-rem-cell { padding:5px 8px 5px 4px; }
+.chk-rem-input { width:100%; min-width:65px; border:1px solid var(--border); border-radius:7px; padding:4px 6px; font-size:0.75rem; font-family:inherit; background:var(--surface,#fff); color:var(--navy); }
+
+/* Driver — Trip Status milestones */
+.trip-section { margin-bottom:14px; }
+.trip-section-label { font-size:0.68rem; font-weight:700; letter-spacing:0.08em; color:var(--muted,#8a94a6); text-transform:uppercase; margin:0 2px 5px; }
+.trip-milestone { display:flex; align-items:center; gap:8px; padding:9px 11px; border-radius:10px; background:#f7f9fc; margin-bottom:4px; }
+.trip-milestone.ms-yes { background:#e7faea; }
+.trip-milestone.ms-no { background:#fef2f2; }
+.trip-ms-num { width:22px; height:22px; border-radius:50%; background:var(--navy); color:#fff; font-size:0.7rem; font-weight:800; display:flex; align-items:center; justify-content:center; flex:none; }
+.trip-ms-text { flex:1; font-size:0.85rem; font-weight:500; color:var(--navy); line-height:1.3; }
+.trip-ms-time { font-size:0.72rem; color:#0ca30c; font-weight:600; white-space:nowrap; }
+.trip-ms-time.no { color:#e53e3e; }
+.trip-btns { display:flex; gap:5px; flex:none; }
+.trip-btn { padding:4px 11px; border-radius:8px; border:none; cursor:pointer; font-size:0.8rem; font-weight:700; }
+.trip-btn-y { background:#0ca30c; color:#fff; }
+.trip-btn-n { background:#e53e3e; color:#fff; }
+.trip-btn:disabled { opacity:0.4; cursor:not-allowed; }
+.trip-time-row { padding:8px 11px; background:#f7f9fc; border-radius:10px; margin-bottom:4px; font-size:0.85rem; color:var(--navy); }
+.trip-time-row label { display:flex; align-items:center; gap:8px; font-weight:500; }
+.trip-time-row input { border:1px solid var(--border); border-radius:8px; padding:4px 9px; font-size:0.85rem; font-family:inherit; }
+
+/* Driver — Active Trip card */
+.trip-active-card { background:var(--navy); color:#fff; border-radius:12px; padding:13px 14px; margin-bottom:14px; }
+.trip-active-veh { display:flex; align-items:center; gap:8px; font-size:1.05rem; font-weight:800; letter-spacing:0.04em; margin-bottom:10px; }
+.trip-route-row { display:flex; align-items:center; gap:6px; font-size:0.88rem; margin-bottom:10px; color:#c7d8ef; }
+.trip-route-row[hidden] { display:none !important; }
+.trip-route-from,.trip-route-to { font-weight:600; color:#fff; }
+.trip-route-inputs { display:flex; align-items:center; gap:6px; margin-bottom:10px; }
+.trip-route-input { flex:1; border:1px solid rgba(255,255,255,0.25); background:rgba(255,255,255,0.1); border-radius:8px; padding:5px 9px; font-size:0.8rem; color:#fff; font-family:inherit; min-width:0; }
+.trip-route-input::placeholder { color:rgba(255,255,255,0.5); }
+.trip-quick-btns { display:flex; gap:6px; flex-wrap:wrap; }
+.trip-quick-btn { flex:1; min-width:80px; padding:7px 8px; border-radius:9px; border:none; cursor:pointer; font-size:0.76rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:5px; }
+.trip-quick-btn.sos { background:#e53e3e; color:#fff; }
+.trip-quick-btn.fuel { background:rgba(255,255,255,0.15); color:#fff; }
+.trip-quick-btn.check { background:rgba(255,255,255,0.15); color:#fff; }
+.trip-quick-btn.location { background:rgba(255,255,255,0.15); color:#fff; }
+.trip-quick-btn.location.active { background:#0ca30c; color:#fff; }
+
+/* Driver — Location tracking status */
+.loc-status { font-size:0.74rem; text-align:center; padding:6px 10px; border-radius:8px; margin-bottom:10px; font-weight:600; }
+.loc-status.tracking { background:#e7faea; color:#0ca30c; }
+.loc-status.off { background:#f7f9fc; color:var(--muted,#8a94a6); }
+
+/* Driver — Documents */
+.doc-card { border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-bottom:10px; }
+.doc-card-head { background:var(--navy); color:#fff; padding:9px 13px; font-size:0.82rem; font-weight:700; display:flex; align-items:center; gap:8px; }
+.doc-row { display:flex; justify-content:space-between; align-items:center; padding:8px 13px; border-bottom:1px solid var(--border); gap:8px; }
+.doc-row:last-child { border-bottom:none; }
+.doc-row-label { font-size:0.74rem; color:var(--muted,#8a94a6); flex:none; }
+.doc-row-val { font-weight:600; color:var(--navy); font-size:0.83rem; text-align:right; word-break:break-all; }
+.doc-badge { font-size:0.66rem; padding:2px 7px; border-radius:20px; font-weight:700; white-space:nowrap; }
+.doc-badge.ok { background:#e7faea; color:#0ca30c; }
+.doc-badge.warn { background:#fef9e7; color:#d97706; }
+.doc-badge.exp { background:#fef2f2; color:#e53e3e; }
+.doc-empty { text-align:center; padding:26px 16px; color:var(--muted,#8a94a6); font-size:0.84rem; }
+
 /* ---------- Breakdown SOS ---------- */
 .sos-btn {
   background: #d03b3b; color: #fff; border: none; font-weight: 800;
