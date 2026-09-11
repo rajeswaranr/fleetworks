@@ -1647,50 +1647,131 @@
 
       <!-- ======= TYRE HEALTH ======= -->
       <section class="tab-panel" id="tab-tyres">
+
+        <!-- Tyre Manager header + vehicle selector -->
         <div class="chart-card">
           <div class="chart-head">
             <div>
-              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="tire" data-icon-size="22"></i></span> Tyre Health</h2>
-              <p class="muted">Log tread depth and pressure per wheel position. Worn tyres (below the safe limit) and under-inflation are flagged automatically — better mileage, fewer blowouts.</p>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="tire" data-icon-size="22"></i></span> Tyre Manager</h2>
+              <p class="muted">Per-axle tread depth, wear rate, projected km, and retread planning — fleet-wide.</p>
             </div>
-            <div>
-              <label class="inline-select">Vehicle
-                <select id="tyreVehicleFilter"></select>
-              </label>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <label class="inline-select">Vehicle <select id="tyreVehicleFilter"></select></label>
+              <button class="btn btn-primary btn-sm" onclick="openAddTyreModal()"><i data-icon="plus" data-icon-size="14"></i> Add Tyre</button>
+              <button class="btn btn-outline btn-sm" onclick="openLogReadingCard()"><i data-icon="edit" data-icon-size="14"></i> Log Reading</button>
             </div>
           </div>
-          <div id="tyreLayout"></div>
+          <!-- Fleet summary chips -->
+          <div id="tyreSummaryBar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px"></div>
         </div>
+
+        <!-- Axle diagram -->
+        <div class="chart-card" style="padding:0;overflow:hidden">
+          <div class="chart-head" style="padding:14px 18px 0">
+            <div><h2 id="tyreAxleTitle">Axle View</h2><p class="muted" id="tyreAxleSub"></p></div>
+          </div>
+          <div id="tyreAxleDiagram" style="padding:14px 18px 18px;overflow-x:auto"></div>
+        </div>
+
+        <!-- Retread plan (hidden when nothing to show) -->
+        <div class="chart-card" id="tyreRetreadCard" hidden>
+          <div class="chart-head"><div><h2>Retread Plan</h2><p class="muted">Candidates approaching minimum tread — retread saves ≈40–50% vs new tyre cost</p></div></div>
+          <div id="tyreRetreadList"></div>
+        </div>
+
+        <!-- Tyre inventory -->
         <div class="chart-card">
-          <div class="chart-head"><div><h2>Log a Tyre Reading</h2></div></div>
+          <div class="chart-head">
+            <div><h2>Tyre Inventory</h2><p class="muted">All tyres — fitted, in stock, and scrapped</p></div>
+          </div>
+          <div class="chart-scroll" id="tyreInventoryTable"><p class="muted">Loading…</p></div>
+        </div>
+
+        <!-- Log reading form (collapsible) -->
+        <div class="chart-card" id="tyreLogCard" hidden>
+          <div class="chart-head"><div><h2>Log Tyre Reading</h2></div><button class="link-btn" onclick="document.getElementById('tyreLogCard').hidden=true">✕</button></div>
           <form id="tyreForm" class="entry-form">
             <div class="form-row">
-              <label>Vehicle
-                <select name="vehicleId" id="tyreFormVehicle" required></select>
-              </label>
-              <label>Wheel Position
-                <select name="position" id="tyrePosition" required></select>
-              </label>
+              <label>Vehicle <select name="vehicleId" id="tyreFormVehicle" required></select></label>
+              <label>Position <select name="position" id="tyrePosition" required></select></label>
             </div>
             <div class="form-row">
-              <label>Tread Depth (mm)
-                <input type="number" name="treadDepth" min="0" max="30" step="0.1" placeholder="e.g. 8.5" required />
-              </label>
-              <label>Pressure (psi)
-                <input type="number" name="pressure" min="0" max="160" placeholder="e.g. 100" />
-              </label>
+              <label>Tread Depth (mm) <input type="number" name="treadDepth" min="0" max="30" step="0.1" placeholder="e.g. 8.5" required /></label>
+              <label>Pressure (psi) <input type="number" name="pressure" min="0" max="160" placeholder="e.g. 100" /></label>
             </div>
             <div class="form-row">
-              <label>Odometer (km)
-                <input type="number" name="odo" min="0" placeholder="current km" />
-              </label>
-              <label>Reading Date
-                <input type="date" name="date" required />
-              </label>
+              <label>Odometer (km) <input type="number" name="odo" min="0" placeholder="current km" /></label>
+              <label>Reading Date <input type="date" name="date" required /></label>
             </div>
             <button type="submit" class="btn btn-primary"><i data-icon="plus" data-icon-size="16"></i> Save Reading</button>
           </form>
         </div>
+
+        <!-- Add Tyre Modal -->
+        <div id="addTyreModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto">
+          <div class="chart-card" style="max-width:540px;width:100%;margin:auto">
+            <div class="chart-head"><div><h2>Add Tyre to Inventory</h2></div><button class="link-btn" onclick="closeAddTyreModal()">✕</button></div>
+            <form id="addTyreForm" class="entry-form">
+              <div class="form-row">
+                <label>Brand <input type="text" name="brand" placeholder="MRF, Apollo, CEAT…" /></label>
+                <label>Size <input type="text" name="size" placeholder="10.00R20 / 295/80R22.5" /></label>
+              </div>
+              <div class="form-row">
+                <label>Serial No. <input type="text" name="serial_no" placeholder="Optional tag/serial" /></label>
+                <label>Type <select name="tyre_type"><option value="radial">Radial</option><option value="bias">Bias</option></select></label>
+              </div>
+              <div class="form-row">
+                <label>New Tread (mm) <input type="number" name="new_tread_mm" value="14" min="8" max="25" step="0.5" /></label>
+                <label>Purchase Cost (₹) <input type="number" name="purchase_cost" min="0" placeholder="e.g. 18000" inputmode="numeric" /></label>
+              </div>
+              <div class="form-row">
+                <label>Purchase Date <input type="date" name="purchase_date" /></label>
+                <label>Odometer at Purchase (km) <input type="number" name="purchase_odo" min="0" placeholder="0" inputmode="numeric" /></label>
+              </div>
+              <label>Fit to Vehicle now? <select id="addTyreFitVehicle"><option value="">Not yet — add to stock</option></select></label>
+              <div id="addTyreFitPosition" hidden>
+                <label>Position <select id="addTyrePosSelect"></select></label>
+                <label>Current Tread (mm) <input type="number" id="addTyreFitTread" min="0" max="25" step="0.5" placeholder="same as new tread" /></label>
+              </div>
+              <p class="field-error" id="addTyreErr" hidden></p>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="submit" class="btn btn-primary">Save Tyre</button>
+                <button type="button" class="btn btn-outline" onclick="closeAddTyreModal()">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Fit Tyre Modal -->
+        <div id="fitTyreModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:center;justify-content:center;padding:16px">
+          <div class="chart-card" style="max-width:440px;width:100%">
+            <div class="chart-head"><div><h2 id="fitTyreTitle">Fit Tyre</h2><p class="muted" id="fitTyreSub"></p></div><button class="link-btn" onclick="closeFitTyreModal()">✕</button></div>
+            <form id="fitTyreForm" class="entry-form">
+              <label>Select Tyre from Inventory <select id="fitTyreSelect" required></select></label>
+              <div class="form-row">
+                <label>Odometer (km) <input type="number" id="fitTyreOdo" min="0" inputmode="numeric" /></label>
+                <label>Current Tread (mm) <input type="number" id="fitTyreTread" min="0" max="25" step="0.5" /></label>
+              </div>
+              <button type="submit" class="btn btn-primary">Fit Tyre</button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Retread Modal -->
+        <div id="retreadModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:center;justify-content:center;padding:16px">
+          <div class="chart-card" style="max-width:440px;width:100%">
+            <div class="chart-head"><div><h2>Send for Retread</h2><p class="muted" id="retreadModalSub"></p></div><button class="link-btn" onclick="closeRetreadModal()">✕</button></div>
+            <form id="retreadForm" class="entry-form">
+              <div class="form-row">
+                <label>Retread Cost (₹) <input type="number" id="retreadCost" min="0" inputmode="numeric" required /></label>
+                <label>Odometer (km) <input type="number" id="retreadOdo" min="0" inputmode="numeric" /></label>
+              </div>
+              <label>Retread Date <input type="date" id="retreadDate" required /></label>
+              <button type="submit" class="btn btn-primary">Log Retread</button>
+            </form>
+          </div>
+        </div>
+
       </section>
 
       <!-- ======= TEAM & ACCESS (supervisors / drivers) ======= -->

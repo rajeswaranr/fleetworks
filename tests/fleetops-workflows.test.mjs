@@ -409,7 +409,8 @@ test('FleetOps workflow pages save test data through the business DB layer and r
   await expectUiText(page, '#radarTable', /Insurance|Engine Oil|Annotation Air Filter/);
 
   await activate(page, 'tyres');
-  await revealEntryForm(page, 'tyres', '#tyreForm');
+  await page.evaluate(() => openLogReadingCard());
+  await page.waitForSelector('#tyreLogCard:not([hidden])');
   await page.selectOption('#tyreFormVehicle', vehicleId);
   await page.selectOption('#tyrePosition', { label: 'Front Left' });
   await page.fill('#tyreForm [name="treadDepth"]', '1.2');
@@ -418,7 +419,7 @@ test('FleetOps workflow pages save test data through the business DB layer and r
   await page.fill('#tyreForm [name="date"]', '2026-08-03');
   await submitForm(page, '#tyreForm');
   await waitForDbCount(page, 'tyre_readings', 1);
-  await expectUiText(page, '#tyreLayout', /Front Left/);
+  await expectUiText(page, '#tyreAxleDiagram', /Front Left/);
 
   await activate(page, 'servicereq');
   await page.selectOption('#svcVehicle', vehicleId);

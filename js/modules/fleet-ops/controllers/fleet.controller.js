@@ -3385,7 +3385,7 @@ async function deleteDocument(id) {
   saveStore(); renderDocuments(); renderRadar(); renderOverview();
 }
 
-// ---------- Render: Tyre Health ----------
+// ---------- Render: Tyre Manager ----------
 function latestReadings(vid) {
   if (window.FWFleetOps && FWFleetOps.latestReadings) return FWFleetOps.latestReadings(vid);
   const map = {};
@@ -3394,26 +3394,244 @@ function latestReadings(vid) {
     .forEach(t => { map[t.position] = t; });
   return map;
 }
-function renderTyres() {
-  const sel = document.getElementById("tyreVehicleFilter");
-  const vid = sel.value || (db.vehicles[0] && db.vehicles[0].id);
-  const box = document.getElementById("tyreLayout");
-  if (!vid) { box.innerHTML = "<p class='muted'>Add a vehicle first.</p>"; return; }
-  const positions = tyrePositions(vid);
-  const latest = latestReadings(vid);
-  const worn = positions.filter(p => latest[p] && latest[p].treadDepth <= minTread()).length;
-  const cards = positions.map(pos => {
-    const r = latest[pos];
-    const cls = !r ? "empty" : r.treadDepth <= minTread() ? "bad" : r.treadDepth <= minTread() + 1.5 ? "warn" : "good";
-    return `<div class="tyre-cell ${cls}" ${r ? `style="cursor:pointer" onclick="openEditTyreReading('${r.id}')" title="Edit this reading"` : ""}>
-      <span class="tyre-pos">${FWIcon("tire", { size: 16 })} ${esc(pos)}</span>
-      ${r ? `<span class="tyre-read">${r.treadDepth}mm${r.pressure ? " · " + r.pressure + " psi" : ""}</span>
-             <span class="tyre-date">${fmtDate(r.date)}</span>` : `<span class="tyre-read muted">No reading</span>`}
+
+let _tyreData = { tyres: [], fitments: [], viewRows: [] };
+let _retreadTyreId = null;
+
+async function loadTyreManager() {
+  if (!window.fwCloud || !fwCloud.user()) { renderTyres(); return; }
+  const sb = fwCloud.sb();
+  try {
+    const [r1, r2, r3] = await Promise.all([
+      sb.from("tyres").select("*").order("status").order("created_at"),
+      sb.from("tyre_fitments").select("*,tyres(brand,size,serial_no,retread_count,new_tread_mm)").eq("is_current", true),
+      sb.from("v_tyre_manager").select("*")
+    ]);
+    _tyreData = { tyres: r1.data || [], fitments: r2.data || [], viewRows: r3.data || [] };
+  } catch(e) { _tyreData = { tyres: [], fitments: [], viewRows: [] }; }
+  renderTyres();
+}
+
+function _tyreWearCls(tread, min) {
+  if (tread <= min) return "bad";
+  if (tread <= min + 1.5) return "warn";
+  return "good";
+}
+
+function _projectedKm(tread, wearPer1000, min) {
+  if (!wearPer1000 || wearPer1000 <= 0) return null;
+  return Math.round((tread - min) / wearPer1000 * 1000);
+}
+
+function renderTyreAxleBlock(vid, positions, localReadings) {
+  const axles = {};
+  positions.forEach(pos => {
+    let a = "Front Axle";
+    if (/Rear-2/i.test(pos)) a = "Rear Axle 2";
+    else if (/Rear-1/i.test(pos)) a = "Rear Axle 1";
+    else if (/Rear/i.test(pos)) a = "Rear Axle";
+    (axles[a] = axles[a] || []).push(pos);
+  });
+  const min = minTread();
+  return Object.entries(axles).map(([axleName, axlePositions]) => {
+    const left = [...axlePositions].filter(p => /Left/i.test(p)).reverse();
+    const right = axlePositions.filter(p => /Right/i.test(p));
+    const cell = pos => {
+      const lr = localReadings[pos];
+      const vr = _tyreData.viewRows.find(v => v.vehicle_id === vid && v.position === pos);
+      const fit = _tyreData.fitments.find(f => f.vehicle_id === vid && f.position === pos);
+      const tyre = fit ? (fit.tyres || _tyreData.tyres.find(t => t.id === fit.tyre_id)) : null;
+      const tread = vr?.tread_latest ?? lr?.treadDepth ?? null;
+      const wr = vr?.wear_rate_mm_per_1000km ?? null;
+      const proj = tread != null ? _projectedKm(tread, wr, min) : null;
+      const cls = tread != null ? _tyreWearCls(tread, min) : "empty";
+      const lbl = pos.replace(/^(Front|Rear-?\d?)\s*/i,"").replace("Outer","O").replace("Inner","I").trim()||pos;
+      const brandLine = tyre ? `<span style="font-size:.68rem;opacity:.65;display:block">${esc(tyre.brand||"")} ${esc(tyre.size||"")}</span>` : "";
+      const projLine = proj != null
+        ? `<span class="tyre-proj">${proj > 0 ? proj.toLocaleString("en-IN")+"km" : "⚠ Replace"}</span>` : "";
+      const editBtn = lr ? ` onclick="openEditTyreReading('${lr.id}')" title="Edit reading" style="cursor:pointer"` : "";
+      const fitBtn = !fit ? `<button class="link-btn" style="font-size:.66rem;color:var(--brand);display:block;margin-top:2px" onclick="openFitTyreModal('${vid}','${esc(pos)}','')">+ Fit</button>` : "";
+      return `<div class="tyre-cell ${cls}"${editBtn}>
+        <span class="tyre-pos">${lbl}</span>
+        ${tread != null ? `<span class="tyre-read">${tread}mm${lr?.pressure ? " · "+lr.pressure+"psi" : ""}</span>` : `<span class="tyre-read muted">—</span>`}
+        ${brandLine}${projLine}${fitBtn}
+      </div>`;
+    };
+    return `<div class="tyre-axle-row">
+      <span class="tyre-axle-label">${axleName}</span>
+      <div class="tyre-side tyre-side-left">${left.map(cell).join("")}</div>
+      <div class="tyre-axle-beam"></div>
+      <div class="tyre-side tyre-side-right">${right.map(cell).join("")}</div>
     </div>`;
   }).join("");
-  box.innerHTML = `
-    <div class="tyre-summary">${worn ? `<span class="fw-badge overdue">${FWIcon("alert", { size: 13 })}${worn} tyre(s) at/under ${minTread()}mm — replace</span>` : `<span class="fw-badge ok">${FWIcon("shieldCheck", { size: 13 })}All tyres above the ${minTread()}mm safe limit</span>`} <span class="muted">Safe limit is set in Settings. Click a tyre with a reading to edit it.</span></div>
-    <div class="tyre-grid">${cards}</div>`;
+}
+
+function renderTyres() {
+  const sel = document.getElementById("tyreVehicleFilter");
+  const vid = sel?.value || (db.vehicles[0]?.id);
+  const diagramBox = document.getElementById("tyreAxleDiagram");
+  const titleEl = document.getElementById("tyreAxleTitle");
+  const subEl = document.getElementById("tyreAxleSub");
+  const summaryBar = document.getElementById("tyreSummaryBar");
+  const inventoryBox = document.getElementById("tyreInventoryTable");
+  const retreadCard = document.getElementById("tyreRetreadCard");
+  const retreadList = document.getElementById("tyreRetreadList");
+
+  if (!vid) {
+    if (diagramBox) diagramBox.innerHTML = "<p class='muted'>Add a vehicle first.</p>";
+    return;
+  }
+  const vehicle = db.vehicles.find(v => v.id === vid);
+  if (titleEl) titleEl.textContent = (vehicle?.name || "Vehicle") + " — Axle View";
+  if (subEl) subEl.textContent = [vehicle?.type, vehicle?.regNo].filter(Boolean).join(" · ");
+
+  const positions = tyrePositions(vid);
+  const localReadings = latestReadings(vid);
+  const min = minTread();
+
+  // Summary chips
+  if (summaryBar) {
+    const worn = positions.filter(p => {
+      const t = _tyreData.viewRows.find(v => v.vehicle_id === vid && v.position === p)?.tread_latest ?? localReadings[p]?.treadDepth;
+      return t != null && t <= min;
+    }).length;
+    const warn = positions.filter(p => {
+      const t = _tyreData.viewRows.find(v => v.vehicle_id === vid && v.position === p)?.tread_latest ?? localReadings[p]?.treadDepth;
+      return t != null && t > min && t <= min + 1.5;
+    }).length;
+    const fitted = _tyreData.fitments.filter(f => f.vehicle_id === vid).length;
+    summaryBar.innerHTML = [
+      worn  ? `<span class="fw-badge overdue">${FWIcon("alert",{size:13})} ${worn} worn</span>` : "",
+      warn  ? `<span class="fw-badge warn">${FWIcon("alert",{size:13})} ${warn} warning</span>` : "",
+      !worn && !warn ? `<span class="fw-badge ok">${FWIcon("shieldCheck",{size:13})} All tyres OK</span>` : "",
+      fitted ? `<span class="fw-badge neutral">${fitted}/${positions.length} positions tracked</span>` : ""
+    ].filter(Boolean).join("");
+  }
+
+  // Axle diagram
+  if (diagramBox) diagramBox.innerHTML = renderTyreAxleBlock(vid, positions, localReadings);
+
+  // Retread candidates (Supabase mode)
+  const candidates = _tyreData.tyres.filter(t => {
+    if ((t.retread_count || 0) >= 3) return false;
+    const f = _tyreData.fitments.find(f => f.tyre_id === t.id && f.vehicle_id === vid);
+    if (!f) return false;
+    const tread = _tyreData.viewRows.find(v => v.vehicle_id === vid && v.position === f.position)?.tread_latest ?? f.fitted_tread;
+    return tread != null && tread < 3 && tread > min;
+  });
+  if (retreadCard) retreadCard.hidden = candidates.length === 0;
+  if (retreadList) retreadList.innerHTML = candidates.map(t => {
+    const f = _tyreData.fitments.find(f => f.tyre_id === t.id && f.vehicle_id === vid);
+    const tread = _tyreData.viewRows.find(v => v.vehicle_id === vid && v.position === f?.position)?.tread_latest ?? "?";
+    return `<div class="trip-req-row">
+      <div class="trip-req-icon">${FWIcon("tire",{size:20})}</div>
+      <div class="trip-req-body"><strong>${esc(t.brand||"Unknown")} ${esc(t.size||"")} · ${esc(f?.position||"")}</strong>
+        <span class="muted">Tread: ${tread}mm · Retread #${(t.retread_count||0)+1}</span></div>
+      <button class="btn btn-primary btn-sm" onclick="openRetreadModal('${t.id}','${esc((t.brand||"")+" "+(t.size||""))}')">Send for Retread</button>
+    </div>`;
+  }).join("");
+
+  // Inventory table
+  if (inventoryBox) {
+    if (_tyreData.tyres.length === 0) {
+      // local/demo fallback — show positions with readings
+      const rows = positions.map(pos => {
+        const r = localReadings[pos];
+        const tread = r?.treadDepth;
+        const cls = tread == null ? "neutral" : _tyreWearCls(tread, min);
+        const badge = {bad:"overdue",warn:"warn",good:"ok",neutral:"neutral"}[cls];
+        return `<tr>
+          <td>${esc(pos)}</td><td>${tread != null ? tread+" mm" : "—"}</td>
+          <td>${r?.pressure ? r.pressure+" psi" : "—"}</td>
+          <td><span class="fw-badge ${badge}">${tread == null ? "No reading" : cls === "bad" ? "Replace" : cls === "warn" ? "Warning" : "OK"}</span></td>
+          <td>—</td><td>—</td>
+        </tr>`;
+      }).join("");
+      inventoryBox.innerHTML = `<table class="data-table"><thead><tr><th>Position</th><th>Tread</th><th>Pressure</th><th>Status</th><th>Wear Rate</th><th>Proj. km</th></tr></thead><tbody>${rows||"<tr><td colspan='6' class='muted' style='padding:12px'>Log a tyre reading to get started.</td></tr>"}</tbody></table>`;
+    } else {
+      const rows = _tyreData.tyres.map(t => {
+        const f = _tyreData.fitments.find(f => f.tyre_id === t.id);
+        const vr = f ? _tyreData.viewRows.find(v => v.position === f.position && v.vehicle_id === f.vehicle_id) : null;
+        const tread = vr?.tread_latest ?? f?.fitted_tread;
+        const wr = vr?.wear_rate_mm_per_1000km;
+        const proj = (tread != null && wr) ? _projectedKm(tread, wr, min) : null;
+        const stCls = {fitted:"ok",stock:"neutral",retread_pending:"warn",scrapped:"overdue"}[t.status]||"neutral";
+        return `<tr>
+          <td>${esc(t.serial_no||"—")}</td>
+          <td>${esc(t.brand||"—")} <span class="muted">${esc(t.size||"")}</span></td>
+          <td><span class="fw-badge ${stCls}">${t.status}</span></td>
+          <td>${f ? esc(f.position||"") : "—"}</td>
+          <td>${tread != null ? tread+" mm" : "—"}</td>
+          <td>${wr ? wr+" mm/1000km" : "—"}</td>
+          <td>${proj != null ? proj.toLocaleString("en-IN")+" km" : "—"}</td>
+          <td>${t.retread_count||0}</td>
+          <td style="white-space:nowrap;display:flex;gap:4px;padding:8px 4px">
+            ${t.status==="stock" ? `<button class="btn btn-outline btn-sm" onclick="openFitTyreModal('${vid}','','${t.id}')">Fit</button>` : ""}
+            ${t.status==="fitted"&&tread!=null&&tread<3&&tread>min&&(t.retread_count||0)<3 ? `<button class="btn btn-primary btn-sm" onclick="openRetreadModal('${t.id}','${esc((t.brand||"")+" "+(t.size||""))}')">Retread</button>` : ""}
+          </td>
+        </tr>`;
+      }).join("");
+      inventoryBox.innerHTML = `<div style="overflow-x:auto"><table class="data-table"><thead><tr><th>Serial</th><th>Brand / Size</th><th>Status</th><th>Position</th><th>Tread</th><th>Wear Rate</th><th>Proj. km</th><th>Retreads</th><th></th></tr></thead><tbody>${rows||"<tr><td colspan='9' class='muted' style='padding:12px'>No tyres in inventory — click Add Tyre</td></tr>"}</tbody></table></div>`;
+    }
+  }
+}
+
+// ---- Tyre Manager modal helpers ----
+function openLogReadingCard() {
+  const c = document.getElementById("tyreLogCard");
+  if (!c) return;
+  c.hidden = false;
+  c.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  const vf = document.getElementById("tyreVehicleFilter");
+  const vr = document.getElementById("tyreFormVehicle");
+  if (vf?.value && vr) { vr.value = vf.value; fillTyrePositions(); }
+}
+
+function openAddTyreModal() {
+  const m = document.getElementById("addTyreModal");
+  if (!m) return;
+  m.style.display = "flex";
+  const vs = document.getElementById("addTyreFitVehicle");
+  if (vs) {
+    vs.innerHTML = '<option value="">Not yet — add to stock</option>' +
+      db.vehicles.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
+  }
+}
+function closeAddTyreModal() {
+  const m = document.getElementById("addTyreModal");
+  if (m) { m.style.display = "none"; document.getElementById("addTyreForm")?.reset(); }
+  const e = document.getElementById("addTyreErr"); if (e) e.hidden = true;
+}
+
+function openFitTyreModal(vid, position, tyreId) {
+  const m = document.getElementById("fitTyreModal");
+  if (!m) return;
+  m.style.display = "flex";
+  document.getElementById("fitTyreTitle").textContent = position ? "Fit Tyre to " + position : "Fit Tyre";
+  const v = db.vehicles.find(x => x.id === vid);
+  document.getElementById("fitTyreSub").textContent = v ? v.name : "";
+  const sel = document.getElementById("fitTyreSelect");
+  const stock = _tyreData.tyres.filter(t => t.status === "stock");
+  sel.innerHTML = stock.length
+    ? stock.map(t => `<option value="${t.id}" ${t.id===tyreId?"selected":""}>${esc(t.brand||"")} ${esc(t.size||"")} ${t.serial_no?"· "+t.serial_no:""} (${t.retread_count||0} retreads)</option>`).join("")
+    : "<option value=''>No tyres in stock — Add Tyre first</option>";
+  const f = document.getElementById("fitTyreForm");
+  f.dataset.vid = vid; f.dataset.position = position || "";
+}
+function closeFitTyreModal() {
+  const m = document.getElementById("fitTyreModal"); if (m) m.style.display = "none";
+}
+
+function openRetreadModal(tyreId, label) {
+  const m = document.getElementById("retreadModal");
+  if (!m) return;
+  _retreadTyreId = tyreId;
+  document.getElementById("retreadModalSub").textContent = label;
+  document.getElementById("retreadDate").value = new Date().toISOString().slice(0,10);
+  m.style.display = "flex";
+}
+function closeRetreadModal() {
+  const m = document.getElementById("retreadModal"); if (m) m.style.display = "none";
 }
 function openEditTyreReading(id) {
   const t = db.tyreReadings.find(x => x.id === id);
@@ -4588,9 +4806,18 @@ document.getElementById("documentForm").addEventListener("submit", async e => {
   toast("Document saved.");
 });
 
-// ---- Tyre Health ----
-document.getElementById("tyreVehicleFilter").addEventListener("change", renderTyres);
+// ---- Tyre Manager ----
+document.getElementById("tyreVehicleFilter").addEventListener("change", () => loadTyreManager());
 document.getElementById("tyreFormVehicle").addEventListener("change", fillTyrePositions);
+document.getElementById("addTyreFitVehicle")?.addEventListener("change", e => {
+  const vid = e.target.value;
+  const posBox = document.getElementById("addTyreFitPosition");
+  const posSel = document.getElementById("addTyrePosSelect");
+  if (!posBox || !posSel) return;
+  posBox.hidden = !vid;
+  if (vid) posSel.innerHTML = tyrePositions(vid).map(p => `<option>${p}</option>`).join("");
+});
+
 document.getElementById("tyreForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
@@ -4612,9 +4839,78 @@ document.getElementById("tyreForm").addEventListener("submit", async e => {
   }
   saveStore(); e.target.reset();
   document.getElementById("tyreVehicleFilter").value = fd.vehicleId;
-  renderTyres(); renderOverview();
+  loadTyreManager(); renderOverview();
   refreshCrossCutting();
+  document.getElementById("tyreLogCard").hidden = true;
   toast("Tyre reading saved.");
+});
+
+document.getElementById("addTyreForm")?.addEventListener("submit", async e => {
+  e.preventDefault();
+  const errEl = document.getElementById("addTyreErr");
+  if (!window.fwCloud || !fwCloud.user()) { errEl.textContent = "Sign in to manage tyre inventory."; errEl.hidden = false; return; }
+  const sb = fwCloud.sb();
+  const fd = Object.fromEntries(new FormData(e.target));
+  const org_id = fwCloud.user().id;
+  const { data: tyre, error } = await sb.from("tyres").insert({
+    org_id, serial_no: fd.serial_no||null, brand: fd.brand||null, size: fd.size||null,
+    tyre_type: fd.tyre_type, new_tread_mm: +fd.new_tread_mm||14,
+    purchase_cost: fd.purchase_cost ? +fd.purchase_cost : null,
+    purchase_date: fd.purchase_date||null, purchase_odo: fd.purchase_odo ? +fd.purchase_odo : null,
+    status: "stock"
+  }).select().single();
+  if (error) { errEl.textContent = error.message; errEl.hidden = false; return; }
+  const fitVehicleId = document.getElementById("addTyreFitVehicle")?.value;
+  if (fitVehicleId) {
+    const fitTread = document.getElementById("addTyreFitTread")?.value;
+    await sb.from("tyre_fitments").insert({
+      org_id, tyre_id: tyre.id, vehicle_id: fitVehicleId,
+      position: document.getElementById("addTyrePosSelect")?.value || "",
+      fitted_tread: fitTread ? +fitTread : (tyre.new_tread_mm || 14),
+      fitted_date: new Date().toISOString().slice(0,10), is_current: true
+    });
+    await sb.from("tyres").update({ status: "fitted" }).eq("id", tyre.id);
+  }
+  closeAddTyreModal(); loadTyreManager(); toast("Tyre added.");
+});
+
+document.getElementById("fitTyreForm")?.addEventListener("submit", async e => {
+  e.preventDefault();
+  if (!window.fwCloud || !fwCloud.user()) return;
+  const sb = fwCloud.sb();
+  const org_id = fwCloud.user().id;
+  const form = e.target;
+  const vid = form.dataset.vid; const pos = form.dataset.position;
+  const tyreId = document.getElementById("fitTyreSelect").value;
+  const odo = document.getElementById("fitTyreOdo").value;
+  const tread = document.getElementById("fitTyreTread").value;
+  if (!tyreId) { toast("Select a tyre.", "err"); return; }
+  await sb.from("tyre_fitments").insert({
+    org_id, tyre_id: tyreId, vehicle_id: vid, position: pos,
+    fitted_date: new Date().toISOString().slice(0,10),
+    fitted_odo: odo ? +odo : null, fitted_tread: tread ? +tread : null, is_current: true
+  });
+  await sb.from("tyres").update({ status: "fitted" }).eq("id", tyreId);
+  closeFitTyreModal(); loadTyreManager(); toast("Tyre fitted.");
+});
+
+document.getElementById("retreadForm")?.addEventListener("submit", async e => {
+  e.preventDefault();
+  if (!_retreadTyreId || !window.fwCloud || !fwCloud.user()) return;
+  const sb = fwCloud.sb();
+  const cost = +document.getElementById("retreadCost").value;
+  const odo = document.getElementById("retreadOdo").value;
+  const date = document.getElementById("retreadDate").value;
+  // Remove from current vehicle
+  await sb.from("tyre_fitments").update({ is_current: false, removed_date: date, removed_odo: odo ? +odo : null }).eq("tyre_id", _retreadTyreId).eq("is_current", true);
+  // Update tyre record
+  const tyre = _tyreData.tyres.find(t => t.id === _retreadTyreId);
+  await sb.from("tyres").update({
+    status: "retread_pending",
+    retread_count: (tyre?.retread_count || 0) + 1,
+    last_retread_date: date, last_retread_odo: odo ? +odo : null, last_retread_cost: cost
+  }).eq("id", _retreadTyreId);
+  closeRetreadModal(); loadTyreManager(); toast("Sent for retread.");
 });
 
 // ---- Settings ----
@@ -4715,6 +5011,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "sites")           { loadSites().then(() => { renderSites(); renderHubSites(); }); }
   if (tabName === "purchaseinvoices") renderPurchaseInvoices();
   if (tabName === "trips") { renderTrips(); loadActiveTripWorkflow(); }
+  if (tabName === "tyres") loadTyreManager();
   return true;
 }
 

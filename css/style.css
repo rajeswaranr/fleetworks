@@ -947,20 +947,31 @@ i[data-icon] { display: inline-flex; align-items: center; justify-content: cente
 .radar-chip:hover { border-color: var(--navy); color: var(--navy); }
 .radar-chip.active { background: var(--navy); border-color: var(--navy); color: #fff; }
 
-/* ---- Tyre Health grid ---- */
+/* ---- Tyre Manager ---- */
 .tyre-summary { margin: 4px 0 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .tyre-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
-.tyre-cell { border: 1.5px solid var(--line); border-radius: 12px; padding: 13px 15px;
-  display: flex; flex-direction: column; gap: 4px; background: #fff; border-left-width: 4px; }
+
+/* Axle diagram */
+.tyre-axle-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.tyre-axle-label { font-size: 0.75rem; font-weight: 700; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .05em; min-width: 80px; flex: none; }
+.tyre-side { display: flex; gap: 8px; flex-wrap: nowrap; }
+.tyre-side-left { flex-direction: row-reverse; }
+.tyre-axle-beam { flex: 1; height: 4px; min-width: 24px; background: var(--navy); border-radius: 2px; align-self: center; }
+
+.tyre-cell { border: 1.5px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 3px; background: var(--card,#fff); border-left-width: 4px;
+  min-width: 70px; max-width: 100px; }
 .tyre-cell.good  { border-left-color: var(--green); }
 .tyre-cell.warn  { border-left-color: var(--amber); }
 .tyre-cell.bad   { border-left-color: #dc2626; background: #fdf6f6; }
 .tyre-cell.empty { border-left-color: var(--line); background: var(--bg-alt); }
-.tyre-pos  { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 0.82rem; color: var(--navy); }
+.tyre-pos  { display: block; font-weight: 700; font-size: 0.72rem; color: var(--navy); }
 .tyre-pos .fw-ic { color: var(--muted); }
-.tyre-read { font-size: 0.9rem; font-weight: 700; color: var(--ink); }
+.tyre-read { font-size: 0.82rem; font-weight: 700; color: var(--ink); }
 .tyre-read.muted { font-weight: 500; }
-.tyre-date { font-size: 0.74rem; color: var(--muted); }
+.tyre-date { font-size: 0.7rem; color: var(--muted); }
+.tyre-proj { font-size: 0.68rem; color: var(--muted); display: block; margin-top: 1px; }
 
 /* ---- Settings ---- */
 .settings-actions { display: flex; gap: 12px; flex-wrap: wrap; }

@@ -77,6 +77,9 @@
         <div class="hero-cta">
           <button class="btn btn-primary" onclick="openBooking()"><i data-icon="wrench" data-icon-size="16"></i> Book a Service</button>
           <a href="fleet.html?auth=signup#account" class="btn btn-outline btn-light-outline"><i data-icon="gauge" data-icon-size="16"></i> Start 15-Day Free Trial</a>
+          <button class="btn btn-watch-demo" onclick="openDemoModal()">
+            <span class="wd-play"></span> Watch Demo
+          </button>
         </div>
         <div class="hero-stats">
           <div><strong>50,000+</strong><span>Vehicles Serviced</span></div>
@@ -201,6 +204,198 @@
       </div>
     </div>
   </section>
+
+  <!-- ======= PRODUCT DEMO ======= -->
+  <section class="section demo-section" id="demo">
+    <div class="container">
+      <div class="section-head" style="margin-bottom:40px">
+        <p class="demo-eyebrow">See it in action</p>
+        <h2>The platform India's fleet owners run on.</h2>
+        <p>From compliance radar to AI bill checking — everything your trucks need, in one screen.</p>
+      </div>
+
+      <!-- Tab switcher -->
+      <div class="demo-tabs">
+        <button class="demo-tab active" data-panel="ops">Fleet Ops</button>
+        <button class="demo-tab" data-panel="fin">Fleet Fin</button>
+        <button class="demo-tab" data-panel="ai">AI Foresight</button>
+        <button class="demo-tab" data-panel="driver">Driver App</button>
+      </div>
+
+      <!-- Demo panels -->
+      <div class="demo-frame">
+        <!-- Top chrome bar -->
+        <div class="df-chrome">
+          <span class="df-dot" style="background:#ff5f56"></span>
+          <span class="df-dot" style="background:#ffbd2e"></span>
+          <span class="df-dot" style="background:#27c93f"></span>
+          <span class="df-url">fleetworks.in/fleet.html</span>
+        </div>
+
+        <!-- Fleet Ops panel -->
+        <div class="df-panel active" id="dp-ops">
+          <div class="df-sidebar">
+            <div class="df-logo">Fleet<em>Works</em></div>
+            <div class="df-nav-item active">Overview</div>
+            <div class="df-nav-item">Vehicles</div>
+            <div class="df-nav-item">Compliance</div>
+            <div class="df-nav-item hl">Tyres</div>
+            <div class="df-nav-item">Trips</div>
+            <div class="df-nav-item">Drivers</div>
+          </div>
+          <div class="df-content">
+            <div class="df-topbar">
+              <span class="df-title">Overview</span>
+              <span class="df-badge-ai"><span class="df-pulse"></span> AI Active</span>
+            </div>
+            <div class="df-kpi-row">
+              <div class="df-kpi"><span class="df-kpi-n counter" data-to="24">0</span><span>Vehicles</span></div>
+              <div class="df-kpi"><span class="df-kpi-n counter" data-to="3" data-color="warn">0</span><span>Overdue</span></div>
+              <div class="df-kpi"><span class="df-kpi-n counter" data-to="92" data-suffix="%">0%</span><span>Fleet Uptime</span></div>
+              <div class="df-kpi"><span class="df-kpi-n counter" data-to="7">0</span><span>Open Issues</span></div>
+            </div>
+            <div class="df-cards">
+              <div class="df-card">
+                <div class="df-card-head"><span>Compliance Radar</span><span class="df-tag ok">4 due this week</span></div>
+                <div class="df-radar-bars">
+                  <div class="df-bar-row"><span>Insurance</span><div class="df-bar"><div class="df-fill ok" style="width:88%"></div></div><span class="df-days">88d</span></div>
+                  <div class="df-bar-row"><span>Fitness</span><div class="df-bar"><div class="df-fill warn" style="width:22%"></div></div><span class="df-days warn">22d</span></div>
+                  <div class="df-bar-row"><span>Permit</span><div class="df-bar"><div class="df-fill ok" style="width:65%"></div></div><span class="df-days">65d</span></div>
+                  <div class="df-bar-row"><span>Pollution</span><div class="df-bar"><div class="df-fill bad" style="width:5%"></div></div><span class="df-days bad">5d</span></div>
+                </div>
+              </div>
+              <div class="df-card">
+                <div class="df-card-head"><span>Recent Alerts</span></div>
+                <div class="df-alert-list">
+                  <div class="df-alert bad"><span class="df-al-icon">⚠</span><div><b>TN09 AB1234</b><p>Pollution expires in 5 days</p></div></div>
+                  <div class="df-alert warn"><span class="df-al-icon">🔧</span><div><b>TN09 CD5678</b><p>Engine Oil PMS due at 210,450 km</p></div></div>
+                  <div class="df-alert ai"><span class="df-al-icon">🤖</span><div><b>AI Foresight</b><p>Brake wear pattern matches failure in 3 similar vehicles</p></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fleet Fin panel -->
+        <div class="df-panel" id="dp-fin">
+          <div class="df-sidebar">
+            <div class="df-logo">Fleet<em>Works</em></div>
+            <div class="df-nav-item">Diesel Log</div>
+            <div class="df-nav-item active hl">Bill Check</div>
+            <div class="df-nav-item">Driver Ledger</div>
+            <div class="df-nav-item">Reports</div>
+          </div>
+          <div class="df-content">
+            <div class="df-topbar"><span class="df-title">AI Bill Checker</span><span class="df-badge-ai"><span class="df-pulse"></span> Scanning</span></div>
+            <div class="df-bill-check">
+              <div class="df-bill-header">
+                <div class="df-bill-icon">🧾</div>
+                <div><b>Workshop Invoice — ₹18,450</b><p class="df-muted">Raj Motors, Chennai · TN09 AB1234 · 12 Sep 2026</p></div>
+                <span class="df-tag warn">2 Flags</span>
+              </div>
+              <div class="df-bill-lines">
+                <div class="df-bill-line"><span>Engine Oil (10W-40, 7L)</span><span>₹4,200</span><span class="df-tag ok">OK</span></div>
+                <div class="df-bill-line"><span>Oil Filter</span><span>₹480</span><span class="df-tag ok">OK</span></div>
+                <div class="df-bill-line flag"><span>Diagnostic Charge</span><span>₹2,500</span><span class="df-tag warn">⚑ Duplicate</span></div>
+                <div class="df-bill-line"><span>Labour — 4 hrs</span><span>₹3,200</span><span class="df-tag ok">OK</span></div>
+                <div class="df-bill-line flag"><span>Air Filter (premium)</span><span>₹1,800</span><span class="df-tag bad">⚑ 40% over avg</span></div>
+                <div class="df-bill-line"><span>Brake Pad Set (front)</span><span>₹6,270</span><span class="df-tag ok">OK</span></div>
+              </div>
+              <div class="df-bill-footer"><b>Potential savings: ₹4,300</b><button class="df-btn">Dispute flagged items</button></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Foresight panel -->
+        <div class="df-panel" id="dp-ai">
+          <div class="df-sidebar">
+            <div class="df-logo">Fleet<em>Works</em></div>
+            <div class="df-nav-item active hl">Foresight</div>
+            <div class="df-nav-item">Copilot</div>
+            <div class="df-nav-item">Analytics</div>
+          </div>
+          <div class="df-content">
+            <div class="df-topbar"><span class="df-title">Foresight — Predictive Maintenance</span><span class="df-badge-ai"><span class="df-pulse"></span> Trained on your fleet</span></div>
+            <div class="df-ai-cards">
+              <div class="df-ai-card critical">
+                <div class="df-ai-badge">HIGH RISK</div>
+                <b>TN09 GH2255 — Turbocharger</b>
+                <p>Exhaust temp 22°C above baseline for 8 consecutive trips. Matched 11 vehicles with same pattern — 9 failed within 3 weeks. Recommend inspection this week.</p>
+                <div class="df-ai-evidence">Based on <b>11 past cases</b> · 82% confidence</div>
+                <button class="df-btn">Raise Job Card</button>
+              </div>
+              <div class="df-ai-card warn">
+                <div class="df-ai-badge" style="background:#7c5a00;color:#fcd34d">WATCH</div>
+                <b>TN09 CD5678 — Brake System</b>
+                <p>Brake fluid consumption +18% over 6 months. Minor leak likely — not yet critical.</p>
+                <div class="df-ai-evidence">Based on <b>6 past cases</b> · 68% confidence</div>
+                <button class="df-btn">Schedule Inspection</button>
+              </div>
+            </div>
+            <div class="df-copilot-bar">
+              <span class="df-copilot-icon">✦</span>
+              <input class="df-copilot-input" type="text" placeholder="Ask Copilot: Which vehicles need service before Diwali?" readonly />
+            </div>
+          </div>
+        </div>
+
+        <!-- Driver App panel -->
+        <div class="df-panel" id="dp-driver">
+          <div class="df-sidebar df-sidebar-mobile">
+            <div class="df-logo" style="font-size:.8rem;margin-bottom:12px">Driver Portal</div>
+            <div class="df-nav-item active hl">டீசல்</div>
+            <div class="df-nav-item">பிரச்சனை</div>
+            <div class="df-nav-item">பயண நிலை</div>
+          </div>
+          <div class="df-content">
+            <div class="df-topbar"><span class="df-title">ஓட்டுநர் போர்டல் — No-Login Access</span></div>
+            <div class="df-driver-trip">
+              <div class="df-trip-card">
+                <div class="df-trip-badge">பயணம் ஒதுக்கப்பட்டுள்ளது</div>
+                <b>Chennai → Bengaluru</b>
+                <p class="df-muted">TN09 AB1234 · Cargo: Textile bales · 350 km</p>
+                <div class="df-trip-actions">
+                  <button class="df-btn primary">✓ ஒப்புக்கொள்</button>
+                  <button class="df-btn">பயணம் தொடங்கு</button>
+                </div>
+              </div>
+              <div class="df-trip-card">
+                <div class="df-trip-badge ok">FASTag இருப்பு</div>
+                <b>₹3,240</b>
+                <p class="df-muted">கடைசியாக புதுப்பிக்கப்பட்டது: 12 Sep, 09:41 AM</p>
+              </div>
+              <div class="df-req-card">
+                <b>டீசல் கோரிக்கை</b>
+                <div class="df-form-row"><span>தேவையான தொகை (₹)</span><div class="df-input-mock">5,000</div></div>
+                <button class="df-btn primary">கோரிக்கை அனுப்பு</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /demo-frame -->
+
+      <div style="text-align:center;margin-top:28px">
+        <a href="fleet.html?auth=signup#account" class="btn btn-primary" style="padding:14px 36px;font-size:1rem">Start Free — No Credit Card</a>
+        <button class="btn btn-watch-demo" style="margin-left:12px" onclick="openDemoModal()"><span class="wd-play"></span> Full Product Walkthrough</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Demo video modal -->
+  <div id="demoModal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.88);align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeDemoModal()">
+    <div style="max-width:820px;width:100%;position:relative">
+      <button onclick="closeDemoModal()" style="position:absolute;top:-40px;right:0;background:none;border:none;color:#fff;font-size:1.5rem;cursor:pointer;opacity:.7">✕ Close</button>
+      <div style="position:relative;padding-bottom:56.25%;background:#0a0e1e;border-radius:16px;overflow:hidden;box-shadow:0 32px 80px rgba(0,0,0,.6)">
+        <iframe id="demoIframe" src="" allow="autoplay; fullscreen" style="position:absolute;inset:0;width:100%;height:100%;border:none" title="FleetWorks Product Demo"></iframe>
+        <div id="demoPlaceholder" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+          <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(120deg,#6366f1,#a855f7);display:flex;align-items:center;justify-content:center;font-size:1.8rem">▶</div>
+          <p style="color:#97a2c4;font-size:.9rem">Product demo video coming soon</p>
+          <a href="fleet.html?auth=signup#account" class="btn btn-primary" style="margin-top:8px">Try it yourself — 15-day free trial</a>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ======= PILLARS (three things) ======= -->
   <section class="section" id="platform">
@@ -800,6 +995,60 @@
   <script src="js/main.js"></script>
   <script>
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+  </script>
+  <script>
+    // Demo modal
+    function openDemoModal() {
+      const m = document.getElementById("demoModal");
+      if (!m) return;
+      m.style.display = "flex";
+      document.body.style.overflow = "hidden";
+    }
+    function closeDemoModal() {
+      const m = document.getElementById("demoModal");
+      if (!m) return;
+      m.style.display = "none";
+      document.body.style.overflow = "";
+      const iframe = document.getElementById("demoIframe");
+      if (iframe) iframe.src = "";
+    }
+    document.addEventListener("keydown", e => { if (e.key === "Escape") closeDemoModal(); });
+
+    // Demo tab switcher
+    document.querySelectorAll(".demo-tab").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".demo-tab").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".df-panel").forEach(p => p.classList.remove("active"));
+        btn.classList.add("active");
+        const panel = document.getElementById("dp-" + btn.dataset.panel);
+        if (panel) panel.classList.add("active");
+      });
+    });
+
+    // Animated counters in Fleet Ops panel
+    function runCounters() {
+      document.querySelectorAll(".counter").forEach(el => {
+        const to = +el.dataset.to;
+        const suffix = el.dataset.suffix || "";
+        const color = el.dataset.color;
+        let cur = 0;
+        const step = Math.ceil(to / 30);
+        const iv = setInterval(() => {
+          cur = Math.min(cur + step, to);
+          el.textContent = cur + suffix;
+          if (color && cur === to) el.style.color = color === "warn" ? "#f59e0b" : "#22d3ee";
+          if (cur >= to) clearInterval(iv);
+        }, 35);
+      });
+    }
+    // Trigger counters when demo section enters view
+    const demoSection = document.getElementById("demo");
+    if (demoSection && "IntersectionObserver" in window) {
+      let ran = false;
+      new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && !ran) { ran = true; runCounters(); }
+      }, { threshold: 0.3 }).observe(demoSection);
+    }
   </script>
 </body>
 </html>
