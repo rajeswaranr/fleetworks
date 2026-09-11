@@ -1142,8 +1142,8 @@
            work orders). Each openEditX() function fills #editEntryBody with
            its own fields and sets window.editEntrySave to its own async
            save callback — the form's submit handler just calls it. -->
-      <div id="editEntryModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:center;justify-content:center;padding:16px">
-        <div class="chart-card" style="max-width:460px;width:100%">
+      <div id="editEntryModal" style="position:fixed;inset:0;background:rgba(11,22,38,.65);z-index:320;display:none;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto">
+        <div class="chart-card" style="max-width:640px;width:100%;margin:auto;box-sizing:border-box">
           <h2 id="editEntryTitle">Edit</h2>
           <form id="editEntryForm" class="entry-form">
             <div id="editEntryBody"></div>

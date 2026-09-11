@@ -607,6 +607,9 @@ input[type="file"] {
 .chart-scroll { overflow-x: auto; }
 .chart-area { min-height: 60px; }
 
+/* Cards that contain wide content (tables, grids) scroll rather than overflow */
+.chart-card { overflow-x: auto; }
+
 .chart-table { margin-top: 12px; }
 .chart-table summary { cursor: pointer; font-size: 0.82rem; color: var(--muted); font-weight: 600; }
 .chart-table table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.85rem; }
