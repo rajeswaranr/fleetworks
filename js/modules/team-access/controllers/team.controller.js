@@ -21,7 +21,8 @@ const fmtDate = d => d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric
 const today = () => new Date().toISOString().slice(0, 10);
 const daysUntil = d => d ? Math.round((new Date(d) - new Date()) / 86400000) : null;
 
-let ORG = null, ASSIGN = {}; // ASSIGN[extId] = 'view' | 'update'
+let ORG = null, ASSIGN = {}, ROLE = null; // ASSIGN[extId] = 'view' | 'update'
+let _opStatuses = {}; // vehicleId → { op_status, current_driver_name }
 
 function complianceBadge(label, till) {
   if (!till) return "";
@@ -30,17 +31,32 @@ function complianceBadge(label, till) {
   return `<span class="fw-badge ${cls}" title="${esc(label)}">${esc(label)}: ${d < 0 ? "Expired " + (-d) + "d ago" : d + "d left"}</span>`;
 }
 
+const OP_STATUS_META = {
+  moving:      { label: "Moving",      cls: "ok" },
+  halted:      { label: "Halted",      cls: "soon" },
+  maintenance: { label: "Maintenance", cls: "overdue" },
+};
+
 async function loadVehicles(portalVehicles) {
   // RLS (can_view_vehicle) already restricts this to assigned vehicles —
   // no need to filter client-side; what comes back IS the permission.
   const vehicles = portalVehicles || await fwCloud.authGet("vehicles", "select=*&order=name.asc") || [];
+
+  // Load op statuses for all visible vehicles
+  const opRows = await fwCloud.authGet("vehicle_op_statuses", "select=*").catch(() => null) || [];
+  _opStatuses = Object.fromEntries(opRows.map(r => [r.vehicle_id, r]));
+
   const box = document.getElementById("teamVehicleList");
   box.innerHTML = vehicles.length ? vehicles.map(v => {
     const access = ASSIGN[v.ext_id] || "view";
+    const ops = _opStatuses[v.id];
+    const stMeta = ops ? (OP_STATUS_META[ops.op_status] || {}) : null;
+    const statusBadge = stMeta ? `<span class="fw-badge ${stMeta.cls}" style="font-size:0.72rem">${stMeta.label}</span>` : "";
+    const driverLine = ops?.current_driver_name ? `<span class="muted" style="font-size:0.78rem">Driver: ${esc(ops.current_driver_name)}</span>` : "";
     return `<div class="chart-card" style="cursor:pointer" onclick="openVehicle(${escAttr(v.id)},${escAttr(v.ext_id)},${escAttr(v.name)},${escAttr(access)})">
       <div class="chart-head" style="margin-bottom:6px"><div>
-        <h2 style="font-size:1.05rem"><strong>${esc(v.name)}</strong> <span class="fw-badge ${access === "update" ? "soon" : "upcoming"}">${access === "update" ? "Can update" : "View only"}</span></h2>
-        <p class="muted">${esc(v.type || "")}</p>
+        <h2 style="font-size:1.05rem"><strong>${esc(v.name)}</strong> <span class="fw-badge ${access === "update" ? "soon" : "upcoming"}">${access === "update" ? "Can update" : "View only"}</span> ${statusBadge}</h2>
+        <p class="muted">${esc(v.type || "")} ${driverLine}</p>
       </div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${complianceBadge("Insurance", v.insurance_till)}${complianceBadge("PUC", v.puc_till)}${complianceBadge("Fitness", v.fitness_till)}${complianceBadge("Permit", v.permit_till)}${complianceBadge("Road Tax", v.roadtax_till)}
@@ -141,6 +157,26 @@ window.openVehicle = async function (vehId, extId, name, access) {
         <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="tvSaveInspection('${vehId}')">${FWIcon("checkCircle", { size: 14 })} Save Inspection</button>
       </div>
       <p class="field-error" id="tvErr" hidden></p>`;
+
+    // Supervisor-only: vehicle status + driver assignment
+    if (ROLE === "supervisor") {
+      const cur = _opStatuses[vehId] || {};
+      const curSt = cur.op_status || "";
+      const curDrv = cur.current_driver_name || "";
+      html += `
+      <div class="wf-form" style="margin:14px 0;padding:14px;border:1.5px solid var(--border);border-radius:10px;background:var(--bg-alt)">
+        <p style="font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:10px">VEHICLE STATUS</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <button id="stBtn_moving" class="btn btn-sm ${curSt==="moving"?"btn-primary":"btn-outline"}" onclick="tvSetStatusActive('moving')" style="gap:6px">&#9654; Moving</button>
+          <button id="stBtn_halted" class="btn btn-sm ${curSt==="halted"?"btn-primary":"btn-outline"}" onclick="tvSetStatusActive('halted')" style="gap:6px">&#9646;&#9646; Halted</button>
+          <button id="stBtn_maintenance" class="btn btn-sm ${curSt==="maintenance"?"btn-primary":"btn-outline"}" onclick="tvSetStatusActive('maintenance')" style="gap:6px">&#128295; Maintenance</button>
+        </div>
+        <input type="hidden" id="tvStatusVal" value="${esc(curSt)}" />
+        <p style="font-size:0.8rem;font-weight:600;color:var(--text-muted);margin-bottom:6px">ASSIGN DRIVER (current trip)</p>
+        <input type="text" id="tvDriverName" placeholder="Driver name at the wheel now" value="${esc(curDrv)}" style="width:100%;margin-bottom:8px;box-sizing:border-box" />
+        <button class="btn btn-primary btn-sm" onclick="tvSaveStatus('${vehId}')">Save Status &amp; Driver</button>
+      </div>`;
+    }
   }
 
   html += `<h3 style="font-size:0.85rem;color:var(--navy);margin:14px 0 6px">Recent Fuel</h3>` +
@@ -158,6 +194,37 @@ window.openVehicle = async function (vehId, extId, name, access) {
 };
 
 function tvErr(msg) { const e = document.getElementById("tvErr"); if (e) { e.textContent = msg; e.hidden = false; } }
+
+// Supervisor: toggle status button highlight
+window.tvSetStatusActive = function(status) {
+  document.getElementById("tvStatusVal").value = status;
+  ["moving","halted","maintenance"].forEach(s => {
+    const b = document.getElementById("stBtn_" + s);
+    if (b) { b.className = b.className.replace(/btn-primary|btn-outline/g, "").trim() + " " + (s === status ? "btn-primary" : "btn-outline"); }
+  });
+};
+
+// Supervisor: save vehicle status + current driver to vehicle_op_statuses
+window.tvSaveStatus = async function(vehId) {
+  const status = (document.getElementById("tvStatusVal")?.value || "").trim();
+  const driverName = (document.getElementById("tvDriverName")?.value || "").trim();
+  if (!status) return tvErr("Pick a status (Moving / Halted / Maintenance).");
+  const data = { org_id: ORG, op_status: status, current_driver_name: driverName || null, updated_by: fwCloud.uid(), updated_at: new Date().toISOString() };
+  // Upsert: check if row exists, then patch or insert
+  const existing = await fwCloud.authGet("vehicle_op_statuses", `select=vehicle_id&vehicle_id=eq.${vehId}&limit=1`).catch(() => null);
+  let ok;
+  if (existing && existing.length) {
+    ok = await fwCloud.authPatch(`vehicle_op_statuses?vehicle_id=eq.${vehId}`, data);
+  } else {
+    ok = await fwCloud.authInsert("vehicle_op_statuses", { vehicle_id: vehId, ...data });
+  }
+  if (!ok) return tvErr("Could not save — check your connection.");
+  // Update local cache + vehicle list
+  _opStatuses[vehId] = { vehicle_id: vehId, ...data };
+  toast(`Status set to ${status}${driverName ? " · Driver: " + driverName : ""}.`);
+  document.getElementById("teamVehModal").style.display = "none";
+  await loadVehicles();
+};
 
 // team.html doesn't load the owner fleet UI shell, so this portal needs its own copy of the
 // save-confirmation toast (same #fwToast element/CSS, shared via css/style.css).
@@ -282,6 +349,7 @@ async function unlock() {
       return;
     }
     ORG = m.orgId;
+    ROLE = m.role;
     ASSIGN = view.assignmentMap;
     document.getElementById("teamWhoRole").textContent = view.roleLabel;
     document.getElementById("teamWhoName").textContent = view.name;
@@ -304,6 +372,7 @@ async function unlock() {
     return;
   }
   ORG = m.org_id;
+  ROLE = m.role;
   document.getElementById("teamWhoRole").textContent = m.role === "driver" ? "Driver" : "Supervisor";
   const p = fwCloud.profile && fwCloud.profile();
   document.getElementById("teamWhoName").textContent = (p && p.full_name) || (fwCloud.user() || "").split("@")[0];

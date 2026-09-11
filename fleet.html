@@ -295,9 +295,22 @@
         </div>
         <div class="app-top-actions">
           <span class="top-org" id="topOrg"></span>
+          <button class="notif-bell-btn" id="notifBell" onclick="toggleNotifPanel()" title="Notifications">
+            <i data-icon="bell" data-icon-size="18"></i>
+            <span id="notifBadge" class="notif-badge" hidden>0</span>
+          </button>
           <button class="btn btn-sm sos-btn" id="sosBtn"><i data-icon="alert" data-icon-size="14"></i> SOS</button>
         </div>
       </header>
+
+      <!-- ======= NOTIFICATION PANEL ======= -->
+      <div id="notifPanel" class="notif-panel" hidden>
+        <div class="notif-panel-head">
+          <strong>Notifications &amp; Action Inbox</strong>
+          <button class="link-btn" onclick="toggleNotifPanel()" style="font-size:1.1rem;line-height:1">&#x2715;</button>
+        </div>
+        <div id="actionInbox" class="notif-panel-body"></div>
+      </div>
       <main class="app-content">
 
         <!-- Empty state -->
@@ -574,14 +587,15 @@
           </div>
 
           <div class="hub-sub">
-            <div class="chart-card">
-              <div class="chart-head">
+            <div class="chart-card" style="cursor:pointer" onclick="toggleNotifPanel()" title="Open notification centre">
+              <div class="chart-head" style="margin-bottom:6px">
                 <div>
-                  <h2 class="head-ic"><span class="ic-tile warning"><i data-icon="bell" data-icon-size="20"></i></span> Action Inbox</h2>
-                  <p class="muted">Everything pending across all three workspaces — tap a row to act</p>
+                  <h2 class="head-ic"><span class="ic-tile warning"><i data-icon="bell" data-icon-size="20"></i></span> Notifications</h2>
+                  <p class="muted">Pending actions across all workspaces</p>
                 </div>
+                <span id="inboxSummaryBadge" class="fw-badge soon" hidden></span>
               </div>
-              <div id="actionInbox" class="predictions"></div>
+              <p class="muted" style="font-size:0.83rem" id="inboxSummaryText">Click to open notification centre</p>
             </div>
             <div class="chart-card">
               <div class="chart-head">

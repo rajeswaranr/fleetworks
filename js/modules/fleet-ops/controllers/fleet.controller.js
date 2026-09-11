@@ -990,13 +990,34 @@ function renderActionInbox() {
     fuelTheftFlags().slice(0, 3).forEach(f =>
       items.push({ p: 0, ic: "fuel", tone: "danger", t: `${f.vehicle}: ≈${Math.round(f.missing)} L diesel unaccounted on ${fmtDate(f.date)} (~${fmtINR(f.cost)})`, a: "Check", tab: "fin" }));
   items.sort((a, b) => a.p - b.p);
-  el.innerHTML = items.length ?
-    items.slice(0, 10).map(i => `<div class="pred-row inbox-row" data-goto="${i.tab}"><div class="pred-main" style="display:flex;align-items:center;gap:10px;font-size:0.88rem"><span class="ic-tile ${i.tone}" style="width:30px;height:30px;flex:none">${FWIcon(i.ic, { size: 15 })}</span><span style="flex:1;min-width:0;text-align:left">${esc(i.t)}</span><span class="link-btn" style="flex:none">${i.a} &rarr;</span></div></div>`).join("") +
-      (items.length > 10 ? `<p class="muted" style="padding:8px 16px">+ ${items.length - 10} more inside the workspaces</p>` : "")
-    : `<p class="muted" style="padding:14px 16px">${FWIcon("checkCircle", { size: 14, cls: "ic-success" })} All clear — nothing pending today.</p>`;
-  el.querySelectorAll(".inbox-row").forEach(r => r.addEventListener("click", () =>
-    document.querySelector(`#tabBar .tab-btn[data-tab="${r.dataset.goto}"]`)?.click()));
+  const itemsHtml = items.length
+    ? items.slice(0, 12).map(i => `<div class="pred-row inbox-row" data-goto="${i.tab}" style="padding:10px 16px;cursor:pointer;border-bottom:1px solid var(--bg-alt)"><div style="display:flex;align-items:center;gap:10px;font-size:0.87rem"><span class="ic-tile ${i.tone}" style="width:28px;height:28px;flex:none">${FWIcon(i.ic,{size:14})}</span><span style="flex:1;min-width:0">${esc(i.t)}</span><span class="link-btn" style="flex:none;font-size:0.8rem">${i.a} &rarr;</span></div></div>`).join("") +
+      (items.length > 12 ? `<p class="muted" style="padding:8px 16px;font-size:0.82rem">+ ${items.length - 12} more inside the workspaces</p>` : "")
+    : `<p class="muted" style="padding:16px;text-align:center;font-size:0.85rem">${FWIcon("checkCircle",{size:14,cls:"ic-success"})} All clear — nothing pending today.</p>`;
+  el.innerHTML = itemsHtml;
+  el.querySelectorAll(".inbox-row").forEach(r => r.addEventListener("click", () => {
+    document.querySelector(`#tabBar .tab-btn[data-tab="${r.dataset.goto}"]`)?.click();
+    const p = document.getElementById("notifPanel"); if (p) p.hidden = true;
+  }));
+  // Update bell badge
+  const badge = document.getElementById("notifBadge");
+  if (badge) { badge.textContent = items.length; badge.hidden = items.length === 0; }
+  // Update home hub summary
+  const summBadge = document.getElementById("inboxSummaryBadge");
+  const summText  = document.getElementById("inboxSummaryText");
+  if (summBadge) { summBadge.textContent = items.length + " pending"; summBadge.hidden = !items.length; }
+  if (summText)  summText.textContent = items.length ? `${items.length} item${items.length===1?"":"s"} need your attention — click to view` : "All clear — nothing pending today.";
 }
+
+window.toggleNotifPanel = function() {
+  const p = document.getElementById("notifPanel");
+  if (p) p.hidden = !p.hidden;
+};
+document.addEventListener("click", e => {
+  const p = document.getElementById("notifPanel");
+  if (!p || p.hidden) return;
+  if (!p.contains(e.target) && !document.getElementById("notifBell")?.contains(e.target)) p.hidden = true;
+});
 
 // ---------- Driver Link (no-login entry page for drivers) ----------
 function copyDriverLink(driverId) {
