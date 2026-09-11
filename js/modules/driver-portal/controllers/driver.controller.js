@@ -13,7 +13,7 @@ const DVID  = qs.get("vid") || "";
 const DRIVER_CTX = { ownerId: OWNER, token: TOKEN, driverName: DNAME, vehicleName: DVEH };
 
 document.getElementById("drvName").textContent = DNAME;
-document.getElementById("drvVeh").textContent = DVEH ? "Vehicle: " + DVEH : "No vehicle assigned";
+document.getElementById("drvVeh").textContent = DVEH ? "வாகனம்: " + DVEH : "வாகனம் ஒதுக்கப்படவில்லை";
 
 if (!OWNER || !TOKEN || !DVEH) {
   document.getElementById("drvApp").hidden = true;
@@ -30,24 +30,24 @@ document.getElementById("drvTabs").addEventListener("click", e => {
 
 // ---------- Inspection checklist ----------
 const CHECK_ITEMS = [
-  { id: "safety_belts",    label: "Safety Belts",           icon: "shieldCheck" },
-  { id: "brakes",          label: "Brakes & Steering",      icon: "wrench"      },
-  { id: "engine",          label: "Engine",                 icon: "engine"      },
-  { id: "transmission",    label: "Transmission",           icon: "settings"    },
-  { id: "grease",          label: "Grease Packing",         icon: "tools"       },
-  { id: "wipers",          label: "Wipers",                 icon: "droplet"     },
-  { id: "headlight_high",  label: "Head Lights — High Beam",icon: "zap"         },
-  { id: "headlight_low",   label: "Head Lights — Low Beam", icon: "zap"         },
-  { id: "turn_signals",    label: "Turn Signals",           icon: "alert"       },
-  { id: "brake_lights",    label: "Brake Lights",           icon: "alert"       },
-  { id: "doors",           label: "Doors",                  icon: "truck"       },
-  { id: "windows",         label: "Windows",                icon: "eye"         },
-  { id: "radio",           label: "Radio",                  icon: "chat"        },
-  { id: "horn",            label: "Horn",                   icon: "bell"        },
-  { id: "tyre",            label: "Tyre",                   icon: "tire"        },
-  { id: "coolant",         label: "Coolant Level",          icon: "droplet"     },
-  { id: "battery",         label: "Battery & Terminals",    icon: "battery"     },
-  { id: "documents",       label: "Documents in Cabin",     icon: "document"    },
+  { id: "safety_belts",    label: "பாதுகாப்பு பட்டை",         icon: "shieldCheck" },
+  { id: "brakes",          label: "பிரேக் & ஸ்டீயரிங்",       icon: "wrench"      },
+  { id: "engine",          label: "என்ஜின்",                  icon: "engine"      },
+  { id: "transmission",    label: "கியர் பெட்டி",             icon: "settings"    },
+  { id: "grease",          label: "கிரீஸ் பேக்கிங்",          icon: "tools"       },
+  { id: "wipers",          label: "வைப்பர்கள்",               icon: "droplet"     },
+  { id: "headlight_high",  label: "ஹெட் லைட் — ஹை பீம்",     icon: "zap"         },
+  { id: "headlight_low",   label: "ஹெட் லைட் — லோ பீம்",     icon: "zap"         },
+  { id: "turn_signals",    label: "திருப்பு சமிக்ஞை",         icon: "alert"       },
+  { id: "brake_lights",    label: "பிரேக் விளக்குகள்",        icon: "alert"       },
+  { id: "doors",           label: "கதவுகள்",                  icon: "truck"       },
+  { id: "windows",         label: "ஜன்னல்கள்",                icon: "eye"         },
+  { id: "radio",           label: "ரேடியோ",                   icon: "chat"        },
+  { id: "horn",            label: "ஹார்ன்",                   icon: "bell"        },
+  { id: "tyre",            label: "டயர்",                     icon: "tire"        },
+  { id: "coolant",         label: "கூலண்ட் அளவு",            icon: "droplet"     },
+  { id: "battery",         label: "பேட்டரி & டெர்மினல்கள்",  icon: "battery"     },
+  { id: "documents",       label: "கேபினில் ஆவணங்கள்",       icon: "document"    },
 ];
 
 function buildCheckTable() {
@@ -70,10 +70,10 @@ function buildCheckTable() {
           onchange="updateCheckRow('${item.id}',this)" />
       </td>
       <td class="chk-rem-cell">
-        <input class="chk-rem-input" type="text" name="rem_${item.id}" placeholder="note…" />
+        <input class="chk-rem-input" type="text" name="rem_${item.id}" placeholder="குறிப்பு…" />
       </td>
     </tr>`).join("");
-  if (window.FWIcon) document.querySelectorAll(".chk-item-inner [data-icon]").forEach(el => {
+  if (window.FWIcon) document.querySelectorAll("#dCheckList [data-icon]").forEach(el => {
     el.innerHTML = FWIcon(el.dataset.icon, { size: 15 });
   });
   updateScore();
@@ -100,17 +100,17 @@ buildCheckTable();
 
 // ---------- Trip Status milestones ----------
 const TRIP_MILESTONES = [
-  { section: "LOADING",   id: "picked_vehicle",     label: "Picked Vehicle"          },
-  { section: "LOADING",   id: "reached_loading",    label: "Reached Loading Point"   },
-  { section: "LOADING",   id: "loading_started",    label: "Loading Started"         },
-  { section: "LOADING",   id: "contacted_client",   label: "Contacted Client"        },
-  { section: "LOADING",   id: "loading_time",       label: "Loading Time",  isTime: true },
-  { section: "LOADING",   id: "loading_complete",   label: "Loading Complete"        },
-  { section: "TRANSIT",   id: "left_loading",       label: "Left Loading Point"      },
-  { section: "UNLOADING", id: "reached_unloading",  label: "Reached Unloading Point" },
-  { section: "UNLOADING", id: "unloading_started",  label: "Unloading Started"       },
-  { section: "UNLOADING", id: "unloading_complete", label: "Unloading Complete"      },
-  { section: "TRIP",      id: "trip_complete",      label: "Trip Completed"          },
+  { section: "ஏற்றுமதி",   id: "picked_vehicle",     label: "வாகனம் எடுக்கப்பட்டது"        },
+  { section: "ஏற்றுமதி",   id: "reached_loading",    label: "ஏற்றுமதி இடம் வந்தோம்"       },
+  { section: "ஏற்றுமதி",   id: "loading_started",    label: "ஏற்றுமதி தொடங்கியது"         },
+  { section: "ஏற்றுமதி",   id: "contacted_client",   label: "கிளையண்டை தொடர்பு கொண்டோம்" },
+  { section: "ஏற்றுமதி",   id: "loading_time",       label: "ஏற்றுமதி நேரம்", isTime: true },
+  { section: "ஏற்றுமதி",   id: "loading_complete",   label: "ஏற்றுமதி முடிந்தது"          },
+  { section: "பயணத்தில்", id: "left_loading",       label: "ஏற்றுமதி இடம் விட்டுச் சென்றோம்" },
+  { section: "இறக்குமதி", id: "reached_unloading",  label: "இறக்குமதி இடம் வந்தோம்"      },
+  { section: "இறக்குமதி", id: "unloading_started",  label: "இறக்குமதி தொடங்கியது"        },
+  { section: "இறக்குமதி", id: "unloading_complete", label: "இறக்குமதி முடிந்தது"         },
+  { section: "பயணம்",     id: "trip_complete",      label: "பயணம் முடிந்தது"             },
 ];
 
 function buildTripPanel() {
@@ -130,16 +130,16 @@ function buildTripPanel() {
         <span class="trip-route-to" id="tripTo"></span>
       </div>
       <div class="trip-route-inputs" id="tripRouteInputs">
-        <input type="text" id="tripFromInput" placeholder="From (Loading point)" class="trip-route-input" />
+        <input type="text" id="tripFromInput" placeholder="இருந்து (ஏற்றுமதி இடம்)" class="trip-route-input" />
         <i data-icon="chevronRight" data-icon-size="16" style="flex:none;opacity:0.5"></i>
-        <input type="text" id="tripToInput" placeholder="To (Delivery point)" class="trip-route-input" />
-        <button class="trip-btn trip-btn-y" onclick="setTripRoute()" style="flex:none;padding:5px 10px;font-size:0.8rem">Set</button>
+        <input type="text" id="tripToInput" placeholder="செல்ல (டெலிவரி இடம்)" class="trip-route-input" />
+        <button class="trip-btn trip-btn-y" onclick="setTripRoute()" style="flex:none;padding:5px 10px;font-size:0.8rem">சேமி</button>
       </div>
       <div class="trip-quick-btns">
-        <button class="trip-quick-btn sos" onclick="sendSOSAttention()"><i data-icon="sos" data-icon-size="16"></i> SOS / Attention</button>
-        <button class="trip-quick-btn fuel" onclick="document.querySelector('.tab-btn[data-tab=fuel]').click()"><i data-icon="fuel" data-icon-size="16"></i> Fuel Fill</button>
-        <button class="trip-quick-btn check" onclick="document.querySelector('.tab-btn[data-tab=check]').click()"><i data-icon="clipboardCheck" data-icon-size="16"></i> Checklist</button>
-        <button class="trip-quick-btn location" id="locToggleBtn" onclick="toggleLocationTracking()"><i data-icon="mapPin" data-icon-size="16"></i> Share Location</button>
+        <button class="trip-quick-btn sos" onclick="sendSOSAttention()"><i data-icon="sos" data-icon-size="16"></i> SOS / உதவி</button>
+        <button class="trip-quick-btn fuel" onclick="document.querySelector('.tab-btn[data-tab=fuel]').click()"><i data-icon="fuel" data-icon-size="16"></i> டீசல் நிரப்பு</button>
+        <button class="trip-quick-btn check" onclick="document.querySelector('.tab-btn[data-tab=check]').click()"><i data-icon="clipboardCheck" data-icon-size="16"></i> ஆய்வு பட்டியல்</button>
+        <button class="trip-quick-btn location" id="locToggleBtn" onclick="toggleLocationTracking()"><i data-icon="mapPin" data-icon-size="16"></i> இடம் பகிர்</button>
       </div>
       <div class="loc-status off" id="locStatus" hidden></div>
     </div>`;
@@ -158,7 +158,7 @@ function buildTripPanel() {
               <span class="trip-ms-num">${num}</span>
               <span style="flex:1;font-weight:500;color:var(--navy)">${m.label}</span>
               <input type="time" id="tinput_${m.id}" style="border:1px solid var(--border);border-radius:8px;padding:4px 8px;font-size:0.82rem;font-family:inherit" />
-              <button class="trip-btn trip-btn-y" style="flex:none" onclick="sendTripTime('${m.id}')">Log</button>
+              <button class="trip-btn trip-btn-y" style="flex:none" onclick="sendTripTime('${m.id}')">பதிவு</button>
             </label>
           </div>`;
         return `
@@ -166,8 +166,8 @@ function buildTripPanel() {
             <span class="trip-ms-num">${num}</span>
             <span class="trip-ms-text">${m.label}</span>
             <div class="trip-btns">
-              <button class="trip-btn trip-btn-y" onclick="sendTripMilestone('${m.id}','yes',this)">✓ Yes</button>
-              <button class="trip-btn trip-btn-n" onclick="sendTripMilestone('${m.id}','no',this)">✗ No</button>
+              <button class="trip-btn trip-btn-y" onclick="sendTripMilestone('${m.id}','yes',this)">✓ ஆம்</button>
+              <button class="trip-btn trip-btn-n" onclick="sendTripMilestone('${m.id}','no',this)">✗ இல்லை</button>
             </div>
             <span class="trip-ms-time" id="ttime_${m.id}" hidden></span>
           </div>`;
@@ -195,10 +195,10 @@ window.sendSOSAttention = async function() {
   const btn = document.querySelector(".trip-quick-btn.sos");
   if (btn) btn.disabled = true;
   try {
-    await send("sos", { message: "Driver needs attention / SOS", timestamp: new Date().toISOString(), vehicle: DVEH });
-    flash(true, "SOS sent — malik ko alert mil gaya!");
+    await send("sos", { message: "டிரைவர் உதவி தேவை / SOS", timestamp: new Date().toISOString(), vehicle: DVEH });
+    flash(true, "SOS அனுப்பப்பட்டது — உரிமையாளருக்கு அறிவிக்கப்பட்டது!");
   } catch {
-    flash(false, "Could not send SOS — check internet.");
+    flash(false, "SOS அனுப்ப முடியவில்லை — இணையதளம் சரிபார்க்கவும்.");
   }
   if (btn) btn.disabled = false;
 };
@@ -218,18 +218,18 @@ window.toggleLocationTracking = function() {
 
 function startLocationTracking() {
   if (!navigator.geolocation) {
-    flash(false, "GPS not available on this device.");
+    flash(false, "இந்த சாதனத்தில் GPS கிடைக்கவில்லை.");
     return;
   }
   const btn = document.getElementById("locToggleBtn");
   const statusEl = document.getElementById("locStatus");
-  if (btn) { btn.classList.add("active"); btn.innerHTML = FWIcon ? FWIcon("mapPin",{size:16}) + " Sharing Location" : "Sharing Location"; }
-  if (statusEl) { statusEl.removeAttribute("hidden"); statusEl.className = "loc-status tracking"; statusEl.textContent = "📍 Getting your location…"; }
+  if (btn) { btn.classList.add("active"); btn.innerHTML = (window.FWIcon ? FWIcon("mapPin",{size:16}) : "") + " இடம் பகிர்கிறது"; }
+  if (statusEl) { statusEl.removeAttribute("hidden"); statusEl.className = "loc-status tracking"; statusEl.textContent = "📍 இடம் கண்டறிகிறது…"; }
 
   navigator.geolocation.getCurrentPosition(pos => {
     _lastCoords = pos.coords;
     sendLocation(pos.coords);
-    if (statusEl) statusEl.textContent = "📍 Sharing live location — updates every 60s";
+    if (statusEl) statusEl.textContent = "📍 நேரலை இடம் பகிர்கிறது — 60 நொடிக்கு ஒரு முறை புதுப்பிக்கும்";
   }, err => {
     if (statusEl) { statusEl.className = "loc-status off"; statusEl.textContent = "GPS error: " + err.message; }
   }, { enableHighAccuracy: true, timeout: 15000 });
@@ -239,7 +239,7 @@ function startLocationTracking() {
     navigator.geolocation.getCurrentPosition(pos => {
       _lastCoords = pos.coords;
       sendLocation(pos.coords);
-      if (statusEl) statusEl.textContent = "📍 Location shared at " + new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+      if (statusEl) statusEl.textContent = "📍 இடம் " + new Date().toLocaleTimeString("ta-IN", { hour: "2-digit", minute: "2-digit" }) + " மணிக்கு பகிரப்பட்டது";
     }, () => {}, { enableHighAccuracy: false, timeout: 10000 });
   }, 60000);
 }
@@ -249,7 +249,7 @@ function stopLocationTracking() {
   _locInterval = null;
   const btn = document.getElementById("locToggleBtn");
   const statusEl = document.getElementById("locStatus");
-  if (btn) { btn.classList.remove("active"); btn.innerHTML = (window.FWIcon ? FWIcon("mapPin",{size:16}) : "") + " Share Location"; }
+  if (btn) { btn.classList.remove("active"); btn.innerHTML = (window.FWIcon ? FWIcon("mapPin",{size:16}) : "") + " இடம் பகிர்"; }
   if (statusEl) { statusEl.className = "loc-status off"; statusEl.setAttribute("hidden",""); }
 }
 
@@ -282,7 +282,7 @@ window.sendTripMilestone = async function(milestoneId, value, btn) {
     }
   } catch {
     allBtns.forEach(b => b.disabled = false);
-    flash(false, "Could not send — check internet and try again.");
+    flash(false, "அனுப்ப முடியவில்லை — இணையதளம் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.");
   }
 };
 
@@ -295,10 +295,10 @@ window.sendTripTime = async function(milestoneId) {
   try {
     await send("trip_status", { milestone: milestoneId, value: input.value, timestamp: new Date().toISOString() });
     row.style.background = "#e7faea";
-    logBtn.textContent = "✓ Logged";
+    logBtn.textContent = "✓ பதிவானது";
   } catch {
     logBtn.disabled = false;
-    flash(false, "Could not send — check internet and try again.");
+    flash(false, "அனுப்ப முடியவில்லை — இணையதளம் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.");
   }
 };
 
@@ -306,43 +306,43 @@ buildTripPanel();
 
 // ---------- Documents tab ----------
 const DOC_FIELDS = [
-  { key: "fc_due",             label: "FC (Fitness Certificate)", isDate: true },
-  { key: "national_permit_no", label: "National Permit No."  },
-  { key: "state_permit_no",    label: "State Permit No."     },
-  { key: "road_tax_due",       label: "Road Tax Due",          isDate: true },
-  { key: "goods_permit_due",   label: "Goods Permit Due",      isDate: true },
-  { key: "puc_due",            label: "Pollution Certificate", isDate: true },
-  { key: "insurance_no",       label: "Insurance Policy No."  },
-  { key: "insurance_due",      label: "Insurance Due",         isDate: true },
-  { key: "permit_no",          label: "Permit No."            },
+  { key: "fc_due",             label: "ஃபிட்னஸ் சான்றிதழ் (FC)",  isDate: true },
+  { key: "national_permit_no", label: "தேசிய அனுமதி எண்"           },
+  { key: "state_permit_no",    label: "மாநில அனுமதி எண்"           },
+  { key: "road_tax_due",       label: "சாலை வரி காலாவதி",          isDate: true },
+  { key: "goods_permit_due",   label: "சரக்கு அனுமதி காலாவதி",    isDate: true },
+  { key: "puc_due",            label: "மாசு சான்றிதழ் (PUC)",      isDate: true },
+  { key: "insurance_no",       label: "காப்பீடு பாலிசி எண்"        },
+  { key: "insurance_due",      label: "காப்பீடு காலாவதி",          isDate: true },
+  { key: "permit_no",          label: "அனுமதி எண்"                 },
 ];
 
 function expiryBadge(dateStr) {
   if (!dateStr) return "";
   const d = new Date(dateStr), now = new Date();
   const days = Math.round((d - now) / 86400000);
-  if (days < 0)  return `<span class="doc-badge exp">Expired</span>`;
-  if (days < 30) return `<span class="doc-badge warn">Expires in ${days}d</span>`;
-  return `<span class="doc-badge ok">Valid</span>`;
+  if (days < 0)  return `<span class="doc-badge exp">காலாவதியானது</span>`;
+  if (days < 30) return `<span class="doc-badge warn">${days} நாளில் காலாவதி</span>`;
+  return `<span class="doc-badge ok">செல்லுபடியாகும்</span>`;
 }
 
 async function buildDocsPanel() {
   const el = document.getElementById("dDocsPanel");
   if (!el) return;
 
-  el.innerHTML = `<div class="doc-empty"><i data-icon="document" data-icon-size="32"></i>Loading documents…</div>`;
+  el.innerHTML = `<div class="doc-empty"><i data-icon="document" data-icon-size="32"></i>ஆவணங்கள் ஏற்றுகிறது…</div>`;
 
   // Vehicle ID card always shown
   const vehCard = `<div class="doc-card">
-    <div class="doc-card-head"><i data-icon="truck" data-icon-size="16"></i>&nbsp;${DVEH || "Vehicle"}</div>
-    <div class="doc-row"><span class="doc-row-label">Driver</span><span class="doc-row-val">${DNAME}</span></div>
-    <div class="doc-row"><span class="doc-row-label">Date</span><span class="doc-row-val">${new Date().toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"})}</span></div>
+    <div class="doc-card-head"><i data-icon="truck" data-icon-size="16"></i>&nbsp;${DVEH || "வாகனம்"}</div>
+    <div class="doc-row"><span class="doc-row-label">டிரைவர்</span><span class="doc-row-val">${DNAME}</span></div>
+    <div class="doc-row"><span class="doc-row-label">தேதி</span><span class="doc-row-val">${new Date().toLocaleDateString("ta-IN",{day:"2-digit",month:"short",year:"numeric"})}</span></div>
   </div>`;
 
   if (!DVID) {
     el.innerHTML = vehCard + `<div class="doc-empty">
       <i data-icon="document" data-icon-size="28"></i>
-      Ask your fleet owner to regenerate your driver link — document details will appear here.
+      உங்கள் வாகன உரிமையாளரிடம் புதிய டிரைவர் இணைப்பு கேட்கவும் — ஆவண விவரங்கள் இங்கே தெரியும்.
     </div>`;
     if (window.FWIcon) el.querySelectorAll("[data-icon]").forEach(i => { i.innerHTML = FWIcon(i.dataset.icon, { size: parseInt(i.dataset.iconSize || 16) }); });
     return;
@@ -367,11 +367,11 @@ async function buildDocsPanel() {
     }).filter(Boolean).join("");
 
     el.innerHTML = vehCard + (docRows ? `<div class="doc-card">
-      <div class="doc-card-head"><i data-icon="shieldCheck" data-icon-size="16"></i>&nbsp;Compliance Documents</div>
+      <div class="doc-card-head"><i data-icon="shieldCheck" data-icon-size="16"></i>&nbsp;இணக்க ஆவணங்கள்</div>
       ${docRows}
-    </div>` : `<div class="doc-empty">No document details found. Ask your fleet owner to fill in vehicle compliance dates in FleetWorks.</div>`);
+    </div>` : `<div class="doc-empty">ஆவண விவரங்கள் இல்லை. உங்கள் வாகன உரிமையாளரிடம் FleetWorks-ல் வாகன தகவல்களை நிரப்பச் சொல்லுங்கள்.</div>`);
   } catch {
-    el.innerHTML = vehCard + `<div class="doc-empty">Could not load documents — check internet connection.</div>`;
+    el.innerHTML = vehCard + `<div class="doc-empty">ஆவணங்கள் ஏற்ற முடியவில்லை — இணையதளம் சரிபார்க்கவும்.</div>`;
   }
 
   if (window.FWIcon) el.querySelectorAll("[data-icon]").forEach(i => { i.innerHTML = FWIcon(i.dataset.icon, { size: parseInt(i.dataset.iconSize || 16) }); });
@@ -416,9 +416,9 @@ async function handle(form, kind, payload) {
       if (row) row.classList.remove("row-notok");
     });
     updateScore();
-    flash(true, "Sent ✓ — malik ke dashboard mein pahunch gaya.");
+    flash(true, "அனுப்பப்பட்டது ✓ — உரிமையாளர் டேஷ்போர்டில் சேர்க்கப்பட்டது.");
   } catch {
-    flash(false, "Could not send — check internet and try again.");
+    flash(false, "அனுப்ப முடியவில்லை — இணையதளம் சரிபார்த்து மீண்டும் முயற்சிக்கவும்.");
   }
   btn.disabled = false;
 }

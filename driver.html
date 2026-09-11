@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FleetWorks Driver — Daily Entry</title>
-  <meta name="description" content="FleetWorks driver page: log diesel fills, report problems and submit the daily vehicle check — no login needed." />
+  <title>FleetWorks — டிரைவர் பக்கம்</title>
+  <meta name="description" content="FleetWorks டிரைவர் பக்கம்: டீசல், பிரச்சனை, வாகன ஆய்வு — உள்நுழைவு தேவையில்லை." />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -29,41 +29,41 @@
     <!-- Invalid / missing link -->
     <div id="drvInvalid" class="chart-card" hidden style="text-align:center;padding:34px 22px">
       <span class="ic-tile warning" style="width:54px;height:54px;margin:0 auto 12px"><i data-icon="alert" data-icon-size="28"></i></span>
-      <h2 style="color:var(--navy)">This link isn't valid</h2>
-      <p class="muted" style="margin-top:8px">Ask your fleet owner to send you a fresh Driver Link from the FleetWorks Fleet Manager (Drivers page).</p>
+      <h2 style="color:var(--navy)">இந்த இணைப்பு சரியானதல்ல</h2>
+      <p class="muted" style="margin-top:8px">உங்கள் வாகன உரிமையாளரிடம் FleetWorks-ல் (Drivers பக்கம்) புதிய டிரைவர் இணைப்பு கேட்கவும்.</p>
     </div>
 
     <div id="drvApp">
       <div class="tab-bar" id="drvTabs" style="overflow-x:auto;flex-wrap:nowrap;gap:4px">
-        <button class="tab-btn active" data-tab="fuel" style="white-space:nowrap"><i data-icon="fuel" data-icon-size="16"></i> Diesel</button>
-        <button class="tab-btn" data-tab="issue" style="white-space:nowrap"><i data-icon="alert" data-icon-size="16"></i> Problem</button>
-        <button class="tab-btn" data-tab="check" style="white-space:nowrap"><i data-icon="clipboardCheck" data-icon-size="16"></i> Check</button>
-        <button class="tab-btn" data-tab="trip" style="white-space:nowrap"><i data-icon="mapPin" data-icon-size="16"></i> Trip Status</button>
-        <button class="tab-btn" data-tab="docs" style="white-space:nowrap"><i data-icon="document" data-icon-size="16"></i> Documents</button>
+        <button class="tab-btn active" data-tab="fuel" style="white-space:nowrap"><i data-icon="fuel" data-icon-size="16"></i> டீசல்</button>
+        <button class="tab-btn" data-tab="issue" style="white-space:nowrap"><i data-icon="alert" data-icon-size="16"></i> பிரச்சனை</button>
+        <button class="tab-btn" data-tab="check" style="white-space:nowrap"><i data-icon="clipboardCheck" data-icon-size="16"></i> ஆய்வு</button>
+        <button class="tab-btn" data-tab="trip" style="white-space:nowrap"><i data-icon="mapPin" data-icon-size="16"></i> பயண நிலை</button>
+        <button class="tab-btn" data-tab="docs" style="white-space:nowrap"><i data-icon="document" data-icon-size="16"></i> ஆவணங்கள்</button>
       </div>
 
       <!-- Diesel -->
       <section class="tab-panel active" id="dtab-fuel">
         <div class="chart-card">
-          <div class="chart-head"><div><h2>Diesel Fill</h2><p class="muted">Litres + meter reading — malik ka dashboard automatic update hoga</p></div></div>
+          <div class="chart-head"><div><h2>டீசல் நிரப்பு</h2><p class="muted">லிட்டர் + மீட்டர் ரீடிங் — உரிமையாளர் டேஷ்போர்டு தானாக புதுப்பிக்கும்</p></div></div>
           <form id="dFuelForm" class="entry-form">
             <div class="form-row">
-              <label>Litres
-                <input type="number" name="litres" step="0.01" min="1" placeholder="e.g. 180" required inputmode="decimal" />
+              <label>லிட்டர்கள்
+                <input type="number" name="litres" step="0.01" min="1" placeholder="உ.ம். 180" required inputmode="decimal" />
               </label>
-              <label>Total Amount (₹)
-                <input type="number" name="amount" min="1" placeholder="e.g. 16400" required inputmode="numeric" />
+              <label>மொத்த தொகை (₹)
+                <input type="number" name="amount" min="1" placeholder="உ.ம். 16400" required inputmode="numeric" />
               </label>
             </div>
             <div class="form-row">
-              <label>Odometer (km)
-                <input type="number" name="odo" min="0" placeholder="meter reading" required inputmode="numeric" />
+              <label>ஓடோமீட்டர் (கி.மீ)
+                <input type="number" name="odo" min="0" placeholder="மீட்டர் ரீடிங்" required inputmode="numeric" />
               </label>
-              <label>Date
+              <label>தேதி
                 <input type="date" name="date" required />
               </label>
             </div>
-            <button type="submit" class="btn btn-primary btn-block"><i data-icon="fuel" data-icon-size="16"></i> Send Diesel Entry</button>
+            <button type="submit" class="btn btn-primary btn-block"><i data-icon="fuel" data-icon-size="16"></i> டீசல் பதிவு அனுப்பு</button>
           </form>
         </div>
       </section>
@@ -71,17 +71,17 @@
       <!-- Problem -->
       <section class="tab-panel" id="dtab-issue">
         <div class="chart-card">
-          <div class="chart-head"><div><h2>Report a Problem</h2><p class="muted">Brake, engine, tyre — jo bhi gadbad hai, turant bhejo</p></div></div>
+          <div class="chart-head"><div><h2>பிரச்சனை தெரிவிக்க</h2><p class="muted">பிரேக், என்ஜின், டயர் — எந்த பிரச்சனை இருந்தாலும் உடனே அனுப்புங்கள்</p></div></div>
           <form id="dIssForm" class="entry-form">
-            <label>What's wrong?
-              <input type="text" name="title" placeholder="e.g. Brake pedal spongy, engine overheating..." required />
+            <label>என்ன பிரச்சனை?
+              <input type="text" name="title" placeholder="உ.ம். பிரேக் சரியில்லை, என்ஜின் வெப்பமாகிறது..." required />
             </label>
-            <label>How serious?
+            <label>எவ்வளவு தீவிரம்?
               <select name="severity" required>
-                <option>Low</option><option selected>Medium</option><option>High</option>
+                <option>குறைவு</option><option selected>நடுத்தரம்</option><option>அதிகம்</option>
               </select>
             </label>
-            <button type="submit" class="btn btn-primary btn-block"><i data-icon="alert" data-icon-size="16"></i> Send Problem Report</button>
+            <button type="submit" class="btn btn-primary btn-block"><i data-icon="alert" data-icon-size="16"></i> பிரச்சனை அறிக்கை அனுப்பு</button>
           </form>
         </div>
       </section>
@@ -90,20 +90,20 @@
       <section class="tab-panel" id="dtab-check">
         <div class="chart-card" style="padding:0;overflow:hidden">
           <div class="chk-score-bar">
-            <span><i data-icon="clipboardCheck" data-icon-size="16" style="vertical-align:middle;margin-right:6px"></i>Vehicle Inspection</span>
-            <span>Score: <span class="chk-score-num" id="dCheckScore">—</span></span>
+            <span><i data-icon="clipboardCheck" data-icon-size="16" style="vertical-align:middle;margin-right:6px"></i>வாகன ஆய்வு</span>
+            <span>மதிப்பெண்: <span class="chk-score-num" id="dCheckScore">—</span></span>
           </div>
           <form id="dCheckForm" style="padding:14px">
             <div class="chk-wrap">
               <table class="chk-table">
-                <thead><tr><th>ITEMS</th><th>OK</th><th>NOT OK</th><th>REMARKS</th></tr></thead>
+                <thead><tr><th>பொருட்கள்</th><th>சரி</th><th>சரியில்லை</th><th>குறிப்புகள்</th></tr></thead>
                 <tbody id="dCheckList"></tbody>
               </table>
             </div>
-            <label style="margin-bottom:10px;display:block">Odometer (km, optional)
-              <input type="number" name="odo" min="0" placeholder="meter reading" inputmode="numeric" style="display:block;width:100%;margin-top:4px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem" />
+            <label style="margin-bottom:10px;display:block">ஓடோமீட்டர் (கி.மீ, விரும்பினால்)
+              <input type="number" name="odo" min="0" placeholder="மீட்டர் ரீடிங்" inputmode="numeric" style="display:block;width:100%;margin-top:4px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:0.9rem" />
             </label>
-            <button type="submit" class="btn btn-primary btn-block"><i data-icon="clipboardCheck" data-icon-size="16"></i> Submit Daily Check</button>
+            <button type="submit" class="btn btn-primary btn-block"><i data-icon="clipboardCheck" data-icon-size="16"></i> தினசரி ஆய்வு சமர்ப்பிக்க</button>
           </form>
         </div>
       </section>
@@ -111,7 +111,7 @@
       <!-- Trip Status -->
       <section class="tab-panel" id="dtab-trip">
         <div class="chart-card">
-          <div class="chart-head"><div><h2>Trip Status</h2><p class="muted">Tap each milestone as it happens — malik ko call nahi karna padega</p></div></div>
+          <div class="chart-head"><div><h2>பயண நிலை</h2><p class="muted">ஒவ்வொரு நிலையையும் நடக்கும்போது தொடவும் — உரிமையாளரை அழைக்க தேவையில்லை</p></div></div>
           <div id="dTripPanel"></div>
         </div>
       </section>
@@ -119,7 +119,7 @@
       <!-- Documents -->
       <section class="tab-panel" id="dtab-docs">
         <div class="chart-card">
-          <div class="chart-head"><div><h2>Vehicle Documents</h2><p class="muted">Traffic police ko dikhaane ke liye</p></div></div>
+          <div class="chart-head"><div><h2>வாகன ஆவணங்கள்</h2><p class="muted">போக்குவரத்து போலீசிடம் காட்ட</p></div></div>
           <div id="dDocsPanel"></div>
         </div>
       </section>
@@ -129,7 +129,8 @@
   </main>
 
   <footer style="text-align:center;padding:18px;color:#8a94a6;font-size:0.75rem">
-    © 2026 FleetWorks Private Limited · <em>Where Every Fleet Learns.</em>
+    © 2026 FleetWorks Private Limited · <em>Where Every Fleet Learns.</em><br>
+    <span style="font-size:0.7rem">தமிழ் பதிப்பு</span>
   </footer>
 
   <script src="js/icons.js"></script>
