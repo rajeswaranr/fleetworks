@@ -996,8 +996,8 @@ function renderActionInbox() {
     : `<p class="muted" style="padding:16px;text-align:center;font-size:0.85rem">${FWIcon("checkCircle",{size:14,cls:"ic-success"})} All clear — nothing pending today.</p>`;
   el.innerHTML = itemsHtml;
   el.querySelectorAll(".inbox-row").forEach(r => r.addEventListener("click", () => {
-    document.querySelector(`#tabBar .tab-btn[data-tab="${r.dataset.goto}"]`)?.click();
-    const p = document.getElementById("notifPanel"); if (p) p.hidden = true;
+    const p = document.getElementById("notifPanel"); if (p) p.setAttribute("hidden", "");
+    if (typeof activateTab === "function") activateTab(r.dataset.goto, { replaceHistory: true });
   }));
   // Update bell badge
   const badge = document.getElementById("notifBadge");
@@ -1011,12 +1011,15 @@ function renderActionInbox() {
 
 window.toggleNotifPanel = function() {
   const p = document.getElementById("notifPanel");
-  if (p) p.hidden = !p.hidden;
+  if (!p) return;
+  const isOpen = !p.hasAttribute("hidden");
+  if (isOpen) p.setAttribute("hidden", ""); else p.removeAttribute("hidden");
 };
 document.addEventListener("click", e => {
   const p = document.getElementById("notifPanel");
-  if (!p || p.hidden) return;
-  if (!p.contains(e.target) && !document.getElementById("notifBell")?.contains(e.target)) p.hidden = true;
+  if (!p || p.hasAttribute("hidden")) return;
+  if (!p.contains(e.target) && !document.getElementById("notifBell")?.contains(e.target))
+    p.setAttribute("hidden", "");
 });
 
 // ---------- Driver Link (no-login entry page for drivers) ----------
