@@ -481,23 +481,20 @@ const SMS_NOTIF_EVENTS = [
   { key: "payment",        label: "Payment Request from Driver",  desc: "When driver raises a payment request" },
 ];
 
-function renderNotifSettings() {
-  const el = document.getElementById("hubNotifSettings");
-  if (!el) return;
+function _notifSettingsHtml(phoneId, scope) {
   const prefs = db.settings?.smsNotifs || {};
   const ownerPhone = db.settings?.ownerPhone || db.settings?.contactPhone || "";
-
-  el.innerHTML = `
+  return `
     <div style="margin-bottom:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <label style="font-size:0.85rem;font-weight:600">Owner mobile for SMS:</label>
-      <input type="tel" id="notifPhone" value="${escAttr(ownerPhone)}" placeholder="e.g. 9876543210"
+      <input type="tel" id="${phoneId}" value="${escAttr(ownerPhone)}" placeholder="e.g. 9876543210"
         style="border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:0.85rem;width:180px;background:var(--surface);color:var(--text)" />
       <span class="muted" style="font-size:0.76rem">All SMS alerts go to this number</span>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px">
       ${SMS_NOTIF_EVENTS.map(ev => `
         <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;cursor:pointer">
-          <input type="checkbox" data-notif="${ev.key}" ${prefs[ev.key] !== false ? "checked" : ""}
+          <input type="checkbox" data-notif="${ev.key}" data-scope="${scope}" ${prefs[ev.key] !== false ? "checked" : ""}
             style="margin-top:3px;accent-color:var(--brand);width:16px;height:16px;flex-shrink:0" />
           <span>
             <strong style="font-size:0.85rem;display:block">${esc(ev.label)}</strong>
@@ -507,11 +504,20 @@ function renderNotifSettings() {
     </div>`;
 }
 
-window.saveNotifSettings = async function() {
-  const phoneEl = document.getElementById("notifPhone");
+function renderNotifSettings() {
+  const hub = document.getElementById("hubNotifSettings");
+  if (hub) hub.innerHTML = _notifSettingsHtml("notifPhone", "hub");
+  const tab = document.getElementById("smsnotifTabBody");
+  if (tab) tab.innerHTML = _notifSettingsHtml("smsnotifPhone", "tab");
+}
+
+window.saveNotifSettings = async function(scope) {
+  scope = scope || "hub";
+  const phoneId = scope === "tab" ? "smsnotifPhone" : "notifPhone";
+  const phoneEl = document.getElementById(phoneId);
   const phone   = (phoneEl?.value || "").trim();
   const prefs   = {};
-  document.querySelectorAll("#hubNotifSettings [data-notif]").forEach(cb => {
+  document.querySelectorAll(`[data-notif][data-scope="${scope}"]`).forEach(cb => {
     prefs[cb.dataset.notif] = cb.checked;
   });
   db.settings = { ...db.settings, ownerPhone: phone, smsNotifs: prefs };
@@ -520,6 +526,7 @@ window.saveNotifSettings = async function() {
     if (orgId) await fwCloud.authPatch(`organizations?id=eq.${orgId}`, { settings: db.settings });
   }
   saveStore();
+  renderNotifSettings();
   toast("Notification settings saved.");
 };
 
@@ -565,18 +572,18 @@ function renderHubSites() {
   }
   const BILLING_LABELS = { trip:"Per Trip", tonnage:"Per MT", monthly_rental:"Monthly Rental", hourly:"Hourly", km_based:"Per KM", custom:"Custom" };
   const PTYPE_LABELS   = { intercity:"Intercity", local_movement:"Local", long_haul:"Long Haul", depot:"Depot", yard:"Yard", customer_site:"Customer Site", construction:"Construction", mining:"Mining", agriculture:"Agriculture", logistics_hub:"Logistics Hub", other:"Other" };
-  el.innerHTML = `<div style="display:flex;flex-direction:column;gap:10px;padding:4px 0 8px">` +
+  el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;padding:4px 0 8px">` +
     active.map(s => {
       const vehs   = (_siteVeh[s.id] || []).filter(a => !a.removed_date).length;
       const staff  = (_siteStaff[s.id] || []).filter(a => !a.left_date).length;
       const billing= BILLING_LABELS[s.billing_basis] || s.billing_basis || "";
       const ptype  = PTYPE_LABELS[s.project_type] || s.project_type || "";
-      return `<div style="border:1px solid var(--border);border-radius:12px;padding:14px 16px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      return `<div style="border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
           <strong style="font-size:0.97rem">${esc(s.name)}</strong>
           <span class="fw-badge upcoming" style="font-size:0.7rem">${ptype}</span>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:0.8rem;color:var(--text-muted);margin-bottom:10px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:0.8rem;color:var(--text-muted)">
           <span>${FWIcon("truck",{size:12})} <strong>${vehs}</strong> vehicle${vehs!==1?"s":""}</span>
           <span>${FWIcon("driver",{size:12})} <strong>${staff}</strong> staff</span>
           ${billing ? `<span>${FWIcon("rupee",{size:12})} ${billing}</span>` : "<span></span>"}
@@ -584,10 +591,10 @@ function renderHubSites() {
           ${s.client_name ? `<span style="grid-column:1/-1">${FWIcon("user",{size:12})} Client: ${esc(s.client_name)}</span>` : ""}
           ${s.manager_name ? `<span style="grid-column:1/-1">${FWIcon("user",{size:12})} Manager: ${esc(s.manager_name)}</span>` : ""}
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-outline btn-sm" onclick="openAssignSiteVehicles('${s.id}')">${FWIcon("truck",{size:13})} Assign Vehicles</button>
-          <button class="btn btn-outline btn-sm" onclick="openAssignSiteStaff('${s.id}')">${FWIcon("driver",{size:13})} Assign Staff</button>
-          <button class="btn btn-outline btn-sm" onclick="openEditSite('${s.id}')">${FWIcon("document",{size:13})} Edit Site</button>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:auto">
+          <button class="btn btn-outline btn-sm" onclick="openAssignSiteVehicles('${s.id}')">${FWIcon("truck",{size:13})} Vehicles</button>
+          <button class="btn btn-outline btn-sm" onclick="openAssignSiteStaff('${s.id}')">${FWIcon("driver",{size:13})} Staff</button>
+          <button class="btn btn-outline btn-sm" onclick="openEditSite('${s.id}')">${FWIcon("document",{size:13})} Edit</button>
         </div>
       </div>`;
     }).join("") + `</div>`;
@@ -1074,6 +1081,7 @@ function renderDrivers() {
 // Unsigned/demo mode shows an empty list (no PO support without an account).
 let _pos = [];        // purchase_orders rows
 let _poLines = {};    // { poId: [lines] }
+let _poByExpId = {};  // { expenseId: po } reverse index
 
 const PO_STATUS_META = {
   draft:     { label: "Draft",    cls: "upcoming" },
@@ -1089,6 +1097,8 @@ async function loadPOs() {
   const rows = await fwCloud.authGet("purchase_orders",
     "select=*&order=created_at.desc") || [];
   _pos = rows;
+  _poByExpId = {};
+  rows.forEach(p => { if (p.expense_id) _poByExpId[p.expense_id] = p; });
   // load lines for visible POs (limit to 100 most recent for performance)
   const ids = rows.slice(0, 100).map(r => r.id);
   if (ids.length) {
@@ -1137,6 +1147,13 @@ function renderPurchaseOrders() {
              </tr>`).join("")}</tbody>
            </table></div></details>`
       : `<p class="muted" style="font-size:0.78rem;margin-top:4px">No line items yet.</p>`;
+    const linkedExp = p.expense_id ? db.expenses.find(e => e.id === p.expense_id) : null;
+    const expBadge = p.status === "received"
+      ? `<div style="margin-top:6px;padding:6px 12px;background:var(--bg-alt);border-radius:8px;font-size:0.82rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          ${FWIcon("receipt",{size:13})} <span>Expense posted${linkedExp ? `: ₹${fmtINR(linkedExp.amount)}` : ""} · ${fmtDate(p.received_date || p.order_date)}</span>
+          <button class="link-btn" onclick="viewPoExpense('${p.expense_id || ""}')">View Expense →</button>
+        </div>`
+      : "";
     const actions = [];
     if (p.status === "draft")    actions.push(`<button class="link-btn" onclick="poSetStatus('${p.id}','approved')">Approve</button>`);
     if (p.status === "approved") actions.push(`<button class="link-btn" onclick="poSetStatus('${p.id}','ordered')">Mark Ordered</button>`);
@@ -1144,6 +1161,7 @@ function renderPurchaseOrders() {
                                  actions.push(`<button class="link-btn" onclick="poMarkReceived('${p.id}')">Mark Received</button>`);
     if (!["received","cancelled"].includes(p.status))
                                  actions.push(`<button class="link-btn" onclick="openEditPO('${p.id}')">Edit</button>`);
+    if (p.status === "received") actions.push(`<button class="link-btn" onclick="openEditPoNotes('${p.id}')">Edit Notes</button>`);
     if (!["received","cancelled"].includes(p.status))
                                  actions.push(`<button class="link-btn" style="color:#ef4444" onclick="poCancelConfirm('${p.id}')">Cancel</button>`);
     return `<div class="pred-row" id="po-${p.id}">
@@ -1154,6 +1172,7 @@ function renderPurchaseOrders() {
         <span class="muted" style="font-size:0.8rem"> · ${fmtDate(p.order_date)}</span>
       </div>
       ${linesHtml}
+      ${expBadge}
       <div class="pred-detail" style="margin-top:6px">${actions.join(" ")}</div>
     </div>`;
   }
@@ -1166,24 +1185,152 @@ function renderPurchaseOrders() {
       : "");
 }
 
+// ── Purchase Invoice list (FleetFin) ──────────────────────────────────────
+function renderPurchaseInvoices() {
+  const el = document.getElementById("purchaseInvoiceList");
+  if (!el) return;
+  if (!coreDbBacked()) {
+    el.innerHTML = "<p class='muted'>Sign in to view purchase invoices.</p>";
+    return;
+  }
+  const received = _pos.filter(p => p.status === "received");
+  if (!received.length) {
+    el.innerHTML = "<p class='muted' style='text-align:center;padding:32px'>No purchase invoices yet — they are created when you mark a PO received.</p>";
+    return;
+  }
+  const PAY_META = {
+    pending: { label: "Pending",  cls: "soon",    next: "paid",    nextLabel: "Mark Paid" },
+    paid:    { label: "Paid",     cls: "ok",       next: "pending", nextLabel: "Reopen" },
+    partial: { label: "Partial",  cls: "upcoming", next: "paid",    nextLabel: "Mark Paid" },
+  };
+  el.innerHTML = `<div style="overflow-x:auto"><table class="chart-table-el">
+    <thead><tr>
+      <th>PO #</th><th>Vendor</th><th>Vehicle</th><th>Bill No.</th>
+      <th>Date</th><th>Amount</th><th>Payment</th><th>Comments</th><th></th>
+    </tr></thead>
+    <tbody>` +
+    received.map(p => {
+      const veh = p.vehicle_id ? (db.vehicles.find(v => v.dbId === p.vehicle_id)?.name || "—") : "—";
+      const pm  = PAY_META[p.payment_status || "pending"] || PAY_META.pending;
+      return `<tr>
+        <td><button class="link-btn" onclick="viewExpensePO('${p.id}')">${esc(p.po_number)}</button></td>
+        <td>${esc(p.vendor_name)}</td>
+        <td>${esc(veh)}</td>
+        <td>${p.vendor_bill_no ? esc(p.vendor_bill_no) : "<span class='muted'>—</span>"}</td>
+        <td>${fmtDate(p.received_date || p.order_date)}</td>
+        <td style="font-weight:600;text-align:right">₹${fmtINR(p.total_amount || 0)}</td>
+        <td><span class="fw-badge ${pm.cls}">${pm.label}</span></td>
+        <td style="max-width:180px;font-size:0.8rem">${p.po_comments ? esc(p.po_comments) : "<span class='muted'>—</span>"}</td>
+        <td style="white-space:nowrap">
+          <button class="link-btn" onclick="piSetPayment('${p.id}','${pm.next}')">${pm.nextLabel}</button>
+          <button class="link-btn" onclick="piEditComments('${p.id}')">Edit</button>
+          ${p.expense_id ? `<button class="link-btn" onclick="viewPoExpense('${p.expense_id}')">Expense →</button>` : ""}
+        </td>
+      </tr>`;
+    }).join("") +
+    "</tbody></table></div>" +
+    `<div style="margin-top:12px;display:flex;gap:16px;font-size:0.82rem;flex-wrap:wrap">
+      <span>${FWIcon("check",{size:13,cls:"ic-success"})} Paid: ₹${fmtINR(received.filter(p=>p.payment_status==="paid").reduce((a,p)=>a+(p.total_amount||0),0))}</span>
+      <span style="color:var(--warn)">${FWIcon("alert",{size:13})} Pending: ₹${fmtINR(received.filter(p=>p.payment_status!=="paid").reduce((a,p)=>a+(p.total_amount||0),0))}</span>
+    </div>`;
+  if (window.FWIcons) FWIcons.hydrate(el);
+}
+
+window.piSetPayment = async function(poId, status) {
+  const ok = await fwCloud.authPatch(`purchase_orders?id=eq.${poId}`, { payment_status: status });
+  if (!ok) { toast("Could not update — try again.", "warn"); return; }
+  const po = _pos.find(p => p.id === poId);
+  if (po) po.payment_status = status;
+  renderPurchaseInvoices();
+  toast(`Payment status → ${status}.`);
+};
+
+window.piEditComments = function(poId) {
+  const p = _pos.find(x => x.id === poId);
+  if (!p) return;
+  openEditModal(`Invoice — ${p.po_number}`, `
+    <div class="form-row">
+      <label>Vendor bill / invoice no.<input type="text" name="vendorBillNo" value="${escAttr(p.vendor_bill_no||"")}" placeholder="e.g. INV-2024-001" /></label>
+      <label>Payment status
+        <select name="paymentStatus">
+          <option value="pending" ${(p.payment_status||"pending")==="pending"?"selected":""}>Pending</option>
+          <option value="paid"    ${p.payment_status==="paid"?"selected":""}>Paid</option>
+          <option value="partial" ${p.payment_status==="partial"?"selected":""}>Partial</option>
+        </select>
+      </label>
+    </div>
+    <label>Comments / Notes
+      <textarea name="poComments" rows="3" style="width:100%">${esc(p.po_comments||"")}</textarea>
+    </label>
+  `, async fd => {
+    const ok = await fwCloud.authPatch(`purchase_orders?id=eq.${poId}`, {
+      vendor_bill_no: fd.vendorBillNo.trim() || null,
+      payment_status: fd.paymentStatus || "pending",
+      po_comments: fd.poComments.trim() || null,
+    });
+    if (!ok) throw new Error("Could not save — check your connection and try again.");
+    // update local cache
+    Object.assign(p, { vendor_bill_no: fd.vendorBillNo.trim() || null, payment_status: fd.paymentStatus, po_comments: fd.poComments.trim() || null });
+    closeEditModal();
+    toast("Invoice updated.");
+    renderPurchaseInvoices(); renderPurchaseOrders();
+  });
+};
+window.renderPurchaseInvoices = renderPurchaseInvoices;
+
 // ── PO modal helpers ───────────────────────────────────────────────────────
 function poLineRow(l) {
-  // l is an existing line object, or null for a blank row
   const v = l || {};
+  const qty   = parseFloat(v.quantity  || 1);
+  const price = parseFloat(v.unit_price || 0);
+  const gst   = parseFloat(v.gst_rate !== undefined ? v.gst_rate : 18);
+  const lineTotal = qty * price * (1 + gst / 100);
+  const totalDisp = price > 0 ? "₹" + fmtINR(Math.round(lineTotal * 100) / 100) : "—";
   return `<tr class="po-line-row">
     <td><input type="text" class="po-line-part" value="${escAttr(v.part_name||"")}" placeholder="Part name *" required style="width:100%;min-width:120px" /></td>
     <td><input type="text" class="po-line-partno" value="${escAttr(v.part_number||"")}" placeholder="Part no." style="width:90px" /></td>
     <td><input type="text" class="po-line-make" value="${escAttr(v.make||"")}" placeholder="Brand" style="width:80px" /></td>
     <td><input type="text" class="po-line-sn" value="${escAttr(v.serial_number||"")}" placeholder="S/N" style="width:90px" /></td>
-    <td><input type="number" class="po-line-qty" value="${v.quantity||1}" min="0.001" step="any" style="width:60px" /></td>
+    <td><input type="number" class="po-line-qty" value="${v.quantity||1}" min="0.001" step="any" style="width:60px" oninput="updatePoLineTotals(this)" /></td>
     <td><select class="po-line-unit" style="width:64px">
       ${["pcs","set","litre","kg","metre"].map(u => `<option${(v.unit||"pcs")===u?" selected":""}>${u}</option>`).join("")}
     </select></td>
-    <td><input type="number" class="po-line-price" value="${v.unit_price||""}" min="0" step="any" placeholder="0.00" style="width:80px" /></td>
-    <td><input type="number" class="po-line-gst" value="${v.gst_rate??18}" min="0" max="100" step="any" style="width:56px" /></td>
-    <td><button type="button" class="link-btn" style="color:#ef4444" onclick="this.closest('tr').remove()">✕</button></td>
+    <td><input type="number" class="po-line-price" value="${v.unit_price||""}" min="0" step="any" placeholder="0.00" style="width:80px" oninput="updatePoLineTotals(this)" /></td>
+    <td><input type="number" class="po-line-gst" value="${v.gst_rate??18}" min="0" max="100" step="any" style="width:56px" oninput="updatePoLineTotals(this)" /></td>
+    <td class="po-line-total-cell" style="text-align:right;font-weight:600;font-size:0.82rem;white-space:nowrap">${totalDisp}</td>
+    <td><button type="button" class="link-btn" style="color:#ef4444" onclick="this.closest('tr').remove();updatePoGrandTotal()">✕</button></td>
   </tr>`;
 }
+
+window.updatePoLineTotals = function(input) {
+  const row = input.closest(".po-line-row");
+  if (!row) return;
+  const qty   = parseFloat(row.querySelector(".po-line-qty")?.value   || 0) || 0;
+  const price = parseFloat(row.querySelector(".po-line-price")?.value  || 0) || 0;
+  const gst   = parseFloat(row.querySelector(".po-line-gst")?.value   || 0) || 0;
+  const lineTotal = qty * price * (1 + gst / 100);
+  const cell = row.querySelector(".po-line-total-cell");
+  if (cell) cell.textContent = price > 0 ? "₹" + fmtINR(Math.round(lineTotal * 100) / 100) : "—";
+  updatePoGrandTotal();
+};
+
+window.updatePoGrandTotal = function() {
+  let subtotal = 0, totalGst = 0;
+  document.querySelectorAll("#poLineTbody .po-line-row").forEach(row => {
+    const qty   = parseFloat(row.querySelector(".po-line-qty")?.value   || 0) || 0;
+    const price = parseFloat(row.querySelector(".po-line-price")?.value  || 0) || 0;
+    const gst   = parseFloat(row.querySelector(".po-line-gst")?.value   || 0) || 0;
+    const base  = qty * price;
+    subtotal += base;
+    totalGst += base * gst / 100;
+  });
+  const total = subtotal + totalGst;
+  const footer = document.getElementById("poTotalsFooter");
+  if (footer) footer.innerHTML =
+    `<tr style="font-size:0.8rem;color:var(--text-muted)"><td colspan="7" style="text-align:right;padding-top:6px">Subtotal (excl. GST)</td><td style="text-align:right">₹${fmtINR(Math.round(subtotal*100)/100)}</td><td colspan="2"></td></tr>` +
+    `<tr style="font-size:0.8rem;color:var(--text-muted)"><td colspan="7" style="text-align:right">Total GST</td><td style="text-align:right">₹${fmtINR(Math.round(totalGst*100)/100)}</td><td colspan="2"></td></tr>` +
+    `<tr style="font-weight:700;border-top:2px solid var(--border)"><td colspan="7" style="text-align:right;padding-top:4px">Grand Total</td><td style="text-align:right">₹${fmtINR(Math.round(total*100)/100)}</td><td colspan="2"></td></tr>`;
+};
 
 function openNewPO() {
   openEditModal("New Purchase Order", `
@@ -1203,10 +1350,11 @@ function openNewPO() {
     <h3 style="margin:12px 0 6px">Line Items</h3>
     <div style="overflow-x:auto">
     <table class="chart-table-el" id="poLineTable" style="width:100%;font-size:0.82rem">
-      <thead><tr><th>Part *</th><th>Part No.</th><th>Make</th><th>S/N</th><th>Qty</th><th>Unit</th><th>Unit ₹ *</th><th>GST %</th><th></th></tr></thead>
+      <thead><tr><th>Part *</th><th>Part No.</th><th>Make</th><th>S/N</th><th>Qty</th><th>Unit</th><th>Unit ₹ *</th><th>GST %</th><th>Line ₹</th><th></th></tr></thead>
       <tbody id="poLineTbody">${poLineRow(null)}</tbody>
+      <tfoot id="poTotalsFooter"></tfoot>
     </table></div>
-    <button type="button" class="link-btn" onclick="document.getElementById('poLineTbody').insertAdjacentHTML('beforeend', poLineRow(null))" style="margin-top:6px">${FWIcon("plus",{size:13})} Add line</button>
+    <button type="button" class="link-btn" onclick="document.getElementById('poLineTbody').insertAdjacentHTML('beforeend', poLineRow(null));updatePoGrandTotal()" style="margin-top:6px">${FWIcon("plus",{size:13})} Add line</button>
   `, async fd => {
     const lines = collectPoLines();
     if (!lines) throw new Error("Fix the line items first (part name and unit price required for each row).");
@@ -1236,6 +1384,7 @@ function openNewPO() {
     toast(`PO ${po.po_number} created.`);
     await loadPOs(); renderPurchaseOrders();
   });
+  updatePoGrandTotal();
 }
 
 function openEditPO(id) {
@@ -1262,10 +1411,11 @@ function openEditPO(id) {
     <h3 style="margin:12px 0 6px">Line Items</h3>
     <div style="overflow-x:auto">
     <table class="chart-table-el" style="width:100%;font-size:0.82rem">
-      <thead><tr><th>Part *</th><th>Part No.</th><th>Make</th><th>S/N</th><th>Qty</th><th>Unit</th><th>Unit ₹ *</th><th>GST %</th><th></th></tr></thead>
+      <thead><tr><th>Part *</th><th>Part No.</th><th>Make</th><th>S/N</th><th>Qty</th><th>Unit</th><th>Unit ₹ *</th><th>GST %</th><th>Line ₹</th><th></th></tr></thead>
       <tbody id="poLineTbody">${lines.map(poLineRow).join("") || poLineRow(null)}</tbody>
+      <tfoot id="poTotalsFooter"></tfoot>
     </table></div>
-    <button type="button" class="link-btn" onclick="document.getElementById('poLineTbody').insertAdjacentHTML('beforeend', poLineRow(null))" style="margin-top:6px">${FWIcon("plus",{size:13})} Add line</button>
+    <button type="button" class="link-btn" onclick="document.getElementById('poLineTbody').insertAdjacentHTML('beforeend', poLineRow(null));updatePoGrandTotal()" style="margin-top:6px">${FWIcon("plus",{size:13})} Add line</button>
   `, async fd => {
     const lines2 = collectPoLines();
     if (!lines2) throw new Error("Fix the line items first.");
@@ -1294,7 +1444,29 @@ function openEditPO(id) {
     toast("Purchase order updated.");
     await loadPOs(); renderPurchaseOrders();
   });
+  updatePoGrandTotal();
 }
+
+function openEditPoNotes(id) {
+  const p = _pos.find(x => x.id === id);
+  if (!p) return;
+  openEditModal(`PO ${p.po_number} — Edit Notes`, `
+    <p class="muted" style="margin-bottom:12px;padding:8px 12px;background:var(--bg-alt);border-radius:8px">
+      This PO has been received — only notes and expected delivery can be updated (the financials are fixed).</p>
+    <label>Notes<textarea name="notes" rows="3" style="width:100%">${esc(p.notes||"")}</textarea></label>
+    <label style="margin-top:10px;display:block">Expected delivery<input type="date" name="expectedDelivery" value="${p.expected_delivery||""}" /></label>
+  `, async fd => {
+    const ok = await fwCloud.authPatch(`purchase_orders?id=eq.${id}`, {
+      notes: fd.notes.trim() || null,
+      expected_delivery: fd.expectedDelivery || null,
+    });
+    if (!ok) throw new Error("Could not save — check your connection and try again.");
+    closeEditModal();
+    toast("PO notes updated.");
+    await loadPOs(); renderPurchaseOrders();
+  });
+}
+window.openEditPoNotes = openEditPoNotes;
 
 function collectPoLines() {
   const rows = document.querySelectorAll("#poLineTbody .po-line-row");
@@ -1340,42 +1512,78 @@ async function poMarkReceived(id) {
   const p = _pos.find(x => x.id === id);
   if (!p) return;
   const lines = _poLines[id] || [];
-  // post expense — category "Spare Parts", items = line details, vendor = po vendor
   const vehLocalId = p.vehicle_id
     ? (db.vehicles.find(v => v.dbId === p.vehicle_id)?.id || "")
     : "";
-  const expenseData = {
-    vehicleId: vehLocalId || null,
-    date: today(),
-    category: "Spare Parts",
-    amount: p.total_amount || 0,
-    title: `PO ${p.po_number} — ${p.vendor_name}`,
-    vendor: p.vendor_name,
-    gstin: p.vendor_gstin || undefined,
-    billNo: p.po_number,
-    items: lines.map(l => ({
-      description: [l.part_name, l.part_number, l.make].filter(Boolean).join(" / "),
-      partNumber: l.part_number || undefined,
-      serialNumber: l.serial_number || undefined,
-      make: l.make || undefined,
-      qty: l.quantity,
-      unit: l.unit,
-      unitPrice: l.unit_price,
-      gstRate: l.gst_rate,
-      gstAmount: Math.round(l.quantity * l.unit_price * l.gst_rate) / 100,
-      amount: Math.round(l.quantity * l.unit_price * (1 + l.gst_rate / 100) * 100) / 100,
-    })),
-  };
-  const saved = coreDbBacked() ? await dbCreateExpense(expenseData) : null;
-  if (coreDbBacked() && !saved) { toast("Could not post expense — check your connection.", "warn"); return; }
-  if (saved) db.expenses.push(saved);
 
-  const patch = { status: "received", received_date: today() };
-  if (saved) patch.expense_id = saved.id;
-  await fwCloud.authPatch(`purchase_orders?id=eq.${id}`, patch);
-  toast(`PO ${p.po_number} received — expense posted to ${vehLocalId ? "vehicle & " : ""}accounts.`);
-  await loadPOs(); renderPurchaseOrders();
-  renderExpenseHistory(); renderOverview();
+  // Collect receipt + payment details before posting
+  openEditModal(`Receive PO ${p.po_number}`, `
+    <div style="padding:10px 14px;background:var(--bg-alt);border-radius:10px;margin-bottom:14px;font-size:0.85rem">
+      <strong>${esc(p.vendor_name)}</strong> &nbsp;·&nbsp; ₹${fmtINR(p.total_amount || 0)} total
+      ${vehLocalId ? `&nbsp;·&nbsp; ${esc(db.vehicles.find(v => v.id === vehLocalId)?.name || "")}` : ""}
+    </div>
+    <div class="form-row">
+      <label>Received date<input type="date" name="receivedDate" value="${today()}" required /></label>
+      <label>Vendor bill / invoice no.<input type="text" name="vendorBillNo" value="${escAttr(p.vendor_bill_no||p.po_number||"")}" placeholder="e.g. INV-2024-001" /></label>
+    </div>
+    <div class="form-row">
+      <label style="flex:1">Payment status
+        <select name="paymentStatus">
+          <option value="pending" ${(p.payment_status||"pending")==="pending"?"selected":""}>Pending — will pay later</option>
+          <option value="paid"    ${p.payment_status==="paid"?"selected":""}>Paid — already settled</option>
+          <option value="partial" ${p.payment_status==="partial"?"selected":""}>Partial — part paid</option>
+        </select>
+      </label>
+    </div>
+    <label>Comments / Notes (internal)
+      <textarea name="poComments" rows="2" placeholder="e.g. Delivery complete, 2 items backordered" style="width:100%">${esc(p.po_comments||"")}</textarea>
+    </label>
+    <p class="muted" style="font-size:0.78rem;margin-top:10px">
+      ${FWIcon("receipt",{size:13})} This will post an expense to Expense History and create a purchase invoice in FleetFin.
+    </p>
+  `, async fd => {
+    const expenseData = {
+      vehicleId: vehLocalId || null,
+      date: fd.receivedDate || today(),
+      category: "Spare Parts",
+      amount: p.total_amount || 0,
+      title: `PO ${p.po_number} — ${p.vendor_name}`,
+      vendor: p.vendor_name,
+      gstin: p.vendor_gstin || undefined,
+      billNo: fd.vendorBillNo.trim() || p.po_number,
+      items: lines.map(l => ({
+        description: [l.part_name, l.part_number, l.make].filter(Boolean).join(" / "),
+        partNumber: l.part_number || undefined,
+        serialNumber: l.serial_number || undefined,
+        make: l.make || undefined,
+        qty: l.quantity,
+        unit: l.unit,
+        unitPrice: l.unit_price,
+        gstRate: l.gst_rate,
+        gstAmount: Math.round(l.quantity * l.unit_price * l.gst_rate) / 100,
+        amount: Math.round(l.quantity * l.unit_price * (1 + l.gst_rate / 100) * 100) / 100,
+      })),
+    };
+    const saved = coreDbBacked() ? await dbCreateExpense(expenseData) : null;
+    if (coreDbBacked() && !saved) throw new Error("Could not post expense — check your connection.");
+    if (saved) db.expenses.push(saved);
+
+    const patch = {
+      status: "received",
+      received_date: fd.receivedDate || today(),
+      payment_status: fd.paymentStatus || "pending",
+      vendor_bill_no: fd.vendorBillNo.trim() || null,
+      po_comments: fd.poComments.trim() || null,
+    };
+    if (saved) patch.expense_id = saved.id;
+    await fwCloud.authPatch(`purchase_orders?id=eq.${id}`, patch);
+
+    closeEditModal();
+    toast(`PO ${p.po_number} received — expense + purchase invoice created.`);
+    await loadPOs(); renderPurchaseOrders();
+    renderExpenseHistory(); renderOverview();
+    if (window.renderPurchaseInvoices) renderPurchaseInvoices();
+  });
 }
 
 async function poCancelConfirm(id) {
@@ -1384,6 +1592,34 @@ async function poCancelConfirm(id) {
   if (!confirm(`Cancel PO ${p.po_number}?`)) return;
   await poSetStatus(id, "cancelled");
 }
+
+// Cross-navigation: PO ↔ Expense
+window.viewPoExpense = function(expenseId) {
+  if (!expenseId) return;
+  document.querySelector('#tabBar .tab-btn[data-tab="expensehistory"]')?.click();
+  setTimeout(() => {
+    const row = document.querySelector(`[data-expense-id="${expenseId}"]`);
+    if (row) {
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+      row.style.outline = "2px solid var(--brand)";
+      row.style.borderRadius = "6px";
+      setTimeout(() => { row.style.outline = ""; row.style.borderRadius = ""; }, 2200);
+    }
+  }, 250);
+};
+
+window.viewExpensePO = function(poId) {
+  document.querySelector('#tabBar .tab-btn[data-tab="purchaseorders"]')?.click();
+  setTimeout(() => {
+    const row = document.getElementById(`po-${poId}`);
+    if (row) {
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+      row.style.outline = "2px solid var(--brand)";
+      row.style.borderRadius = "6px";
+      setTimeout(() => { row.style.outline = ""; row.style.borderRadius = ""; }, 2200);
+    }
+  }, 250);
+};
 
 // Expose globals needed for inline onclick= attributes
 window.openNewPO    = openNewPO;
@@ -4159,7 +4395,8 @@ function activateTab(tabName, options = {}) {
   // Home & My Account work even with an empty fleet. Signed-in owners never
   // see the demo prompt — they get the Getting Started landing instead.
   if (!db.vehicles.length) {
-    const exempt = tabName === "account" || tabName === "home" || tabName === "addvehicle";
+    const exempt = tabName === "account" || tabName === "home" || tabName === "addvehicle"
+                || tabName === "sites" || tabName === "smsnotif" || tabName === "purchaseinvoices";
     const signedIn = !!(window.fwCloud && fwCloud.user());
     document.getElementById("emptyState").hidden = exempt || signedIn;
     const startEl = document.getElementById("startState");
@@ -4170,6 +4407,9 @@ function activateTab(tabName, options = {}) {
   if (tabName === "map"       && window.renderFleetMap)  renderFleetMap();
   if (tabName === "fin"       && window.renderGfFin)     renderGfFin();
   if (tabName === "analytics" && window.renderGfIq)      renderGfIq();
+  if (tabName === "smsnotif")        renderNotifSettings();
+  if (tabName === "sites")           { loadSites().then(() => { renderSites(); renderHubSites(); }); }
+  if (tabName === "purchaseinvoices") renderPurchaseInvoices();
   return true;
 }
 
@@ -4614,6 +4854,14 @@ function buildDynamicPanels() {
     <div id="poList"></div>
   </div>`);
 
+  mk("purchaseinvoices", `<div class="chart-card">
+    <div class="chart-head">
+      <div><h2 class="head-ic"><span class="ic-tile success"><i data-icon="receipt" data-icon-size="22"></i></span> Purchase Invoices</h2>
+      <p class="muted">Vendor invoices created when PO materials are received. Toggle payment status as you settle each bill.</p></div>
+    </div>
+    <div id="purchaseInvoiceList"></div>
+  </div>`);
+
   mk("sites", `<div class="chart-card">
     <div class="chart-head">
       <div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="mapPin" data-icon-size="22"></i></span> Sites &amp; Projects</h2>
@@ -4634,6 +4882,17 @@ function buildDynamicPanels() {
     </div>
     <div id="dispatchSummary" style="display:flex;gap:10px;flex-wrap:wrap;padding:0 0 12px"></div>
     <div id="dispatchBoard"></div>
+  </div>`);
+
+  mk("smsnotif", `<div class="chart-card">
+    <div class="chart-head">
+      <div>
+        <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="bell" data-icon-size="22"></i></span> SMS Notifications</h2>
+        <p class="muted">Choose which events trigger an SMS to the owner's mobile. Requires MSG91 account — register at msg91.com and add your API key in Supabase Edge Function secrets.</p>
+      </div>
+      <button class="btn btn-outline" onclick="saveNotifSettings('tab')">Save</button>
+    </div>
+    <div id="smsnotifTabBody" style="padding:4px 0 8px"></div>
   </div>`);
 
   [
@@ -4766,17 +5025,29 @@ function renderExpenseHistory() {
   const el = document.getElementById("expHistTable");
   if (!el) return;
   const rows = [...db.expenses].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 60);
-  el.innerHTML = rows.length ?
+  if (!rows.length) { el.innerHTML = "<p class='muted'>No expenses recorded yet.</p>"; return; }
+  el.innerHTML =
     `<table class="chart-table-el"><thead><tr><th>Date</th><th>Vehicle</th><th>Expense</th><th>Amount</th><th>Actions</th></tr></thead><tbody>` +
     rows.map(e => {
       const i = db.expenses.indexOf(e);
-      return `<tr><td>${fmtDate(e.date)}</td><td><strong>${esc(vName(e.vehicleId))}</strong></td>
-        <td>${e.title ? `<strong>${esc(e.title)}</strong><br /><span class="muted">${esc(e.category)}</span>` : esc(e.category)}</td>
-        <td>${fmtINR(e.amount)}</td>
-        <td><button class="link-btn" onclick="fwGoEditBill(${i})">Edit</button>
-            <button class="link-btn" style="color:#b91c1c" onclick="fwDeleteBill(${i})">Delete</button></td></tr>`;
+      const linkedPo = _poByExpId[e.id];
+      const poLink = linkedPo
+        ? `<br><button class="link-btn" onclick="viewExpensePO('${linkedPo.id}')" style="font-size:0.75rem">${FWIcon("receipt",{size:11})} PO: ${esc(linkedPo.po_number)} →</button>`
+        : "";
+      const titleCell = e.title
+        ? `<strong>${esc(e.title)}</strong><br /><span class="muted">${esc(e.category)}</span>${poLink}`
+        : `${esc(e.category)}${poLink}`;
+      return `<tr data-expense-id="${e.id || ""}">
+        <td>${fmtDate(e.date)}</td>
+        <td><strong>${esc(vName(e.vehicleId))}</strong></td>
+        <td>${titleCell}</td>
+        <td>₹${fmtINR(e.amount)}</td>
+        <td style="white-space:nowrap">
+          ${linkedPo ? "" : `<button class="link-btn" onclick="fwGoEditBill(${i})">Edit</button> `}
+          <button class="link-btn" style="color:#b91c1c" onclick="fwDeleteBill(${i})">Delete</button>
+        </td></tr>`;
     }).join("") +
-    "</tbody></table>" : "<p class='muted'>No expenses recorded yet.</p>";
+    "</tbody></table>";
 }
 // jump from Expense History to the bill editor (gstbills tab)
 function fwGoEditBill(i) {
@@ -4916,7 +5187,8 @@ document.getElementById("sideClose")?.addEventListener("click", () =>
 function renderAll() {
   const has = db.vehicles.length > 0;
   const activeId = document.querySelector("#fleetContent > .tab-panel.active")?.id;
-  const exempt = activeId === "tab-home" || activeId === "tab-account" || activeId === "tab-addvehicle";
+  const exempt = activeId === "tab-home" || activeId === "tab-account" || activeId === "tab-addvehicle"
+              || activeId === "tab-sites" || activeId === "tab-smsnotif";
   // Signed-in owners with an empty fleet get the Getting Started landing,
   // never the demo prompt — their account starts clean.
   const signedIn = !!(window.fwCloud && fwCloud.user());
@@ -4939,7 +5211,7 @@ function renderAll() {
   renderAssignments(); renderMeters(); renderExpenseHistory(); renderExpenseApprovals(); renderReplacement();
   renderItemFailures(); renderForms(); renderServiceHistory(); renderServiceTasks();
   renderFastag();
-  renderPurchaseOrders();
+  renderPurchaseOrders(); renderPurchaseInvoices();
   renderNotifSettings(); renderSites(); renderHubSites(); renderVehicleStatusBoard();
   populateFilterDropdowns();
   renderDispatch();
