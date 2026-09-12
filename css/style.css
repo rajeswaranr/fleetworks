@@ -1808,3 +1808,21 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
   .drv-body .tab-bar .tab-btn{min-width:74px;min-height:62px;font-size:0.75rem}
   .drv-body .tab-bar .tab-btn svg{width:23px;height:23px}
 }
+
+/* ---- Driver Safety ---- */
+.stat-card.sf-ok    { border-top: 3px solid #16a34a; }
+.stat-card.sf-warn  { border-top: 3px solid #f59e0b; }
+.stat-card.sf-bad   { border-top: 3px solid #dc2626; }
+
+.sf-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Score reads as a bar first and a number second — a supervisor scanning
+   twenty drivers is comparing lengths, not parsing integers. */
+.sf-score { display: flex; align-items: center; gap: 9px; min-width: 128px; }
+.sf-score-bar { flex: 1; height: 7px; border-radius: 4px; background: var(--bg-alt);
+  overflow: hidden; min-width: 62px; }
+.sf-score-bar i { display: block; height: 100%; border-radius: 4px; }
+.sf-score b { font-variant-numeric: tabular-nums; font-size: 0.95rem; min-width: 26px; text-align: right; }
+
+#tab-safety .chart-table-el td { vertical-align: top; }
+#coachModal textarea { font-family: inherit; resize: vertical; }

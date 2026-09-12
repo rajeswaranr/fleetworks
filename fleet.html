@@ -158,6 +158,7 @@
         <div data-ws="ops" hidden>
         <div class="side-pillar ops"><span class="pp"></span>Fleet<em>Ops</em></div>
         <button class="side-item tab-btn" data-tab="opscentre"><i data-icon="network"></i><span>Operation Centre</span></button>
+        <button class="side-item tab-btn" data-tab="safety"><i data-icon="shieldCheck"></i><span>Driver Safety</span></button>
         <button class="side-item tab-btn" data-tab="overview"><i data-icon="gauge"></i><span>FleetOps Dashboard</span></button>
         <button class="side-item tab-btn" data-tab="dispatch"><i data-icon="calendar"></i><span>Daily Dispatch</span></button>
         <button class="side-item tab-btn side-cta" data-tab="addvehicle"><i data-icon="truck"></i><span>Add Vehicle</span></button>
@@ -610,6 +611,87 @@
           </div>
         </div>
       </section>
+
+      <!-- ======= DRIVER SAFETY — scores, event review, coaching ======= -->
+      <section class="tab-panel" id="tab-safety">
+
+        <div class="dash-toolbar">
+          <span class="lt-count" id="safetyUpdated"></span>
+          <span class="lt-spacer"></span>
+          <button class="btn btn-outline btn-sm" onclick="loadSafety()">↻ Refresh</button>
+        </div>
+
+        <section class="stat-row" id="safetyStats"></section>
+
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile" style="background:#fee2e2;color:#b91c1c"><i data-icon="alert" data-icon-size="20"></i></span> Event Review Queue</h2>
+              <p class="muted">Unreviewed and highest-cost first. Assigning an event opens a coaching session with that driver.</p>
+            </div>
+            <div class="sf-filters" id="safetyEventFilters"></div>
+          </div>
+          <div class="chart-scroll"><div id="safetyEvents"></div></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="driver" data-icon-size="20"></i></span> Driver Scorecards</h2>
+              <p class="muted">Rolling 30 days, penalty normalised per 1,000 km so distance does not decide the ranking.</p>
+            </div>
+          </div>
+          <div class="chart-scroll"><div id="safetyScores"></div></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile info"><i data-icon="chat" data-icon-size="20"></i></span> Coaching Sessions</h2>
+              <p class="muted">Open until the driver has seen it and you have closed it.</p>
+            </div>
+          </div>
+          <div class="chart-scroll"><div id="safetyCoaching"></div></div>
+        </div>
+
+      </section>
+
+      <!-- Assign coaching modal -->
+      <div id="coachModal" class="modal-overlay">
+        <div class="modal" style="max-width:520px">
+          <button class="modal-close" onclick="closeCoachModal()" aria-label="Close">✕</button>
+          <div class="chart-head" style="padding-right:40px">
+            <div><h2 id="coachModalTitle">Assign coaching</h2>
+            <p class="muted" id="coachModalSub"></p></div>
+          </div>
+          <form id="coachForm">
+            <label>Coaching note — what should the driver do differently?
+              <textarea name="coach_note" rows="3" required
+                placeholder="e.g. Following distance was under 1 second at 68 km/h. Keep 3 seconds behind on the highway."
+                style="width:100%;margin-top:6px;padding:10px;border:1px solid var(--border);border-radius:8px;font:inherit"></textarea>
+            </label>
+            <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+              <button type="submit" class="btn btn-primary">Assign to driver</button>
+              <button type="button" class="btn btn-outline" onclick="openDismissPanel()">Not the driver's fault</button>
+            </div>
+            <div id="coachDismissPanel" hidden style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+              <label>Why is this being dismissed?
+                <select name="dismiss_reason" style="width:100%;margin-top:6px;padding:9px;border:1px solid var(--border);border-radius:8px">
+                  <option value="false_positive">False positive — camera or sensor misfired</option>
+                  <option value="not_driver_fault">Real event, but not the driver's fault</option>
+                  <option value="duplicate">Duplicate of another event</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <p class="muted" style="font-size:0.78rem;margin:8px 0 0">
+                Dismissed events keep their reason. A fleet that cannot tell a broken camera
+                from a disputed event will keep coaching people for hardware faults.
+              </p>
+              <button type="button" class="btn btn-outline btn-sm" style="margin-top:10px" onclick="submitDismiss()">Dismiss event</button>
+            </div>
+          </form>
+        </div>
+      </div>
 
       <!-- ======= OPERATION CENTRE — centralised live monitoring ======= -->
       <section class="tab-panel" id="tab-opscentre">

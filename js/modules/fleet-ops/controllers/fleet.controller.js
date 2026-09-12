@@ -5014,6 +5014,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "trips") { renderTrips(); loadActiveTripWorkflow(); }
   if (tabName === "tyres") loadTyreManager();
   if (tabName === "opscentre") loadOpsCentre(); else stopOpsCentre();
+  if (tabName === "safety") loadSafety();
   return true;
 }
 
@@ -6270,3 +6271,285 @@ document.getElementById("occAuto")?.addEventListener("change", e => setOccAuto(e
 function stopOpsCentre() {
   if (_occTimer) { clearInterval(_occTimer); _occTimer = null; }
 }
+
+/* ============ Driver Safety — review queue, scores, coaching ============
+   Reads v_safety_events and v_driver_safety_score. Both are views with
+   security_invoker, so a supervisor opening this page resolves only the
+   vehicles he holds without the page filtering anything itself. */
+
+var _sfEvents = [], _sfScores = [], _sfCoaching = [], _sfFilter = "unreviewed";
+var _coachEvent = null;
+
+const SF_BAND = {
+  excellent:         { label: "Excellent",     cls: "ok",       min: 0 },
+  good:              { label: "Good",          cls: "upcoming", min: 0 },
+  needs_coaching:    { label: "Needs coaching", cls: "soon",    min: 0 },
+  at_risk:           { label: "At risk",       cls: "overdue",  min: 0 },
+  insufficient_data: { label: "Not enough km", cls: "",         min: 0 },
+};
+
+const SF_EVENT_LABEL = {
+  forward_collision: "Forward collision", pedestrian_warning: "Pedestrian warning",
+  lane_departure: "Lane departure", headway_warning: "Headway warning",
+  fatigue: "Fatigue / drowsiness", distraction: "Distraction", phone_use: "Phone use",
+  no_seatbelt: "No seatbelt", smoking: "Smoking", harsh_brake: "Harsh braking",
+  harsh_accel: "Harsh acceleration", harsh_corner: "Harsh cornering", overspeed: "Overspeeding",
+  fuel_drop: "Fuel drop", tamper: "Device tamper", power_cut: "Power cut",
+  sos: "SOS", panic: "Panic button",
+};
+
+async function loadSafety() {
+  if (!(window.fwCloud && fwCloud.user && fwCloud.user())) {
+    ["safetyEvents", "safetyScores", "safetyCoaching"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = `<p class="muted" style="padding:14px">Sign in to see safety data for your fleet.</p>`;
+    });
+    document.getElementById("safetyStats").innerHTML = "";
+    return;
+  }
+  const [ev, sc, co] = await Promise.all([
+    fwCloud.authGet("v_safety_events",
+      "select=*&order=acknowledged_at.nullsfirst,occurred_at.desc&limit=200").catch(() => []),
+    fwCloud.authGet("v_driver_safety_score", "select=*").catch(() => []),
+    fwCloud.authGet("coaching_sessions",
+      "select=*&order=assigned_at.desc&limit=100").catch(() => []),
+  ]);
+  _sfEvents = ev || []; _sfScores = sc || []; _sfCoaching = co || [];
+  renderSafety();
+  const u = document.getElementById("safetyUpdated");
+  if (u) u.textContent = "Updated " + new Date().toLocaleTimeString("en-IN");
+}
+
+function renderSafety() {
+  renderSafetyStats();
+  renderSafetyEvents();
+  renderSafetyScores();
+  renderSafetyCoaching();
+}
+
+function renderSafetyStats() {
+  const el = document.getElementById("safetyStats");
+  if (!el) return;
+  const unreviewed = _sfEvents.filter(e => !e.acknowledged_at).length;
+  const critical   = _sfEvents.filter(e => e.severity === "critical").length;
+  const openCoach  = _sfCoaching.filter(c => c.status === "assigned" || c.status === "acknowledged").length;
+  const scored     = _sfScores.filter(s => s.safety_score != null);
+  const avg = scored.length
+    ? Math.round(scored.reduce((t, s) => t + Number(s.safety_score), 0) / scored.length) : null;
+  const atRisk = _sfScores.filter(s => s.band === "at_risk").length;
+
+  const tiles = [
+    ["Unreviewed events", unreviewed, unreviewed ? "warn" : "ok"],
+    ["Critical", critical, critical ? "bad" : "ok"],
+    ["Open coaching", openCoach, ""],
+    ["Fleet safety score", avg == null ? "—" : avg, avg == null ? "" : avg >= 80 ? "ok" : avg >= 60 ? "warn" : "bad"],
+    ["Drivers at risk", atRisk, atRisk ? "bad" : "ok"],
+  ];
+  el.innerHTML = tiles.map(([k, v, c]) => `
+    <div class="stat-card${c ? " sf-" + c : ""}">
+      <span class="stat-value">${v}</span><span class="stat-label">${k}</span>
+    </div>`).join("");
+}
+
+function renderSafetyEvents() {
+  const f = document.getElementById("safetyEventFilters");
+  if (f) {
+    const opts = [["unreviewed", "Unreviewed"], ["critical", "Critical"],
+                  ["coachable", "Coachable"], ["all", "All"]];
+    f.innerHTML = opts.map(([k, l]) =>
+      `<button class="fw-chip${_sfFilter === k ? " is-active" : ""}" onclick="setSafetyFilter('${k}')">${l}</button>`
+    ).join("");
+  }
+
+  const el = document.getElementById("safetyEvents");
+  if (!el) return;
+
+  const rows = _sfEvents.filter(e => {
+    if (_sfFilter === "unreviewed") return !e.acknowledged_at;
+    if (_sfFilter === "critical")   return e.severity === "critical";
+    if (_sfFilter === "coachable")  return e.is_coachable && Number(e.weight) > 0;
+    return true;
+  }).sort((a, b) => (Number(b.weight) - Number(a.weight))
+                 || new Date(b.occurred_at) - new Date(a.occurred_at));
+
+  if (!rows.length) {
+    el.innerHTML = _sfEvents.length
+      ? `<p class="muted" style="padding:14px">No events match this filter.</p>`
+      : `<p class="muted" style="padding:14px">No safety events yet. They arrive once an AIS-140 device
+         or dash cam is linked to a vehicle and starts reporting.</p>`;
+    return;
+  }
+
+  el.innerHTML = `<table class="chart-table-el" style="width:100%">
+    <thead><tr>
+      <th>When</th><th>Event</th><th>Vehicle</th><th>Driver</th>
+      <th>Speed</th><th>Weight</th><th>Status</th><th></th>
+    </tr></thead>
+    <tbody>${rows.map(e => {
+      const sev = e.severity === "critical" ? "overdue" : e.severity === "warning" ? "soon" : "upcoming";
+      const veh = db.vehicles.find(v => (v.dbId || v.id) === e.vehicle_id);
+      const drv = _sfScores.find(s => s.driver_id === e.driver_id);
+      const session = _sfCoaching.find(c => c.event_id === e.id);
+      // An event attributed by current assignment rather than by the trip that
+      // was running is a guess, and saying so is the difference between a
+      // coaching conversation and an argument.
+      const attrWarn = e.attribution === "assignment";
+      return `<tr>
+        <td><span title="${esc(new Date(e.occurred_at).toLocaleString("en-IN"))}">${fmtAgoShort(e.occurred_at)}</span></td>
+        <td><span class="fw-badge ${sev}">${esc(SF_EVENT_LABEL[e.event_type] || e.event_type)}</span>
+            ${e.video_url ? ` <a href="${esc(e.video_url)}" target="_blank" rel="noopener" class="link-btn" style="font-size:.75rem">clip</a>` : ""}</td>
+        <td>${veh ? esc(veh.name) : `<span class="muted">—</span>`}</td>
+        <td>${drv ? esc(drv.driver_name) : `<span class="muted">Unattributed</span>`}
+            ${attrWarn ? `<br><span class="muted" style="font-size:.7rem" title="No trip was running, so this is the vehicle's current driver — not proof of who was at the wheel.">by assignment</span>` : ""}</td>
+        <td>${e.speed_kmph != null ? Math.round(e.speed_kmph) + " km/h" : "—"}</td>
+        <td>${Number(e.weight) > 0 ? Number(e.weight) : `<span class="muted">not scored</span>`}</td>
+        <td>${session
+              ? `<span class="fw-badge ${session.status === "dismissed" ? "" : session.status === "completed" ? "ok" : "soon"}">${esc(session.status)}</span>`
+              : e.acknowledged_at ? `<span class="fw-badge ok">reviewed</span>`
+              : `<span class="fw-badge soon">new</span>`}</td>
+        <td>${session || !e.is_coachable || !e.driver_id
+              ? (!e.driver_id && !session ? `<span class="muted" style="font-size:.75rem">no driver</span>` : "")
+              : `<button class="link-btn" onclick="openCoachModal('${e.id}')">Coach</button>`}</td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+}
+
+function fmtAgoShort(ts) {
+  const s = Math.round((Date.now() - new Date(ts)) / 1000);
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.round(s / 60) + "m";
+  if (s < 86400) return Math.round(s / 3600) + "h";
+  return Math.round(s / 86400) + "d";
+}
+
+function renderSafetyScores() {
+  const el = document.getElementById("safetyScores");
+  if (!el) return;
+  const scored = _sfScores.filter(s => s.safety_score != null)
+    .sort((a, b) => Number(a.safety_score) - Number(b.safety_score));
+  const unscored = _sfScores.filter(s => s.safety_score == null);
+
+  if (!scored.length && !unscored.length) {
+    el.innerHTML = `<p class="muted" style="padding:14px">No drivers yet.</p>`;
+    return;
+  }
+
+  el.innerHTML = `
+    ${scored.length ? `<table class="chart-table-el" style="width:100%">
+      <thead><tr><th>Driver</th><th>Score</th><th>Band</th><th>Events</th><th>Critical</th><th>km (30d)</th><th>Per 1,000 km</th></tr></thead>
+      <tbody>${scored.map(s => {
+        const b = SF_BAND[s.band] || SF_BAND.good;
+        const sc = Number(s.safety_score);
+        return `<tr>
+          <td><strong>${esc(s.driver_name)}</strong></td>
+          <td><div class="sf-score"><div class="sf-score-bar"><i style="width:${sc}%;background:${sc >= 80 ? "#16a34a" : sc >= 60 ? "#f59e0b" : "#dc2626"}"></i></div><b>${sc}</b></div></td>
+          <td><span class="fw-badge ${b.cls}">${b.label}</span></td>
+          <td>${s.events_30d}</td>
+          <td>${Number(s.critical_30d) ? `<span class="fw-badge overdue">${s.critical_30d}</span>` : "0"}</td>
+          <td>${Math.round(Number(s.km_30d)).toLocaleString("en-IN")}</td>
+          <td>${s.penalty_per_1000km ?? "—"}</td>
+        </tr>`;
+      }).join("")}</tbody></table>` : ""}
+    ${unscored.length ? `<p class="muted" style="padding:12px 14px;margin:0;border-top:1px solid var(--border)">
+      ${unscored.length} driver${unscored.length === 1 ? "" : "s"} not scored — under 250 km in the last 30 days.
+      Below that the event rate is too noisy to mean anything, so they get no score rather than a misleading one.
+    </p>` : ""}`;
+}
+
+function renderSafetyCoaching() {
+  const el = document.getElementById("safetyCoaching");
+  if (!el) return;
+  if (!_sfCoaching.length) {
+    el.innerHTML = `<p class="muted" style="padding:14px">No coaching sessions yet.</p>`;
+    return;
+  }
+  el.innerHTML = `<table class="chart-table-el" style="width:100%">
+    <thead><tr><th>Driver</th><th>Event</th><th>Note</th><th>Status</th><th>Assigned</th><th></th></tr></thead>
+    <tbody>${_sfCoaching.map(c => {
+      const drv = _sfScores.find(s => s.driver_id === c.driver_id);
+      const st = { assigned: "soon", acknowledged: "upcoming", completed: "ok", dismissed: "" }[c.status] || "";
+      return `<tr>
+        <td><strong>${drv ? esc(drv.driver_name) : "—"}</strong></td>
+        <td>${esc(SF_EVENT_LABEL[c.event_type] || c.event_type || "—")}</td>
+        <td style="max-width:280px">${esc(c.coach_note || "")}
+          ${c.driver_note ? `<div class="muted" style="font-size:.75rem;margin-top:3px">Driver: ${esc(c.driver_note)}</div>` : ""}
+          ${c.dismiss_reason ? `<div class="muted" style="font-size:.75rem;margin-top:3px">Dismissed: ${esc(c.dismiss_reason.replace(/_/g, " "))}</div>` : ""}</td>
+        <td><span class="fw-badge ${st}">${esc(c.status)}</span></td>
+        <td>${fmtAgoShort(c.assigned_at)} ago</td>
+        <td>${c.status === "acknowledged"
+              ? `<button class="link-btn" onclick="completeCoaching('${c.id}')">Close</button>` : ""}</td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+}
+
+window.setSafetyFilter = function(k) { _sfFilter = k; renderSafetyEvents(); };
+
+window.openCoachModal = function(eventId) {
+  _coachEvent = _sfEvents.find(e => e.id === eventId);
+  if (!_coachEvent) return;
+  const drv = _sfScores.find(s => s.driver_id === _coachEvent.driver_id);
+  const veh = db.vehicles.find(v => (v.dbId || v.id) === _coachEvent.vehicle_id);
+  document.getElementById("coachModalTitle").textContent =
+    SF_EVENT_LABEL[_coachEvent.event_type] || _coachEvent.event_type;
+  document.getElementById("coachModalSub").textContent =
+    [drv && drv.driver_name, veh && veh.name,
+     new Date(_coachEvent.occurred_at).toLocaleString("en-IN"),
+     _coachEvent.attribution === "assignment" ? "attributed by current assignment, not by trip" : null
+    ].filter(Boolean).join(" · ");
+  document.getElementById("coachDismissPanel").hidden = true;
+  document.getElementById("coachForm").reset();
+  document.getElementById("coachModal").classList.add("open");
+};
+
+window.closeCoachModal = function() {
+  document.getElementById("coachModal").classList.remove("open");
+  _coachEvent = null;
+};
+
+window.openDismissPanel = function() {
+  document.getElementById("coachDismissPanel").hidden = false;
+};
+
+async function saveCoaching(fields) {
+  if (!_coachEvent) return;
+  const ok = await fwCloud.authInsert("coaching_sessions", Object.assign({
+    org_id: _coachEvent.org_id,
+    driver_id: _coachEvent.driver_id,
+    event_id: _coachEvent.id,
+    vehicle_id: _coachEvent.vehicle_id,
+    event_type: _coachEvent.event_type,
+    severity: _coachEvent.severity,
+  }, fields));
+  if (!ok) { alert("Could not save — try again."); return; }
+  // Reviewing the event and coaching it are the same act from the supervisor's
+  // side, so acknowledge it here rather than making him click twice.
+  if (!_coachEvent.acknowledged_at) {
+    await fwCloud.authPatch("device_events?id=eq." + _coachEvent.id,
+      { acknowledged_at: new Date().toISOString() }).catch(() => {});
+  }
+  closeCoachModal();
+  loadSafety();
+}
+
+const _coachForm = document.getElementById("coachForm");
+if (_coachForm) _coachForm.addEventListener("submit", e => {
+  e.preventDefault();
+  const note = e.target.coach_note.value.trim();
+  if (!note) return;
+  saveCoaching({ status: "assigned", coach_note: note });
+});
+
+window.submitDismiss = function() {
+  const sel = document.querySelector('#coachForm [name="dismiss_reason"]');
+  saveCoaching({
+    status: "dismissed",
+    dismiss_reason: sel ? sel.value : "other",
+    coach_note: document.querySelector('#coachForm [name="coach_note"]').value.trim() || null,
+  });
+};
+
+window.completeCoaching = async function(id) {
+  await fwCloud.authPatch("coaching_sessions?id=eq." + id,
+    { status: "completed", completed_at: new Date().toISOString() });
+  loadSafety();
+};
