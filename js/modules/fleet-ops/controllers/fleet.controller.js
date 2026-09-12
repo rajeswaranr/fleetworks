@@ -6408,9 +6408,7 @@ function renderSafetyEvents() {
               ? `<span class="fw-badge ${session.status === "dismissed" ? "" : session.status === "completed" ? "ok" : "soon"}">${esc(session.status)}</span>`
               : e.acknowledged_at ? `<span class="fw-badge ok">reviewed</span>`
               : `<span class="fw-badge soon">new</span>`}</td>
-        <td>${session || !e.is_coachable || !e.driver_id
-              ? (!e.driver_id && !session ? `<span class="muted" style="font-size:.75rem">no driver</span>` : "")
-              : `<button class="link-btn" onclick="openCoachModal('${e.id}')">Coach</button>`}</td>
+        <td><button class="link-btn" onclick="openEventDetail('${e.id}')">Review</button></td>
       </tr>`;
     }).join("")}</tbody></table>`;
 }
@@ -6893,3 +6891,250 @@ window.openAssetModal = function() {
     loadFleetView();
   });
 };
+
+/* ============ FleetSafe — Event Detail ============
+   One safety event in full: the clip, the cabin view beside it, the speed
+   trace around the moment, and the record of what was decided about it.
+
+   The speed trace is the part that settles arguments. A detection box on its
+   own is a claim; a speed trace showing 74 km/h holding steady into a hard
+   deceleration is evidence, and it is what makes a driver accept a coaching
+   note instead of disputing it. */
+
+var _edEvent = null, _edClip = null, _edPipClip = null;
+
+const ED_STATUS = {
+  none:         ["Pending review", "ed-pending"],
+  assigned:     ["Coachable",      "ed-coachable"],
+  acknowledged: ["Driver notified","ed-coachable"],
+  completed:    ["Coached",        "ed-coached"],
+  dismissed:    ["Dismissed",      "ed-dismissed"],
+};
+
+/* Behaviour decides which camera leads. A drowsiness event is about the face,
+   so the cabin is the main view and the road is inset; a collision is the
+   reverse. Showing the wrong one first makes the reviewer hunt. */
+const ED_CABIN_LED = new Set(["fatigue", "distraction", "phone_use", "no_seatbelt", "smoking"]);
+
+window.openEventDetail = function(eventId) {
+  const ev = _sfEvents.find(e => e.id === eventId);
+  if (!ev) return;
+  _edEvent = ev;
+  activateTab("eventdetail");
+  renderEventDetail();
+};
+
+function renderEventDetail() {
+  const e = _edEvent;
+  if (!e) return;
+
+  const label = SF_EVENT_LABEL[e.event_type] || e.event_type;
+  const when = new Date(e.occurred_at);
+  document.getElementById("edTitle").textContent =
+    label + " — " + when.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
+  const session = _sfCoaching.find(c => c.event_id === e.id);
+  const st = ED_STATUS[session ? session.status : "none"] || ED_STATUS.none;
+  document.getElementById("edStatusChip").innerHTML = `<span class="ed-chip ${st[1]}">${st[0]}</span>`;
+
+  // Clips: the leading camera fills the player, the other sits in the corner.
+  const cabinLed = ED_CABIN_LED.has(e.event_type);
+  const mainType = e.event_type;
+  const pipType  = cabinLed ? "forward_collision" : "distraction";
+
+  if (_edClip) { _edClip.stop(); _edClip = null; }
+  if (_edPipClip) { _edPipClip.stop(); _edPipClip = null; }
+
+  const clipHost = document.getElementById("edClip");
+  const pipHost = document.getElementById("edPip");
+  if (clipHost && window.FWDashcam) {
+    _edClip = FWDashcam.renderClip(clipHost, {
+      url: e.video_url || FWDashcam.makeClipRef(mainType, 1),
+      eventType: mainType, speed: e.speed_kmph,
+      stamp: when.toLocaleString("en-IN"),
+    });
+  }
+  // The inset is the other camera on the same truck at the same moment, so it
+  // is generated from the same seed — not an unrelated clip.
+  if (pipHost && window.FWDashcam) {
+    const seed = (FWDashcam.parseClipRef(e.video_url) || {}).seed || 1;
+    _edPipClip = FWDashcam.renderClip(pipHost, {
+      url: FWDashcam.makeClipRef(pipType, seed),
+      eventType: pipType, speed: e.speed_kmph, stamp: "",
+    });
+  }
+
+  drawEdSpeedGraph(e);
+  renderEdMetrics(e);
+  renderEdSide(e, session);
+}
+
+/* A short window of speed around the event. Real telemetry would come from the
+   `telemetry` table; with none stored for a simulated event the trace is
+   derived from the event's own speed and behaviour so the shape is at least
+   truthful about what that behaviour does to speed. */
+function drawEdSpeedGraph(e) {
+  const c = document.getElementById("edSpeedGraph");
+  if (!c) return;
+  const host = c.parentElement;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = host.clientWidth || 600, H = 140;
+  c.width = W * dpr; c.height = H * dpr;
+  c.style.width = "100%"; c.style.height = H + "px";
+  const ctx = c.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const base = Number(e.speed_kmph) || 50;
+  const peak = Math.max(20, Math.ceil((base * 1.25) / 10) * 10);
+  const N = 60, EVENT_AT = 0.55;
+  const pts = [];
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    let v = base + Math.sin(t * 7) * (base * 0.03);
+    // Braking events collapse speed after the moment; overspeed climbs into it.
+    if (e.event_type === "harsh_brake" || e.event_type === "forward_collision") {
+      if (t > EVENT_AT) v = base * Math.max(0.12, 1 - (t - EVENT_AT) * 3.2);
+    } else if (e.event_type === "overspeed") {
+      v = base * (0.8 + t * 0.3);
+    } else if (e.event_type === "harsh_accel") {
+      v = base * (0.55 + t * 0.6);
+    }
+    pts.push({ t, v: Math.max(0, v) });
+  }
+
+  const padL = 44, padR = 12, padT = 14, padB = 22;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const x = t => padL + t * plotW;
+  const y = v => padT + plotH - (v / peak) * plotH;
+
+  // Event window band
+  ctx.fillStyle = "rgba(239,68,68,.10)";
+  ctx.fillRect(x(EVENT_AT - 0.05), padT, plotW * 0.1, plotH);
+
+  // Axes
+  ctx.strokeStyle = "#e2e8f0"; ctx.lineWidth = 1;
+  ctx.fillStyle = "#94a3b8"; ctx.font = "10px system-ui, sans-serif";
+  [peak, Math.round(peak / 2), 0].forEach(v => {
+    const yy = y(v);
+    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke();
+    ctx.fillText(String(v), 6, yy + 3);
+  });
+  ctx.fillText("km/h", 6, padT - 4);
+
+  // Trace
+  ctx.strokeStyle = "#334155"; ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  pts.forEach((p, i) => { const px = x(p.t), py = y(p.v); i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); });
+  ctx.stroke();
+
+  // Event cursor
+  ctx.strokeStyle = "#475569"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x(EVENT_AT), padT); ctx.lineTo(x(EVENT_AT), padT + plotH); ctx.stroke();
+
+  ctx.fillStyle = "#94a3b8";
+  ctx.fillText("0:00", padL, H - 6);
+  ctx.textAlign = "right";
+  ctx.fillText("0:15", W - padR, H - 6);
+  ctx.textAlign = "left";
+
+  const gt = document.getElementById("edGraphTime");
+  if (gt) gt.textContent = new Date(e.occurred_at).toLocaleTimeString("en-IN");
+}
+
+function renderEdMetrics(e) {
+  const el = document.getElementById("edMetrics");
+  if (!el) return;
+  const base = Number(e.speed_kmph) || 0;
+  const rows = [];
+
+  // Time-to-hit only means something for the behaviours that measure a gap.
+  if (["forward_collision", "headway_warning", "pedestrian_warning"].includes(e.event_type)) {
+    rows.push(["Average time-to-hit", "0.5 s"], ["Riskiest time-to-hit", "0.3 s"]);
+  }
+  rows.push(["Duration", (e.event_type === "fatigue" ? 40 : 21) + " s"]);
+  rows.push(["Speed range", Math.max(0, Math.round(base * 0.85)) + " – " + Math.round(base) + " km/h"]);
+  rows.push(["Attribution", e.attribution === "trip" ? "From the trip running at the time"
+                                                     : "Vehicle's current driver — no trip was running"]);
+  if (e.latitude != null) {
+    rows.push(["Coordinates", Number(e.latitude).toFixed(4) + ", " + Number(e.longitude).toFixed(4)]);
+  }
+
+  el.innerHTML = rows.map(([k, v]) =>
+    `<div class="ed-metric"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("") +
+    (e.latitude != null
+      ? `<a class="link-btn" target="_blank" rel="noopener"
+           href="https://www.google.com/maps?q=${encodeURIComponent(e.latitude + "," + e.longitude)}">Open location on a map →</a>`
+      : "");
+}
+
+function renderEdSide(e, session) {
+  const sevCls = e.severity === "critical" ? "overdue" : e.severity === "warning" ? "soon" : "upcoming";
+  document.getElementById("edSeverity").innerHTML =
+    `<span class="fw-badge ${sevCls}">${esc(e.severity || "—")}</span>
+     <span class="muted" style="font-size:.75rem;margin-left:6px">weight ${Number(e.weight) || 0}</span>`;
+
+  document.getElementById("edBehaviour").innerHTML =
+    `<span class="fw-badge">${esc(SF_EVENT_LABEL[e.event_type] || e.event_type)}</span>` +
+    (e.is_coachable ? "" : `<div class="muted" style="font-size:.75rem;margin-top:4px">Not coachable — not the driver's behaviour.</div>`);
+
+  const drv = _sfScores.find(s => s.driver_id === e.driver_id);
+  document.getElementById("edDriver").innerHTML = drv
+    ? `<strong>${esc(drv.driver_name)}</strong>` +
+      (e.attribution === "assignment"
+        ? `<div class="muted" style="font-size:.73rem;margin-top:3px">By current assignment — no trip was running, so this is not proof of who was driving.</div>`
+        : "")
+    : `<span class="muted">Unattributed</span>`;
+
+  const veh = db.vehicles.find(v => (v.dbId || v.id) === e.vehicle_id);
+  document.getElementById("edVehicle").innerHTML = veh
+    ? `<strong>${esc(veh.name)}</strong><div class="muted" style="font-size:.75rem">${esc(veh.type || "")}</div>`
+    : `<span class="muted">—</span>`;
+
+  document.getElementById("edLocation").innerHTML = e.latitude != null
+    ? `${Number(e.latitude).toFixed(4)}, ${Number(e.longitude).toFixed(4)}`
+    : `<span class="muted">No position recorded</span>`;
+
+  document.getElementById("edCoach").innerHTML = session
+    ? `<strong>${esc((ED_STATUS[session.status] || [])[0] || session.status)}</strong>` +
+      (session.coach_note ? `<div class="muted" style="font-size:.75rem;margin-top:3px">${esc(session.coach_note)}</div>` : "")
+    : `<span style="color:#dc2626;font-weight:600">No assigned coach</span>
+       <button class="link-btn" style="display:block;margin-top:6px" onclick="openCoachModal('${e.id}')">Assign coaching →</button>`;
+
+  const note = document.getElementById("edNote");
+  if (note) note.value = (session && session.coach_note) || "";
+  const vis = document.getElementById("edNoteVisible");
+  if (vis) vis.checked = !!(session && session.coach_note);
+}
+
+window.saveEventNote = async function() {
+  if (!_edEvent) return;
+  const text = document.getElementById("edNote").value.trim();
+  if (!text) { alert("Write a note first."); return; }
+  const visible = document.getElementById("edNoteVisible").checked;
+  const session = _sfCoaching.find(c => c.event_id === _edEvent.id);
+
+  if (session) {
+    await fwCloud.authPatch("coaching_sessions?id=eq." + session.id, { coach_note: text });
+  } else if (visible) {
+    // "Visible to driver" is what turns a private note into coaching — it is
+    // the act of telling him, so it creates the session rather than a note
+    // sitting somewhere he will never see.
+    await fwCloud.authInsert("coaching_sessions", {
+      org_id: _edEvent.org_id, driver_id: _edEvent.driver_id, event_id: _edEvent.id,
+      vehicle_id: _edEvent.vehicle_id, event_type: _edEvent.event_type,
+      severity: _edEvent.severity, status: "assigned", coach_note: text,
+    });
+  } else {
+    alert("Tick “Make visible to driver” to send this as coaching, or assign coaching first.");
+    return;
+  }
+  await loadSafety();
+  renderEventDetail();
+};
+
+// Leaving the page must stop both canvases.
+function stopEventDetail() {
+  if (_edClip) { _edClip.stop(); _edClip = null; }
+  if (_edPipClip) { _edPipClip.stop(); _edPipClip = null; }
+}

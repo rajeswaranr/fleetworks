@@ -1892,3 +1892,52 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
   .fv-map-wrap { min-height: 380px; }
   .fv-count { margin-left: 0; }
 }
+
+/* ---- FleetSafe: Event Detail ---- */
+.ed-crumb { display: flex; align-items: center; gap: 8px; padding: 0 0 14px;
+  font-size: 0.88rem; color: var(--muted); flex-wrap: wrap; }
+.ed-crumb strong { color: var(--navy); }
+.ed-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem;
+  font-weight: 700; padding: 6px 14px; border-radius: 100px; }
+.ed-chip.ed-pending   { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.ed-chip.ed-coachable { background: #2563eb; color: #fff; }
+.ed-chip.ed-coached   { background: #16a34a; color: #fff; }
+.ed-chip.ed-dismissed { background: var(--bg-alt); color: var(--muted); }
+
+.ed-body { display: grid; grid-template-columns: 1fr 320px; gap: 16px; align-items: start; }
+.ed-main { display: flex; flex-direction: column; gap: 12px; }
+
+/* The inset camera sits over the main one, exactly as a dashcam review tool
+   shows it — the two views are the same moment, not two clips. */
+.ed-player { position: relative; border-radius: 12px; overflow: hidden; background: #0d1119; }
+.ed-pip { position: absolute; top: 12px; right: 12px; width: 26%; min-width: 120px;
+  border-radius: 8px; overflow: hidden; border: 2px solid rgba(255,255,255,.35);
+  box-shadow: 0 6px 20px rgba(0,0,0,.5); }
+
+.ed-graph { position: relative; background: #fff; border: 1px solid var(--border);
+  border-radius: 12px; padding: 10px 12px; }
+.ed-graph-time { position: absolute; top: 12px; right: 16px; text-align: right; }
+.ed-graph-time span { display: block; font-size: 0.62rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); }
+.ed-graph-time b { font-size: 0.9rem; color: var(--navy); font-variant-numeric: tabular-nums; }
+
+.ed-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px;
+  background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+.ed-metric span { display: block; font-size: 0.62rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+.ed-metric b { font-size: 0.92rem; color: var(--navy); font-weight: 700; }
+
+.ed-side { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.ed-side h3 { font-size: 0.98rem; margin: 0 0 12px; color: var(--navy); }
+.ed-field { margin-bottom: 14px; }
+.ed-field label { display: block; font-size: 0.62rem; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+.ed-side textarea { width: 100%; border: 1px solid var(--border); border-radius: 9px;
+  padding: 10px; font: inherit; font-size: 0.88rem; resize: vertical; }
+.ed-check { display: flex; align-items: center; gap: 8px; margin-top: 8px;
+  font-size: 0.82rem; color: var(--muted); cursor: pointer; }
+
+@media (max-width: 900px) {
+  .ed-body { grid-template-columns: 1fr; }
+  .ed-pip { width: 34%; }
+}

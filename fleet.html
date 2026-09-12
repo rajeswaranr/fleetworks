@@ -264,6 +264,9 @@
         <button class="side-item tab-btn" data-tab="geofences"><i data-icon="map"></i><span>Geofences</span></button>
         <button class="side-item tab-btn" data-tab="assets"><i data-icon="boxes"></i><span>Assets &amp; Trailers</span></button>
         <button class="side-item tab-btn" data-tab="devices"><i data-icon="zap"></i><span>Devices &amp; Telemetry</span></button>
+        <!-- Reached from an event row, not the sidebar, but activateTab() resolves
+             a panel through its nav button — so it needs one, hidden. -->
+        <button class="side-item tab-btn" data-tab="eventdetail" hidden>Event detail</button>
         </div>
 
         <!-- ======= WORKSPACE: FleetIQ — prediction, analytics, forecasting only ======= -->
@@ -676,6 +679,57 @@
             </div>
           </div>
 
+        </div>
+      </section>
+
+      <!-- ======= EVENT DETAIL — one safety event, in full ======= -->
+      <section class="tab-panel" id="tab-eventdetail">
+        <div class="ed-crumb">
+          <button class="link-btn" onclick="activateTab('safety')">FleetSafe</button>
+          <span>/</span>
+          <button class="link-btn" onclick="activateTab('safety')">Events</button>
+          <span>/</span>
+          <strong id="edTitle">Event</strong>
+          <span class="lt-spacer"></span>
+          <span id="edStatusChip"></span>
+        </div>
+
+        <div class="ed-body">
+          <div class="ed-main">
+            <div class="ed-player">
+              <div id="edClip"></div>
+              <div class="ed-pip" id="edPip"></div>
+            </div>
+            <div class="ed-graph">
+              <canvas id="edSpeedGraph"></canvas>
+              <div class="ed-graph-time"><span>TIME</span><b id="edGraphTime">—</b></div>
+            </div>
+            <div class="ed-metrics" id="edMetrics"></div>
+          </div>
+
+          <aside class="ed-side">
+            <h3>Event Details</h3>
+            <div class="ed-field"><label>Severity</label>
+              <div id="edSeverity"></div></div>
+            <div class="ed-field"><label>Unsafe behaviour</label>
+              <div id="edBehaviour"></div></div>
+            <div class="ed-field"><label>Driver</label>
+              <div id="edDriver"></div></div>
+            <div class="ed-field"><label>Vehicle</label>
+              <div id="edVehicle"></div></div>
+            <div class="ed-field"><label>Location</label>
+              <div id="edLocation"></div></div>
+            <div class="ed-field"><label>Assigned coach</label>
+              <div id="edCoach"></div></div>
+
+            <h3 style="margin-top:22px">Notes</h3>
+            <textarea id="edNote" rows="4" placeholder="Write something…"></textarea>
+            <label class="ed-check">
+              <input type="checkbox" id="edNoteVisible" />
+              Make visible to driver
+            </label>
+            <button class="btn btn-primary btn-sm" style="margin-top:10px;width:100%" onclick="saveEventNote()">Save note</button>
+          </aside>
         </div>
       </section>
 
