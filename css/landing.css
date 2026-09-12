@@ -964,3 +964,30 @@ h1, h2, h3, h4 { color: var(--ai-text); letter-spacing: -0.01em; }
   .mega-col { min-width: 0; }
   .mega-head { padding: 8px 10px 4px; }
 }
+
+/* The Products panel carries six columns, so it spans the navbar rather than
+   dropping from its trigger. Anchoring it to the trigger and centring with a
+   translate pushed it 215px off the left edge, because left:50% resolves
+   against the .mega-item, not the viewport. Making that one item static lets
+   the panel resolve against .navbar — which is sticky, therefore positioned —
+   and stretch the full width under the nav, the way Motive's does. */
+.mega-item-xl { position: static; }
+.mega-xl {
+  display: grid !important; grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 18px 22px;
+  left: 24px !important; right: 24px !important; width: auto; transform: none;
+}
+.mega-item.open .mega-xl { display: grid !important; }
+.mega-xl .mega-col { min-width: 0; }
+.mega-xl .mega-col a span { font-size: .73rem; }
+
+@media (max-width: 1400px) {
+  .mega-xl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 1100px) {
+  /* In the drawer everything is one column and flows normally again. */
+  .mega-item-xl { position: relative; }
+  .mega-xl { display: flex !important; flex-direction: column; width: auto;
+    left: auto !important; right: auto !important; gap: 4px; }
+  .mega-item.open .mega-xl { display: flex !important; }
+}
