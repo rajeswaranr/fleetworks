@@ -2043,3 +2043,48 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .ins-gap { margin-top: 5px; font-size: 0.78rem; color: #b91c1c;
   background: #fef2f2; border-left: 2px solid #dc2626;
   padding: 5px 9px; border-radius: 0 6px 6px 0; }
+
+/* ---- FleetFix: workshop directory ---- */
+.side-pillar.fix .pp { background: #ea580c; box-shadow: 0 0 8px rgba(234, 88, 12, 0.7); }
+
+.fx-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.fx-filters input[type="search"] { flex: 1; min-width: 200px; height: 36px; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: 9px; font: inherit; font-size: 0.88rem; }
+.fx-filters select { height: 36px; padding: 0 10px; border: 1px solid var(--border);
+  border-radius: 9px; font: inherit; font-size: 0.85rem; background: #fff; }
+.fx-count { font-size: 0.8rem; color: var(--muted); margin-left: auto; }
+
+.fx-body { display: grid; grid-template-columns: 380px 1fr; gap: 12px;
+  border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: #fff; }
+.fx-list { max-height: 620px; overflow-y: auto; border-right: 1px solid var(--border); }
+.fx-map-wrap { position: relative; min-height: 620px; }
+#fxMap { position: absolute; inset: 0; }
+
+.fx-card { padding: 13px 15px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.fx-card:hover { background: var(--bg-alt); }
+.fx-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.fx-card-top strong { font-size: 0.92rem; color: var(--navy); }
+.fx-rating { font-size: 0.82rem; font-weight: 700; color: #b45309; flex: none; }
+.fx-card-sub { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+.fx-trades { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 7px; }
+.fx-trade { font-size: 0.68rem; font-weight: 600; text-transform: capitalize;
+  background: #fff7ed; color: #c2410c; border-radius: 100px; padding: 2px 9px; }
+.fx-card-foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 0.76rem; }
+
+/* An empty directory is a fact about onboarding, not a failed search — so it
+   explains itself and offers the path that still works. */
+.fx-empty { padding: 26px 20px; text-align: center; }
+.fx-empty strong { display: block; font-size: 0.98rem; color: var(--navy); margin-bottom: 8px; }
+.fx-empty p { font-size: 0.84rem; color: var(--muted); line-height: 1.6; margin: 0 auto 14px; max-width: 320px; }
+
+.fx-pin-wrap { background: none; border: none; }
+.fx-pin { display: flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%; background: #ea580c; color: #fff;
+  font-size: 11px; font-weight: 700; border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+
+@media (max-width: 900px) {
+  .fx-body { grid-template-columns: 1fr; }
+  .fx-list { max-height: 320px; border-right: none; border-bottom: 1px solid var(--border); }
+  .fx-map-wrap { min-height: 360px; }
+}

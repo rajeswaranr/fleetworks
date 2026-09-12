@@ -5028,6 +5028,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "fleetview") loadFleetView();
   if (tabName === "fueldash") loadFuelDash();
   if (tabName === "insuredash" || tabName === "policies" || tabName === "claims") loadInsure();
+  if (tabName === "garages") loadGarages();
   return true;
 }
 
@@ -5956,7 +5957,7 @@ activateTabFromHash();
 // Home hub cards open their workspace and land on its dashboard
 document.querySelectorAll(".hub-card").forEach(c => c.addEventListener("click", () => {
   const target = { ops: "overview", fin: "fin", iq: "analytics",
-                   safe: "fleetview", insure: "insuredash" }[c.dataset.hub];
+                   safe: "fleetview", insure: "insuredash", fix: "garages" }[c.dataset.hub];
   document.querySelector(`#tabBar .tab-btn[data-tab="${target}"]`)?.click();
 }));
 if (!activateTabFromHash()) setWorkspace("home");
@@ -7887,3 +7888,147 @@ window.deletePolicy = async function(id) {
   if (!ok) { alert("Could not update the policy."); return; }
   loadInsure();
 };
+
+
+/* ============ FleetFix — find a garage ============
+   The aggregator half: someone else's bay. FleetOps owns work the fleet manages
+   itself, so everything here is about a workshop outside the business.
+
+   The directory reads v_workshop_directory — onboarded partners only. The 129
+   businesses in vendor_leads are a sales pipeline scraped from maps; they have
+   agreed to nothing, and listing them here would have owners ringing garages
+   that never signed up. Better an honest empty state than a directory of
+   strangers. */
+
+var _fxWorkshops = [], _fxMap = null, _fxLayer = null;
+
+async function loadGarages() {
+  if (!(window.fwCloud && fwCloud.user && fwCloud.user())) {
+    const el = document.getElementById("fxList");
+    if (el) el.innerHTML = `<p class="muted" style="padding:16px">Sign in to see workshops near your trucks.</p>`;
+    return;
+  }
+  _fxWorkshops = await fwCloud.authGet("v_workshop_directory",
+    "select=*&order=rating.desc.nullslast").catch(() => []) || [];
+  renderGarages();
+  await initGarageMap();
+}
+
+function fxFiltered() {
+  const q = (document.getElementById("fxSearch")?.value || "").trim().toLowerCase();
+  const trade = document.getElementById("fxTrade")?.value || "";
+  const sort = document.getElementById("fxNear")?.value || "";
+
+  let rows = _fxWorkshops.slice();
+  if (trade) rows = rows.filter(w => (w.services || []).some(s =>
+    String(s).toLowerCase().includes(trade)));
+  if (q) rows = rows.filter(w =>
+    ((w.name || "") + " " + (w.city || "") + " " + (w.services || []).join(" ")).toLowerCase().includes(q));
+
+  if (sort === "jobs") rows.sort((a, b) => (b.jobs_done || 0) - (a.jobs_done || 0));
+  else rows.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  return rows;
+}
+
+function renderGarages() {
+  const el = document.getElementById("fxList");
+  if (!el) return;
+  const rows = fxFiltered();
+
+  const cnt = document.getElementById("fxCount");
+  if (cnt) cnt.textContent = rows.length + (rows.length === 1 ? " workshop" : " workshops");
+
+  if (!_fxWorkshops.length) {
+    // Deliberately explicit about why it is empty. "No results" would read as a
+    // filter problem and send the owner hunting through dropdowns.
+    el.innerHTML = `<div class="fx-empty">
+      <strong>No partner workshops onboarded yet</strong>
+      <p>FleetWorks is signing up garages trade by trade. Until one near you has
+         joined, raise the job anyway — Book &amp; Track Work still records the
+         complaint, the estimate and the invoice against the vehicle, whichever
+         workshop ends up doing it.</p>
+      <button class="btn btn-primary btn-sm" onclick="activateTab('servicereq')">Raise a job anyway</button>
+    </div>`;
+    drawGarageMarkers([]);
+    return;
+  }
+
+  if (!rows.length) {
+    el.innerHTML = `<p class="muted" style="padding:16px">No workshop matches these filters.</p>`;
+    drawGarageMarkers([]);
+    return;
+  }
+
+  el.innerHTML = rows.map(w => `
+    <article class="fx-card" onclick="fxFocus('${w.id}')">
+      <div class="fx-card-top">
+        <strong>${esc(w.name || "Unnamed workshop")}</strong>
+        ${w.rating ? `<span class="fx-rating">${Number(w.rating).toFixed(1)}★</span>` : ""}
+      </div>
+      <div class="fx-card-sub">${esc(w.city || "")}${w.address ? " · " + esc(String(w.address).slice(0, 60)) : ""}</div>
+      <div class="fx-trades">${(w.services || []).map(s =>
+        `<span class="fx-trade">${esc(String(s).replace(/_/g, " "))}</span>`).join("")}</div>
+      <div class="fx-card-foot">
+        <span class="muted">${w.jobs_done ? w.jobs_done + " job" + (w.jobs_done === 1 ? "" : "s") + " through FleetWorks" : "No jobs yet"}</span>
+        <span class="lt-spacer"></span>
+        ${w.phone ? `<a class="link-btn" href="tel:${esc(w.phone)}" onclick="event.stopPropagation()">Call</a>` : ""}
+        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();bookWorkshop('${w.id}')">Book</button>
+      </div>
+    </article>`).join("");
+
+  drawGarageMarkers(rows);
+}
+
+window.fxFocus = function(id) {
+  const w = _fxWorkshops.find(x => x.id === id);
+  if (w && w.lat != null && _fxMap) _fxMap.setView([+w.lat, +w.lng], 13, { animate: true });
+};
+
+window.bookWorkshop = function(id) {
+  const w = _fxWorkshops.find(x => x.id === id);
+  activateTab("servicereq");
+  // The booking form owns the workflow; this only carries the choice across so
+  // the owner does not have to find the same garage twice.
+  const note = document.getElementById("svcPreferredWorkshop");
+  if (note && w) note.value = w.name;
+};
+
+async function initGarageMap() {
+  const host = document.getElementById("fxMap");
+  if (!host) return;
+  try {
+    if (typeof loadLeaflet === "function") await loadLeaflet();
+    if (!window.L) return;
+  } catch { return; }
+
+  if (!_fxMap) {
+    _fxMap = L.map(host, { zoomControl: true }).setView([13.0827, 80.2707], 9);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18, attribution: "&copy; OpenStreetMap",
+    }).addTo(_fxMap);
+    _fxLayer = L.layerGroup().addTo(_fxMap);
+  }
+  setTimeout(() => _fxMap && _fxMap.invalidateSize(), 60);
+  renderGarages();
+}
+
+function drawGarageMarkers(rows) {
+  if (!_fxLayer || !window.L) return;
+  _fxLayer.clearLayers();
+  const pts = [];
+  rows.filter(w => w.lat != null).forEach(w => {
+    const icon = L.divIcon({
+      className: "fx-pin-wrap",
+      html: `<span class="fx-pin">${w.rating ? Number(w.rating).toFixed(1) : "?"}</span>`,
+      iconSize: [30, 30], iconAnchor: [15, 15],
+    });
+    L.marker([+w.lat, +w.lng], { icon })
+      .bindPopup(`<strong>${esc(w.name)}</strong><br>${esc(w.city || "")}` +
+                 (w.phone ? `<br>${esc(w.phone)}` : ""))
+      .addTo(_fxLayer);
+    pts.push([+w.lat, +w.lng]);
+  });
+  if (pts.length && _fxMap) {
+    try { _fxMap.fitBounds(pts, { padding: [40, 40], maxZoom: 12 }); } catch { /* single point */ }
+  }
+}

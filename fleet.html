@@ -274,6 +274,15 @@
         <button class="side-item tab-btn" data-tab="coachsession" hidden>Coaching session</button>
         </div>
 
+        <!-- ======= WORKSPACE: FleetFix — outside workshops, booking, tracking ======= -->
+        <div data-ws="fix" hidden>
+        <div class="side-pillar fix"><span class="pp"></span>Fleet<em>Fix</em></div>
+        <button class="side-item tab-btn" data-tab="garages"><i data-icon="wrench"></i><span>Find a Garage</span></button>
+        <button class="side-item tab-btn" data-tab="servicereq"><i data-icon="tow"></i><span>Book &amp; Track Work</span></button>
+        <button class="side-item tab-btn" data-tab="servicehistory"><i data-icon="clipboardCheck"></i><span>Work History</span></button>
+        <button class="side-item tab-btn" data-tab="vendors"><i data-icon="network"></i><span>My Vendors</span></button>
+        </div>
+
         <!-- ======= WORKSPACE: FleetInsure — cover, renewals, claims ======= -->
         <div data-ws="insure" hidden>
         <div class="side-pillar insure"><span class="pp"></span>Fleet<em>Insure</em></div>
@@ -585,6 +594,12 @@
               <p>Watch the road, not the paperwork. Live fleet view, ADAS and dash-cam events, driver scorecards and coaching, geofences, trailers and telematics — every truck, asset and driver on one map.</p>
               <span class="hub-cta">Open FleetSafe &rarr;</span>
             </button>
+            <button type="button" class="hub-card" data-hub="fix">
+              <span class="ic-tile" style="background:#fff7ed;color:#c2410c"><i data-icon="wrench" data-icon-size="34"></i></span>
+              <h3>Fleet<em>Fix</em></h3>
+              <p>When it breaks on the road. Find a rated workshop near the truck, book it, and follow the job through every stage — assessment, your approval, repair photos, invoice.</p>
+              <span class="hub-cta">Open FleetFix &rarr;</span>
+            </button>
             <button type="button" class="hub-card" data-hub="insure">
               <span class="ic-tile" style="background:#eef2ff;color:#4338ca"><i data-icon="shieldCheck" data-icon-size="34"></i></span>
               <h3>Fleet<em>Insure</em></h3>
@@ -698,6 +713,31 @@
             </div>
           </div>
 
+        </div>
+      </section>
+
+      <!-- ======= FLEETFIX — find a workshop ======= -->
+      <section class="tab-panel" id="tab-garages">
+        <div class="fx-filters">
+          <input type="search" id="fxSearch" placeholder="Search by name, city or trade…" oninput="renderGarages()" />
+          <select id="fxTrade" onchange="renderGarages()">
+            <option value="">All trades</option>
+            <option value="mechanic">Mechanic</option>
+            <option value="electrical">Auto electrician</option>
+            <option value="tyre">Tyre</option>
+            <option value="body">Body &amp; paint</option>
+            <option value="towing">Towing</option>
+            <option value="ac">AC / refrigeration</option>
+          </select>
+          <select id="fxNear" onchange="renderGarages()">
+            <option value="">Sort: Rating</option>
+            <option value="jobs">Sort: Jobs done</option>
+          </select>
+          <span class="fx-count" id="fxCount"></span>
+        </div>
+        <div class="fx-body">
+          <div class="fx-list" id="fxList"></div>
+          <div class="fx-map-wrap"><div id="fxMap"></div></div>
         </div>
       </section>
 
