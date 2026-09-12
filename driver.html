@@ -40,6 +40,7 @@
         <button class="tab-btn" data-tab="check" style="white-space:nowrap"><i data-icon="clipboardCheck" data-icon-size="16"></i> ஆய்வு</button>
         <button class="tab-btn" data-tab="trip" style="white-space:nowrap"><i data-icon="mapPin" data-icon-size="16"></i> பயண நிலை</button>
         <button class="tab-btn" data-tab="docs" style="white-space:nowrap"><i data-icon="document" data-icon-size="16"></i> ஆவணங்கள்</button>
+        <button class="tab-btn" data-tab="me" style="white-space:nowrap"><i data-icon="user" data-icon-size="16"></i> என் கணக்கு</button>
       </div>
 
       <!-- Diesel -->
@@ -122,6 +123,38 @@
           <div class="chart-head"><div><h2>வாகன ஆவணங்கள்</h2><p class="muted">போக்குவரத்து போலீசிடம் காட்ட</p></div></div>
           <div id="dDocsPanel"></div>
         </div>
+      </section>
+
+      <!-- My Account: attendance, pay, own documents -->
+      <section class="tab-panel" id="dtab-me">
+
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>என் சம்பளம்</h2><p class="muted">இந்த மாதம் — பெற்ற தொகை, அட்வான்ஸ், மீதம்</p></div></div>
+          <div id="dPayPanel"><p class="muted" style="margin:0">ஏற்றுகிறது…</p></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>என் வருகை</h2><p class="muted">இந்த மாதம் நீங்கள் வேலைக்கு வந்த நாட்கள்</p></div></div>
+          <div id="dAttPanel"><p class="muted" style="margin:0">ஏற்றுகிறது…</p></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>என் ஆவணங்கள்</h2><p class="muted">லைசென்ஸ், ஆதார் — புகைப்படம் எடுத்து பதிவேற்றுங்கள். உரிமையாளர் சரிபார்ப்பார்.</p></div></div>
+          <p class="muted" style="font-size:0.78rem;margin:0 0 10px">
+            <i data-icon="shieldCheck" data-icon-size="13"></i>
+            முழு எண் சேமிக்கப்படாது — கடைசி 4 இலக்கங்கள் மட்டுமே.
+          </p>
+          <div id="dMyDocsPanel"></div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>புகைப்படம் அனுப்ப</h2><p class="muted">பில், பழுது, டயர் — எந்த புகைப்படத்தையும் நேரடியாக WhatsApp-ல் அனுப்பலாம்</p></div></div>
+          <label class="btn btn-primary btn-block" style="cursor:pointer;margin:0">
+            <i data-icon="camera" data-icon-size="16"></i> புகைப்படம் எடுத்து WhatsApp-ல் அனுப்பு
+            <input type="file" accept="image/*" capture="environment" hidden onchange="shareDriverPhoto(this)" />
+          </label>
+        </div>
+
       </section>
 
       <p id="drvStatus" class="drv-status" hidden></p>

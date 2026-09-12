@@ -1312,7 +1312,8 @@ function copyDriverLink(driverId) {
   const url = location.origin + location.pathname.replace(/[^/]*$/, "driver.html") +
     "?o=" + encodeURIComponent(ownerId) + "&t=" + encodeURIComponent(d.linkToken) +
     "&n=" + encodeURIComponent(d.name) + "&v=" + encodeURIComponent(veh) +
-    (d.vehicleId ? "&vid=" + encodeURIComponent(d.vehicleId) : "");
+    (d.vehicleId ? "&vid=" + encodeURIComponent(d.vehicleId) : "") +
+    "&did=" + encodeURIComponent(d.id);
   const done = () => alert("Driver link copied!\n\nSend it to " + d.name + " on WhatsApp. From that page they can log diesel fills, report problems and submit the daily check — no app, no login.");
   if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, () => prompt("Copy this driver link:", url));
   else prompt("Copy this driver link:", url);

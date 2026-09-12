@@ -378,7 +378,7 @@ function renderFastagBalance(trip) {
 async function loadTripRequests(tripId, orgId) {
   try {
     const res = await fetch(
-      FW_BACKEND.url + "/rest/v1/trip_requests?select=id,request_type,amount,reason,status,paid_amount,created_at" +
+      FW_BACKEND.url + "/rest/v1/trip_requests?select=id,request_type,amount,reason,status,paid_amount,bill_url,created_at" +
       "&trip_id=eq." + tripId +
       "&order=created_at.desc&limit=10",
       { headers: { "apikey": FW_BACKEND.anonKey, "Accept": "application/json" } }
@@ -406,6 +406,12 @@ function renderTripRequestsDriver(reqs, tripId, orgId) {
       <div style="text-align:right">
         <div style="font-weight:700">₹${Number(r.amount||0).toLocaleString("en-IN")}</div>
         ${r.status === "approved" ? `<button class="trip-btn trip-btn-y" style="font-size:0.75rem;padding:4px 8px;margin-top:4px" onclick="markReqPaid('${r.id}','${tripId}','${orgId}')">பணம் பெற்றேன்</button>` : ""}
+        ${r.status === "approved" || r.status === "paid" ? `
+          <label class="trip-btn" style="display:inline-block;font-size:0.75rem;padding:4px 8px;margin-top:4px;cursor:pointer">
+            ${r.bill_url ? "பில் ✓" : "பில் இணை"}
+            <input type="file" accept="image/*,application/pdf" capture="environment" hidden
+              onchange="uploadReqBill('${r.id}','${tripId}','${orgId}', this)" />
+          </label>` : ""}
       </div>
     </div>`).join("");
 
@@ -727,3 +733,343 @@ document.getElementById("dCheckForm").addEventListener("submit", e => {
     date: new Date().toISOString().slice(0, 10)
   });
 });
+
+/* ============ My Account: pay, attendance, own documents ============
+   The driver's own record, scoped by the driver UUID in his link (?did=).
+   Everything here is read-only except his documents — verification stays
+   with the owner, so the portal never sets a document's status. */
+
+const DDID = qs.get("did") || "";
+
+// Used by the trip banner above; driver.html loads no shared util script.
+function esc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+const INR = n => "₹" + Number(n || 0).toLocaleString("en-IN");
+
+const MY_DOCS = [
+  { type: "dl",      label: "ஓட்டுநர் உரிமம் (DL)", hasExpiry: true,  isUpi: false },
+  { type: "aadhaar", label: "ஆதார்",                hasExpiry: false, isUpi: false },
+  { type: "pan",     label: "பான் கார்டு",          hasExpiry: false, isUpi: false },
+  { type: "upi",     label: "UPI ஐடி",              hasExpiry: false, isUpi: true  },
+];
+
+const DOC_STATUS = {
+  pending_review: ["சரிபார்ப்பில்", "#d97706"],
+  verified:       ["சரிபார்க்கப்பட்டது ✓", "#059669"],
+  rejected:       ["நிராகரிக்கப்பட்டது ✗", "#dc2626"],
+};
+
+let _myDocs = [];
+
+async function loadMyAccount() {
+  if (!DDID) {
+    ["dPayPanel", "dAttPanel", "dMyDocsPanel"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = `<p class="muted" style="margin:0">உரிமையாளரிடம் புதிய டிரைவர் இணைப்பு கேட்கவும் — இந்த இணைப்பில் உங்கள் கணக்கு விவரம் இல்லை.</p>`;
+    });
+    return;
+  }
+  await Promise.all([loadMyPay(), loadMyAttendance(), loadMyDocuments()]);
+}
+
+async function loadMyPay() {
+  const el = document.getElementById("dPayPanel");
+  if (!el) return;
+  try {
+    const res = await fetch(
+      FW_BACKEND.url + "/rest/v1/v_driver_pay_summary?select=*&driver_id=eq." + encodeURIComponent(DDID),
+      { headers: { "apikey": FW_BACKEND.anonKey, "Accept": "application/json" } }
+    );
+    const [s] = res.ok ? await res.json() : [];
+    if (!s) { el.innerHTML = `<p class="muted" style="margin:0">சம்பள விவரம் இல்லை.</p>`; return; }
+    const net = Number(s.net_received || 0);
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px">
+          <div style="font-size:0.75rem;color:#047857">பெற்ற சம்பளம்</div>
+          <div style="font-size:1.25rem;font-weight:700;color:#065f46">${INR(s.paid_total)}</div>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px">
+          <div style="font-size:0.75rem;color:#b45309">அட்வான்ஸ் மீதம்</div>
+          <div style="font-size:1.25rem;font-weight:700;color:#92400e">${INR(s.advance_outstanding)}</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:0.85rem;color:var(--muted)">நிகரம் (சம்பளம் − அட்வான்ஸ்)</span>
+        <strong style="font-size:1.1rem;color:${net < 0 ? "#dc2626" : "var(--navy)"}">${INR(net)}</strong>
+      </div>
+      <p class="muted" style="font-size:0.72rem;margin:8px 0 0">
+        உரிமையாளர் பதிவு செய்த தொகை இது. வேறுபாடு இருந்தால் உரிமையாளரிடம் பேசுங்கள்.
+      </p>`;
+  } catch {
+    el.innerHTML = `<p class="muted" style="margin:0">சம்பள விவரம் ஏற்ற முடியவில்லை.</p>`;
+  }
+}
+
+async function loadMyAttendance() {
+  const el = document.getElementById("dAttPanel");
+  if (!el) return;
+  const from = new Date(); from.setDate(1);
+  try {
+    const res = await fetch(
+      FW_BACKEND.url + "/rest/v1/driver_attendance?select=attendance_date,status,note" +
+      "&driver_id=eq." + encodeURIComponent(DDID) +
+      "&attendance_date=gte." + from.toISOString().slice(0, 10) +
+      "&order=attendance_date.desc&limit=40",
+      { headers: { "apikey": FW_BACKEND.anonKey, "Accept": "application/json" } }
+    );
+    renderMyAttendance(res.ok ? await res.json() : []);
+  } catch {
+    el.innerHTML = `<p class="muted" style="margin:0">வருகை விவரம் ஏற்ற முடியவில்லை.</p>`;
+  }
+}
+
+function renderMyAttendance(rows) {
+  const el = document.getElementById("dAttPanel");
+  if (!el) return;
+  const LABEL = {
+    present: ["வந்தேன்", "#059669"], on_trip: ["பயணத்தில்", "#2563eb"],
+    rest: ["ஓய்வு", "#64748b"], leave: ["விடுமுறை", "#d97706"],
+    absent: ["வரவில்லை", "#dc2626"], half_day: ["அரை நாள்", "#d97706"],
+  };
+  const worked = rows.filter(r => r.status === "present" || r.status === "on_trip").length;
+  const today = new Date().toISOString().slice(0, 10);
+  const markedToday = rows.some(r => r.attendance_date === today);
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px">
+      <span style="font-size:0.85rem;color:var(--muted)">இந்த மாதம் வேலை நாட்கள்</span>
+      <strong style="font-size:1.25rem;color:var(--navy)">${worked}</strong>
+    </div>
+    ${markedToday ? "" : `
+      <button class="btn btn-primary btn-block" style="margin-bottom:10px" onclick="markMyAttendance()">
+        இன்று வந்தேன் என பதிவு செய்
+      </button>`}
+    ${rows.length ? `
+      <div style="max-height:220px;overflow-y:auto">
+        ${rows.map(r => {
+          const [lbl, col] = LABEL[r.status] || [r.status, "#64748b"];
+          return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:0.85rem">${new Date(r.attendance_date + "T00:00:00").toLocaleDateString("ta-IN", { day: "numeric", month: "short" })}</span>
+            <span style="font-size:0.8rem;font-weight:600;color:${col}">${lbl}</span>
+          </div>`;
+        }).join("")}
+      </div>` : `<p class="muted" style="margin:0">இந்த மாதம் பதிவு இல்லை.</p>`}`;
+}
+
+window.markMyAttendance = async function() {
+  try {
+    const r = await fetch(FW_BACKEND.url + "/rest/v1/driver_attendance", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey,
+        "Prefer": "return=minimal,resolution=merge-duplicates"
+      },
+      body: JSON.stringify({
+        driver_id: DDID, org_id: _activeTrip?.org_id || null,
+        attendance_date: new Date().toISOString().slice(0, 10),
+        status: "present", source: "driver", vehicle_id: DVID || null
+      })
+    });
+    if (!r.ok) throw new Error();
+    flash(true, "இன்றைய வருகை பதிவு செய்யப்பட்டது.");
+    loadMyAttendance();
+  } catch { flash(false, "பதிவு செய்ய முடியவில்லை — மீண்டும் முயற்சிக்கவும்."); }
+};
+
+async function loadMyDocuments() {
+  try {
+    const res = await fetch(
+      FW_BACKEND.url + "/rest/v1/driver_documents?select=*&driver_id=eq." + encodeURIComponent(DDID),
+      { headers: { "apikey": FW_BACKEND.anonKey, "Accept": "application/json" } }
+    );
+    _myDocs = res.ok ? await res.json() : [];
+  } catch { _myDocs = []; }
+  renderMyDocuments();
+}
+
+function renderMyDocuments() {
+  const el = document.getElementById("dMyDocsPanel");
+  if (!el) return;
+  el.innerHTML = MY_DOCS.map(d => {
+    const row = _myDocs.find(x => x.doc_type === d.type);
+    const st = row ? (DOC_STATUS[row.status] || [row.status, "#64748b"]) : ["பதிவேற்றவில்லை", "#94a3b8"];
+    const expired = row && row.valid_till && new Date(row.valid_till) < new Date();
+    const numAttrs = d.isUpi ? "" : `maxlength="4" inputmode="numeric"`;
+    const placeholder = d.isUpi ? "name@upi" : "கடைசி 4 இலக்கம்";
+    return `
+      <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong style="font-size:0.9rem;color:var(--navy)">${d.label}</strong>
+          <span style="font-size:0.75rem;font-weight:600;color:${st[1]}">${st[0]}</span>
+        </div>
+        ${row && row.number_last4 ? `<p class="muted" style="margin:0 0 6px;font-size:0.8rem">${d.isUpi ? "" : "•••• "}${esc(row.number_last4)}</p>` : ""}
+        ${row && row.valid_till ? `<p style="margin:0 0 6px;font-size:0.8rem;color:${expired ? "#dc2626" : "var(--muted)"}">
+          காலாவதி: ${new Date(row.valid_till + "T00:00:00").toLocaleDateString("ta-IN")}${expired ? " — காலாவதியானது!" : ""}</p>` : ""}
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <input type="text" id="doc_n_${d.type}" placeholder="${placeholder}"
+            value="${esc((row && row.number_last4) || "")}" ${numAttrs}
+            style="flex:1;min-width:110px;padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-size:0.85rem" />
+          ${d.hasExpiry ? `<input type="date" id="doc_e_${d.type}" value="${esc((row && row.valid_till) || "")}"
+            style="padding:7px 9px;border:1px solid var(--border);border-radius:8px;font-size:0.85rem" />` : ""}
+          <button class="btn btn-primary btn-sm" onclick="saveMyDoc('${d.type}')">சேமி</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <label class="btn btn-outline btn-sm" style="cursor:pointer;margin:0">
+            <i data-icon="camera" data-icon-size="14"></i> புகைப்படம்
+            <input type="file" accept="image/*,application/pdf" capture="environment" hidden
+              onchange="uploadMyDoc('${d.type}', this)" />
+          </label>
+          ${row && row.file_path ? `
+            <button class="btn btn-outline btn-sm" onclick="shareMyDoc('${d.type}')">
+              <i data-icon="chat" data-icon-size="14"></i> WhatsApp
+            </button>` : ""}
+        </div>
+      </div>`;
+  }).join("");
+  if (window.FWIcon) el.querySelectorAll("[data-icon]").forEach(i => {
+    i.innerHTML = FWIcon(i.dataset.icon, { size: 14 });
+  });
+}
+
+window.saveMyDoc = async function(type) {
+  const meta = MY_DOCS.find(d => d.type === type);
+  const numEl = document.getElementById("doc_n_" + type);
+  const expEl = document.getElementById("doc_e_" + type);
+  const num = numEl ? numEl.value.trim() : "";
+  const exp = expEl ? (expEl.value || null) : null;
+  if (!meta.isUpi && num && !/^[0-9]{1,4}$/.test(num)) {
+    flash(false, "கடைசி 4 இலக்கங்கள் மட்டும் உள்ளிடவும்."); return;
+  }
+  await upsertMyDoc(type, { number_last4: num || null, valid_till: exp });
+};
+
+/* Upload the scan first, then write the row — a document row pointing at a file
+   that failed to upload is worse than no row at all. */
+window.uploadMyDoc = async function(type, input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) { flash(false, "கோப்பு 10MB-க்கு மேல் உள்ளது."); return; }
+  flash(true, "பதிவேற்றுகிறது…");
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const path = DDID + "/" + type + "-" + Date.now() + "." + ext;
+  try {
+    const r = await fetch(FW_BACKEND.url + "/storage/v1/object/driver-uploads/" + path, {
+      method: "POST",
+      headers: { "apikey": FW_BACKEND.anonKey, "Content-Type": file.type || "application/octet-stream" },
+      body: file
+    });
+    if (!r.ok) throw new Error();
+    await upsertMyDoc(type, { file_path: path });
+    flash(true, "பதிவேற்றப்பட்டது — உரிமையாளர் சரிபார்ப்பார்.");
+  } catch { flash(false, "பதிவேற்ற முடியவில்லை — மீண்டும் முயற்சிக்கவும்."); }
+  input.value = "";
+};
+
+async function upsertMyDoc(type, fields) {
+  const existing = _myDocs.find(x => x.doc_type === type);
+  try {
+    let r;
+    if (existing) {
+      r = await fetch(FW_BACKEND.url + "/rest/v1/driver_documents?id=eq." + existing.id, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey, "Prefer": "return=minimal" },
+        body: JSON.stringify(fields)
+      });
+    } else {
+      r = await fetch(FW_BACKEND.url + "/rest/v1/driver_documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey, "Prefer": "return=minimal" },
+        body: JSON.stringify(Object.assign({
+          driver_id: DDID, org_id: _activeTrip ? _activeTrip.org_id : null, doc_type: type,
+          submitted_by: "driver", status: "pending_review"
+        }, fields))
+      });
+    }
+    if (!r.ok) throw new Error();
+    flash(true, "சேமிக்கப்பட்டது.");
+    loadMyDocuments();
+  } catch { flash(false, "சேமிக்க முடியவில்லை — மீண்டும் முயற்சிக்கவும்."); }
+}
+
+/* Share to WhatsApp. Where the browser can share files (Android Chrome), send
+   the image itself; otherwise fall back to wa.me with a link, which is all a
+   desktop browser can do. */
+window.shareMyDoc = async function(type) {
+  const row = _myDocs.find(x => x.doc_type === type);
+  if (!row || !row.file_path) return;
+  const meta = MY_DOCS.find(d => d.type === type);
+  const caption = DNAME + " · " + (meta ? meta.label : type) + (DVEH ? " · " + DVEH : "");
+  const url = FW_BACKEND.url + "/storage/v1/object/driver-uploads/" + row.file_path;
+  try {
+    const res = await fetch(url, { headers: { "apikey": FW_BACKEND.anonKey } });
+    if (!res.ok) throw new Error();
+    const blob = await res.blob();
+    const file = new File([blob], row.file_path.split("/").pop(), { type: blob.type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: caption, text: caption });
+      return;
+    }
+  } catch { /* fall through to link share */ }
+  window.open("https://wa.me/?text=" + encodeURIComponent(caption + "\n" + url), "_blank");
+};
+
+/* Share any photo straight from the portal — bills, breakdown pictures, a
+   damaged tyre. Nothing is stored for these; it goes phone → WhatsApp. */
+window.shareDriverPhoto = async function(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const caption = DNAME + (DVEH ? " · " + DVEH : "") + " · " + new Date().toLocaleString("ta-IN");
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: caption, text: caption });
+    } else {
+      flash(false, "இந்த ஃபோனில் நேரடி பகிர்வு இல்லை — WhatsApp-ல் நேரடியாக அனுப்பவும்.");
+    }
+  } catch { /* user cancelled the share sheet */ }
+  input.value = "";
+};
+
+// Load My Account the first time its tab is opened.
+let _myAccountLoaded = false;
+const _drvTabsEl = document.getElementById("drvTabs");
+if (_drvTabsEl) _drvTabsEl.addEventListener("click", e => {
+  const btn = e.target.closest(".tab-btn");
+  if (btn && btn.dataset.tab === "me" && !_myAccountLoaded) {
+    _myAccountLoaded = true;
+    loadMyAccount();
+  }
+});
+
+/* Attach the diesel/toll bill to an approved request. The file lands in the
+   driver's own folder in driver-uploads; the row only ever holds the path. */
+window.uploadReqBill = async function(reqId, tripId, orgId, input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (!DDID) { flash(false, "உரிமையாளரிடம் புதிய டிரைவர் இணைப்பு கேட்கவும்."); return; }
+  if (file.size > 10 * 1024 * 1024) { flash(false, "கோப்பு 10MB-க்கு மேல் உள்ளது."); return; }
+  flash(true, "பில் பதிவேற்றுகிறது…");
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const path = DDID + "/bill-" + reqId + "-" + Date.now() + "." + ext;
+  try {
+    const up = await fetch(FW_BACKEND.url + "/storage/v1/object/driver-uploads/" + path, {
+      method: "POST",
+      headers: { "apikey": FW_BACKEND.anonKey, "Content-Type": file.type || "application/octet-stream" },
+      body: file
+    });
+    if (!up.ok) throw new Error();
+    const r = await fetch(FW_BACKEND.url + "/rest/v1/trip_requests?id=eq." + reqId, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey, "Prefer": "return=minimal" },
+      body: JSON.stringify({ bill_url: path })
+    });
+    if (!r.ok) throw new Error();
+    flash(true, "பில் இணைக்கப்பட்டது — உரிமையாளர் பார்ப்பார்.");
+    loadTripRequests(tripId, orgId);
+  } catch { flash(false, "பில் பதிவேற்ற முடியவில்லை — மீண்டும் முயற்சிக்கவும்."); }
+  input.value = "";
+};

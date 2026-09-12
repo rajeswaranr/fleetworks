@@ -68,35 +68,23 @@
   </header>
 
   <!-- ======= HERO ======= -->
-  <section class="hero">
-    <div class="container hero-inner">
-      <div class="hero-text">
-        <span class="badge badge-flash"><i data-icon="zap" data-icon-size="14"></i> India's First AI-Powered Fleet Care Platform</span>
-        <h1>Fleet management software <span class="accent">built for Indian commercial fleets.</span></h1>
-        <p>Run compliance, diesel, maintenance, drivers and payroll from one system — with AI that acts on what it finds, IoT when you want it, and a workshop network when something breaks. No hardware to fit, no rip-and-replace.</p>
-        <div class="hero-cta">
-          <button class="btn btn-primary" onclick="openBooking()"><i data-icon="wrench" data-icon-size="16"></i> Book a Service</button>
-          <a href="fleet.html?auth=signup#account" class="btn btn-outline btn-light-outline"><i data-icon="gauge" data-icon-size="16"></i> Start 15-Day Free Trial</a>
-          <button class="btn btn-watch-demo" onclick="openDemoModal()">
-            <span class="wd-play"></span> Watch Demo
-          </button>
-        </div>
-        <div class="hero-stats">
-          <div><strong>50,000+</strong><span>Vehicles Serviced</span></div>
-          <div><strong>500+</strong><span>Rated Workshops</span></div>
-          <div><strong>25+</strong><span>Cities</span></div>
-          <div><strong>4.7★</strong><span>Avg. Rating</span></div>
-        </div>
+  <section class="hero hero-v2">
+    <div class="container">
+      <h1>AI that makes your fleet<br><span class="accent kw-accent" id="kwHeadline">safer</span> and more profitable.</h1>
+      <p class="hero-sub">One platform to improve the <span class="kw-ul" id="kw1">Compliance</span>, <span class="kw-ul" id="kw2">Efficiency</span>, and <span class="kw-ul" id="kw3">Profitability</span> of your operations.</p>
+      <div class="hero-cta">
+        <a href="fleet.html?auth=signup#account" class="btn btn-primary btn-hero">Get started free</a>
+        <button class="btn btn-watch-demo btn-hero" onclick="openDemoModal()"><span class="wd-play"></span> Watch demo</button>
       </div>
+    </div>
+  </section>
 
-      <!-- Live pan-India network graphic -->
-      <div class="hero-map" aria-hidden="false">
-        <div class="hm-cap">
-          <span class="hm-live"><span class="dot"></span> LIVE NETWORK</span>
-          <p class="hm-sub">500+ workshops · 25+ cities</p>
-        </div>
-        <div class="hm-stat"><b>24×7</b><span>ON THE ROAD</span></div>
-        <svg viewBox="0 0 440 470" role="img" aria-label="FleetWorks live service network across India">
+  <!-- ======= FULL-BLEED PRODUCT VISUAL ======= -->
+  <section class="hero-visual-wrap">
+    <div class="hv-frame">
+      <!-- India network map -->
+      <div class="hv-map-bg" aria-hidden="true">
+        <svg viewBox="0 0 440 470" preserveAspectRatio="xMidYMid slice" role="img" aria-label="FleetWorks live service network across India">
           <defs>
             <filter id="hmGlow" x="-60%" y="-60%" width="220%" height="220%">
               <feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
@@ -189,7 +177,45 @@
             <g transform="translate(134.1 416)"><circle r="3" fill="url(#hmNode)" filter="url(#hmGlow)"/><circle r="1.3" fill="#fff"/><text x="-7" y="7" text-anchor="end">Kochi</text></g>
           </g>
         </svg>
-        <div class="hm-quote">India's truck movement — <em>digitally shining.</em></div>
+      </div>
+
+      <!-- Floating UI overlay cards -->
+      <div class="hv-card hv-card-tl">
+        <div class="hvc-head"><span class="hvc-dot ok"></span> Fleet Status</div>
+        <div class="hvc-kpis">
+          <div><b>24</b><span>Vehicles</span></div>
+          <div><b style="color:#f59e0b">3</b><span>Alerts</span></div>
+          <div><b>92%</b><span>Uptime</span></div>
+        </div>
+      </div>
+
+      <div class="hv-card hv-card-tr">
+        <div class="hvc-head"><span class="hvc-dot ai"></span> AI Foresight</div>
+        <div class="hvc-alert">⚠ TN09 AB1234 — Turbocharger risk in 3 weeks</div>
+        <div class="hvc-alert ok">✓ Bill checked — saved ₹4,300</div>
+      </div>
+
+      <div class="hv-card hv-card-bl">
+        <div class="hvc-head"><span class="hvc-dot"></span> Compliance Radar</div>
+        <div class="hvc-bars">
+          <div class="hvcb"><span>Insurance</span><div class="hvcb-fill ok" style="width:88%"></div><span>88d</span></div>
+          <div class="hvcb"><span>Pollution</span><div class="hvcb-fill bad" style="width:8%"></div><span style="color:#f87171">5d</span></div>
+          <div class="hvcb"><span>Fitness</span><div class="hvcb-fill warn" style="width:30%"></div><span style="color:#fcd34d">22d</span></div>
+        </div>
+      </div>
+
+      <div class="hv-card hv-card-br">
+        <div class="hvc-head"><span class="hvc-dot ok"></span> Active Trip</div>
+        <b style="font-size:.85rem;color:#fff">Chennai → Bengaluru</b>
+        <p style="font-size:.72rem;color:#6b7fa3;margin:4px 0 0">TN09 CD5678 · 187 km remaining</p>
+        <div class="hvc-trip-bar"><div class="hvc-trip-fill" style="width:47%"></div></div>
+      </div>
+
+      <!-- Bottom CTA strip like Motive's "Watch demo" -->
+      <div class="hv-bottom-bar">
+        <button class="hv-demo-btn" onclick="openDemoModal()">
+          <span class="wd-play" style="width:18px;height:18px"></span> Watch demo
+        </button>
       </div>
     </div>
   </section>
@@ -224,6 +250,7 @@
 
       <!-- Demo panels -->
       <div class="demo-frame">
+        <div class="demo-progress-track"><div class="demo-progress" id="demoProgress"></div></div>
         <!-- Top chrome bar -->
         <div class="df-chrome">
           <span class="df-dot" style="background:#ff5f56"></span>
@@ -379,6 +406,161 @@
         <a href="fleet.html?auth=signup#account" class="btn btn-primary" style="padding:14px 36px;font-size:1rem">Start Free — No Credit Card</a>
         <button class="btn btn-watch-demo" style="margin-left:12px" onclick="openDemoModal()"><span class="wd-play"></span> Full Product Walkthrough</button>
       </div>
+    </div>
+  </section>
+
+  <!-- ======= LOOPING PRODUCT CLIPS ======= -->
+  <section class="section clips-section" id="clips">
+    <div class="container">
+
+      <!-- Clip 1 — Compliance -->
+      <div class="clip-row">
+        <div class="clip-copy">
+          <p class="demo-eyebrow">Compliance Radar</p>
+          <h3>Never lose a truck to an expired paper again.</h3>
+          <p>Insurance, FC, permit, pollution and national permit for every vehicle, counted down to the day. When something is close, FleetWorks tells you — and books the renewal before the truck is stopped at a check post.</p>
+          <a href="fleet.html?auth=signup#account" class="link-btn">Try compliance radar →</a>
+        </div>
+        <div class="clip" data-clip="compliance">
+          <div class="clip-chrome"><span></span><span></span><span></span><em>Compliance</em></div>
+          <div class="clip-body">
+            <div class="clip-scan"></div>
+            <div class="clip-doc"><span>TN09 AB1234 · Insurance</span><b class="ok">88 days</b></div>
+            <div class="clip-doc"><span>TN09 CD5678 · Fitness</span><b class="warn">22 days</b></div>
+            <div class="clip-doc alertrow"><span>TN45 XY7788 · Pollution</span><b class="bad">5 days</b></div>
+            <div class="clip-doc"><span>KA05 MN3344 · Permit</span><b class="ok">140 days</b></div>
+            <div class="clip-toast">Renewal reminder sent · driver + owner</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clip 2 — AI bill check -->
+      <div class="clip-row reverse">
+        <div class="clip-copy">
+          <p class="demo-eyebrow">AI Foresight</p>
+          <h3>Every workshop bill, read line by line.</h3>
+          <p>Upload the invoice and Foresight checks each line against what that part actually costs and what your truck actually needed. Overcharges and parts you never fitted get flagged before you pay.</p>
+          <a href="fleet.html?auth=signup#account" class="link-btn">See bill checking →</a>
+        </div>
+        <div class="clip" data-clip="bill">
+          <div class="clip-chrome"><span></span><span></span><span></span><em>Invoice #4471</em></div>
+          <div class="clip-body">
+            <div class="clip-scan"></div>
+            <div class="clip-line"><span>Engine oil 15W-40 · 20 L</span><i>₹6,400</i><b class="ok">✓</b></div>
+            <div class="clip-line"><span>Oil filter</span><i>₹480</i><b class="ok">✓</b></div>
+            <div class="clip-line flag"><span>Turbo assembly</span><i>₹38,000</i><b class="bad">₹4,300 over</b></div>
+            <div class="clip-line"><span>Labour · 4 hrs</span><i>₹2,000</i><b class="ok">✓</b></div>
+            <div class="clip-total">Flagged <b>₹4,300</b> before you paid</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clip 3 — Driver app -->
+      <div class="clip-row">
+        <div class="clip-copy">
+          <p class="demo-eyebrow">Driver App</p>
+          <h3>Your driver sees his truck. Nothing else.</h3>
+          <p>Each driver signs in to his own vehicle — his trip, his diesel and advance requests, his FASTag balance, his inspections. In Tamil or English. No fleet data, no other trucks, nothing he shouldn't see.</p>
+          <a href="driver.html" class="link-btn">Open driver portal →</a>
+        </div>
+        <div class="clip clip-phone" data-clip="driver">
+          <div class="clip-phone-frame">
+            <div class="clip-phone-top">TN09 CD5678</div>
+            <div class="clip-body">
+              <div class="clip-step" data-step="1"><b>Trip assigned</b><span>Chennai → Bengaluru · 347 km</span></div>
+              <div class="clip-step" data-step="2"><b>Acknowledged</b><span>Trip started · 09:14</span></div>
+              <div class="clip-step" data-step="3"><b>Diesel request</b><span>₹8,000 · approved by owner</span></div>
+              <div class="clip-step" data-step="4"><b>FASTag balance</b><span>₹2,340 available</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---- Capability clip grid ---- -->
+      <div class="capgrid-head">
+        <p class="demo-eyebrow">Built in, not bolted on</p>
+        <h3>Six things watching every truck, all day.</h3>
+        <p class="muted">Read from the AIS-140 device already fitted to your vehicle — or the driver's phone. No second dashboard.</p>
+      </div>
+
+      <div class="capgrid">
+
+        <!-- ADAS -->
+        <figure class="cap clip" data-clip="adas">
+          <div class="cap-vis cap-road">
+            <div class="road-lane"></div>
+            <div class="road-car"></div>
+            <div class="road-warn">COLLISION WARNING</div>
+          </div>
+          <figcaption><b>ADAS</b><span>Forward collision, lane departure and headway alerts called out to the driver before he needs the brake.</span></figcaption>
+        </figure>
+
+        <!-- AI Camera -->
+        <figure class="cap clip" data-clip="cam">
+          <div class="cap-vis cap-cam">
+            <div class="cam-noise"></div>
+            <div class="cam-face"></div>
+            <div class="cam-box"></div>
+            <div class="cam-tag">Phone use detected</div>
+            <div class="cam-rec"><i></i>REC</div>
+          </div>
+          <figcaption><b>AI Camera</b><span>Driver-facing detection for phone use, drowsiness and no seatbelt — with the 10-second clip attached to the event.</span></figcaption>
+        </figure>
+
+        <!-- GPS -->
+        <figure class="cap clip" data-clip="gps">
+          <div class="cap-vis cap-gps">
+            <svg viewBox="0 0 260 140" preserveAspectRatio="none" aria-hidden="true">
+              <path class="gps-route" d="M18 116 C 60 116, 66 70, 104 62 S 168 74, 196 34 L 242 26"/>
+              <path class="gps-trail" d="M18 116 C 60 116, 66 70, 104 62 S 168 74, 196 34 L 242 26"/>
+              <circle class="gps-dot" r="5"><animateMotion dur="4s" repeatCount="indefinite" rotate="auto"
+                path="M18 116 C 60 116, 66 70, 104 62 S 168 74, 196 34 L 242 26"/></circle>
+            </svg>
+            <div class="gps-chip">62 km/h · NH-44</div>
+          </div>
+          <figcaption><b>GPS Tracking</b><span>Live position, route replay and halt duration — so "stuck in traffic" is a timestamp, not a claim.</span></figcaption>
+        </figure>
+
+        <!-- Fuel theft -->
+        <figure class="cap clip" data-clip="fuel">
+          <div class="cap-vis cap-fuel">
+            <div class="fuel-tank"><div class="fuel-level"></div></div>
+            <div class="fuel-drop">−38 L in 4 min</div>
+            <div class="fuel-alert">Siphoning suspected · Hosur bypass</div>
+          </div>
+          <figcaption><b>Fuel Theft Alerts</b><span>A tank that falls faster than the engine can burn raises an alert with the place and the time it happened.</span></figcaption>
+        </figure>
+
+        <!-- Predictive -->
+        <figure class="cap clip" data-clip="pred">
+          <div class="cap-vis cap-pred">
+            <svg viewBox="0 0 260 140" aria-hidden="true">
+              <line class="pred-thresh" x1="0" y1="46" x2="260" y2="46"/>
+              <path class="pred-curve" d="M10 124 C 62 120, 96 108, 128 88 S 190 52, 250 24"/>
+              <circle class="pred-hit" cx="196" cy="46" r="5"/>
+            </svg>
+            <div class="pred-band">Failure threshold</div>
+            <div class="pred-tag">Turbocharger · 3 weeks</div>
+          </div>
+          <figcaption><b>Predictive Analysis</b><span>Foresight reads the trend across fuel, temperature and vibration and names the part before it strands the truck.</span></figcaption>
+        </figure>
+
+        <!-- Software -->
+        <figure class="cap clip" data-clip="sw">
+          <div class="cap-vis cap-sw">
+            <div class="sw-top"><span></span><span></span><span></span></div>
+            <div class="sw-bars">
+              <i style="--h:38%"></i><i style="--h:62%"></i><i style="--h:47%"></i>
+              <i style="--h:80%"></i><i style="--h:55%"></i><i style="--h:92%"></i><i style="--h:70%"></i>
+            </div>
+            <div class="sw-row"><span>Cost / km</span><b>₹42.10</b></div>
+            <div class="sw-row"><span>Mileage</span><b>3.8 kmpl</b></div>
+          </div>
+          <figcaption><b>Fleet Management Software</b><span>The system of record underneath all of it — vehicles, trips, tyres, diesel, compliance and GST-ready books.</span></figcaption>
+        </figure>
+
+      </div>
+
     </div>
   </section>
 
@@ -1014,15 +1196,51 @@
     }
     document.addEventListener("keydown", e => { if (e.key === "Escape") closeDemoModal(); });
 
-    // Demo tab switcher
+    // ---- Hero headline keyword rotator ----
+    (function () {
+      const el = document.getElementById("kwHeadline");
+      if (!el) return;
+      const words = ["safer", "leaner", "smarter", "greener"];
+      let i = 0;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      setInterval(() => {
+        i = (i + 1) % words.length;
+        el.classList.add("kw-out");
+        setTimeout(() => {
+          el.textContent = words[i];
+          el.classList.remove("kw-out");
+        }, 320);
+      }, 2600);
+    })();
+
+    // ---- Demo tab switcher (autoplays like a video until you touch it) ----
+    let demoAuto = null;
+    function showDemoPanel(name) {
+      document.querySelectorAll(".demo-tab").forEach(b =>
+        b.classList.toggle("active", b.dataset.panel === name));
+      document.querySelectorAll(".df-panel").forEach(p =>
+        p.classList.toggle("active", p.id === "dp-" + name));
+      const bar = document.getElementById("demoProgress");
+      if (bar) { bar.classList.remove("run"); void bar.offsetWidth; bar.classList.add("run"); }
+    }
+    function stopDemoAuto() {
+      if (demoAuto) { clearInterval(demoAuto); demoAuto = null; }
+      const bar = document.getElementById("demoProgress");
+      if (bar) bar.classList.remove("run");
+    }
+    function startDemoAuto() {
+      if (demoAuto || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const names = [...document.querySelectorAll(".demo-tab")].map(b => b.dataset.panel);
+      if (!names.length) return;
+      let i = names.indexOf(document.querySelector(".demo-tab.active")?.dataset.panel);
+      showDemoPanel(names[i < 0 ? 0 : i]);
+      demoAuto = setInterval(() => {
+        i = (i + 1) % names.length;
+        showDemoPanel(names[i]);
+      }, 5200);
+    }
     document.querySelectorAll(".demo-tab").forEach(btn => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".demo-tab").forEach(b => b.classList.remove("active"));
-        document.querySelectorAll(".df-panel").forEach(p => p.classList.remove("active"));
-        btn.classList.add("active");
-        const panel = document.getElementById("dp-" + btn.dataset.panel);
-        if (panel) panel.classList.add("active");
-      });
+      btn.addEventListener("click", () => { stopDemoAuto(); showDemoPanel(btn.dataset.panel); });
     });
 
     // Animated counters in Fleet Ops panel
@@ -1046,8 +1264,19 @@
     if (demoSection && "IntersectionObserver" in window) {
       let ran = false;
       new IntersectionObserver((entries) => {
-        if (entries[0].isIntersecting && !ran) { ran = true; runCounters(); }
+        if (entries[0].isIntersecting) {
+          if (!ran) { ran = true; runCounters(); }
+          startDemoAuto();
+        } else stopDemoAuto();
       }, { threshold: 0.3 }).observe(demoSection);
+    }
+
+    // ---- Looping product clips: play only while on screen ----
+    if ("IntersectionObserver" in window) {
+      const clipObs = new IntersectionObserver(entries => {
+        entries.forEach(e => e.target.classList.toggle("playing", e.isIntersecting));
+      }, { threshold: 0.25 });
+      document.querySelectorAll(".clip").forEach(c => clipObs.observe(c));
     }
   </script>
 </body>
