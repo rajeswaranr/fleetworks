@@ -1941,3 +1941,47 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
   .ed-body { grid-template-columns: 1fr; }
   .ed-pip { width: 34%; }
 }
+
+/* ---- FleetSafe: coaching session ---- */
+.cs-head { display: flex; align-items: center; gap: 10px; background: var(--navy); color: #fff;
+  padding: 12px 16px; border-radius: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+.cs-head strong { font-size: 1rem; }
+.cs-head .btn-outline { border-color: rgba(255,255,255,.4); color: #fff; background: transparent; }
+
+.cs-body { display: grid; grid-template-columns: 270px 1fr; gap: 16px; align-items: start; }
+.cs-rail { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px;
+  max-height: 720px; overflow-y: auto; }
+.cs-rail h4 { font-size: 0.92rem; margin: 0 0 12px; color: var(--navy); }
+
+/* The stepper is the spine of the sitting — it tells the supervisor how much
+   is left, which is what stops a session being abandoned halfway. */
+.cs-steps { list-style: none; margin: 0; padding: 0; }
+.cs-step { display: flex; align-items: center; gap: 10px; padding: 8px 0;
+  font-size: 0.85rem; color: var(--muted); position: relative; }
+.cs-step .cs-dot { width: 13px; height: 13px; border-radius: 50%; flex: none;
+  border: 2px solid #cbd5e1; background: #fff; }
+.cs-step.is-current { color: var(--navy); font-weight: 700; }
+.cs-step.is-current .cs-dot { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.18); }
+.cs-step.is-done .cs-dot { background: #2563eb; border-color: #2563eb; }
+.cs-step em { font-style: normal; color: var(--muted); font-weight: 400; }
+
+.cs-hist { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+.cs-hist p { margin: 4px 0 2px; color: var(--ink); }
+.cs-hist-by { font-size: 0.74rem; color: var(--muted); }
+
+.cs-main { display: flex; flex-direction: column; gap: 12px; }
+.cs-step-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cs-step-head h2 { margin: 0; font-size: 1.1rem; color: var(--navy); }
+.cs-q { font-size: 0.8rem; margin: 0 0 4px; color: var(--navy); font-weight: 700; }
+
+.cs-thumbs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.cs-thumb { width: 46px; height: 34px; border-radius: 7px; border: 2px solid var(--border);
+  background: var(--bg-alt); color: var(--muted); font-weight: 700; font-size: 0.82rem; cursor: pointer; }
+.cs-thumb.is-sel { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+
+.cs-ev-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  font-size: 0.82rem; color: var(--muted); margin-bottom: 10px; }
+.cs-ev-row { display: flex; justify-content: space-between; padding: 8px 0;
+  border-bottom: 1px solid var(--border); font-size: 0.88rem; }
+
+@media (max-width: 900px) { .cs-body { grid-template-columns: 1fr; } }

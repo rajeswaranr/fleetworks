@@ -6435,7 +6435,7 @@ function renderSafetyScores() {
 
   el.innerHTML = `
     ${scored.length ? `<table class="chart-table-el" style="width:100%">
-      <thead><tr><th>Driver</th><th>Score</th><th>Band</th><th>Events</th><th>Critical</th><th>km (30d)</th><th>Per 1,000 km</th></tr></thead>
+      <thead><tr><th>Driver</th><th>Score</th><th>Band</th><th>Events</th><th>Critical</th><th>km (30d)</th><th>Per 1,000 km</th><th></th></tr></thead>
       <tbody>${scored.map(s => {
         const b = SF_BAND[s.band] || SF_BAND.good;
         const sc = Number(s.safety_score);
@@ -6447,6 +6447,9 @@ function renderSafetyScores() {
           <td>${Number(s.critical_30d) ? `<span class="fw-badge overdue">${s.critical_30d}</span>` : "0"}</td>
           <td>${Math.round(Number(s.km_30d)).toLocaleString("en-IN")}</td>
           <td>${s.penalty_per_1000km ?? "—"}</td>
+          <td>${Number(s.unreviewed_30d) || _sfCoaching.some(c => c.driver_id === s.driver_id && c.status === "assigned")
+                ? `<button class="btn btn-outline btn-sm" onclick="startCoachMeeting('${s.driver_id}')">Coach</button>`
+                : ""}</td>
         </tr>`;
       }).join("")}</tbody></table>` : ""}
     ${unscored.length ? `<p class="muted" style="padding:12px 14px;margin:0;border-top:1px solid var(--border)">
@@ -7138,3 +7141,203 @@ function stopEventDetail() {
   if (_edClip) { _edClip.stop(); _edClip = null; }
   if (_edPipClip) { _edPipClip.stop(); _edPipClip = null; }
 }
+
+/* ============ FleetSafe — coaching session ============
+   One sitting with one driver. The supervisor walks each behaviour that has
+   gone uncoached since last time, sees the events behind it, and closes them
+   together. Per-behaviour rather than per-event because "you changed lanes
+   unsafely twice this week" is a conversation and five separate summonses is
+   not. */
+
+var _csMeeting = null, _csSteps = [], _csStep = 0, _csEventIdx = 0;
+var _csClip = null, _csHistory = [];
+
+window.startCoachMeeting = async function(driverId) {
+  if (!(window.fwCloud && fwCloud.user && fwCloud.user())) { alert("Sign in first."); return; }
+
+  const queue = await fwCloud.authGet("v_coachable_queue",
+    "select=*&driver_id=eq." + encodeURIComponent(driverId)).catch(() => []);
+  if (!queue || !queue.length) { alert("Nothing waiting to be coached for this driver."); return; }
+
+  const drv = _sfScores.find(s => s.driver_id === driverId);
+  const u = fwCloud.user();
+
+  const meeting = await fwCloud.authInsertRet("coaching_meetings", {
+    org_id: queue[0].org_id, driver_id: driverId,
+    coach_user_id: u && u.id ? u.id : null,
+    coach_name: (u && (u.user_metadata?.full_name || u.email)) || null,
+    status: "in_progress",
+  });
+  if (!meeting) { alert("Could not start the session."); return; }
+  _csMeeting = Array.isArray(meeting) ? meeting[0] : meeting;
+  _csMeeting.driver_name = drv ? drv.driver_name : "Driver";
+
+  // Overview first, then one step per behaviour, summary last — the shape a
+  // supervisor expects and the order that makes the summary meaningful.
+  _csSteps = [{ kind: "overview", label: "Driver overview", done: false }]
+    .concat(queue
+      .sort((a, b) => b.events - a.events)
+      .map(q => ({ kind: "behaviour", label: SF_EVENT_LABEL[q.event_type] || q.event_type,
+                   event_type: q.event_type, events: q.events, event_ids: q.event_ids || [],
+                   oldest_at: q.oldest_at, done: false })))
+    .concat([{ kind: "summary", label: "Coaching summary", done: false }]);
+  _csStep = 0; _csEventIdx = 0;
+
+  _csHistory = await fwCloud.authGet("coaching_meetings",
+    "select=*&driver_id=eq." + encodeURIComponent(driverId) +
+    "&status=eq.completed&order=started_at.desc&limit=10").catch(() => []);
+
+  activateTab("coachsession");
+  renderCoachSession();
+};
+
+function renderCoachSession() {
+  if (!_csMeeting) return;
+  document.getElementById("csTitle").textContent = "Coaching — " + _csMeeting.driver_name;
+
+  document.getElementById("csSteps").innerHTML = _csSteps.map((s, i) => `
+    <li class="cs-step${i === _csStep ? " is-current" : ""}${s.done ? " is-done" : ""}">
+      <span class="cs-dot"></span>
+      <span>${esc(s.label)}${s.kind === "behaviour" ? ` <em>(${s.events})</em>` : ""}</span>
+    </li>`).join("");
+
+  document.getElementById("csHistory").innerHTML = _csHistory.length
+    ? _csHistory.map(h => `<div class="cs-hist">
+        <strong>${new Date(h.started_at).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</strong>
+        <span class="muted"> · ${new Date(h.started_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+        <p>${esc(h.summary_note || "Coaching session completed")}</p>
+        <span class="cs-hist-by">${esc(h.coach_name || "—")}</span>
+      </div>`).join("")
+    : `<p class="muted" style="font-size:.82rem;margin:0">Never coached before.</p>`;
+
+  const step = _csSteps[_csStep];
+  document.getElementById("csStepTitle").textContent = step.label;
+
+  if (step.kind === "overview")  return renderCsOverview();
+  if (step.kind === "summary")   return renderCsSummary();
+  renderCsBehaviour(step);
+}
+
+function renderCsOverview() {
+  const drv = _sfScores.find(s => s.driver_id === _csMeeting.driver_id);
+  const behaviours = _csSteps.filter(s => s.kind === "behaviour");
+  document.getElementById("csWhat").textContent = drv && drv.safety_score != null
+    ? `Safety score ${drv.safety_score} out of 100 over the last 30 days — ${String(drv.band).replace(/_/g, " ")}. ${drv.events_30d} events across ${Math.round(drv.km_30d).toLocaleString("en-IN")} km.`
+    : "Not enough distance in the last 30 days to score this driver. The events below still stand on their own.";
+  document.getElementById("csFactors").textContent = behaviours.length
+    ? behaviours.map(b => `${b.label} (${b.events})`).join(", ")
+    : "None";
+  document.getElementById("csEventsTitle").textContent = "Behaviours to cover";
+  document.getElementById("csThumbs").innerHTML = "";
+  document.getElementById("csEventCard").innerHTML = behaviours.map(b =>
+    `<div class="cs-ev-row"><strong>${esc(b.label)}</strong><span class="muted">${b.events} event${b.events === 1 ? "" : "s"}</span></div>`).join("");
+  clearCsClip();
+}
+
+function renderCsSummary() {
+  const done = _csSteps.filter(s => s.kind === "behaviour" && s.done);
+  const skipped = _csSteps.filter(s => s.kind === "behaviour" && s.skipped);
+  document.getElementById("csWhat").textContent =
+    `${done.length} behaviour${done.length === 1 ? "" : "s"} coached` +
+    (skipped.length ? `, ${skipped.length} skipped and still waiting for next time.` : ".");
+  document.getElementById("csFactors").textContent =
+    done.map(s => s.label).join(", ") || "None";
+  document.getElementById("csEventsTitle").textContent = "Session summary";
+  document.getElementById("csThumbs").innerHTML = "";
+  document.getElementById("csEventCard").innerHTML =
+    `<p class="muted" style="margin:0">Write a closing note below, then end the session. The driver sees it in his app.</p>`;
+  clearCsClip();
+}
+
+function renderCsBehaviour(step) {
+  document.getElementById("csWhat").textContent =
+    `Driver generated ${step.events} ${step.label.toLowerCase()} event${step.events === 1 ? "" : "s"} that ${step.events === 1 ? "is" : "are"} coachable since the last time they were coached.`;
+  document.getElementById("csFactors").textContent = "None";
+  document.getElementById("csEventsTitle").textContent =
+    `Coachable ${step.label.toLowerCase()} events (${step.events})`;
+
+  const ids = step.event_ids || [];
+  document.getElementById("csThumbs").innerHTML = ids.map((id, i) =>
+    `<button class="cs-thumb${i === _csEventIdx ? " is-sel" : ""}" onclick="csPickEvent(${i})">${i + 1}</button>`).join("");
+
+  const ev = _sfEvents.find(e => e.id === ids[_csEventIdx]);
+  const card = document.getElementById("csEventCard");
+  if (!ev) {
+    card.innerHTML = `<p class="muted" style="margin:0">Event detail not loaded — open it from the events list.</p>`;
+    clearCsClip();
+    return;
+  }
+  const sev = ev.severity === "critical" ? "overdue" : ev.severity === "warning" ? "soon" : "upcoming";
+  card.innerHTML = `<div class="cs-ev-head">
+      <span class="fw-badge ${sev}">${esc(ev.severity)}</span>
+      <span>${new Date(ev.occurred_at).toLocaleString("en-IN")}</span>
+      <span class="lt-spacer"></span>
+      <button class="link-btn" onclick="openEventDetail('${ev.id}')">View full details</button>
+      <button class="link-btn" onclick="csDismissEvent('${ev.id}')">Dismiss event</button>
+    </div>`;
+
+  clearCsClip();
+  if (window.FWDashcam) {
+    _csClip = FWDashcam.renderClip(document.getElementById("csClip"), {
+      url: ev.video_url || FWDashcam.makeClipRef(ev.event_type, 1),
+      eventType: ev.event_type, speed: ev.speed_kmph,
+      stamp: new Date(ev.occurred_at).toLocaleString("en-IN"),
+    });
+  }
+}
+
+function clearCsClip() {
+  if (_csClip) { _csClip.stop(); _csClip = null; }
+  const h = document.getElementById("csClip");
+  if (h) h.innerHTML = "";
+}
+
+window.csPickEvent = function(i) { _csEventIdx = i; renderCoachSession(); };
+
+window.csDismissEvent = async function(eventId) {
+  const why = prompt("Why is this being dismissed? false_positive / not_driver_fault / duplicate / other", "false_positive");
+  if (!why) return;
+  await fwCloud.authPatch("coaching_sessions?event_id=eq." + eventId,
+    { status: "dismissed", dismiss_reason: why, meeting_id: _csMeeting.id });
+  const step = _csSteps[_csStep];
+  step.event_ids = (step.event_ids || []).filter(id => id !== eventId);
+  step.events = step.event_ids.length;
+  _csEventIdx = 0;
+  if (!step.events) coachStepAction("completed"); else renderCoachSession();
+};
+
+/* Marking a behaviour coached closes every event behind it at once — that is
+   the point of grouping. Skipping leaves them assigned so they surface again
+   next sitting rather than vanishing. */
+window.coachStepAction = async function(outcome) {
+  const step = _csSteps[_csStep];
+  if (step.kind === "behaviour" && (step.event_ids || []).length) {
+    const note = document.getElementById("csNote").value.trim();
+    for (const id of step.event_ids) {
+      await fwCloud.authPatch("coaching_sessions?event_id=eq." + id, {
+        status: outcome,
+        meeting_id: outcome === "completed" ? _csMeeting.id : null,
+        completed_at: outcome === "completed" ? new Date().toISOString() : null,
+        coach_note: note || null,
+      }).catch(() => {});
+    }
+  }
+  step.done = outcome === "completed";
+  step.skipped = outcome === "skipped";
+  if (_csStep < _csSteps.length - 1) { _csStep++; _csEventIdx = 0; }
+  document.getElementById("csNote").value = "";
+  renderCoachSession();
+};
+
+window.endCoachMeeting = async function(status) {
+  if (!_csMeeting) return;
+  if (status === "abandoned" && !confirm("Cancel this session? Behaviours you have not marked stay waiting.")) return;
+  await fwCloud.authPatch("coaching_meetings?id=eq." + _csMeeting.id, {
+    status, ended_at: new Date().toISOString(),
+    summary_note: document.getElementById("csNote").value.trim() || null,
+  });
+  clearCsClip();
+  _csMeeting = null; _csSteps = []; _csStep = 0;
+  activateTab("safety");
+  loadSafety();
+};

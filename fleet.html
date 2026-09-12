@@ -267,6 +267,7 @@
         <!-- Reached from an event row, not the sidebar, but activateTab() resolves
              a panel through its nav button — so it needs one, hidden. -->
         <button class="side-item tab-btn" data-tab="eventdetail" hidden>Event detail</button>
+        <button class="side-item tab-btn" data-tab="coachsession" hidden>Coaching session</button>
         </div>
 
         <!-- ======= WORKSPACE: FleetIQ — prediction, analytics, forecasting only ======= -->
@@ -679,6 +680,51 @@
             </div>
           </div>
 
+        </div>
+      </section>
+
+      <!-- ======= COACHING SESSION — one sitting, one driver ======= -->
+      <section class="tab-panel" id="tab-coachsession">
+        <div class="cs-head">
+          <strong id="csTitle">Coaching</strong>
+          <span class="lt-spacer"></span>
+          <button class="btn btn-outline btn-sm" onclick="endCoachMeeting('abandoned')">Cancel</button>
+          <button class="btn btn-primary btn-sm" onclick="endCoachMeeting('completed')">End session</button>
+        </div>
+
+        <div class="cs-body">
+          <aside class="cs-rail">
+            <h4>Today's session</h4>
+            <ol class="cs-steps" id="csSteps"></ol>
+            <h4 style="margin-top:22px">Coaching history</h4>
+            <div class="cs-history" id="csHistory"></div>
+          </aside>
+
+          <div class="cs-main">
+            <div class="cs-step-head">
+              <h2 id="csStepTitle">—</h2>
+              <span class="lt-spacer"></span>
+              <button class="btn btn-outline btn-sm" onclick="coachStepAction('skipped')">Skip</button>
+              <button class="btn btn-primary btn-sm" onclick="coachStepAction('completed')">Mark as coached</button>
+            </div>
+
+            <div class="chart-card">
+              <h3 class="cs-q">What's going on?</h3>
+              <p id="csWhat" class="muted"></p>
+              <h3 class="cs-q" style="margin-top:14px">Additional factors involved</h3>
+              <p id="csFactors" class="muted"></p>
+            </div>
+
+            <div class="chart-card">
+              <div class="chart-head"><div><h2 id="csEventsTitle">Coachable events</h2></div></div>
+              <div class="cs-thumbs" id="csThumbs"></div>
+              <div class="cs-event" id="csEventCard"></div>
+              <div id="csClip"></div>
+            </div>
+
+            <textarea id="csNote" rows="3" placeholder="Add notes for this coaching session…"
+              style="width:100%;border:1px solid var(--border);border-radius:10px;padding:11px;font:inherit"></textarea>
+          </div>
         </div>
       </section>
 
