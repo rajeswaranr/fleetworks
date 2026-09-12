@@ -158,7 +158,6 @@
         <div data-ws="ops" hidden>
         <div class="side-pillar ops"><span class="pp"></span>Fleet<em>Ops</em></div>
         <button class="side-item tab-btn" data-tab="opscentre"><i data-icon="network"></i><span>Operation Centre</span></button>
-        <button class="side-item tab-btn" data-tab="safety"><i data-icon="shieldCheck"></i><span>Driver Safety</span></button>
         <button class="side-item tab-btn" data-tab="overview"><i data-icon="gauge"></i><span>FleetOps Dashboard</span></button>
         <button class="side-item tab-btn" data-tab="dispatch"><i data-icon="calendar"></i><span>Daily Dispatch</span></button>
         <button class="side-item tab-btn side-cta" data-tab="addvehicle"><i data-icon="truck"></i><span>Add Vehicle</span></button>
@@ -254,6 +253,17 @@
         <button class="side-item tab-btn" data-tab="gstbills"><i data-icon="receipt"></i><span>Bills — GST / Non-GST</span></button>
         <button class="side-item tab-btn" data-tab="accounts"><i data-icon="rupee"></i><span>Accounts &amp; Tally</span></button>
         <button class="side-item tab-btn" data-tab="reports"><i data-icon="chartBar"></i><span>Reports &amp; Filters</span></button>
+        </div>
+
+        <!-- ======= WORKSPACE: FleetSafe — safety, telematics, geofencing ======= -->
+        <div data-ws="safe" hidden>
+        <div class="side-pillar safe"><span class="pp"></span>Fleet<em>Safe</em></div>
+        <button class="side-item tab-btn" data-tab="fleetview"><i data-icon="mapPin"></i><span>Fleet View</span></button>
+        <button class="side-item tab-btn" data-tab="safety"><i data-icon="shieldCheck"></i><span>Safety &amp; Coaching</span></button>
+        <button class="side-item tab-btn" data-tab="opscentre"><i data-icon="network"></i><span>Operation Centre</span></button>
+        <button class="side-item tab-btn" data-tab="geofences"><i data-icon="map"></i><span>Geofences</span></button>
+        <button class="side-item tab-btn" data-tab="assets"><i data-icon="boxes"></i><span>Assets &amp; Trailers</span></button>
+        <button class="side-item tab-btn" data-tab="devices"><i data-icon="zap"></i><span>Devices &amp; Telemetry</span></button>
         </div>
 
         <!-- ======= WORKSPACE: FleetIQ — prediction, analytics, forecasting only ======= -->
@@ -553,6 +563,12 @@
               <p>Mind the money. Every expense, diesel fill, invoice and toll in GST-ready books — with Tally export, cost charts and reports your accountant will love.</p>
               <span class="hub-cta">Open FleetFin &rarr;</span>
             </button>
+            <button type="button" class="hub-card" data-hub="safe">
+              <span class="ic-tile" style="background:#fee2e2;color:#b91c1c"><i data-icon="shieldCheck" data-icon-size="34"></i></span>
+              <h3>Fleet<em>Safe</em></h3>
+              <p>Watch the road, not the paperwork. Live fleet view, ADAS and dash-cam events, driver scorecards and coaching, geofences, trailers and telematics — every truck, asset and driver on one map.</p>
+              <span class="hub-cta">Open FleetSafe &rarr;</span>
+            </button>
             <button type="button" class="hub-card" data-hub="iq">
               <span class="ic-tile info hub-ic"><i data-icon="brain" data-icon-size="34"></i></span>
               <h3>Fleet<em>IQ</em></h3>
@@ -609,6 +625,57 @@
               <div id="healthStrip" class="health-strip"></div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- ======= FLEET VIEW — every entity, live, on one map ======= -->
+      <section class="tab-panel" id="tab-fleetview">
+        <div class="fv">
+
+          <div class="fv-top">
+            <div class="fv-tabs" id="fvTabs">
+              <button class="fv-tab is-active" data-fv="live">Live</button>
+              <button class="fv-tab" data-fv="vehicles">Vehicles</button>
+              <button class="fv-tab" data-fv="drivers">Drivers</button>
+              <button class="fv-tab" data-fv="assets">Assets</button>
+              <button class="fv-tab" data-fv="trips">Trips</button>
+            </div>
+            <span class="lt-spacer"></span>
+            <button class="btn btn-outline btn-sm" onclick="openAssetModal()">+ Add an entity</button>
+            <button class="btn btn-primary btn-sm" onclick="startDrawGeofence()">Create geofence</button>
+          </div>
+
+          <div class="fv-filters">
+            <input type="search" id="fvSearch" placeholder="Search vehicles, drivers, assets, geofences…"
+                   oninput="renderFleetView()" />
+            <select id="fvEntity" onchange="renderFleetView()">
+              <option value="">Entity — all</option>
+              <option value="vehicle">Vehicles</option>
+              <option value="asset">Assets</option>
+            </select>
+            <select id="fvStatus" onchange="renderFleetView()">
+              <option value="">Status — all</option>
+              <option value="moving">Moving</option>
+              <option value="halted">Halted</option>
+              <option value="repair">In repair</option>
+              <option value="no_driver">No driver</option>
+            </select>
+            <select id="fvSort" onchange="renderFleetView()">
+              <option value="name">Sort: Name</option>
+              <option value="speed">Sort: Speed</option>
+              <option value="updated">Sort: Last update</option>
+            </select>
+            <span class="fv-count" id="fvCount"></span>
+          </div>
+
+          <div class="fv-body">
+            <aside class="fv-list" id="fvList"></aside>
+            <div class="fv-map-wrap">
+              <div id="fvMap"></div>
+              <div class="fv-map-note" id="fvMapNote" hidden></div>
+            </div>
+          </div>
+
         </div>
       </section>
 

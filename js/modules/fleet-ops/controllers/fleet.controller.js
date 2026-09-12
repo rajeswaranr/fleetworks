@@ -5015,6 +5015,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "tyres") loadTyreManager();
   if (tabName === "opscentre") loadOpsCentre(); else stopOpsCentre();
   if (tabName === "safety") loadSafety();
+  if (tabName === "fleetview") loadFleetView();
   return true;
 }
 
@@ -5942,7 +5943,7 @@ activateTabFromHash();
 
 // Home hub cards open their workspace and land on its dashboard
 document.querySelectorAll(".hub-card").forEach(c => c.addEventListener("click", () => {
-  const target = { ops: "overview", fin: "fin", iq: "analytics" }[c.dataset.hub];
+  const target = { ops: "overview", fin: "fin", iq: "analytics", safe: "fleetview" }[c.dataset.hub];
   document.querySelector(`#tabBar .tab-btn[data-tab="${target}"]`)?.click();
 }));
 if (!activateTabFromHash()) setWorkspace("home");
@@ -6574,4 +6575,321 @@ window.completeCoaching = async function(id) {
   await fwCloud.authPatch("coaching_sessions?id=eq." + id,
     { status: "completed", completed_at: new Date().toISOString() });
   loadSafety();
+};
+
+/* ============ FleetSafe — Fleet View ============
+   One list and one map over every entity a fleet tracks: vehicles, and the
+   trailers and equipment that move with them. Entities rather than vehicles is
+   the whole point — a trailer nobody can find costs as much standing still as
+   a truck does.
+
+   Positions come from driver_locations, newest per vehicle, same source the
+   Operation Centre uses. Assets inherit the position of whatever is towing
+   them, because a trailer has no tracker of its own in most fleets and
+   pretending otherwise would put it at 0,0 in the Gulf of Guinea. */
+
+var _fvTab = "live", _fvMap = null, _fvLayer = null, _fvGeoLayer = null;
+var _fvAssets = [], _fvGeofences = [], _fvPositions = [], _fvSelected = null;
+var _fvDrawing = false;
+
+async function loadFleetView() {
+  const signedIn = !!(window.fwCloud && fwCloud.user && fwCloud.user());
+  if (signedIn) {
+    const [assets, fences, pos] = await Promise.all([
+      fwCloud.authGet("assets", "select=*&order=name").catch(() => []),
+      fwCloud.authGet("geofences", "select=*&is_active=eq.true").catch(() => []),
+      fwCloud.authGet("driver_locations",
+        "select=vehicle_id,latitude,longitude,speed_kmph,recorded_at&order=recorded_at.desc&limit=400").catch(() => []),
+    ]);
+    _fvAssets = assets || [];
+    _fvGeofences = fences || [];
+    const seen = new Set();
+    _fvPositions = (pos || []).filter(p => {
+      if (!p.vehicle_id || seen.has(p.vehicle_id)) return false;
+      seen.add(p.vehicle_id); return true;
+    });
+  } else {
+    _fvAssets = []; _fvGeofences = []; _fvPositions = [];
+  }
+  renderFleetView();
+  await initFleetViewMap();
+}
+
+/* Every row on the list and pin on the map is one of these, so list and map
+   can never disagree about what exists. */
+function fvEntities() {
+  const out = db.vehicles.map(v => {
+    const pos = _fvPositions.find(p => p.vehicle_id === (v.dbId || v.id));
+    const driver = db.drivers.find(d => d.vehicleId === v.id);
+    return {
+      kind: "vehicle", id: v.id, dbId: v.dbId || v.id, name: v.name,
+      sub: v.type || "Vehicle",
+      driver: driver ? driver.name : null,
+      status: vehicleOpStatus(v),
+      speed: pos ? pos.speed_kmph : null,
+      lat: pos ? Number(pos.latitude) : null,
+      lng: pos ? Number(pos.longitude) : null,
+      at: pos ? pos.recorded_at : null,
+      place: v.baseCity || v.depot || "",
+    };
+  });
+
+  _fvAssets.forEach(a => {
+    const tow = db.vehicles.find(v => (v.dbId || v.id) === a.towed_by_vehicle_id);
+    const pos = a.towed_by_vehicle_id
+      ? _fvPositions.find(p => p.vehicle_id === a.towed_by_vehicle_id) : null;
+    out.push({
+      kind: "asset", id: a.id, dbId: a.id, name: a.name,
+      sub: [a.asset_type && a.asset_type.replace(/_/g, " "), a.make, a.model].filter(Boolean).join(" · "),
+      driver: null,
+      status: a.status === "active" ? (tow ? "moving" : "halted") : a.status,
+      speed: pos ? pos.speed_kmph : null,
+      lat: pos ? Number(pos.latitude) : null,
+      lng: pos ? Number(pos.longitude) : null,
+      at: pos ? pos.recorded_at : null,
+      place: tow ? "Towed by " + tow.name : (a.base_location || ""),
+      towedBy: tow ? tow.name : null,
+    });
+  });
+
+  return out;
+}
+
+function fvFiltered() {
+  const q = (document.getElementById("fvSearch")?.value || "").trim().toLowerCase();
+  const kind = document.getElementById("fvEntity")?.value || "";
+  const st = document.getElementById("fvStatus")?.value || "";
+  const sort = document.getElementById("fvSort")?.value || "name";
+
+  let rows = fvEntities();
+  if (_fvTab === "vehicles") rows = rows.filter(r => r.kind === "vehicle");
+  if (_fvTab === "assets")   rows = rows.filter(r => r.kind === "asset");
+  if (kind) rows = rows.filter(r => r.kind === kind);
+  if (st)   rows = rows.filter(r => r.status === st);
+  if (q) rows = rows.filter(r =>
+    (r.name + " " + (r.sub || "") + " " + (r.driver || "") + " " + (r.place || "")).toLowerCase().includes(q));
+
+  rows.sort((a, b) => {
+    if (sort === "speed")   return (b.speed || 0) - (a.speed || 0);
+    if (sort === "updated") return new Date(b.at || 0) - new Date(a.at || 0);
+    return a.name.localeCompare(b.name);
+  });
+  return rows;
+}
+
+function renderFleetView() {
+  const list = document.getElementById("fvList");
+  if (!list) return;
+
+  if (_fvTab === "drivers") return renderFvDrivers(list);
+  if (_fvTab === "trips")   return renderFvTrips(list);
+
+  const rows = fvFiltered();
+  const cnt = document.getElementById("fvCount");
+  if (cnt) cnt.textContent = rows.length + (rows.length === 1 ? " entity" : " entities");
+
+  if (!rows.length) {
+    list.innerHTML = `<p class="muted" style="padding:16px">Nothing matches these filters.</p>`;
+    drawFvMarkers([]);
+    return;
+  }
+
+  list.innerHTML = rows.map(r => {
+    const m = OP_STATUS[r.status] || OP_STATUS.active;
+    return `<article class="fv-card${_fvSelected === r.kind + ":" + r.id ? " is-sel" : ""}"
+              onclick="fvSelect('${r.kind}','${esc(r.id)}')">
+      <span class="fv-ic ${r.kind}">${FWIcon(r.kind === "asset" ? "boxes" : "truck", { size: 15 })}</span>
+      <div class="fv-card-main">
+        <div class="fv-card-top">
+          <strong>${esc(r.name)}</strong>
+          ${r.speed != null ? `<span class="fv-speed">${Math.round(r.speed)} km/h</span>` : ""}
+        </div>
+        <div class="fv-card-sub">${esc(r.sub || "")}</div>
+        ${r.driver ? `<div class="fv-card-drv">${FWIcon("driver", { size: 12 })} ${esc(r.driver)}</div>` : ""}
+        ${r.place ? `<div class="fv-card-place">${esc(r.place)}</div>` : ""}
+        <div class="fv-card-foot">
+          <span class="fw-badge ${m.cls}" style="font-size:.68rem">${m.label}</span>
+          <span class="fv-ago">${r.at ? fmtAgoShort(r.at) + " ago" : "no fix"}</span>
+        </div>
+      </div>
+    </article>`;
+  }).join("");
+
+  drawFvMarkers(rows);
+}
+
+function renderFvDrivers(list) {
+  const q = (document.getElementById("fvSearch")?.value || "").trim().toLowerCase();
+  let rows = db.drivers.slice();
+  if (q) rows = rows.filter(d => (d.name + " " + (d.phone || "")).toLowerCase().includes(q));
+  const cnt = document.getElementById("fvCount");
+  if (cnt) cnt.textContent = rows.length + " drivers";
+  list.innerHTML = rows.length ? rows.map(d => {
+    const veh = d.vehicleId ? db.vehicles.find(v => v.id === d.vehicleId) : null;
+    return `<article class="fv-card">
+      <span class="fv-ic driver">${FWIcon("driver", { size: 15 })}</span>
+      <div class="fv-card-main">
+        <div class="fv-card-top"><strong>${esc(d.name)}</strong></div>
+        <div class="fv-card-sub">${veh ? esc(veh.name) : "No vehicle assigned"}</div>
+        ${d.phone ? `<div class="fv-card-place">${esc(d.phone)}</div>` : ""}
+      </div>
+    </article>`;
+  }).join("") : `<p class="muted" style="padding:16px">No drivers.</p>`;
+  drawFvMarkers(fvEntities().filter(r => r.driver));
+}
+
+function renderFvTrips(list) {
+  const rows = (db.trips || []).slice(-40).reverse();
+  const cnt = document.getElementById("fvCount");
+  if (cnt) cnt.textContent = rows.length + " trips";
+  list.innerHTML = rows.length ? rows.map(t => `
+    <article class="fv-card">
+      <span class="fv-ic trip">${FWIcon("mapPin", { size: 15 })}</span>
+      <div class="fv-card-main">
+        <div class="fv-card-top"><strong>${esc(t.from || "—")} → ${esc(t.to || "—")}</strong></div>
+        <div class="fv-card-sub">${esc(vName(t.vehicleId))}</div>
+        <div class="fv-card-place">${t.date ? fmtDate(t.date) : ""}${t.km ? " · " + t.km + " km" : ""}</div>
+      </div>
+    </article>`).join("") : `<p class="muted" style="padding:16px">No trips logged.</p>`;
+  drawFvMarkers([]);
+}
+
+window.fvSelect = function(kind, id) {
+  _fvSelected = kind + ":" + id;
+  const r = fvEntities().find(x => x.kind === kind && String(x.id) === String(id));
+  renderFleetView();
+  if (r && r.lat != null && _fvMap) _fvMap.setView([r.lat, r.lng], 11, { animate: true });
+};
+
+document.getElementById("fvTabs")?.addEventListener("click", e => {
+  const b = e.target.closest(".fv-tab");
+  if (!b) return;
+  _fvTab = b.dataset.fv;
+  document.querySelectorAll("#fvTabs .fv-tab").forEach(x => x.classList.toggle("is-active", x === b));
+  renderFleetView();
+});
+
+/* ---- Map ---- */
+async function initFleetViewMap() {
+  const host = document.getElementById("fvMap");
+  const note = document.getElementById("fvMapNote");
+  if (!host) return;
+  try {
+    if (typeof loadLeaflet === "function") await loadLeaflet();
+    if (!window.L) throw new Error("no leaflet");
+  } catch {
+    if (note) { note.hidden = false; note.textContent = "Map could not load — check your connection. The list still works."; }
+    return;
+  }
+  if (!_fvMap) {
+    _fvMap = L.map(host, { zoomControl: true }).setView([20.9, 78.9], 5);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18, attribution: "&copy; OpenStreetMap",
+    }).addTo(_fvMap);
+    _fvLayer = L.layerGroup().addTo(_fvMap);
+    _fvGeoLayer = L.layerGroup().addTo(_fvMap);
+    _fvMap.on("click", onFvMapClick);
+  }
+  // Leaflet mis-measures a container that was display:none when created, so a
+  // tab that starts hidden needs this once it is visible.
+  setTimeout(() => _fvMap && _fvMap.invalidateSize(), 60);
+  drawFvGeofences();
+  renderFleetView();
+}
+
+function drawFvMarkers(rows) {
+  if (!_fvLayer || !window.L) return;
+  _fvLayer.clearLayers();
+  const pts = [];
+  rows.filter(r => r.lat != null && !isNaN(r.lat)).forEach(r => {
+    const m = OP_STATUS[r.status] || OP_STATUS.active;
+    const col = { ok: "#16a34a", soon: "#f59e0b", overdue: "#dc2626", upcoming: "#2563eb" }[m.cls] || "#64748b";
+    const icon = L.divIcon({
+      className: "fv-pin-wrap",
+      html: `<span class="fv-pin ${r.kind}" style="--pc:${col}">${r.kind === "asset" ? "▪" : "▲"}</span>`,
+      iconSize: [22, 22], iconAnchor: [11, 11],
+    });
+    const mk = L.marker([r.lat, r.lng], { icon }).addTo(_fvLayer);
+    mk.bindPopup(`<strong>${esc(r.name)}</strong><br>${esc(r.sub || "")}` +
+      (r.driver ? `<br>${esc(r.driver)}` : "") +
+      (r.speed != null ? `<br>${Math.round(r.speed)} km/h` : ""));
+    pts.push([r.lat, r.lng]);
+  });
+  if (pts.length && _fvMap && !_fvSelected) {
+    try { _fvMap.fitBounds(pts, { padding: [40, 40], maxZoom: 9 }); } catch { /* single point */ }
+  }
+  const note = document.getElementById("fvMapNote");
+  if (note && !pts.length) {
+    note.hidden = false;
+    note.textContent = "No live positions yet — pins appear once a driver shares location or a tracker reports.";
+  } else if (note) note.hidden = true;
+}
+
+function drawFvGeofences() {
+  if (!_fvGeoLayer || !window.L) return;
+  _fvGeoLayer.clearLayers();
+  const PURPOSE_COL = { restricted: "#dc2626", customer: "#2563eb", depot: "#16a34a",
+                        fuel: "#f59e0b", plant: "#7c3aed", workshop: "#0891b2" };
+  _fvGeofences.forEach(g => {
+    const col = PURPOSE_COL[g.purpose] || "#64748b";
+    L.circle([Number(g.centre_lat), Number(g.centre_lng)], {
+      radius: Number(g.radius_m), color: col, weight: 2, fillColor: col, fillOpacity: 0.1,
+    }).bindPopup(`<strong>${esc(g.name)}</strong><br>${esc(g.purpose)} · ${Math.round(g.radius_m)} m`)
+      .addTo(_fvGeoLayer);
+  });
+}
+
+/* Click-to-place is the only sane way to draw a fence without a polygon editor:
+   the owner clicks the gate, then types how far out it reaches. */
+window.startDrawGeofence = function() {
+  if (!(window.fwCloud && fwCloud.user && fwCloud.user())) {
+    alert("Sign in to create geofences."); return;
+  }
+  _fvDrawing = true;
+  const note = document.getElementById("fvMapNote");
+  if (note) { note.hidden = false; note.textContent = "Click the map on the centre of the zone…"; }
+};
+
+async function onFvMapClick(e) {
+  if (!_fvDrawing) return;
+  _fvDrawing = false;
+  const note = document.getElementById("fvMapNote");
+  if (note) note.hidden = true;
+
+  const name = prompt("Geofence name (e.g. Hosur Plant Gate):");
+  if (!name) return;
+  const radius = parseInt(prompt("Radius in metres (50–50000):", "300"), 10);
+  if (!radius || radius < 50 || radius > 50000) { alert("Radius must be between 50 and 50000 m."); return; }
+
+  const org = await fvOrgId();
+  if (!org) { alert("Could not resolve your organisation — try reloading."); return; }
+
+  const ok = await fwCloud.authInsert("geofences", {
+    org_id: org, name: name.trim(), purpose: "other",
+    centre_lat: +e.latlng.lat.toFixed(6), centre_lng: +e.latlng.lng.toFixed(6),
+    radius_m: radius, alert_on: "both", is_active: true,
+  });
+  if (!ok) { alert("Could not save the geofence."); return; }
+  _fvGeofences = await fwCloud.authGet("geofences", "select=*&is_active=eq.true").catch(() => _fvGeofences);
+  drawFvGeofences();
+}
+
+async function fvOrgId() {
+  const rows = await fwCloud.authGet("memberships", "select=org_id&limit=1").catch(() => null);
+  return rows && rows[0] ? rows[0].org_id : null;
+}
+
+window.openAssetModal = function() {
+  if (!(window.fwCloud && fwCloud.user && fwCloud.user())) { alert("Sign in to add assets."); return; }
+  const name = prompt("Asset name (e.g. Trailer T-827):");
+  if (!name) return;
+  const type = prompt("Type — trailer, tipper_body, genset, compressor, tanker, crane, excavator, container, other:", "trailer");
+  fvOrgId().then(async org => {
+    if (!org) { alert("Could not resolve your organisation."); return; }
+    const ok = await fwCloud.authInsert("assets", {
+      org_id: org, name: name.trim(), asset_type: (type || "trailer").trim(), status: "active",
+    });
+    if (!ok) { alert("Could not save — check the type is one of the listed values."); return; }
+    loadFleetView();
+  });
 };

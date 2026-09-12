@@ -1214,6 +1214,7 @@ i[data-icon] { display: inline-flex; align-items: center; justify-content: cente
 .side-pillar.ops .pp { background: #f5a623; box-shadow: 0 0 8px rgba(245, 166, 35, 0.7); }
 .side-pillar.fin .pp { background: #1baf7a; box-shadow: 0 0 8px rgba(27, 175, 122, 0.7); }
 .side-pillar.iq  .pp { background: #6ea8ff; box-shadow: 0 0 8px rgba(110, 168, 255, 0.7); }
+.side-pillar.safe .pp { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.7); }
 .side-pillar em { font-style: normal; color: #c8d6ea; }
 
 /* ---------- Auth gate (Fleetio-style standalone login page) ---------- */
@@ -1826,3 +1827,68 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 
 #tab-safety .chart-table-el td { vertical-align: top; }
 #coachModal textarea { font-family: inherit; resize: vertical; }
+
+/* ---- FleetSafe: Fleet View ---- */
+.fv { display: flex; flex-direction: column; gap: 12px; }
+.fv-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fv-tabs { display: flex; gap: 2px; background: var(--bg-alt); border-radius: 10px; padding: 3px; }
+.fv-tab { background: none; border: none; font: inherit; font-size: 0.86rem; font-weight: 600;
+  color: var(--muted); padding: 7px 15px; border-radius: 8px; cursor: pointer; }
+.fv-tab.is-active { background: #fff; color: var(--navy); box-shadow: 0 1px 3px rgba(15,30,51,.12); }
+
+.fv-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.fv-filters input[type="search"] { flex: 1; min-width: 200px; height: 36px; padding: 0 12px;
+  border: 1px solid var(--border); border-radius: 9px; font: inherit; font-size: 0.88rem; }
+.fv-filters select { height: 36px; padding: 0 10px; border: 1px solid var(--border);
+  border-radius: 9px; font: inherit; font-size: 0.85rem; background: #fff; color: var(--ink); }
+.fv-count { font-size: 0.8rem; color: var(--muted); margin-left: auto; }
+
+/* List beside map, both scrolling independently — the list is a working
+   surface, not a legend, so it gets real width. */
+.fv-body { display: grid; grid-template-columns: 340px 1fr; gap: 12px;
+  border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: #fff; }
+.fv-list { max-height: 620px; overflow-y: auto; border-right: 1px solid var(--border); }
+.fv-map-wrap { position: relative; min-height: 620px; }
+#fvMap { position: absolute; inset: 0; }
+.fv-map-note { position: absolute; left: 12px; bottom: 12px; z-index: 500;
+  background: rgba(15,30,51,.88); color: #fff; font-size: 0.78rem; font-weight: 600;
+  padding: 8px 13px; border-radius: 9px; max-width: 70%; }
+
+.fv-card { display: flex; gap: 10px; padding: 11px 13px; border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background .12s; }
+.fv-card:hover { background: var(--bg-alt); }
+.fv-card.is-sel { background: #fff7e8; box-shadow: inset 3px 0 0 var(--amber); }
+.fv-ic { width: 26px; height: 26px; border-radius: 7px; flex: none; display: inline-flex;
+  align-items: center; justify-content: center; background: var(--bg-alt); color: var(--muted); }
+.fv-ic.vehicle { background: #fff3e0; color: #b45309; }
+.fv-ic.asset   { background: #eef2ff; color: #4338ca; }
+.fv-ic.driver  { background: #ecfdf5; color: #047857; }
+.fv-ic.trip    { background: #e0f2fe; color: #0369a1; }
+.fv-card-main { flex: 1; min-width: 0; }
+.fv-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fv-card-top strong { font-size: 0.88rem; color: var(--navy); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.fv-speed { font-size: 0.75rem; font-weight: 700; color: var(--muted); flex: none;
+  font-variant-numeric: tabular-nums; }
+.fv-card-sub { font-size: 0.76rem; color: var(--muted); margin-top: 1px; text-transform: capitalize; }
+.fv-card-drv { font-size: 0.76rem; color: var(--ink); margin-top: 3px;
+  display: flex; align-items: center; gap: 5px; }
+.fv-card-place { font-size: 0.73rem; color: var(--muted); margin-top: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fv-card-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.fv-ago { font-size: 0.7rem; color: var(--muted); margin-left: auto; }
+
+/* Leaflet divIcon has no styling of its own; the pin is drawn here. */
+.fv-pin-wrap { background: none; border: none; }
+.fv-pin { display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%; background: var(--pc);
+  color: #fff; font-size: 11px; line-height: 1; border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.fv-pin.asset { border-radius: 5px; }
+
+@media (max-width: 900px) {
+  .fv-body { grid-template-columns: 1fr; }
+  .fv-list { max-height: 300px; border-right: none; border-bottom: 1px solid var(--border); }
+  .fv-map-wrap { min-height: 380px; }
+  .fv-count { margin-left: 0; }
+}
