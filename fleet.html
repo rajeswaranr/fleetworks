@@ -150,11 +150,52 @@
           <span class="side-id-org" id="idOrg"></span>
           <span class="side-id-user" id="idUser"></span>
         </div>
-        <!-- Home is the only permanent entry. Sites and SMS Notifications used to
-             sit here too, visible in every workspace — Sites was a straight
-             duplicate of the FleetOps item below, and SMS Notifications is a
-             setting, not a place you work. Both now live where they belong. -->
+        <!-- Home is the permanent entry point. -->
         <button class="side-item tab-btn active" data-tab="home"><i data-icon="network"></i><span>Home — All Apps</span></button>
+
+        <!-- ======= TOP-LEVEL MENUS (Always visible, expandable) ======= -->
+
+        <!-- Sites & Projects Menu -->
+        <div class="side-group has-children">
+          <button type="button" class="side-parent"><i data-icon="mapPin"></i><span>Sites &amp; Projects</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
+          <div class="side-children">
+            <button class="side-item tab-btn" data-tab="sites"><span>View All Sites</span></button>
+            <button class="side-item tab-btn" data-tab="projects"><span>Active Projects</span></button>
+            <button class="side-item tab-btn" data-tab="sitehistory"><span>Site History</span></button>
+          </div>
+        </div>
+
+        <!-- SMS Notifications Menu -->
+        <div class="side-group has-children">
+          <button type="button" class="side-parent"><i data-icon="chat"></i><span>SMS Notifications</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
+          <div class="side-children">
+            <button class="side-item tab-btn" data-tab="smsnotif"><span>Notification Log</span></button>
+            <button class="side-item tab-btn" data-tab="smssettings"><span>Notification Settings</span></button>
+            <button class="side-item tab-btn" data-tab="smscontacts"><span>Contacts</span></button>
+          </div>
+        </div>
+
+        <!-- Notifications Menu -->
+        <div class="side-group has-children">
+          <button type="button" class="side-parent"><i data-icon="bell"></i><span>Notifications</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
+          <div class="side-children">
+            <button class="side-item tab-btn" data-tab="alertinbox"><span>Alert Inbox</span></button>
+            <button class="side-item tab-btn" data-tab="alerts"><span>Active Alerts</span></button>
+            <button class="side-item tab-btn" data-tab="alerthistory"><span>Past Notifications</span></button>
+          </div>
+        </div>
+
+        <!-- Fleet Health Menu -->
+        <div class="side-group has-children">
+          <button type="button" class="side-parent"><i data-icon="heartCheck"></i><span>Fleet Health</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
+          <div class="side-children">
+            <button class="side-item tab-btn" data-tab="fleethealth"><span>Health Status</span></button>
+            <button class="side-item tab-btn" data-tab="vehiclehealth"><span>By Vehicle</span></button>
+            <button class="side-item tab-btn" data-tab="healthtrends"><span>Health Trends</span></button>
+          </div>
+        </div>
+
+        <div class="side-sep"></div>
 
         <!-- ======= WORKSPACE: FleetOps — maintenance & daily operations ======= -->
         <div data-ws="ops" hidden>
@@ -172,8 +213,6 @@
           <div class="side-children">
             <button class="side-item tab-btn" data-tab="vehicles"><span>Vehicle List &amp; RTO</span></button>
             <button class="side-item tab-btn" data-tab="trips"><span>Trips &amp; Loads</span></button>
-            <button class="side-item tab-btn" data-tab="sites"><span>Sites &amp; Projects</span></button>
-            <button class="side-item tab-btn" data-tab="smsnotif"><span>SMS Notifications</span></button>
             <button class="side-item tab-btn" data-tab="assignments"><span>Assignments</span></button>
             <button class="side-item tab-btn" data-tab="drivers"><span>Drivers &amp; Contacts</span></button>
             <button class="side-item tab-btn" data-tab="meters"><span>Meter History</span></button>
