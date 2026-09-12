@@ -6278,7 +6278,7 @@ function stopOpsCentre() {
    vehicles he holds without the page filtering anything itself. */
 
 var _sfEvents = [], _sfScores = [], _sfCoaching = [], _sfFilter = "unreviewed";
-var _coachEvent = null;
+var _coachEvent = null, _coachClip = null;
 
 const SF_BAND = {
   excellent:         { label: "Excellent",     cls: "ok",       min: 0 },
@@ -6498,11 +6498,33 @@ window.openCoachModal = function(eventId) {
     ].filter(Boolean).join(" · ");
   document.getElementById("coachDismissPanel").hidden = true;
   document.getElementById("coachForm").reset();
+
+  // The clip is the point of the review — a coaching note written without
+  // looking at what happened is guesswork.
+  const clipEl = document.getElementById("coachClip");
+  if (_coachClip) { _coachClip.stop(); _coachClip = null; }
+  if (clipEl) {
+    if (_coachEvent.video_url && window.FWDashcam) {
+      _coachClip = FWDashcam.renderClip(clipEl, {
+        url: _coachEvent.video_url,
+        eventType: _coachEvent.event_type,
+        speed: _coachEvent.speed_kmph,
+        stamp: new Date(_coachEvent.occurred_at).toLocaleString("en-IN"),
+      });
+    } else {
+      clipEl.innerHTML = `<p class="muted" style="margin:0;padding:12px;background:var(--bg-alt);border-radius:8px;font-size:.85rem">
+        No clip for this event — the device reported it without video.</p>`;
+    }
+  }
+
   document.getElementById("coachModal").classList.add("open");
 };
 
 window.closeCoachModal = function() {
   document.getElementById("coachModal").classList.remove("open");
+  // Stop the render loop; a canvas animating behind a closed modal is a
+  // battery leak nobody ever notices.
+  if (_coachClip) { _coachClip.stop(); _coachClip = null; }
   _coachEvent = null;
 };
 

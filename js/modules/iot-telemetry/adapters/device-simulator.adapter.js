@@ -145,10 +145,17 @@ class SimTruck {
       ambient_temp_c: +rnd(26, 38).toFixed(1),
     };
 
+    // Every simulated event carries a clip reference so the review workflow —
+    // player, storage path, dispute handling — can be built and tested before
+    // any camera exists. The sim:// scheme keeps it impossible to mistake for
+    // real footage; real hardware writes an https URL into the same column.
     const stamped = ev.map(e => ({
       ...e, occurred_at: reading.recorded_at,
       latitude: reading.latitude, longitude: reading.longitude,
       speed_kmph: reading.speed_kmph,
+      video_url: window.FWDashcam
+        ? FWDashcam.makeClipRef(e.event_type, Math.floor(Math.random() * 0xffffffff))
+        : null,
     }));
 
     return { reading, events: stamped };
