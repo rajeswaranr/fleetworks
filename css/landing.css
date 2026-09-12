@@ -792,3 +792,41 @@ h1, h2, h3, h4 { color: var(--ai-text); letter-spacing: -0.01em; }
   .bsd-bike,.bsd-zone,.bsd-warn,.c360-quads i,.c360-sweep,.cargo-fill,.cargo-box,.cargo-tag,.bus-body span,.bus-stop{animation:none!important}
   .bsd-warn,.cargo-tag,.bus-stop,.cargo-box{opacity:1!important}
 }
+
+/* ---- Automation levels (SAE J3016) ---- */
+.alsec { padding: 30px 0 70px; }
+.al-track { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px;
+  position: relative; padding-top: 26px; }
+
+/* The rail runs behind the cards and stops where FleetWorks stops. A bar that
+   ran the full width would imply capability the product does not have. */
+.al-line { position: absolute; top: 8px; left: 0; right: 0; height: 4px;
+  background: rgba(255,255,255,.08); border-radius: 3px; overflow: hidden; }
+.al-fill { display: block; height: 100%; width: 25%;
+  background: linear-gradient(90deg, #6366f1, #22d3ee); border-radius: 3px; }
+
+.al-card { background: var(--ai-surface); border: 1px solid var(--ai-line);
+  border-radius: 14px; padding: 16px 15px; position: relative; }
+.al-card h3 { font-size: .98rem; font-weight: 700; color: var(--ai-text); margin: 8px 0 7px; }
+.al-card p { font-size: .8rem; color: var(--ai-muted); line-height: 1.55; margin: 0; }
+.al-num { font-size: .72rem; font-weight: 800; letter-spacing: .08em; color: var(--ai-muted);
+  border: 1px solid var(--ai-line); border-radius: 6px; padding: 3px 8px; display: inline-block; }
+
+.al-card.is-here { border-color: rgba(99,102,241,.55); background: rgba(99,102,241,.09);
+  box-shadow: 0 0 0 1px rgba(99,102,241,.25), 0 18px 46px rgba(99,102,241,.16); }
+.al-card.is-here .al-num { color: #c7d2fe; border-color: rgba(99,102,241,.5); }
+
+.al-tag { display: inline-block; margin-top: 11px; font-size: .68rem; font-weight: 700;
+  padding: 4px 9px; border-radius: 100px; background: rgba(255,255,255,.06); color: var(--ai-muted); }
+.al-tag-here { background: var(--ai-gradient); color: #fff; }
+.al-tag-most { background: rgba(245,158,11,.15); color: #fcd34d; }
+
+.al-note { margin-top: 10px !important; padding-top: 10px; border-top: 1px solid var(--ai-line);
+  font-size: .76rem !important; }
+.al-note strong { color: var(--ai-text); }
+
+.al-foot { max-width: 760px; margin: 26px auto 0; text-align: center;
+  font-size: .85rem; color: var(--ai-muted); line-height: 1.65; }
+
+@media (max-width: 1100px) { .al-track { grid-template-columns: repeat(3, 1fr); } .al-line { display: none; } }
+@media (max-width: 640px)  { .al-track { grid-template-columns: 1fr; } }

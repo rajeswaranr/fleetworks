@@ -150,9 +150,11 @@
           <span class="side-id-org" id="idOrg"></span>
           <span class="side-id-user" id="idUser"></span>
         </div>
+        <!-- Home is the only permanent entry. Sites and SMS Notifications used to
+             sit here too, visible in every workspace — Sites was a straight
+             duplicate of the FleetOps item below, and SMS Notifications is a
+             setting, not a place you work. Both now live where they belong. -->
         <button class="side-item tab-btn active" data-tab="home"><i data-icon="network"></i><span>Home — All Apps</span></button>
-        <button class="side-item tab-btn" data-tab="sites"><i data-icon="map"></i><span>Sites &amp; Projects</span></button>
-        <button class="side-item tab-btn" data-tab="smsnotif"><i data-icon="bell"></i><span>SMS Notifications</span></button>
 
         <!-- ======= WORKSPACE: FleetOps — maintenance & daily operations ======= -->
         <div data-ws="ops" hidden>
@@ -171,6 +173,7 @@
             <button class="side-item tab-btn" data-tab="vehicles"><span>Vehicle List &amp; RTO</span></button>
             <button class="side-item tab-btn" data-tab="trips"><span>Trips &amp; Loads</span></button>
             <button class="side-item tab-btn" data-tab="sites"><span>Sites &amp; Projects</span></button>
+            <button class="side-item tab-btn" data-tab="smsnotif"><span>SMS Notifications</span></button>
             <button class="side-item tab-btn" data-tab="assignments"><span>Assignments</span></button>
             <button class="side-item tab-btn" data-tab="drivers"><span>Drivers &amp; Contacts</span></button>
             <button class="side-item tab-btn" data-tab="meters"><span>Meter History</span></button>
