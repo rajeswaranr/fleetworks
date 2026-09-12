@@ -4961,7 +4961,7 @@ document.getElementById("radarFilters").addEventListener("click", e => {
   renderRadar();
 });
 
-// ---------- Workspaces (Home hub → FleetOps / FleetFin / FleetIQ) ----------
+// ---------- Workspaces (Home hub → FleetOps / FleetFin / FleetAI) ----------
 // The sidebar shows only the menus of the active workspace; Home shows none.
 function setWorkspace(ws) {
   document.querySelectorAll("#tabBar [data-ws]").forEach(el => { el.hidden = el.dataset.ws !== ws; });
@@ -5200,8 +5200,8 @@ function buildDynamicPanels() {
   mk("vendors", panelCard("Vendors", "Workshops and suppliers your fleet works with", "vendorTable"));
   mk("integrations", `<div class="chart-card"><div class="chart-head"><div><h2>Integrations</h2><p class="muted">Connect FleetWorks to the tools your business already runs on</p></div></div><div class="integ-grid" id="integGrid"></div></div>`);
   mk("reports", `<div class="chart-card"><div class="chart-head"><div><h2>Standard Reports</h2><p class="muted">One-click exports, ready for Excel and your accountant</p></div></div><div class="integ-grid" id="reportGrid"></div></div>`);
-  // FleetIQ study panels (rendered by analytics.js)
-  mk("recurrent", panelCard("Recurrent Issues & Repeat Repairs", "The same part failing twice is a pattern, not bad luck — FleetIQ surfaces every repeat", "recurTable"));
+  // FleetAI study panels (rendered by analytics.js)
+  mk("recurrent", panelCard("Recurrent Issues & Repeat Repairs", "The same part failing twice is a pattern, not bad luck — FleetAI surfaces every repeat", "recurTable"));
   mk("deviation", panelCard("Deviation Analysis", "Vehicles running meaningfully above or below your fleet's cost per km", "devTable"));
   mk("anomaly", panelCard("Anomaly Detection", "Bills that look too big against your own history for that part", "anomTable"));
   mk("forecasting", `<div class="chart-card"><div class="chart-head"><div><h2>Expense Forecasting</h2><p class="muted">Least-squares ML regression on your monthly spend, damped against noisy months — next 3 months projected</p></div><div class="chart-legend" id="fcastLegend"></div></div><div class="chart-scroll"><div id="fcastChart" class="chart-area"></div></div><details class="chart-table"><summary>View as table</summary><div id="fcastTable"></div></details></div>`);
@@ -5410,7 +5410,7 @@ function buildDynamicPanels() {
     <p class="disclaimer">Benchmarks are indicative India CV market references. As more fleets join FleetWorks, these become live anonymised peer comparisons for your region and vehicle class.</p>
   </div>`);
   mk("whatif", `<div class="chart-card">
-    <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="eye" data-icon-size="22"></i></span> What-if Analysis</h2><p class="muted">Move the sliders — FleetIQ reprojects your monthly cost instantly from your own last-12-month numbers</p></div></div>
+    <div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="eye" data-icon-size="22"></i></span> What-if Analysis</h2><p class="muted">Move the sliders — FleetAI reprojects your monthly cost instantly from your own last-12-month numbers</p></div></div>
     <div class="whatif-grid">
       <label>Diesel price <span class="wi-val" id="wiFuelV">+0%</span><input type="range" id="wiFuel" min="-20" max="30" value="0" /></label>
       <label>Monthly running <span class="wi-val" id="wiKmV">+0%</span><input type="range" id="wiKm" min="-30" max="30" value="0" /></label>
@@ -5956,8 +5956,8 @@ activateTabFromHash();
 
 // Home hub cards open their workspace and land on its dashboard
 document.querySelectorAll(".hub-card").forEach(c => c.addEventListener("click", () => {
-  const target = { ops: "overview", fin: "fin", iq: "analytics",
-                   safe: "fleetview", insure: "insuredash", fix: "garages" }[c.dataset.hub];
+  const target = { ops: "overview", fin: "fin", ai: "analytics",
+                   safe: "fleetview", care: "insuredash", fix: "garages" }[c.dataset.hub];
   document.querySelector(`#tabBar .tab-btn[data-tab="${target}"]`)?.click();
 }));
 if (!activateTabFromHash()) setWorkspace("home");
@@ -7609,7 +7609,7 @@ function renderFdPerf(from) {
 function loadFuelDash() { renderFuelDash(); }
 
 
-/* ============ FleetInsure ============
+/* ============ FleetCare ============
    Four covers a fleet carries and usually keeps in four different drawers:
    the motor policy per truck, personal accident for the men, goods-in-transit
    for the load, and public liability for when a truck hits something that is

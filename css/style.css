@@ -1203,7 +1203,7 @@ i[data-icon] { display: inline-flex; align-items: center; justify-content: cente
 }
 
 
-/* ---------- Sidebar product pillars (FleetOps / FleetFin / FleetIQ) ---------- */
+/* ---------- Sidebar product pillars (FleetOps / FleetFin / FleetAI) ---------- */
 .side-pillar {
   display: flex; align-items: center; gap: 8px;
   padding: 16px 14px 6px; margin-top: 4px;
@@ -1213,7 +1213,7 @@ i[data-icon] { display: inline-flex; align-items: center; justify-content: cente
 .side-pillar .pp { width: 8px; height: 8px; border-radius: 3px; flex: none; }
 .side-pillar.ops .pp { background: #f5a623; box-shadow: 0 0 8px rgba(245, 166, 35, 0.7); }
 .side-pillar.fin .pp { background: #1baf7a; box-shadow: 0 0 8px rgba(27, 175, 122, 0.7); }
-.side-pillar.iq  .pp { background: #6ea8ff; box-shadow: 0 0 8px rgba(110, 168, 255, 0.7); }
+.side-pillar.ai  .pp { background: #6ea8ff; box-shadow: 0 0 8px rgba(110, 168, 255, 0.7); }
 .side-pillar.safe .pp { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.7); }
 .side-pillar em { font-style: normal; color: #c8d6ea; }
 
@@ -1268,11 +1268,11 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .hub-card h3 { font-size: 1.3rem; color: var(--navy); font-weight: 800; }
 .hub-card h3 em { font-style: normal; color: var(--amber); }
 .hub-card[data-hub="fin"] h3 em { color: #1baf7a; }
-.hub-card[data-hub="iq"] h3 em { color: #4a86e8; }
+.hub-card[data-hub="ai"] h3 em { color: #4a86e8; }
 .hub-card p { color: #64748b; font-size: 0.88rem; line-height: 1.55; margin: 10px 0 16px; }
 .hub-cta { color: var(--amber-dark); font-weight: 700; font-size: 0.85rem; }
 .hub-card[data-hub="fin"] .hub-cta { color: #14855c; }
-.hub-card[data-hub="iq"] .hub-cta { color: #3568c4; }
+.hub-card[data-hub="ai"] .hub-cta { color: #3568c4; }
 @media (max-width: 900px) { .hub-grid { grid-template-columns: 1fr; } }
 
 /* Sidebar identity block */
@@ -1538,7 +1538,7 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 }
 
 /* ============================================================
-   Grafana-style dashboards (FleetOps / FleetFin / FleetIQ)
+   Grafana-style dashboards (FleetOps / FleetFin / FleetAI)
    Always dark so the Grafana visual language is preserved
    regardless of the app's light/dark setting.
    ============================================================ */
@@ -2027,8 +2027,8 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .fd-row b { font-variant-numeric: tabular-nums; font-size: 0.95rem; }
 .fd-row-sub { grid-column: 1 / -1; font-size: 0.73rem; color: var(--muted); }
 
-/* ---- FleetInsure ---- */
-.side-pillar.insure .pp { background: #6366f1; box-shadow: 0 0 8px rgba(99, 102, 241, 0.7); }
+/* ---- FleetCare (insurance, renewals, claims) ---- */
+.side-pillar.care .pp { background: #6366f1; box-shadow: 0 0 8px rgba(99, 102, 241, 0.7); }
 
 .ins-cover { display: flex; align-items: center; gap: 12px; padding: 13px 0;
   border-bottom: 1px solid var(--border); }

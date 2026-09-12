@@ -113,7 +113,7 @@
           <div class="agn-item">
             <span class="fw-badge ok">New</span>
             <div><strong>Three dashboards, one login</strong>
-              <p class="muted">FleetOps for daily operations, FleetFin for GST-ready books, FleetIQ for AI forecasts &amp; predictions.</p></div>
+              <p class="muted">FleetOps for daily operations, FleetFin for GST-ready books, FleetAI for AI forecasts &amp; predictions.</p></div>
           </div>
           <div class="agn-item">
             <span class="fw-badge ok">New</span>
@@ -283,18 +283,18 @@
         <button class="side-item tab-btn" data-tab="vendors"><i data-icon="network"></i><span>My Vendors</span></button>
         </div>
 
-        <!-- ======= WORKSPACE: FleetInsure — cover, renewals, claims ======= -->
-        <div data-ws="insure" hidden>
-        <div class="side-pillar insure"><span class="pp"></span>Fleet<em>Insure</em></div>
+        <!-- ======= WORKSPACE: FleetCare — cover, renewals, claims ======= -->
+        <div data-ws="care" hidden>
+        <div class="side-pillar care"><span class="pp"></span>Fleet<em>Care</em></div>
         <button class="side-item tab-btn" data-tab="insuredash"><i data-icon="shieldCheck"></i><span>Insurance Dashboard</span></button>
         <button class="side-item tab-btn" data-tab="policies"><i data-icon="document"></i><span>Policies</span></button>
         <button class="side-item tab-btn" data-tab="claims"><i data-icon="alert"></i><span>Claims</span></button>
         </div>
 
-        <!-- ======= WORKSPACE: FleetIQ — prediction, analytics, forecasting only ======= -->
-        <div data-ws="iq" hidden>
-        <div class="side-pillar iq"><span class="pp"></span>Fleet<em>IQ</em></div>
-        <button class="side-item tab-btn" data-tab="analytics"><i data-icon="brain"></i><span>FleetIQ Dashboard</span></button>
+        <!-- ======= WORKSPACE: FleetAI — prediction, analytics, forecasting only ======= -->
+        <div data-ws="ai" hidden>
+        <div class="side-pillar ai"><span class="pp"></span>Fleet<em>AI</em></div>
+        <button class="side-item tab-btn" data-tab="analytics"><i data-icon="brain"></i><span>FleetAI Dashboard</span></button>
         <button class="side-item tab-btn" data-tab="recurrent"><i data-icon="wrench"></i><span>Recurrent Issues</span></button>
         <button class="side-item tab-btn" data-tab="deviation"><i data-icon="chartBar"></i><span>Deviation Analysis</span></button>
         <button class="side-item tab-btn" data-tab="benchmark"><i data-icon="network"></i><span>Peer Benchmarking</span></button>
@@ -600,17 +600,17 @@
               <p>When it breaks on the road. Find a rated workshop near the truck, book it, and follow the job through every stage — assessment, your approval, repair photos, invoice.</p>
               <span class="hub-cta">Open FleetFix &rarr;</span>
             </button>
-            <button type="button" class="hub-card" data-hub="insure">
+            <button type="button" class="hub-card" data-hub="care">
               <span class="ic-tile" style="background:#eef2ff;color:#4338ca"><i data-icon="shieldCheck" data-icon-size="34"></i></span>
-              <h3>Fleet<em>Insure</em></h3>
+              <h3>Fleet<em>Care</em></h3>
               <p>Four covers, one drawer. Vehicle, driver, cargo and public liability — every policy, what it costs, when it lapses, and every claim from intimation to settlement.</p>
-              <span class="hub-cta">Open FleetInsure &rarr;</span>
+              <span class="hub-cta">Open FleetCare &rarr;</span>
             </button>
-            <button type="button" class="hub-card" data-hub="iq">
+            <button type="button" class="hub-card" data-hub="ai">
               <span class="ic-tile info hub-ic"><i data-icon="brain" data-icon-size="34"></i></span>
-              <h3>Fleet<em>IQ</em></h3>
+              <h3>Fleet<em>AI</em></h3>
               <p>See tomorrow, today. Forecasting, anomaly detection, recurrent-issue hunting, deviation analysis and AI recommendations that keep trucks earning.</p>
-              <span class="hub-cta">Open FleetIQ &rarr;</span>
+              <span class="hub-cta">Open FleetAI &rarr;</span>
             </button>
           </div>
 
@@ -1066,10 +1066,10 @@
         </div>
         <!-- Vehicle Status Board — per-vehicle: site, supervisor, driver, status, age of pendency -->
         <section id="vehicleStatusBoard" style="margin-bottom:16px"></section>
-        <!-- Grafana-style summary dashboard — rendered by the FleetIQ dashboard controller. -->
+        <!-- Grafana-style summary dashboard — rendered by the FleetAI dashboard controller. -->
         <section id="gfOpsGrid" style="padding:0 0 4px"></section>
         <!-- Maintenance KPIs: what is broken, what is waiting, and how long
-             each is costing. Rendered by renderOpsStats() in the FleetIQ analytics controller. -->
+             each is costing. Rendered by renderOpsStats() in the FleetAI analytics controller. -->
         <section class="stat-row" id="opsStatRow"></section>
         <section class="dash-grid" id="dashGrid"></section>
       </section>
@@ -1115,7 +1115,7 @@
           </select>
           <span id="fltLabelFin" class="muted" style="font-size:0.78rem"></span>
         </div>
-        <!-- Grafana-style summary dashboard — rendered by the FleetIQ dashboard controller. -->
+        <!-- Grafana-style summary dashboard — rendered by the FleetAI dashboard controller. -->
         <section id="gfFinGrid" style="padding:0 0 4px"></section>
         <section class="stat-row" id="finStatRow" aria-label="Money at a glance"></section>
 
@@ -2328,12 +2328,12 @@
 
       <!-- ======= FLEETIQ DASHBOARD ======= -->
       <section class="tab-panel" id="tab-analytics">
-        <!-- Grafana-style summary dashboard — rendered by the FleetIQ dashboard controller. -->
+        <!-- Grafana-style summary dashboard — rendered by the FleetAI dashboard controller. -->
         <section id="gfIqGrid" style="padding:0 0 4px"></section>
         <div class="chart-card">
           <div class="chart-head">
             <div>
-              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="brain" data-icon-size="22"></i></span> FleetIQ — Your Fleet, Predicted</h2>
+              <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="brain" data-icon-size="22"></i></span> FleetAI — Your Fleet, Predicted</h2>
               <p class="muted">FleetWorks AI/ML learns from every entry you make — forecasting spend, predicting part failures before they strand a truck, and turning breakdowns into planned pit-stops. Predicted maintenance means more days on the road, and more days on the road means more revenue.</p>
             </div>
           </div>
@@ -2415,9 +2415,9 @@
             <div class="chart-head">
               <div>
                 <h2 class="head-ic"><span class="ic-tile info"><i data-icon="boxes" data-icon-size="20"></i></span> Test Data</h2>
-                <p class="muted">Seed FleetFin and FleetIQ with realistic persisted records for validation.</p>
+                <p class="muted">Seed FleetFin and FleetAI with realistic persisted records for validation.</p>
               </div>
-              <button type="button" class="btn btn-outline btn-sm" id="seedFinIqBtn"><i data-icon="plus" data-icon-size="15"></i> Add FleetFin / FleetIQ Test Data</button>
+              <button type="button" class="btn btn-outline btn-sm" id="seedFinIqBtn"><i data-icon="plus" data-icon-size="15"></i> Add FleetFin / FleetAI Test Data</button>
             </div>
             <p class="muted" id="seedFinIqStatus" style="font-size:0.82rem"></p>
           </div>
