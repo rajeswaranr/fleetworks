@@ -159,6 +159,7 @@
         <div class="side-pillar ops"><span class="pp"></span>Fleet<em>Ops</em></div>
         <button class="side-item tab-btn" data-tab="opscentre"><i data-icon="network"></i><span>Operation Centre</span></button>
         <button class="side-item tab-btn" data-tab="overview"><i data-icon="gauge"></i><span>FleetOps Dashboard</span></button>
+        <button class="side-item tab-btn" data-tab="fueldash"><i data-icon="fuel"></i><span>Fuel Dashboard</span></button>
         <button class="side-item tab-btn" data-tab="dispatch"><i data-icon="calendar"></i><span>Daily Dispatch</span></button>
         <button class="side-item tab-btn side-cta" data-tab="addvehicle"><i data-icon="truck"></i><span>Add Vehicle</span></button>
         <button class="side-item tab-btn" data-tab="servicereq"><i data-icon="tow"></i><span>Book Service — Live Status</span></button>
@@ -680,6 +681,43 @@
             </div>
           </div>
 
+        </div>
+      </section>
+
+      <!-- ======= FUEL DASHBOARD — efficiency, idling, cost ======= -->
+      <section class="tab-panel" id="tab-fueldash">
+        <div class="dash-toolbar">
+          <span class="lt-count" id="fdVehicleCount"></span>
+          <span class="lt-spacer"></span>
+          <select id="fdPeriod" onchange="renderFuelDash()"
+            style="height:32px;border:1px solid var(--border);border-radius:8px;padding:0 9px;font:inherit;font-size:.85rem">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+        </div>
+
+        <div class="fd-summary" id="fdSummary"></div>
+        <p class="fd-caveat" id="fdCaveat" hidden></p>
+
+        <div class="fd-grid">
+          <div class="chart-card">
+            <div class="chart-head"><div><h2>Mileage trend</h2>
+              <p class="muted">Fleet average km/L per fill, oldest to newest</p></div></div>
+            <canvas id="fdTrend" height="220"></canvas>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-head"><div><h2>Where the diesel goes</h2>
+              <p class="muted">Factors that move mileage, worst first</p></div></div>
+            <div id="fdFactors"></div>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Vehicle fuel performance</h2>
+            <p class="muted">Best and worst km/L over the period</p></div></div>
+          <div class="fd-perf" id="fdPerf"></div>
         </div>
       </section>
 

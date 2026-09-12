@@ -5016,6 +5016,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "opscentre") loadOpsCentre(); else stopOpsCentre();
   if (tabName === "safety") loadSafety();
   if (tabName === "fleetview") loadFleetView();
+  if (tabName === "fueldash") loadFuelDash();
   return true;
 }
 
@@ -7341,3 +7342,255 @@ window.endCoachMeeting = async function(status) {
   activateTab("safety");
   loadSafety();
 };
+
+
+/* ============ Fuel Dashboard ============
+   Diesel is the largest line in an Indian fleet's P&L, and the number that
+   matters is not litres bought — it is km per litre and what moved it.
+
+   Every figure here is computed from fill-to-fill distance, never from a
+   single fill. One fill tells you nothing: mileage is the gap between two
+   odometer readings divided by what went in between them, which is why a
+   vehicle with one fill shows no mileage rather than a made-up one. */
+
+function fdPeriodDays() { return +(document.getElementById("fdPeriod")?.value) || 30; }
+
+function fdWindow() {
+  const days = fdPeriodDays();
+  const from = new Date(); from.setDate(from.getDate() - days);
+  const prevFrom = new Date(from); prevFrom.setDate(prevFrom.getDate() - days);
+  return { from, prevFrom, days };
+}
+
+/* Fill-to-fill segments for one vehicle inside a date window. A segment needs
+   both ends, so the fill that opens the window is included as the baseline but
+   never counted as consumption. */
+function fdSegments(vid, from) {
+  const fills = vehicleFills(vid);
+  const segs = [];
+  for (let i = 1; i < fills.length; i++) {
+    const a = fills[i - 1], b = fills[i];
+    const dist = b.odo - a.odo;
+    if (!(dist > 0) || !(b.litres > 0)) continue;
+    if (new Date(b.date) < from) continue;
+    segs.push({ date: b.date, dist, litres: b.litres, amount: +b.amount || 0, kmpl: dist / b.litres });
+  }
+  return segs;
+}
+
+function fdAggregate(from) {
+  let dist = 0, litres = 0, spend = 0, segs = [];
+  db.vehicles.forEach(v => {
+    const s = fdSegments(v.id, from);
+    s.forEach(x => { dist += x.dist; litres += x.litres; spend += x.amount; });
+    segs = segs.concat(s.map(x => ({ ...x, vehicleId: v.id })));
+  });
+  return { dist, litres, spend, kmpl: litres > 0 ? dist / litres : null, segs };
+}
+
+function fdDelta(now, prev) {
+  if (prev == null || !prev || now == null) return null;
+  return ((now - prev) / prev) * 100;
+}
+
+function fdDeltaHtml(pct, goodIsUp) {
+  if (pct == null || !isFinite(pct)) return `<span class="fd-flat">—</span>`;
+  const up = pct >= 0;
+  const good = goodIsUp ? up : !up;
+  return `<span class="fd-delta ${good ? "up" : "down"}">${up ? "↑" : "↓"}${Math.abs(pct).toFixed(0)}%</span>`;
+}
+
+function renderFuelDash() {
+  const { from, prevFrom } = fdWindow();
+  const cur = fdAggregate(from);
+  const prevAll = fdAggregate(prevFrom);
+  // The previous window is everything before `from` inside the doubled span.
+  const prev = {
+    dist: prevAll.dist - cur.dist,
+    litres: prevAll.litres - cur.litres,
+    spend: prevAll.spend - cur.spend,
+  };
+  prev.kmpl = prev.litres > 0 ? prev.dist / prev.litres : null;
+
+  const withFuel = db.vehicles.filter(v => fdSegments(v.id, from).length).length;
+  const vc = document.getElementById("fdVehicleCount");
+  if (vc) vc.textContent = withFuel + " of " + db.vehicles.length + " vehicles reporting fuel";
+
+  const caveat = document.getElementById("fdCaveat");
+  if (caveat) {
+    const missing = db.vehicles.length - withFuel;
+    caveat.hidden = missing <= 0;
+    caveat.textContent = missing > 0
+      ? `${missing} vehicle${missing === 1 ? "" : "s"} logged no usable fill pair in this period, so ${missing === 1 ? "it is" : "they are"} not in these figures. Mileage needs two odometer readings — a single fill cannot produce one.`
+      : "";
+  }
+
+  // Idling is not measured without telemetry, so it is shown as unavailable
+  // rather than estimated. A guessed litre of idle fuel becomes a real rupee
+  // figure on this screen, and nobody would remember it was invented.
+  const idleRows = (typeof _sfEvents !== "undefined" ? _sfEvents : []).length;
+
+  const tiles = [
+    ["Avg. mileage", cur.kmpl == null ? "—" : cur.kmpl.toFixed(2) + " km/L",
+      fdDeltaHtml(fdDelta(cur.kmpl, prev.kmpl), true), ""],
+    ["Distance", Math.round(cur.dist).toLocaleString("en-IN") + " km",
+      fdDeltaHtml(fdDelta(cur.dist, prev.dist), true), ""],
+    ["Diesel used", Math.round(cur.litres).toLocaleString("en-IN") + " L",
+      fdDeltaHtml(fdDelta(cur.litres, prev.litres), false), fmtINR(cur.spend) + " spent"],
+    ["Cost per km", cur.dist > 0 ? fmtINR(cur.spend / cur.dist) : "—",
+      fdDeltaHtml(fdDelta(cur.dist > 0 ? cur.spend / cur.dist : null,
+                          prev.dist > 0 ? prev.spend / prev.dist : null), false), ""],
+    ["Fills logged", String(cur.segs.length), `<span class="fd-flat">—</span>`, ""],
+    ["Idling", "Not measured", `<span class="fd-flat">—</span>`, "Needs a telematics feed"],
+  ];
+
+  document.getElementById("fdSummary").innerHTML = tiles.map(([k, v, d, sub]) => `
+    <div class="fd-tile">
+      <span class="fd-k">${k}</span>
+      <span class="fd-v">${v} ${d}</span>
+      ${sub ? `<span class="fd-sub">${sub}</span>` : ""}
+    </div>`).join("");
+
+  drawFdTrend(cur.segs);
+  renderFdFactors(cur, prev);
+  renderFdPerf(from);
+}
+
+function drawFdTrend(segs) {
+  const c = document.getElementById("fdTrend");
+  if (!c) return;
+  const host = c.parentElement;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = host.clientWidth - 28 || 520, H = 220;
+  c.width = W * dpr; c.height = H * dpr;
+  c.style.width = "100%"; c.style.height = H + "px";
+  const ctx = c.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const pts = segs.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
+  if (pts.length < 2) {
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "13px system-ui, sans-serif";
+    ctx.fillText("Not enough fills in this period to plot a trend.", 14, H / 2);
+    return;
+  }
+
+  const vals = pts.map(p => p.kmpl);
+  const lo = Math.max(0, Math.min(...vals) * 0.9), hi = Math.max(...vals) * 1.08;
+  const padL = 44, padR = 14, padT = 16, padB = 26;
+  const pw = W - padL - padR, ph = H - padT - padB;
+  const x = i => padL + (i / (pts.length - 1)) * pw;
+  const y = v => padT + ph - ((v - lo) / (hi - lo || 1)) * ph;
+
+  ctx.strokeStyle = "#e2e8f0"; ctx.fillStyle = "#94a3b8";
+  ctx.font = "10px system-ui, sans-serif";
+  for (let i = 0; i <= 3; i++) {
+    const v = lo + ((hi - lo) * i) / 3, yy = y(v);
+    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(W - padR, yy); ctx.stroke();
+    ctx.fillText(v.toFixed(1), 8, yy + 3);
+  }
+
+  // Fleet mean, so a reader can see which fills sat below the line.
+  const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+  ctx.strokeStyle = "#f5a623"; ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.moveTo(padL, y(mean)); ctx.lineTo(W - padR, y(mean)); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.strokeStyle = "#2563eb"; ctx.lineWidth = 2;
+  ctx.beginPath();
+  pts.forEach((p, i) => { i ? ctx.lineTo(x(i), y(p.kmpl)) : ctx.moveTo(x(i), y(p.kmpl)); });
+  ctx.stroke();
+
+  ctx.fillStyle = "#2563eb";
+  pts.forEach((p, i) => { ctx.beginPath(); ctx.arc(x(i), y(p.kmpl), 2.6, 0, Math.PI * 2); ctx.fill(); });
+
+  ctx.fillStyle = "#94a3b8";
+  ctx.fillText(fmtDate(pts[0].date), padL, H - 8);
+  ctx.textAlign = "right";
+  ctx.fillText(fmtDate(pts[pts.length - 1].date), W - padR, H - 8);
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#f5a623";
+  ctx.fillText("fleet mean " + mean.toFixed(2), padL + 6, y(mean) - 5);
+}
+
+/* Only factors this app can actually measure. Cruise time, over-RPM and idle
+   percentage all need an engine feed; listing them with invented numbers would
+   make the whole panel untrustworthy, so they are named as unavailable. */
+function renderFdFactors(cur, prev) {
+  const el = document.getElementById("fdFactors");
+  if (!el) return;
+
+  const spread = (() => {
+    const byVeh = {};
+    cur.segs.forEach(s => { (byVeh[s.vehicleId] = byVeh[s.vehicleId] || []).push(s.kmpl); });
+    const means = Object.values(byVeh).map(a => a.reduce((x, y) => x + y, 0) / a.length);
+    if (means.length < 2) return null;
+    return { lo: Math.min(...means), hi: Math.max(...means) };
+  })();
+
+  const rows = [];
+  if (cur.kmpl != null && prev.kmpl != null) {
+    const d = cur.kmpl - prev.kmpl;
+    rows.push(["Mileage vs previous period",
+      (d >= 0 ? "+" : "") + d.toFixed(2) + " km/L",
+      d >= 0 ? "good" : "bad"]);
+  }
+  if (spread) {
+    rows.push(["Spread across vehicles",
+      spread.lo.toFixed(1) + " – " + spread.hi.toFixed(1) + " km/L",
+      spread.hi - spread.lo > 1.5 ? "bad" : "good"]);
+  }
+  if (cur.dist > 0) {
+    rows.push(["Diesel cost per km", fmtINR(cur.spend / cur.dist), "flat"]);
+  }
+  const worst = cur.segs.slice().sort((a, b) => a.kmpl - b.kmpl)[0];
+  if (worst) {
+    rows.push(["Worst single fill",
+      worst.kmpl.toFixed(2) + " km/L · " + vName(worst.vehicleId), "bad"]);
+  }
+
+  el.innerHTML = rows.map(([k, v, tone]) => `
+      <div class="fd-factor">
+        <span>${esc(k)}</span>
+        <b class="fd-${tone}">${esc(v)}</b>
+      </div>`).join("") +
+    `<div class="fd-unavail">
+       <strong>Not measured yet:</strong> idling time, cruise time and over-RPM.
+       These need an engine feed from the AIS-140 device — they are left blank
+       rather than estimated, because a guessed litre becomes a real rupee figure here.
+     </div>`;
+}
+
+function renderFdPerf(from) {
+  const el = document.getElementById("fdPerf");
+  if (!el) return;
+  const rows = db.vehicles.map(v => {
+    const segs = fdSegments(v.id, from);
+    if (!segs.length) return null;
+    const dist = segs.reduce((t, s) => t + s.dist, 0);
+    const litres = segs.reduce((t, s) => t + s.litres, 0);
+    const spend = segs.reduce((t, s) => t + s.amount, 0);
+    return { name: v.name, kmpl: dist / litres, dist, litres, spend, fills: segs.length };
+  }).filter(Boolean).sort((a, b) => b.kmpl - a.kmpl);
+
+  if (!rows.length) {
+    el.innerHTML = `<p class="muted" style="padding:14px;margin:0">No fill pairs in this period.</p>`;
+    return;
+  }
+
+  const best = rows.slice(0, 5), worst = rows.slice(-5).reverse();
+  const col = (title, list, tone) => `
+    <div class="fd-col">
+      <h4>${title}</h4>
+      ${list.map(r => `<div class="fd-row">
+        <span>${esc(r.name)}</span>
+        <b class="fd-${tone}">${r.kmpl.toFixed(2)}</b>
+        <span class="fd-row-sub">${Math.round(r.dist).toLocaleString("en-IN")} km · ${r.fills} fill${r.fills === 1 ? "" : "s"}</span>
+      </div>`).join("")}
+    </div>`;
+
+  el.innerHTML = col("Best km/L", best, "good") + col("Worst km/L", worst, "bad");
+}
+
+function loadFuelDash() { renderFuelDash(); }
