@@ -5017,6 +5017,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "safety") loadSafety();
   if (tabName === "fleetview") loadFleetView();
   if (tabName === "fueldash") loadFuelDash();
+  if (tabName === "insuredash" || tabName === "policies" || tabName === "claims") loadInsure();
   return true;
 }
 
@@ -5944,7 +5945,8 @@ activateTabFromHash();
 
 // Home hub cards open their workspace and land on its dashboard
 document.querySelectorAll(".hub-card").forEach(c => c.addEventListener("click", () => {
-  const target = { ops: "overview", fin: "fin", iq: "analytics", safe: "fleetview" }[c.dataset.hub];
+  const target = { ops: "overview", fin: "fin", iq: "analytics",
+                   safe: "fleetview", insure: "insuredash" }[c.dataset.hub];
   document.querySelector(`#tabBar .tab-btn[data-tab="${target}"]`)?.click();
 }));
 if (!activateTabFromHash()) setWorkspace("home");
@@ -7594,3 +7596,284 @@ function renderFdPerf(from) {
 }
 
 function loadFuelDash() { renderFuelDash(); }
+
+
+/* ============ FleetInsure ============
+   Four covers a fleet carries and usually keeps in four different drawers:
+   the motor policy per truck, personal accident for the men, goods-in-transit
+   for the load, and public liability for when a truck hits something that is
+   not another truck.
+
+   The motor expiry is NOT owned here — vehicles.insurance_till drives the
+   Compliance Radar and that is the date a driver gets stopped for. A policy
+   saved here mirrors its expiry into that column by trigger, so the two can
+   never disagree. */
+
+var _insPolicies = [], _insClaims = [], _insRadar = [];
+
+const INS_TYPE = {
+  vehicle:   { label: "Vehicle",          icon: "truck",       sub: "Motor — comprehensive or third-party" },
+  driver:    { label: "Driver",           icon: "driver",      sub: "Personal accident / group cover" },
+  cargo:     { label: "Cargo",            icon: "boxes",       sub: "Goods in transit" },
+  liability: { label: "Public liability", icon: "shieldCheck", sub: "Third-party property and injury" },
+};
+
+const INS_CLAIM_STATUS = {
+  intimated:         ["Intimated", "upcoming"],
+  surveyor_assigned: ["Surveyor assigned", "upcoming"],
+  documents_pending: ["Documents pending", "soon"],
+  approved:          ["Approved", "ok"],
+  settled:           ["Settled", "ok"],
+  rejected:          ["Rejected", "overdue"],
+  withdrawn:         ["Withdrawn", ""],
+};
+
+async function loadInsure() {
+  if (!(window.fwCloud && fwCloud.user && fwCloud.user())) {
+    ["insRadar", "insPolicies", "insClaims", "insCoverage"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = `<p class="muted" style="padding:14px">Sign in to see your policies.</p>`;
+    });
+    const s = document.getElementById("insStats"); if (s) s.innerHTML = "";
+    return;
+  }
+  const [pol, clm, rad] = await Promise.all([
+    fwCloud.authGet("insurance_policies", "select=*&order=expiry_date").catch(() => []),
+    fwCloud.authGet("insurance_claims", "select=*&order=incident_date.desc").catch(() => []),
+    fwCloud.authGet("v_insurance_radar", "select=*").catch(() => []),
+  ]);
+  _insPolicies = pol || []; _insClaims = clm || []; _insRadar = rad || [];
+  renderInsure();
+}
+
+function renderInsure() {
+  renderInsStats();
+  renderInsRadar();
+  renderInsCoverage();
+  renderInsPolicies();
+  renderInsClaims();
+}
+
+function renderInsStats() {
+  const el = document.getElementById("insStats");
+  if (!el) return;
+  const active = _insRadar.filter(r => r.status === "active");
+  const expired = _insRadar.filter(r => r.radar_state === "expired").length;
+  const expiring = _insRadar.filter(r => r.radar_state === "expiring").length;
+  const premium = _insPolicies.filter(p => p.status === "active")
+    .reduce((t, p) => t + (+p.premium || 0), 0);
+  const openClaims = _insClaims.filter(c =>
+    !["settled", "rejected", "withdrawn"].includes(c.status)).length;
+
+  const tiles = [
+    ["Active policies", active.length],
+    ["Expired", expired],
+    ["Expiring in 30 days", expiring],
+    ["Annual premium", fmtINR(premium)],
+    ["Open claims", openClaims],
+  ];
+  el.innerHTML = tiles.map(([k, v]) =>
+    `<div class="stat-card"><span class="stat-value">${v}</span><span class="stat-label">${k}</span></div>`).join("");
+
+  const c = document.getElementById("insCount");
+  if (c) c.textContent = _insPolicies.length + " polic" + (_insPolicies.length === 1 ? "y" : "ies");
+}
+
+function renderInsRadar() {
+  const el = document.getElementById("insRadar");
+  if (!el) return;
+  const rank = { expired: 0, expiring: 1, no_expiry_set: 2, ok: 3, inactive: 4 };
+  const rows = _insRadar.slice().sort((a, b) =>
+    (rank[a.radar_state] - rank[b.radar_state]) || ((a.days_left ?? 9e9) - (b.days_left ?? 9e9)));
+
+  if (!rows.length) {
+    el.innerHTML = `<p class="muted" style="padding:14px;margin:0">No policies yet. Add one to start the renewal radar.</p>`;
+    return;
+  }
+
+  el.innerHTML = `<table class="chart-table-el" style="width:100%">
+    <thead><tr><th>Cover</th><th>Subject</th><th>Insurer</th><th>Policy no.</th><th>Expires</th><th>Status</th></tr></thead>
+    <tbody>${rows.map(r => {
+      const t = INS_TYPE[r.policy_type] || { label: r.policy_type };
+      const st = {
+        expired:       ["overdue",  "Expired"],
+        expiring:      ["soon",     (r.days_left ?? 0) + "d left"],
+        ok:            ["ok",       (r.days_left ?? 0) + "d left"],
+        no_expiry_set: ["upcoming", "No expiry set"],
+        inactive:      ["",         r.status],
+      }[r.radar_state] || ["", r.radar_state];
+      return `<tr>
+        <td><span class="fw-badge">${esc(t.label)}</span></td>
+        <td><strong>${esc(r.subject)}</strong></td>
+        <td>${esc(r.insurer || "—")}</td>
+        <td>${esc(r.policy_no || "—")}</td>
+        <td>${r.expiry_date ? fmtDate(r.expiry_date) : "—"}</td>
+        <td><span class="fw-badge ${st[0]}">${esc(st[1])}</span></td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+}
+
+/* The useful half of this panel is what is NOT covered. A fleet that has never
+   bought goods-in-transit usually does not know it, and finds out on the day a
+   load burns. */
+function renderInsCoverage() {
+  const el = document.getElementById("insCoverage");
+  if (!el) return;
+  const vehiclesCovered = new Set(_insPolicies
+    .filter(p => p.policy_type === "vehicle" && p.status === "active").map(p => p.vehicle_id));
+  const driversCovered = new Set(_insPolicies
+    .filter(p => p.policy_type === "driver" && p.status === "active").map(p => p.driver_id));
+  const hasCargo = _insPolicies.some(p => p.policy_type === "cargo" && p.status === "active");
+  const hasLiab  = _insPolicies.some(p => p.policy_type === "liability" && p.status === "active");
+
+  const totalVeh = db.vehicles.length, totalDrv = db.drivers.length;
+  const rows = [
+    ["vehicle", `${vehiclesCovered.size} of ${totalVeh} vehicles`,
+      vehiclesCovered.size >= totalVeh && totalVeh > 0,
+      totalVeh - vehiclesCovered.size > 0 ? `${totalVeh - vehiclesCovered.size} uninsured — a motor policy is legally required to be on the road` : ""],
+    ["driver", `${driversCovered.size} of ${totalDrv} drivers`,
+      driversCovered.size >= totalDrv && totalDrv > 0,
+      totalDrv - driversCovered.size > 0 ? `${totalDrv - driversCovered.size} without personal accident cover` : ""],
+    ["cargo", hasCargo ? "Open policy in force" : "No cover",
+      hasCargo, hasCargo ? "" : "A load lost or damaged in transit is uninsured"],
+    ["liability", hasLiab ? "Policy in force" : "No cover",
+      hasLiab, hasLiab ? "" : "Third-party property damage beyond the motor policy is uninsured"],
+  ];
+
+  el.innerHTML = rows.map(([type, value, ok, warn]) => {
+    const t = INS_TYPE[type];
+    return `<div class="ins-cover">
+      <span class="ins-cover-ic">${FWIcon(t.icon, { size: 17 })}</span>
+      <div class="ins-cover-main">
+        <strong>${esc(t.label)}</strong>
+        <span class="muted">${esc(t.sub)}</span>
+        ${warn ? `<div class="ins-gap">${esc(warn)}</div>` : ""}
+      </div>
+      <span class="fw-badge ${ok ? "ok" : "soon"}">${esc(value)}</span>
+    </div>`;
+  }).join("");
+}
+
+function renderInsPolicies() {
+  const el = document.getElementById("insPolicies");
+  if (!el) return;
+  if (!_insPolicies.length) {
+    el.innerHTML = `<p class="muted" style="padding:14px;margin:0">No policies recorded.</p>`;
+    return;
+  }
+  el.innerHTML = `<table class="chart-table-el" style="width:100%">
+    <thead><tr><th>Type</th><th>Subject</th><th>Insurer</th><th>Cover</th><th>Sum insured</th><th>Premium</th><th>Period</th><th></th></tr></thead>
+    <tbody>${_insPolicies.map(p => {
+      const t = INS_TYPE[p.policy_type] || { label: p.policy_type };
+      const veh = p.vehicle_id ? db.vehicles.find(v => (v.dbId || v.id) === p.vehicle_id) : null;
+      const drv = p.driver_id ? db.drivers.find(d => (d.dbId || d.id) === p.driver_id) : null;
+      return `<tr>
+        <td><span class="fw-badge">${esc(t.label)}</span></td>
+        <td>${esc(veh ? veh.name : drv ? drv.name : "Fleet-wide")}</td>
+        <td>${esc(p.insurer || "—")}<div class="muted" style="font-size:.74rem">${esc(p.policy_no || "")}</div></td>
+        <td>${esc(p.cover_type || "—")}</td>
+        <td>${p.sum_insured ? fmtINR(p.sum_insured) : "—"}</td>
+        <td>${p.premium ? fmtINR(p.premium) : "—"}</td>
+        <td>${p.start_date ? fmtDate(p.start_date) : "—"} → ${p.expiry_date ? fmtDate(p.expiry_date) : "—"}</td>
+        <td>${p.status === "cancelled" ? `<span class="muted">cancelled</span>`
+              : `<button class="link-btn" onclick="deletePolicy('${p.id}')">Cancel</button>`}</td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+}
+
+function renderInsClaims() {
+  const el = document.getElementById("insClaims");
+  if (!el) return;
+  if (!_insClaims.length) {
+    el.innerHTML = `<p class="muted" style="padding:14px;margin:0">No claims recorded.</p>`;
+    return;
+  }
+  el.innerHTML = `<table class="chart-table-el" style="width:100%">
+    <thead><tr><th>Claim</th><th>Incident</th><th>Vehicle</th><th>Claimed</th><th>Approved</th><th>Status</th></tr></thead>
+    <tbody>${_insClaims.map(c => {
+      const st = INS_CLAIM_STATUS[c.status] || [c.status, ""];
+      const veh = c.vehicle_id ? db.vehicles.find(v => (v.dbId || v.id) === c.vehicle_id) : null;
+      const shortfall = c.claimed_amount && c.approved_amount != null
+        ? (+c.claimed_amount) - (+c.approved_amount) : null;
+      return `<tr>
+        <td><strong>${esc(c.claim_no || "—")}</strong><div class="muted" style="font-size:.75rem">${esc((c.description || "").slice(0, 50))}</div></td>
+        <td>${c.incident_date ? fmtDate(c.incident_date) : "—"}</td>
+        <td>${esc(veh ? veh.name : "—")}</td>
+        <td>${c.claimed_amount ? fmtINR(c.claimed_amount) : "—"}</td>
+        <td>${c.approved_amount != null ? fmtINR(c.approved_amount) : "—"}
+            ${shortfall > 0 ? `<div class="muted" style="font-size:.73rem;color:#dc2626">${fmtINR(shortfall)} short</div>` : ""}</td>
+        <td><span class="fw-badge ${st[1]}">${esc(st[0])}</span></td>
+      </tr>`;
+    }).join("")}</tbody></table>`;
+}
+
+async function insOrgId() {
+  const rows = await fwCloud.authGet("memberships", "select=org_id&limit=1").catch(() => null);
+  return rows && rows[0] ? rows[0].org_id : null;
+}
+
+window.openPolicyModal = async function() {
+  if (!(window.fwCloud && fwCloud.user && fwCloud.user())) { alert("Sign in first."); return; }
+  const type = prompt("Cover type — vehicle, driver, cargo or liability:", "vehicle");
+  if (!type || !INS_TYPE[type]) { if (type) alert("Must be one of: vehicle, driver, cargo, liability."); return; }
+
+  const row = { policy_type: type, status: "active" };
+  if (type === "vehicle") {
+    const name = prompt("Which vehicle? (registration as shown in your fleet)");
+    const v = db.vehicles.find(x => x.name.toLowerCase() === (name || "").trim().toLowerCase());
+    if (!v) { alert("No vehicle with that registration."); return; }
+    row.vehicle_id = v.dbId || v.id;
+  } else if (type === "driver") {
+    const name = prompt("Which driver?");
+    const d = db.drivers.find(x => x.name.toLowerCase() === (name || "").trim().toLowerCase());
+    if (!d) { alert("No driver with that name."); return; }
+    row.driver_id = d.dbId || d.id;
+  }
+
+  row.insurer = (prompt("Insurer:") || "").trim() || null;
+  row.policy_no = (prompt("Policy number:") || "").trim() || null;
+  row.cover_type = (prompt("Cover (comprehensive / third-party / group PA / open GIT / CGL):") || "").trim() || null;
+  const sum = prompt("Sum insured (₹), blank to skip:");
+  if (sum) row.sum_insured = +sum;
+  const prem = prompt("Annual premium (₹), blank to skip:");
+  if (prem) row.premium = +prem;
+  row.start_date = (prompt("Start date (YYYY-MM-DD):") || "").trim() || null;
+  row.expiry_date = (prompt("Expiry date (YYYY-MM-DD):") || "").trim() || null;
+
+  row.org_id = await insOrgId();
+  if (!row.org_id) { alert("Could not resolve your organisation."); return; }
+
+  const ok = await fwCloud.authInsert("insurance_policies", row);
+  if (!ok) { alert("Could not save — check the dates are YYYY-MM-DD."); return; }
+  loadInsure();
+};
+
+window.openClaimModal = async function() {
+  if (!(window.fwCloud && fwCloud.user && fwCloud.user())) { alert("Sign in first."); return; }
+  const row = { status: "intimated" };
+  row.claim_no = (prompt("Claim number:") || "").trim() || null;
+  row.incident_date = (prompt("Incident date (YYYY-MM-DD):") || "").trim() || null;
+  row.description = (prompt("What happened?") || "").trim() || null;
+  const amt = prompt("Amount claimed (₹), blank to skip:");
+  if (amt) row.claimed_amount = +amt;
+  const vname = prompt("Vehicle registration, blank if not vehicle-related:");
+  if (vname) {
+    const v = db.vehicles.find(x => x.name.toLowerCase() === vname.trim().toLowerCase());
+    if (v) row.vehicle_id = v.dbId || v.id;
+  }
+  row.org_id = await insOrgId();
+  if (!row.org_id) { alert("Could not resolve your organisation."); return; }
+  const ok = await fwCloud.authInsert("insurance_claims", row);
+  if (!ok) { alert("Could not save the claim."); return; }
+  loadInsure();
+};
+
+/* Cancelled rather than deleted. A policy that covered a period still explains
+   why a claim from that period was paid, and dropping the row would orphan the
+   claim's only context. */
+window.deletePolicy = async function(id) {
+  if (!confirm("Mark this policy cancelled? It stays on record so its claims keep their context.")) return;
+  const ok = await fwCloud.authPatch("insurance_policies?id=eq." + id, { status: "cancelled" });
+  if (!ok) { alert("Could not update the policy."); return; }
+  loadInsure();
+};

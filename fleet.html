@@ -274,6 +274,14 @@
         <button class="side-item tab-btn" data-tab="coachsession" hidden>Coaching session</button>
         </div>
 
+        <!-- ======= WORKSPACE: FleetInsure — cover, renewals, claims ======= -->
+        <div data-ws="insure" hidden>
+        <div class="side-pillar insure"><span class="pp"></span>Fleet<em>Insure</em></div>
+        <button class="side-item tab-btn" data-tab="insuredash"><i data-icon="shieldCheck"></i><span>Insurance Dashboard</span></button>
+        <button class="side-item tab-btn" data-tab="policies"><i data-icon="document"></i><span>Policies</span></button>
+        <button class="side-item tab-btn" data-tab="claims"><i data-icon="alert"></i><span>Claims</span></button>
+        </div>
+
         <!-- ======= WORKSPACE: FleetIQ — prediction, analytics, forecasting only ======= -->
         <div data-ws="iq" hidden>
         <div class="side-pillar iq"><span class="pp"></span>Fleet<em>IQ</em></div>
@@ -577,6 +585,12 @@
               <p>Watch the road, not the paperwork. Live fleet view, ADAS and dash-cam events, driver scorecards and coaching, geofences, trailers and telematics — every truck, asset and driver on one map.</p>
               <span class="hub-cta">Open FleetSafe &rarr;</span>
             </button>
+            <button type="button" class="hub-card" data-hub="insure">
+              <span class="ic-tile" style="background:#eef2ff;color:#4338ca"><i data-icon="shieldCheck" data-icon-size="34"></i></span>
+              <h3>Fleet<em>Insure</em></h3>
+              <p>Four covers, one drawer. Vehicle, driver, cargo and public liability — every policy, what it costs, when it lapses, and every claim from intimation to settlement.</p>
+              <span class="hub-cta">Open FleetInsure &rarr;</span>
+            </button>
             <button type="button" class="hub-card" data-hub="iq">
               <span class="ic-tile info hub-ic"><i data-icon="brain" data-icon-size="34"></i></span>
               <h3>Fleet<em>IQ</em></h3>
@@ -684,6 +698,49 @@
             </div>
           </div>
 
+        </div>
+      </section>
+
+      <!-- ======= FLEETINSURE — cover across all four types ======= -->
+      <section class="tab-panel" id="tab-insuredash">
+        <div class="dash-toolbar">
+          <span class="lt-count" id="insCount"></span>
+          <span class="lt-spacer"></span>
+          <button class="btn btn-primary btn-sm" onclick="openPolicyModal()">+ Add policy</button>
+        </div>
+        <section class="stat-row" id="insStats"></section>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Renewal radar</h2>
+            <p class="muted">All four covers in one list — expired first, then whatever lapses soonest.</p></div></div>
+          <div class="chart-scroll"><div id="insRadar"></div></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Cover by type</h2>
+            <p class="muted">What is insured, and what is not covered at all.</p></div></div>
+          <div id="insCoverage"></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-policies">
+        <div class="dash-toolbar">
+          <span class="lt-spacer"></span>
+          <button class="btn btn-primary btn-sm" onclick="openPolicyModal()">+ Add policy</button>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Policies</h2></div></div>
+          <div class="chart-scroll"><div id="insPolicies"></div></div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-claims">
+        <div class="dash-toolbar">
+          <span class="lt-spacer"></span>
+          <button class="btn btn-primary btn-sm" onclick="openClaimModal()">+ Record claim</button>
+        </div>
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>Claims</h2>
+            <p class="muted">Intimation through settlement. Claims history is what decides next year's premium.</p></div></div>
+          <div class="chart-scroll"><div id="insClaims"></div></div>
         </div>
       </section>
 

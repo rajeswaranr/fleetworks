@@ -2026,3 +2026,20 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
   padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 0.87rem; align-items: baseline; }
 .fd-row b { font-variant-numeric: tabular-nums; font-size: 0.95rem; }
 .fd-row-sub { grid-column: 1 / -1; font-size: 0.73rem; color: var(--muted); }
+
+/* ---- FleetInsure ---- */
+.side-pillar.insure .pp { background: #6366f1; box-shadow: 0 0 8px rgba(99, 102, 241, 0.7); }
+
+.ins-cover { display: flex; align-items: center; gap: 12px; padding: 13px 0;
+  border-bottom: 1px solid var(--border); }
+.ins-cover-ic { width: 34px; height: 34px; border-radius: 9px; flex: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #eef2ff; color: #4338ca; }
+.ins-cover-main { flex: 1; min-width: 0; }
+.ins-cover-main strong { display: block; font-size: 0.9rem; color: var(--navy); }
+.ins-cover-main .muted { font-size: 0.76rem; }
+/* The gap line is the point of the panel — an uninsured cargo policy is not
+   a missing row, it is an exposure nobody priced. */
+.ins-gap { margin-top: 5px; font-size: 0.78rem; color: #b91c1c;
+  background: #fef2f2; border-left: 2px solid #dc2626;
+  padding: 5px 9px; border-radius: 0 6px 6px 0; }
