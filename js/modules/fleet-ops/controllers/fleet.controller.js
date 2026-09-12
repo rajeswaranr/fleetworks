@@ -3401,7 +3401,8 @@ let _retreadTyreId = null;
 
 async function loadTyreManager() {
   if (!window.fwCloud || !fwCloud.user()) { renderTyres(); return; }
-  const sb = fwCloud.sb();
+  const sb = typeof fwCloud.sb === "function" ? fwCloud.sb() : null;
+  if (!sb) { renderTyres(); return; }
   try {
     const [r1, r2, r3] = await Promise.all([
       sb.from("tyres").select("*").order("status").order("created_at"),
@@ -3582,6 +3583,9 @@ function openLogReadingCard() {
   const c = document.getElementById("tyreLogCard");
   if (!c) return;
   c.hidden = false;
+  // The list toolbar also collapses entry-form cards on startup. Opening the
+  // tyre form from its dedicated button must clear both hiding mechanisms.
+  c.classList.remove("collapsed");
   c.scrollIntoView({ behavior: "smooth", block: "nearest" });
   const vf = document.getElementById("tyreVehicleFilter");
   const vr = document.getElementById("tyreFormVehicle");

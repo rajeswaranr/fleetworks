@@ -319,7 +319,8 @@ test('FleetOps workflow pages save test data through the business DB layer and r
   await expectUiText(page, '#meterTable', /TN-88-AA-1001/);
 
   await activate(page, 'trips');
-  await page.selectOption('#tripVehicle', vehicleId);
+  await page.getByRole('button', { name: /Quick Log/i }).click();
+  await page.selectOption('#tripVehicleSelect', vehicleId);
   await page.fill('#tripForm [name="date"]', '2026-08-02');
   await page.fill('#tripForm [name="from"]', 'Coimbatore');
   await page.fill('#tripForm [name="to"]', 'Chennai');
@@ -419,7 +420,7 @@ test('FleetOps workflow pages save test data through the business DB layer and r
   await page.fill('#tyreForm [name="date"]', '2026-08-03');
   await submitForm(page, '#tyreForm');
   await waitForDbCount(page, 'tyre_readings', 1);
-  await expectUiText(page, '#tyreAxleDiagram', /Front Left/);
+  await expectUiText(page, '#tyreAxleDiagram', /Left.*1\.2mm/s);
 
   await activate(page, 'servicereq');
   await page.selectOption('#svcVehicle', vehicleId);
