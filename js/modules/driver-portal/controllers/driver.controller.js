@@ -774,6 +774,7 @@ async function loadMyAccount() {
     return;
   }
   await Promise.all([loadMyPay(), loadMyAttendance(), loadMyDocuments()]);
+  await loadMySpendSummary();
 }
 
 async function loadMyPay() {
@@ -798,6 +799,7 @@ async function loadMyPay() {
           <div style="font-size:1.25rem;font-weight:700;color:#92400e">${INR(s.advance_outstanding)}</div>
         </div>
       </div>
+      <div id="dSpendSummary"></div>
       <div style="margin-top:10px;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:0.85rem;color:var(--muted)">நிகரம் (சம்பளம் − அட்வான்ஸ்)</span>
         <strong style="font-size:1.1rem;color:${net < 0 ? "#dc2626" : "var(--navy)"}">${INR(net)}</strong>
@@ -1073,3 +1075,203 @@ window.uploadReqBill = async function(reqId, tripId, orgId, input) {
   } catch { flash(false, "பில் பதிவேற்ற முடியவில்லை — மீண்டும் முயற்சிக்கவும்."); }
   input.value = "";
 };
+
+/* ============ Trip expenses — what the driver paid out of pocket ============
+   A claim, not a book entry: the row stays 'submitted' until the owner accepts
+   it, and the driver can correct it only while it is still in that state. */
+
+const SPEND_CATEGORIES = [
+  "Loading Charges", "Unloading Charges", "Police", "RTO", "Toll", "Parking",
+  "Tyre Air", "Tyre Puncture", "Greasing", "Water Wash", "Weighbridge",
+  "Driver Food & Stay", "Cleaner Batta", "Miscellaneous",
+];
+
+// Shown in Tamil, stored in English so the owner's books stay one language.
+const SPEND_TA = {
+  "Loading Charges": "ஏற்றுமதி கூலி", "Unloading Charges": "இறக்குமதி கூலி",
+  "Police": "போலீஸ்", "RTO": "ஆர்.டி.ஓ", "Toll": "டோல்", "Parking": "பார்க்கிங்",
+  "Tyre Air": "டயர் காற்று", "Tyre Puncture": "பஞ்சர்", "Greasing": "கிரீஸ்",
+  "Water Wash": "வாட்டர் வாஷ்", "Weighbridge": "எடை பாலம்",
+  "Driver Food & Stay": "உணவு & தங்கும் இடம்", "Cleaner Batta": "கிளீனர் பத்தா",
+  "Miscellaneous": "இதர செலவு",
+};
+
+const SPEND_STATUS = {
+  submitted: ["காத்திருக்கிறது", "#d97706"],
+  approved:  ["ஒப்புதல் ✓", "#059669"],
+  rejected:  ["நிராகரிக்கப்பட்டது ✗", "#dc2626"],
+};
+
+let _mySpend = [];
+let _spendLoaded = false;
+
+function buildSpendForm() {
+  const sel = document.getElementById("spendCategory");
+  if (sel && !sel.options.length) {
+    sel.innerHTML = SPEND_CATEGORIES.map(c =>
+      `<option value="${esc(c)}">${esc(SPEND_TA[c] || c)}</option>`).join("");
+  }
+  const d = document.querySelector('#dSpendForm [name="spent_at"]');
+  if (d && !d.value) d.value = new Date().toISOString().slice(0, 10);
+}
+
+async function loadMySpend() {
+  buildSpendForm();
+  const el = document.getElementById("dSpendList");
+  if (!DDID) {
+    if (el) el.innerHTML = `<p class="muted" style="margin:0">உரிமையாளரிடம் புதிய டிரைவர் இணைப்பு கேட்கவும்.</p>`;
+    return;
+  }
+  try {
+    const res = await fetch(
+      FW_BACKEND.url + "/rest/v1/trip_expenses?select=id,category,amount,note,spent_at,status,bill_path" +
+      "&driver_id=eq." + encodeURIComponent(DDID) +
+      "&order=spent_at.desc&limit=40",
+      { headers: { "apikey": FW_BACKEND.anonKey, "Accept": "application/json" } }
+    );
+    _mySpend = res.ok ? await res.json() : [];
+  } catch { _mySpend = []; }
+  renderMySpend();
+}
+
+function renderMySpend() {
+  const el = document.getElementById("dSpendList");
+  if (!el) return;
+  if (!_mySpend.length) {
+    el.innerHTML = `<p class="muted" style="margin:0">இதுவரை செலவு பதிவு இல்லை.</p>`;
+    return;
+  }
+  const approved = _mySpend.filter(s => s.status === "approved").reduce((t, s) => t + Number(s.amount || 0), 0);
+  const pending  = _mySpend.filter(s => s.status === "submitted").reduce((t, s) => t + Number(s.amount || 0), 0);
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px">
+        <div style="font-size:0.75rem;color:#047857">ஒப்புதல் பெற்றது</div>
+        <div style="font-size:1.2rem;font-weight:700;color:#065f46">${INR(approved)}</div>
+      </div>
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px">
+        <div style="font-size:0.75rem;color:#b45309">காத்திருப்பது</div>
+        <div style="font-size:1.2rem;font-weight:700;color:#92400e">${INR(pending)}</div>
+      </div>
+    </div>
+    ${_mySpend.map(s => {
+      const st = SPEND_STATUS[s.status] || [s.status, "#64748b"];
+      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
+        <div style="flex:1">
+          <strong style="font-size:0.88rem">${esc(SPEND_TA[s.category] || s.category)}</strong>
+          ${s.note ? `<span class="muted" style="font-size:0.8rem"> · ${esc(s.note)}</span>` : ""}
+          <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">
+            ${new Date(s.spent_at + "T00:00:00").toLocaleDateString("ta-IN", { day: "numeric", month: "short" })}
+            ${s.bill_path ? " · பில் ✓" : ""}
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-weight:700">${INR(s.amount)}</div>
+          <div style="font-size:0.75rem;font-weight:600;color:${st[1]}">${st[0]}</div>
+        </div>
+      </div>`;
+    }).join("")}`;
+}
+
+const _spendForm = document.getElementById("dSpendForm");
+if (_spendForm) _spendForm.addEventListener("submit", async e => {
+  e.preventDefault();
+  if (!DDID) { flash(false, "உரிமையாளரிடம் புதிய டிரைவர் இணைப்பு கேட்கவும்."); return; }
+  const btn = e.target.querySelector("button[type=submit]");
+  const fd = Object.fromEntries(new FormData(e.target));
+  const amount = +fd.amount;
+  if (!amount || amount < 1) { flash(false, "தொகை உள்ளிடவும்."); return; }
+  btn.disabled = true;
+  try {
+    // Upload the bill first so the row never points at a file that failed.
+    let billPath = null;
+    const fileInput = document.getElementById("spendBill");
+    const file = fileInput && fileInput.files && fileInput.files[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) throw new Error("too-big");
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const p = DDID + "/spend-" + Date.now() + "." + ext;
+      const up = await fetch(FW_BACKEND.url + "/storage/v1/object/driver-uploads/" + p, {
+        method: "POST",
+        headers: { "apikey": FW_BACKEND.anonKey, "Content-Type": file.type || "application/octet-stream" },
+        body: file
+      });
+      if (up.ok) billPath = p;
+    }
+    const r = await fetch(FW_BACKEND.url + "/rest/v1/trip_expenses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey, "Prefer": "return=minimal" },
+      body: JSON.stringify({
+        driver_id: DDID,
+        org_id: _activeTrip ? _activeTrip.org_id : null,
+        trip_id: _activeTrip ? _activeTrip.id : null,
+        vehicle_id: DVID || null,
+        category: fd.category,
+        amount,
+        note: (fd.note || "").trim() || null,
+        spent_at: fd.spent_at,
+        bill_path: billPath,
+        status: "submitted"
+      })
+    });
+    if (!r.ok) throw new Error();
+    // Mirror into driver_entries so it also lands in the owner's notification centre.
+    await send("trip_expense", {
+      category: fd.category, amount, note: (fd.note || "").trim(),
+      spent_at: fd.spent_at, timestamp: new Date().toISOString()
+    }).catch(() => {});
+    e.target.reset();
+    if (fileInput) fileInput.value = "";
+    const lbl = document.getElementById("spendBillLabel");
+    if (lbl) lbl.textContent = "பில் புகைப்படம் (விரும்பினால்)";
+    buildSpendForm();
+    flash(true, "செலவு பதிவு அனுப்பப்பட்டது — உரிமையாளர் ஒப்புதல் அளிப்பார்.");
+    loadMySpend();
+  } catch (err) {
+    flash(false, err && err.message === "too-big"
+      ? "பில் கோப்பு 10MB-க்கு மேல் உள்ளது."
+      : "அனுப்ப முடியவில்லை — மீண்டும் முயற்சிக்கவும்.");
+  }
+  btn.disabled = false;
+});
+
+const _spendBillInput = document.getElementById("spendBill");
+if (_spendBillInput) _spendBillInput.addEventListener("change", function() {
+  const lbl = document.getElementById("spendBillLabel");
+  if (lbl) lbl.textContent = this.files && this.files[0] ? "பில் இணைக்கப்பட்டது ✓" : "பில் புகைப்படம் (விரும்பினால்)";
+});
+
+if (_drvTabsEl) _drvTabsEl.addEventListener("click", e => {
+  const btn = e.target.closest(".tab-btn");
+  if (btn && btn.dataset.tab === "spend" && !_spendLoaded) {
+    _spendLoaded = true;
+    loadMySpend();
+  }
+});
+
+/* Out-of-pocket spend belongs next to salary and advances — three screens for
+   one question ("where do I stand?") is how disputes start. */
+async function loadMySpendSummary() {
+  const el = document.getElementById("dSpendSummary");
+  if (!el || !DDID) return;
+  try {
+    const res = await fetch(
+      FW_BACKEND.url + "/rest/v1/v_driver_expense_summary?select=*&driver_id=eq." + encodeURIComponent(DDID),
+      { headers: { "apikey": FW_BACKEND.anonKey, "Accept": "application/json" } }
+    );
+    const [s] = res.ok ? await res.json() : [];
+    if (!s || (!Number(s.approved_total) && !Number(s.pending_total))) return;
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px">
+          <div style="font-size:0.75rem;color:#1d4ed8">செலவு — ஒப்புதல்</div>
+          <div style="font-size:1.15rem;font-weight:700;color:#1e3a8a">${INR(s.approved_total)}</div>
+        </div>
+        <div style="background:#fefce8;border:1px solid #fef08a;border-radius:10px;padding:12px">
+          <div style="font-size:0.75rem;color:#a16207">செலவு — காத்திருப்பு</div>
+          <div style="font-size:1.15rem;font-weight:700;color:#854d0e">${INR(s.pending_total)}</div>
+        </div>
+      </div>`;
+  } catch { /* summary is additive — the pay panel still stands without it */ }
+}

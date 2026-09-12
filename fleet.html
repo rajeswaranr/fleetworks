@@ -157,6 +157,7 @@
         <!-- ======= WORKSPACE: FleetOps — maintenance & daily operations ======= -->
         <div data-ws="ops" hidden>
         <div class="side-pillar ops"><span class="pp"></span>Fleet<em>Ops</em></div>
+        <button class="side-item tab-btn" data-tab="opscentre"><i data-icon="network"></i><span>Operation Centre</span></button>
         <button class="side-item tab-btn" data-tab="overview"><i data-icon="gauge"></i><span>FleetOps Dashboard</span></button>
         <button class="side-item tab-btn" data-tab="dispatch"><i data-icon="calendar"></i><span>Daily Dispatch</span></button>
         <button class="side-item tab-btn side-cta" data-tab="addvehicle"><i data-icon="truck"></i><span>Add Vehicle</span></button>
@@ -607,6 +608,51 @@
               <div id="healthStrip" class="health-strip"></div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <!-- ======= OPERATION CENTRE — centralised live monitoring ======= -->
+      <section class="tab-panel" id="tab-opscentre">
+        <div class="occ" id="occRoot">
+
+          <div class="occ-bar">
+            <span class="occ-live"><i></i>LIVE</span>
+            <strong class="occ-title">Fleet Operation Centre</strong>
+            <span class="occ-clock" id="occClock"></span>
+            <span class="occ-spacer"></span>
+            <span class="occ-updated" id="occUpdated"></span>
+            <label class="occ-toggle">
+              <input type="checkbox" id="occAuto" checked /> Auto-refresh
+            </label>
+            <button class="occ-btn" onclick="refreshOpsCentre()">Refresh</button>
+            <button class="occ-btn" onclick="toggleOccFullscreen()" id="occFsBtn">Full screen</button>
+          </div>
+
+          <div class="occ-kpis" id="occKpis"></div>
+
+          <div class="occ-grid">
+            <section class="occ-panel occ-wall">
+              <header>
+                <h3>Vehicle Wall</h3>
+                <div class="occ-filters" id="occWallFilters"></div>
+              </header>
+              <div class="occ-tiles" id="occTiles"></div>
+            </section>
+
+            <section class="occ-panel occ-alerts">
+              <header><h3>Alert Stream</h3><span class="occ-count" id="occAlertCount"></span></header>
+              <div class="occ-stream" id="occStream"></div>
+            </section>
+          </div>
+
+          <section class="occ-panel occ-positions">
+            <header>
+              <h3>Last Known Positions</h3>
+              <span class="occ-count" id="occPosNote"></span>
+            </header>
+            <div id="occPositions"></div>
+          </section>
+
         </div>
       </section>
 

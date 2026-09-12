@@ -71,7 +71,7 @@
   <section class="hero hero-v2">
     <div class="container">
       <h1>AI that makes your fleet<br><span class="accent kw-accent" id="kwHeadline">safer</span> and more profitable.</h1>
-      <p class="hero-sub">One platform to improve the <span class="kw-ul" id="kw1">Compliance</span>, <span class="kw-ul" id="kw2">Efficiency</span>, and <span class="kw-ul" id="kw3">Profitability</span> of your operations.</p>
+      <p class="hero-sub">AI-enabled <span class="kw-ul" id="kw1">ADAS &amp; BSD</span>, <span class="kw-ul" id="kw2">360° cargo cameras</span>, GPS and <span class="kw-ul" id="kw3">fuel-theft alerts</span> — for trucks, tippers and buses, on one platform.</p>
       <div class="hero-cta">
         <a href="fleet.html?auth=signup#account" class="btn btn-primary btn-hero">Get started free</a>
         <button class="btn btn-watch-demo btn-hero" onclick="openDemoModal()"><span class="wd-play"></span> Watch demo</button>
@@ -211,11 +211,117 @@
         <div class="hvc-trip-bar"><div class="hvc-trip-fill" style="width:47%"></div></div>
       </div>
 
+      <!-- Scene captions — the reel narrates itself as it plays -->
+      <div class="hv-scenes" aria-hidden="true">
+        <span class="hv-scene" data-scene="1">Every truck on one live map</span>
+        <span class="hv-scene" data-scene="2">Foresight flags the failure first</span>
+        <span class="hv-scene" data-scene="3">Compliance counted to the day</span>
+        <span class="hv-scene" data-scene="4">The driver never has to call you</span>
+      </div>
+
       <!-- Bottom CTA strip like Motive's "Watch demo" -->
       <div class="hv-bottom-bar">
+        <div class="hv-progress" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
         <button class="hv-demo-btn" onclick="openDemoModal()">
           <span class="wd-play" style="width:18px;height:18px"></span> Watch demo
         </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======= AI SAFETY & MONITORING — the lead capability story ======= -->
+  <section class="section capsec" id="ai-safety">
+    <div class="container">
+      <div class="capgrid-head">
+        <p class="demo-eyebrow">AI-enabled safety &amp; monitoring</p>
+        <h2>Eight AI systems watching every truck, bus and load.</h2>
+        <p class="muted">ADAS, blind-spot detection and a 360° AI camera on the cargo — read from the AIS-140 device already fitted to your vehicle, or the driver's phone. One platform, no second dashboard.</p>
+      </div>
+
+      <div class="capgrid">
+
+        <figure class="cap clip" data-clip="adas">
+          <div class="cap-vis cap-road">
+            <div class="road-lane"></div>
+            <div class="road-car"></div>
+            <div class="road-warn">COLLISION WARNING</div>
+          </div>
+          <figcaption><b>AI-enabled ADAS</b><span>Forward collision, lane departure and headway warnings called out to the driver before he reaches for the brake.</span></figcaption>
+        </figure>
+
+        <figure class="cap clip" data-clip="bsd">
+          <div class="cap-vis cap-bsd">
+            <div class="bsd-truck"></div>
+            <div class="bsd-zone bsd-zone-l"></div>
+            <div class="bsd-zone bsd-zone-r"></div>
+            <div class="bsd-bike"></div>
+            <div class="bsd-warn">BLIND SPOT — LEFT</div>
+          </div>
+          <figcaption><b>BSD — Blind Spot Detection</b><span>The two-wheeler alongside your trailer that the mirror never shows. Audible and visual warning before the turn.</span></figcaption>
+        </figure>
+
+        <figure class="cap clip" data-clip="cam360">
+          <div class="cap-vis cap-360">
+            <div class="c360-quads"><i></i><i></i><i></i><i></i></div>
+            <div class="c360-truck"></div>
+            <div class="c360-sweep"></div>
+            <div class="c360-tag">360° stitched view</div>
+          </div>
+          <figcaption><b>360° AI Camera</b><span>Four cameras stitched into one overhead view — what is around the vehicle while reversing, parking and docking.</span></figcaption>
+        </figure>
+
+        <figure class="cap clip" data-clip="cargo">
+          <div class="cap-vis cap-cargo">
+            <div class="cargo-bay"><div class="cargo-fill"></div></div>
+            <div class="cargo-box"></div>
+            <div class="cargo-read"><b>78%</b> load utilised</div>
+            <div class="cargo-tag">Door opened · unscheduled stop</div>
+          </div>
+          <figcaption><b>Cargo &amp; Load AI</b><span>How full the body actually is, when a door opened, and whether it opened somewhere it should not have.</span></figcaption>
+        </figure>
+
+        <figure class="cap clip" data-clip="cam">
+          <div class="cap-vis cap-cam">
+            <div class="cam-noise"></div>
+            <div class="cam-face"></div>
+            <div class="cam-box"></div>
+            <div class="cam-tag">Phone use detected</div>
+            <div class="cam-rec"><i></i>REC</div>
+          </div>
+          <figcaption><b>Driver-facing AI Camera</b><span>Phone use, drowsiness and no-seatbelt detection, with the 10-second clip attached to the event.</span></figcaption>
+        </figure>
+
+        <figure class="cap clip" data-clip="gps">
+          <div class="cap-vis cap-gps">
+            <svg viewBox="0 0 260 140" preserveAspectRatio="none" aria-hidden="true">
+              <path class="gps-route" d="M18 116 C 60 116, 66 70, 104 62 S 168 74, 196 34 L 242 26"/>
+              <path class="gps-trail" d="M18 116 C 60 116, 66 70, 104 62 S 168 74, 196 34 L 242 26"/>
+              <circle class="gps-dot" r="5"><animateMotion dur="4s" repeatCount="indefinite" rotate="auto"
+                path="M18 116 C 60 116, 66 70, 104 62 S 168 74, 196 34 L 242 26"/></circle>
+            </svg>
+            <div class="gps-chip">62 km/h · NH-44</div>
+          </div>
+          <figcaption><b>GPS Tracking</b><span>Live position, route replay and halt duration — so "stuck in traffic" is a timestamp, not a claim.</span></figcaption>
+        </figure>
+
+        <figure class="cap clip" data-clip="fuel">
+          <div class="cap-vis cap-fuel">
+            <div class="fuel-tank"><div class="fuel-level"></div></div>
+            <div class="fuel-drop">−38 L in 4 min</div>
+            <div class="fuel-alert">Siphoning suspected · Hosur bypass</div>
+          </div>
+          <figcaption><b>Fuel Theft Alerts</b><span>A tank that falls faster than the engine can burn raises an alert with the place and the time it happened.</span></figcaption>
+        </figure>
+
+        <figure class="cap clip" data-clip="bus">
+          <div class="cap-vis cap-bus">
+            <div class="bus-body"><span></span><span></span><span></span><span></span></div>
+            <div class="bus-count"><b>42</b> onboard</div>
+            <div class="bus-stop">Next: Hosur Bus Stand · 4 min</div>
+          </div>
+          <figcaption><b>Bus &amp; Staff Transport</b><span>Passenger counting, route adherence and stop-by-stop ETAs for school, staff and stage-carriage fleets.</span></figcaption>
+        </figure>
+
       </div>
     </div>
   </section>
@@ -476,90 +582,6 @@
         </div>
       </div>
 
-      <!-- ---- Capability clip grid ---- -->
-      <div class="capgrid-head">
-        <p class="demo-eyebrow">Built in, not bolted on</p>
-        <h3>Six things watching every truck, all day.</h3>
-        <p class="muted">Read from the AIS-140 device already fitted to your vehicle — or the driver's phone. No second dashboard.</p>
-      </div>
-
-      <div class="capgrid">
-
-        <!-- ADAS -->
-        <figure class="cap clip" data-clip="adas">
-          <div class="cap-vis cap-road">
-            <div class="road-lane"></div>
-            <div class="road-car"></div>
-            <div class="road-warn">COLLISION WARNING</div>
-          </div>
-          <figcaption><b>ADAS</b><span>Forward collision, lane departure and headway alerts called out to the driver before he needs the brake.</span></figcaption>
-        </figure>
-
-        <!-- AI Camera -->
-        <figure class="cap clip" data-clip="cam">
-          <div class="cap-vis cap-cam">
-            <div class="cam-noise"></div>
-            <div class="cam-face"></div>
-            <div class="cam-box"></div>
-            <div class="cam-tag">Phone use detected</div>
-            <div class="cam-rec"><i></i>REC</div>
-          </div>
-          <figcaption><b>AI Camera</b><span>Driver-facing detection for phone use, drowsiness and no seatbelt — with the 10-second clip attached to the event.</span></figcaption>
-        </figure>
-
-        <!-- GPS -->
-        <figure class="cap clip" data-clip="gps">
-          <div class="cap-vis cap-gps">
-            <svg viewBox="0 0 260 140" preserveAspectRatio="none" aria-hidden="true">
-              <path class="gps-route" d="M18 116 C 60 116, 66 70, 104 62 S 168 74, 196 34 L 242 26"/>
-              <path class="gps-trail" d="M18 116 C 60 116, 66 70, 104 62 S 168 74, 196 34 L 242 26"/>
-              <circle class="gps-dot" r="5"><animateMotion dur="4s" repeatCount="indefinite" rotate="auto"
-                path="M18 116 C 60 116, 66 70, 104 62 S 168 74, 196 34 L 242 26"/></circle>
-            </svg>
-            <div class="gps-chip">62 km/h · NH-44</div>
-          </div>
-          <figcaption><b>GPS Tracking</b><span>Live position, route replay and halt duration — so "stuck in traffic" is a timestamp, not a claim.</span></figcaption>
-        </figure>
-
-        <!-- Fuel theft -->
-        <figure class="cap clip" data-clip="fuel">
-          <div class="cap-vis cap-fuel">
-            <div class="fuel-tank"><div class="fuel-level"></div></div>
-            <div class="fuel-drop">−38 L in 4 min</div>
-            <div class="fuel-alert">Siphoning suspected · Hosur bypass</div>
-          </div>
-          <figcaption><b>Fuel Theft Alerts</b><span>A tank that falls faster than the engine can burn raises an alert with the place and the time it happened.</span></figcaption>
-        </figure>
-
-        <!-- Predictive -->
-        <figure class="cap clip" data-clip="pred">
-          <div class="cap-vis cap-pred">
-            <svg viewBox="0 0 260 140" aria-hidden="true">
-              <line class="pred-thresh" x1="0" y1="46" x2="260" y2="46"/>
-              <path class="pred-curve" d="M10 124 C 62 120, 96 108, 128 88 S 190 52, 250 24"/>
-              <circle class="pred-hit" cx="196" cy="46" r="5"/>
-            </svg>
-            <div class="pred-band">Failure threshold</div>
-            <div class="pred-tag">Turbocharger · 3 weeks</div>
-          </div>
-          <figcaption><b>Predictive Analysis</b><span>Foresight reads the trend across fuel, temperature and vibration and names the part before it strands the truck.</span></figcaption>
-        </figure>
-
-        <!-- Software -->
-        <figure class="cap clip" data-clip="sw">
-          <div class="cap-vis cap-sw">
-            <div class="sw-top"><span></span><span></span><span></span></div>
-            <div class="sw-bars">
-              <i style="--h:38%"></i><i style="--h:62%"></i><i style="--h:47%"></i>
-              <i style="--h:80%"></i><i style="--h:55%"></i><i style="--h:92%"></i><i style="--h:70%"></i>
-            </div>
-            <div class="sw-row"><span>Cost / km</span><b>₹42.10</b></div>
-            <div class="sw-row"><span>Mileage</span><b>3.8 kmpl</b></div>
-          </div>
-          <figcaption><b>Fleet Management Software</b><span>The system of record underneath all of it — vehicles, trips, tyres, diesel, compliance and GST-ready books.</span></figcaption>
-        </figure>
-
-      </div>
 
     </div>
   </section>

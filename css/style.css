@@ -7,6 +7,12 @@
   --ink: #1c2733;
   --muted: #64748b;
   --line: #e2e8f0;
+  /* --border and --brand were used in ~30 places across style.css, driver.html
+     and the driver portal but never defined, so every one of those shorthand
+     declarations was invalid and dropped — the borders simply did not render.
+     Aliased here rather than rewritten at each call site. */
+  --border: #e2e8f0;
+  --brand: #f5a623;
   --bg: #ffffff;
   --bg-alt: #f4f7fb;
   --green: #16a34a;
@@ -1627,3 +1633,178 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .gf-htrack { height: 6px; background: #30363d; border-radius: 3px; overflow: hidden; }
 .gf-hfill  { height: 100%; border-radius: 3px; transition: width .3s; }
 .gf-hval   { color: #e6edf3; text-align: right; font-size: .72rem; }
+
+/* ============ Fleet Operation Centre ============
+   Its own dark surface regardless of the app theme: this screen is meant to be
+   left open on a wall or a second monitor, where a light UI is glare and a dark
+   one lets the status colours carry the information. */
+.occ{--occ-bg:#070b14;--occ-panel:#0d1322;--occ-line:rgba(255,255,255,.09);
+  --occ-text:#e8edf9;--occ-muted:#8593b0;
+  background:var(--occ-bg);color:var(--occ-text);border-radius:14px;padding:14px;
+  display:flex;flex-direction:column;gap:12px}
+.occ:fullscreen{border-radius:0;padding:18px;overflow-y:auto}
+
+.occ-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.occ-live{display:inline-flex;align-items:center;gap:6px;font-size:.68rem;font-weight:800;letter-spacing:.1em;color:#f87171}
+.occ-live i{width:7px;height:7px;border-radius:50%;background:#ef4444;animation:occpulse 1.4s ease-in-out infinite}
+@keyframes occpulse{0%,100%{opacity:1}50%{opacity:.25}}
+.occ-title{font-size:1.05rem;font-weight:800;color:#fff}
+.occ-clock,.occ-updated{font-size:.78rem;color:var(--occ-muted);font-variant-numeric:tabular-nums}
+.occ-spacer{flex:1}
+.occ-toggle{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--occ-muted);cursor:pointer}
+.occ-btn{background:rgba(255,255,255,.07);color:var(--occ-text);border:1px solid var(--occ-line);
+  border-radius:8px;padding:5px 12px;font-size:.78rem;font-weight:600;cursor:pointer}
+.occ-btn:hover{background:rgba(255,255,255,.13)}
+
+/* KPI strip */
+.occ-kpis{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+.occ-kpi{background:var(--occ-panel);border:1px solid var(--occ-line);border-radius:10px;
+  padding:12px;text-align:center;border-top:2px solid #3b4a6b}
+.occ-kpi.ok{border-top-color:#22c55e}
+.occ-kpi.warn{border-top-color:#f59e0b}
+.occ-kpi.bad{border-top-color:#ef4444}
+.occ-kpi-n{display:block;font-size:1.6rem;font-weight:800;line-height:1;color:#fff;font-variant-numeric:tabular-nums}
+.occ-kpi-k{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--occ-muted)}
+
+/* Panels */
+.occ-grid{display:grid;grid-template-columns:1.6fr 1fr;gap:12px;align-items:start}
+.occ-panel{background:var(--occ-panel);border:1px solid var(--occ-line);border-radius:12px;overflow:hidden}
+.occ-panel header{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--occ-line);flex-wrap:wrap}
+.occ-panel h3{margin:0;font-size:.9rem;font-weight:700;color:#fff}
+.occ-count{margin-left:auto;font-size:.74rem;color:var(--occ-muted)}
+
+.occ-filters{margin-left:auto;display:flex;gap:5px;flex-wrap:wrap}
+.occ-chip{background:rgba(255,255,255,.05);border:1px solid var(--occ-line);color:var(--occ-muted);
+  border-radius:100px;padding:3px 11px;font-size:.72rem;font-weight:600;cursor:pointer}
+.occ-chip.on{background:rgba(99,102,241,.2);border-color:rgba(99,102,241,.5);color:#c7d2fe}
+
+/* Vehicle wall */
+.occ-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:9px;padding:12px;
+  max-height:460px;overflow-y:auto}
+.occ-tile{background:rgba(255,255,255,.035);border:1px solid var(--occ-line);border-left:3px solid #3b4a6b;
+  border-radius:9px;padding:10px;cursor:pointer;transition:background .15s,transform .15s}
+.occ-tile:hover{background:rgba(255,255,255,.075);transform:translateY(-1px)}
+.occ-tile.sev-crit{border-left-color:#ef4444}
+.occ-tile.sev-high{border-left-color:#f59e0b}
+.occ-tile.sev-med{border-left-color:#eab308}
+.occ-tile.sev-low{border-left-color:#64748b}
+.occ-tile.sev-ok{border-left-color:#22c55e}
+.occ-tile-top{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.occ-tile-top strong{font-size:.82rem;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.occ-dot{width:8px;height:8px;border-radius:50%;flex:none;background:#64748b}
+.occ-dot.ok{background:#22c55e;box-shadow:0 0 6px #22c55e}
+.occ-dot.soon{background:#f59e0b}
+.occ-dot.overdue{background:#ef4444;box-shadow:0 0 6px #ef4444}
+.occ-dot.upcoming{background:#60a5fa}
+.occ-tile-st{font-size:.7rem;color:var(--occ-muted);margin-top:3px}
+.occ-tile-meta{display:flex;justify-content:space-between;gap:6px;font-size:.7rem;color:var(--occ-muted);margin-top:6px}
+.occ-tile-foot{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.occ-pill{font-size:.64rem;font-weight:700;border-radius:100px;padding:2px 7px;background:rgba(255,255,255,.07);color:var(--occ-muted)}
+.occ-pill.ok{background:rgba(34,197,94,.15);color:#4ade80}
+.occ-pill.low{background:rgba(100,116,139,.2);color:#cbd5e1}
+.occ-pill.med{background:rgba(234,179,8,.15);color:#fde047}
+.occ-pill.high{background:rgba(245,158,11,.15);color:#fcd34d}
+.occ-pill.crit{background:rgba(239,68,68,.15);color:#f87171}
+
+/* Alert stream */
+.occ-stream{max-height:460px;overflow-y:auto;padding:8px}
+.occ-alert{display:flex;gap:9px;padding:9px 10px;border-radius:8px;margin-bottom:6px;
+  background:rgba(255,255,255,.035);border-left:3px solid #64748b}
+.occ-alert.crit{border-left-color:#ef4444;background:rgba(239,68,68,.07)}
+.occ-alert.high{border-left-color:#f59e0b;background:rgba(245,158,11,.06)}
+.occ-alert.med{border-left-color:#eab308}
+.occ-alert-ic{flex:none;color:var(--occ-muted);margin-top:1px}
+.occ-alert-top{display:flex;align-items:center;gap:7px;margin-bottom:3px}
+.occ-tag{font-size:.62rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--occ-muted)}
+.occ-sev{font-size:.62rem;font-weight:800;border-radius:100px;padding:1px 7px;background:rgba(255,255,255,.07);color:var(--occ-muted)}
+.occ-sev.crit{background:rgba(239,68,68,.18);color:#f87171}
+.occ-sev.high{background:rgba(245,158,11,.18);color:#fcd34d}
+.occ-alert strong{display:block;font-size:.8rem;color:#fff;line-height:1.35}
+.occ-alert p{margin:3px 0 0;font-size:.73rem;color:var(--occ-muted);line-height:1.5}
+.occ-clear{padding:26px 16px;text-align:center;color:#4ade80;font-size:.85rem;font-weight:600}
+
+/* Positions table — the shared table styles are light, so re-skin here */
+.occ-positions .chart-table-el{color:var(--occ-text);background:transparent}
+.occ-positions .chart-table-el th{color:var(--occ-muted);border-bottom-color:var(--occ-line);background:transparent}
+.occ-positions .chart-table-el td{border-bottom-color:var(--occ-line)}
+.occ-positions .link-btn{color:#7dd3fc}
+
+@media(max-width:1100px){
+  .occ-kpis{grid-template-columns:repeat(4,1fr)}
+  .occ-grid{grid-template-columns:1fr}
+}
+@media(max-width:620px){
+  .occ-kpis{grid-template-columns:repeat(2,1fr)}
+  .occ-tiles{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));max-height:none}
+  .occ-stream{max-height:none}
+}
+@media(prefers-reduced-motion:reduce){
+  .occ-live i{animation:none}
+  .occ-tile:hover{transform:none}
+}
+
+/* ============ Driver portal — built for a thumb, not a mouse ============
+   This page is used one-handed, in a cab, often in sunlight and often by
+   someone wearing gloves. Everything here is sized for that: 56px+ targets,
+   24px icons, and 16px inputs because anything smaller makes iOS zoom the
+   page on focus and the driver then has to pinch back out. */
+
+.drv-body .tab-bar{gap:8px;padding:10px 8px}
+.drv-body .tab-bar .tab-btn{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  min-width:86px;min-height:68px;padding:10px 8px;border-radius:14px;
+  font-size:0.82rem;font-weight:700;line-height:1.15;
+  border:1px solid var(--border);background:#fff;color:var(--navy)
+}
+.drv-body .tab-bar .tab-btn svg{width:26px;height:26px;stroke-width:1.9}
+.drv-body .tab-bar .tab-btn.active{
+  background:var(--navy);color:#fff;border-color:var(--navy);
+  box-shadow:0 4px 14px rgba(15,30,51,.28)
+}
+.drv-body .tab-bar .tab-btn.active svg{stroke:#fff}
+
+/* Forms: big rows, big type, no accidental mis-taps */
+.drv-body .entry-form label{font-size:0.92rem;font-weight:600;color:var(--navy);margin-bottom:12px;display:block}
+.drv-body .entry-form input,
+.drv-body .entry-form select,
+.drv-body #dSpendForm input,
+.drv-body #dSpendForm select,
+.drv-body #dMyDocsPanel input{
+  min-height:54px;font-size:16px;padding:12px 14px;border-radius:12px;
+  border:1.5px solid var(--border);width:100%;margin-top:6px;background:#fff
+}
+.drv-body .entry-form input:focus,
+.drv-body .entry-form select:focus{outline:3px solid rgba(245,166,35,.35);border-color:var(--brand)}
+.drv-body .form-row{gap:12px}
+
+/* Buttons: full width, tall, unmistakable */
+.drv-body .btn-block{min-height:58px;font-size:1rem;font-weight:700;border-radius:14px;
+  display:flex;align-items:center;justify-content:center;gap:10px}
+.drv-body .btn-block svg{width:22px;height:22px}
+.drv-body .btn-sm{min-height:44px;padding:9px 16px;font-size:0.88rem;border-radius:10px}
+
+/* Inspection checklist — the radio targets were the worst offenders */
+.drv-body .chk-radio{width:28px;height:28px}
+.drv-body .chk-radio-cell{padding:10px 6px}
+.drv-body .chk-item-cell{font-size:0.92rem;padding:10px 8px}
+.drv-body .chk-item-inner svg{width:20px;height:20px}
+.drv-body .chk-rem-input{min-height:44px;font-size:15px}
+
+/* Trip milestones and quick actions */
+.drv-body .trip-quick-btn{min-height:62px;font-size:0.9rem;font-weight:700;border-radius:14px;gap:8px}
+.drv-body .trip-quick-btn svg{width:24px;height:24px}
+.drv-body .trip-btn{min-height:46px;padding:10px 16px;font-size:0.88rem;border-radius:11px}
+
+/* Card headings a little larger — read at arm's length on a windscreen mount */
+.drv-body .chart-card{padding:16px;border-radius:14px;margin-bottom:14px}
+.drv-body .chart-head h2{font-size:1.05rem}
+.drv-body .chart-head p.muted{font-size:0.85rem}
+
+/* Status flash: big enough to notice without looking for it */
+.drv-body .drv-status{font-size:0.95rem;font-weight:700;padding:14px;border-radius:12px;
+  background:#fff;border:1px solid var(--border);text-align:center}
+
+@media(max-width:420px){
+  .drv-body .tab-bar .tab-btn{min-width:74px;min-height:62px;font-size:0.75rem}
+  .drv-body .tab-bar .tab-btn svg{width:23px;height:23px}
+}

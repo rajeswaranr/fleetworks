@@ -5013,6 +5013,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "purchaseinvoices") renderPurchaseInvoices();
   if (tabName === "trips") { renderTrips(); loadActiveTripWorkflow(); }
   if (tabName === "tyres") loadTyreManager();
+  if (tabName === "opscentre") loadOpsCentre(); else stopOpsCentre();
   return true;
 }
 
@@ -6011,3 +6012,261 @@ function openSOS() {
   });
 }
 document.getElementById("sosBtn")?.addEventListener("click", openSOS);
+
+/* ============ Fleet Operation Centre ============
+   One screen an owner can leave open on a wall. Everything on it is derived
+   from data the app already holds — there is no separate "ops" store to fall
+   out of sync with the fleet.
+
+   Exception-first: the wall sorts the trucks that need a decision to the front,
+   because a board that lists 40 healthy vehicles in registration order is a
+   board nobody reads twice. */
+
+/* var, not let: activateTab() is defined far above this block and runs during
+   script evaluation when the page is deep-linked (fleet.html#vehicles), so it
+   reaches stopOpsCentre() before a let binding down here would be initialized.
+   var hoists to undefined, which every check below already handles. */
+var _occTimer = null, _occClock = null, _occFilter = "all";
+var _occPositions = [];
+
+const OCC_SEV = {
+  4: { label: "Critical", cls: "crit" },
+  3: { label: "High",     cls: "high" },
+  2: { label: "Medium",   cls: "med"  },
+  1: { label: "Low",      cls: "low"  },
+  0: { label: "Clear",    cls: "ok"   },
+};
+
+function occAlertsFor(v, insights) {
+  return insights.filter(i => i.title && i.title.startsWith(v.name + ":"));
+}
+
+async function loadOpsCentre() {
+  startOccClock();
+  await loadOccPositions();
+  // The fetch above is slow enough that the user can have left already; arming
+  // the timer regardless would leave it polling behind every other tab.
+  if (!document.getElementById("tab-opscentre")?.classList.contains("active")) return;
+  renderOpsCentre();
+  setOccAuto(document.getElementById("occAuto")?.checked !== false);
+}
+
+/* Positions come from driver_locations, newest per vehicle. Signed-out demo
+   fleets simply have none — the panel says so rather than inventing pins. */
+async function loadOccPositions() {
+  _occPositions = [];
+  if (!(window.fwCloud && fwCloud.user && fwCloud.user())) return;
+  try {
+    const rows = await fwCloud.authGet(
+      "driver_locations",
+      "select=vehicle_id,latitude,longitude,speed_kmph,recorded_at&order=recorded_at.desc&limit=300"
+    );
+    const seen = new Set();
+    (rows || []).forEach(r => {
+      if (!r.vehicle_id || seen.has(r.vehicle_id)) return;
+      seen.add(r.vehicle_id);
+      _occPositions.push(r);
+    });
+  } catch { /* offline or table absent — panel degrades to a note */ }
+}
+
+function renderOpsCentre() {
+  const root = document.getElementById("occRoot");
+  if (!root) return;
+  const insights = computeInsights().filter(i => i.sev > 0);
+  const vehs = db.vehicles.slice();
+
+  renderOccKpis(vehs, insights);
+  renderOccWall(vehs, insights);
+  renderOccStream(insights);
+  renderOccPositions(vehs);
+
+  const u = document.getElementById("occUpdated");
+  if (u) u.textContent = "Updated " + new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function renderOccKpis(vehs, insights) {
+  const el = document.getElementById("occKpis");
+  if (!el) return;
+  const counts = { moving: 0, halted: 0, repair: 0, planned: 0, no_driver: 0, active: 0 };
+  vehs.forEach(v => counts[vehicleOpStatus(v)]++);
+  const crit = insights.filter(i => i.sev >= 4).length;
+  const high = insights.filter(i => i.sev === 3).length;
+
+  const tiles = [
+    { k: "Fleet",      n: vehs.length,        cls: "" },
+    { k: "Moving",     n: counts.moving,      cls: "ok" },
+    { k: "Halted",     n: counts.halted,      cls: "warn" },
+    { k: "In Repair",  n: counts.repair,      cls: "bad" },
+    { k: "No Driver",  n: counts.no_driver,   cls: "warn" },
+    { k: "Critical",   n: crit,               cls: crit ? "bad" : "ok" },
+    { k: "High",       n: high,               cls: high ? "warn" : "ok" },
+  ];
+  el.innerHTML = tiles.map(t =>
+    `<div class="occ-kpi ${t.cls}"><span class="occ-kpi-n">${t.n}</span><span class="occ-kpi-k">${t.k}</span></div>`
+  ).join("");
+}
+
+function renderOccWall(vehs, insights) {
+  const filters = document.getElementById("occWallFilters");
+  if (filters) {
+    const opts = [["all", "All"], ["attention", "Needs attention"], ["moving", "Moving"],
+                  ["halted", "Halted"], ["repair", "In Repair"], ["no_driver", "No Driver"]];
+    filters.innerHTML = opts.map(([k, l]) =>
+      `<button class="occ-chip${_occFilter === k ? " on" : ""}" onclick="setOccFilter('${k}')">${l}</button>`
+    ).join("");
+  }
+
+  const el = document.getElementById("occTiles");
+  if (!el) return;
+  if (!vehs.length) {
+    el.innerHTML = `<p class="muted" style="padding:16px;margin:0">No vehicles yet. Add one to start monitoring.</p>`;
+    return;
+  }
+
+  const rows = vehs.map(v => {
+    const st = vehicleOpStatus(v);
+    const alerts = occAlertsFor(v, insights);
+    const worst = alerts.reduce((m, a) => Math.max(m, a.sev), 0);
+    return { v, st, alerts, worst, pend: vehiclePendency(v),
+             driver: db.drivers.find(d => d.vehicleId === v.id) };
+  }).filter(r => {
+    if (_occFilter === "all") return true;
+    if (_occFilter === "attention") return r.worst >= 3 || r.st === "repair" || r.st === "no_driver" || r.pend > 7;
+    return r.st === _occFilter;
+  }).sort((a, b) => (b.worst - a.worst) || (b.pend - a.pend) || a.v.name.localeCompare(b.v.name));
+
+  if (!rows.length) {
+    el.innerHTML = `<p class="muted" style="padding:16px;margin:0">Nothing matches this filter.</p>`;
+    return;
+  }
+
+  el.innerHTML = rows.map(r => {
+    const m = OP_STATUS[r.st] || OP_STATUS.active;
+    const sev = OCC_SEV[r.worst] || OCC_SEV[0];
+    const pos = _occPositions.find(p => p.vehicle_id === v_dbId(r.v));
+    return `<article class="occ-tile sev-${sev.cls}" onclick="occOpenVehicle('${r.v.id}')" title="Open ${esc(r.v.name)}">
+      <div class="occ-tile-top">
+        <strong>${esc(r.v.name)}</strong>
+        <span class="occ-dot ${m.cls}"></span>
+      </div>
+      <div class="occ-tile-st">${m.label}</div>
+      <div class="occ-tile-meta">
+        <span>${r.driver ? esc(r.driver.name) : "No driver"}</span>
+        ${pos && pos.speed_kmph != null ? `<span>${Math.round(pos.speed_kmph)} km/h</span>` : ""}
+      </div>
+      <div class="occ-tile-foot">
+        ${r.alerts.length ? `<span class="occ-pill ${sev.cls}">${r.alerts.length} alert${r.alerts.length === 1 ? "" : "s"}</span>` : `<span class="occ-pill ok">OK</span>`}
+        ${r.pend > 0 ? `<span class="occ-pill ${r.pend > 14 ? "crit" : r.pend > 7 ? "high" : "low"}">${r.pend}d pending</span>` : ""}
+      </div>
+    </article>`;
+  }).join("");
+}
+
+// The local store id and the Postgres uuid are different keys; positions are
+// keyed by the uuid.
+function v_dbId(v) { return v.dbId || v.id; }
+
+function renderOccStream(insights) {
+  const el = document.getElementById("occStream");
+  const cnt = document.getElementById("occAlertCount");
+  if (cnt) cnt.textContent = insights.length ? insights.length + " open" : "all clear";
+  if (!el) return;
+  if (!insights.length) {
+    el.innerHTML = `<div class="occ-clear">Nothing needs a decision right now.</div>`;
+    return;
+  }
+  el.innerHTML = insights.slice(0, 60).map(i => {
+    const sev = OCC_SEV[i.sev] || OCC_SEV[1];
+    return `<div class="occ-alert ${sev.cls}">
+      <span class="occ-alert-ic">${FWIcon(i.icon || "alert", { size: 15 })}</span>
+      <div>
+        <div class="occ-alert-top"><span class="occ-tag">${esc(i.tag)}</span><span class="occ-sev ${sev.cls}">${sev.label}</span></div>
+        <strong>${esc(i.title)}</strong>
+        <p>${esc(i.detail)}</p>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function renderOccPositions(vehs) {
+  const el = document.getElementById("occPositions");
+  const note = document.getElementById("occPosNote");
+  if (!el) return;
+  if (!_occPositions.length) {
+    if (note) note.textContent = "";
+    el.innerHTML = `<p class="muted" style="margin:0;padding:14px 16px">
+      No live positions yet. Positions arrive once a driver turns on location sharing
+      in the driver portal, or an AIS-140 device is linked to the vehicle.</p>`;
+    return;
+  }
+  if (note) note.textContent = _occPositions.length + " reporting";
+  el.innerHTML = `<div style="overflow-x:auto"><table class="chart-table-el" style="width:100%">
+    <thead><tr><th>Vehicle</th><th>Speed</th><th>Coordinates</th><th>Last fix</th><th></th></tr></thead>
+    <tbody>${_occPositions.map(p => {
+      const v = vehs.find(x => v_dbId(x) === p.vehicle_id);
+      const mins = Math.round((Date.now() - new Date(p.recorded_at)) / 60000);
+      const stale = mins > 30;
+      return `<tr>
+        <td><strong>${esc(v ? v.name : "Unknown vehicle")}</strong></td>
+        <td>${p.speed_kmph != null ? Math.round(p.speed_kmph) + " km/h" : "—"}</td>
+        <td style="font-family:ui-monospace,monospace;font-size:0.8rem">${Number(p.latitude).toFixed(4)}, ${Number(p.longitude).toFixed(4)}</td>
+        <td><span class="fw-badge ${stale ? "soon" : "ok"}">${mins < 1 ? "just now" : mins + "m ago"}</span></td>
+        <td><a class="link-btn" target="_blank" rel="noopener"
+             href="https://www.google.com/maps?q=${encodeURIComponent(p.latitude + "," + p.longitude)}">Map</a></td>
+      </tr>`;
+    }).join("")}</tbody></table></div>`;
+}
+
+window.setOccFilter = function(k) {
+  _occFilter = k;
+  renderOccWall(db.vehicles.slice(), computeInsights().filter(i => i.sev > 0));
+};
+
+window.occOpenVehicle = function(vehicleId) {
+  if (window.openVehicleDetail) openVehicleDetail(vehicleId);
+  else activateTab("vehicles");
+};
+
+window.refreshOpsCentre = async function() {
+  await loadOccPositions();
+  renderOpsCentre();
+};
+
+function setOccAuto(on) {
+  if (_occTimer) { clearInterval(_occTimer); _occTimer = null; }
+  if (on) _occTimer = setInterval(refreshOpsCentre, 30000);
+}
+
+function startOccClock() {
+  if (_occClock) return;
+  const tick = () => {
+    const el = document.getElementById("occClock");
+    if (el) el.textContent = new Date().toLocaleString("en-IN", {
+      weekday: "short", day: "numeric", month: "short",
+      hour: "2-digit", minute: "2-digit"
+    });
+  };
+  tick();
+  _occClock = setInterval(tick, 30000);
+}
+
+window.toggleOccFullscreen = function() {
+  const el = document.getElementById("occRoot");
+  if (!el) return;
+  const btn = document.getElementById("occFsBtn");
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+    if (btn) btn.textContent = "Full screen";
+  } else {
+    el.requestFullscreen?.().then(() => { if (btn) btn.textContent = "Exit full screen"; }, () => {});
+  }
+};
+
+document.getElementById("occAuto")?.addEventListener("change", e => setOccAuto(e.target.checked));
+
+// Stop polling when the Operation Centre is not the visible tab — a 30-second
+// timer running behind every other screen is just battery and quota.
+function stopOpsCentre() {
+  if (_occTimer) { clearInterval(_occTimer); _occTimer = null; }
+}
