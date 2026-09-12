@@ -3884,17 +3884,27 @@ function fillVehicleSelects() {
   const opts = db.vehicles.map(v => `<option value="${v.id}">${esc(v.name)}</option>`).join("");
   ["compVehicle", "fuelVehicle", "inspVehicle", "issueVehicle", "remVehicle", "fuelVehicleFilter",
    "tyreVehicleFilter", "tyreFormVehicle", "tripVehicle", "billVehicle", "svcVehicle",
-   "fastagVehicle", "finFastagVehicle", "invVehicle"].forEach(id => {
+   "fastagVehicle", "finFastagVehicle", "invVehicle",
+   // Trip logging, trip planning. Both were left out when they were added, so a
+   // signed-in owner got an empty required dropdown and could not save at all —
+   // the same failure this filler exists to prevent.
+   "tripVehicleSelect", "planTripVehicle"].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const keep = el.value;
     el.innerHTML = opts;
     if ([...el.options].some(o => o.value === keep)) el.value = keep;
   });
-  const dv = document.getElementById("driverVehicle");
-  const keepD = dv.value;
-  dv.innerHTML = '<option value="">Not assigned</option>' + opts;
-  if ([...dv.options].some(o => o.value === keepD)) dv.value = keepD;
+
+  // Pickers that lead with a placeholder, which has to survive every refill.
+  [["driverVehicle", '<option value="">Not assigned</option>'],
+   ["addTyreFitVehicle", '<option value="">Not yet — add to stock</option>']].forEach(([id, head]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const keep = el.value;
+    el.innerHTML = head + opts;
+    if ([...el.options].some(o => o.value === keep)) el.value = keep;
+  });
   fillDocEntitySelect();
   fillTyrePositions();
 }
