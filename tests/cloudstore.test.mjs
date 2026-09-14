@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const cloudstoreSource = readFileSync(resolve(__dirname, '../js/cloudstore.js'), 'utf8');
+const teamInviteSource = readFileSync(resolve(__dirname, '../supabase/functions/team-invite/index.ts'), 'utf8');
 
 function createElementStub() {
   return {
@@ -140,6 +141,18 @@ test('keeps each signed-in account in its own session slot', async () => {
   assert.equal(fwCloud.user(), 'user2@example.com');
   assert.ok(localStorage.getItem('fw_session:user2@example.com'));
   assert.equal(localStorage.getItem('fw_session:active'), 'fw_session:user2@example.com');
+});
+
+test('team invite CORS supports every static-app origin while authentication remains server-side', () => {
+  assert.match(teamInviteSource, /const o = origin \|\| "\*"/);
+  assert.match(teamInviteSource, /"Vary": "Origin"/);
+  assert.match(teamInviteSource, /admin\.auth\.getUser\(jwt\)/);
+  assert.match(teamInviteSource, /\.in\("role", \["owner", "manager"\]\)/);
+});
+
+test('edge-function network failures get an actionable message', () => {
+  assert.match(cloudstoreSource, /Could not reach the FleetWorks login service/);
+  assert.match(cloudstoreSource, /failed to fetch\|networkerror/i);
 });
 
 test('login only creates a session and does not pull owner fleet data', async () => {

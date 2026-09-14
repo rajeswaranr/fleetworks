@@ -4,6 +4,13 @@
 # working directory name when running `supabase init`.
 project_id = "go_mechanic"
 
+# team-invite verifies the caller JWT itself before using the service-role
+# client. Keep gateway verification disabled so publishable-key JWT changes do
+# not prevent the function from returning its own authenticated error/CORS
+# response. This matches the documented deployment command in the function.
+[functions.team-invite]
+verify_jwt = false
+
 [api]
 enabled = true
 # Port to use for the API URL.

@@ -430,7 +430,17 @@
     /* Call a Supabase Edge Function as the signed-in user (their JWT is
        forwarded — the function verifies it server-side; e.g. team-invite). */
     async callFunction(name, body) {
-      const r = await authFetch("/functions/v1/" + name, { method: "POST", body: JSON.stringify(body || {}) });
+      let r;
+      try {
+        r = await authFetch("/functions/v1/" + name, { method: "POST", body: JSON.stringify(body || {}) });
+      } catch (error) {
+        // fetch() uses TypeError for CORS, DNS and offline failures and its
+        // default "Failed to fetch" gives the owner no useful next step.
+        if (error instanceof TypeError || /failed to fetch|networkerror/i.test(String(error && error.message || error))) {
+          throw new Error("Could not reach the FleetWorks login service. Reload the page and try again; if this continues, redeploy the " + name + " function with its current CORS settings.");
+        }
+        throw error;
+      }
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || "Request failed (" + r.status + ")");
       return j;

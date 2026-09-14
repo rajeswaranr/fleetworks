@@ -17,23 +17,18 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-const ALLOW_ORIGINS = [
-  "https://fleetworks.in",
-  "https://www.fleetworks.in",
-  "http://localhost:8642",
-  "http://127.0.0.1:8642",
-  "http://localhost:8080",
-  "http://127.0.0.1:8080",
-  "http://localhost:8090",
-  "http://127.0.0.1:8090",
-];
 function cors(origin: string | null) {
-  const dev = origin && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin);
-  const o = origin && (ALLOW_ORIGINS.includes(origin) || dev) ? origin : ALLOW_ORIGINS[0];
+  // CORS is not the authorization boundary here: every POST must carry a
+  // valid Supabase JWT and the caller is independently checked below for an
+  // owner/manager membership. Reflecting the requesting origin lets the
+  // static app work from custom domains, preview deployments and local files
+  // (which browsers send as Origin: null) without weakening those checks.
+  const o = origin || "*";
   return {
     "Access-Control-Allow-Origin": o,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "content-type, authorization, apikey",
+    "Vary": "Origin",
     "Content-Type": "application/json",
   };
 }

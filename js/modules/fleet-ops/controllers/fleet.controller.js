@@ -2262,7 +2262,9 @@ function filteredVehicles() {
 // ── data load ──────────────────────────────────────────────────────────────
 async function loadSites() {
   if (!coreDbBacked()) { _sites = []; _siteVeh = {}; _siteStaff = {}; _vehSiteMap = {}; return; }
-  _sites = await fwCloud.authGet("sites", "select=*&status=neq.cancelled&order=created_at.desc") || [];
+  // Keep completed/cancelled rows in memory: the Site History view needs them.
+  // Individual operational views filter to active rows when appropriate.
+  _sites = await fwCloud.authGet("sites", "select=*&order=created_at.desc") || [];
   if (!_sites.length) { _siteVeh = {}; _siteStaff = {}; _vehSiteMap = {}; return; }
   const ids = _sites.map(s => s.id);
   const vaRows = await fwCloud.authGet("site_vehicle_assignments",
@@ -2274,14 +2276,16 @@ async function loadSites() {
   _vehSiteMap = {};
   vaRows.forEach(r => {
     (_siteVeh[r.site_id] = _siteVeh[r.site_id] || []).push(r);
-    if (!r.removed_date) _vehSiteMap[r.vehicle_id] = { site: _sites.find(s => s.id === r.site_id), sva: r };
+    const site = _sites.find(s => s.id === r.site_id);
+    if (!r.removed_date && site?.status === "active") _vehSiteMap[r.vehicle_id] = { site, sva: r };
   });
   ssRows.forEach(r => { (_siteStaff[r.site_id] = _siteStaff[r.site_id] || []).push(r); });
   populateFilterDropdowns();
 }
 
 function populateFilterDropdowns() {
-  const siteOpts = _sites.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("");
+  const siteOpts = _sites.filter(s => s.status === "active")
+    .map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("");
   ["fltSite","fltSiteFin"].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -2420,17 +2424,17 @@ const SITE_TYPE_LABELS = {
   logistics_hub: "Logistics Hub", other: "Other",
 };
 
-function renderSites() {
-  const box = document.getElementById("sitesList");
+function renderSiteCollection(targetId, sites, emptyMessage, historyMode = false) {
+  const box = document.getElementById(targetId);
   if (!box) return;
   if (!coreDbBacked()) {
     box.innerHTML = "<p class='muted'>Sign in to manage sites and projects.</p>"; return;
   }
-  if (!_sites.length) {
-    box.innerHTML = `<p class='muted' style='text-align:center;padding:32px'>No sites or projects yet — click <strong>New Site</strong> to create one.</p>`;
+  if (!sites.length) {
+    box.innerHTML = `<p class='muted' style='text-align:center;padding:32px'>${emptyMessage}</p>`;
     return;
   }
-  box.innerHTML = _sites.map(s => {
+  box.innerHTML = sites.map(s => {
     const vvas   = (_siteVeh[s.id]   || []).filter(r => !r.removed_date);
     const ssas   = (_siteStaff[s.id] || []).filter(r => !r.left_date);
     const typeLbl= SITE_TYPE_LABELS[s.project_type] || s.project_type;
@@ -2461,13 +2465,30 @@ function renderSites() {
       </div>
       <div class="pred-detail" style="margin-top:8px">
         <button class="link-btn" onclick="openEditSite('${s.id}')">${FWIcon("document",{size:13})} Edit</button>
-        <button class="link-btn" onclick="openAssignSiteVehicles('${s.id}')">${FWIcon("truck",{size:13})} Vehicles</button>
+        ${historyMode ? "" : `<button class="link-btn" onclick="openAssignSiteVehicles('${s.id}')">${FWIcon("truck",{size:13})} Vehicles</button>
         <button class="link-btn" onclick="openAssignSiteStaff('${s.id}')">${FWIcon("driver",{size:13})} Staff</button>
-        <button class="link-btn" style="color:#ef4444" onclick="siteArchive('${s.id}')">${FWIcon("trash",{size:13})} Archive</button>
+        <button class="link-btn" style="color:#ef4444" onclick="siteArchive('${s.id}')">${FWIcon("trash",{size:13})} Archive</button>`}
       </div>
     </div>`;
   }).join("");
   if (window.FWIcons) FWIcons.hydrate(box);
+}
+
+function renderSites() {
+  renderSiteCollection("sitesList", _sites.filter(s => s.status !== "cancelled"),
+    'No sites or projects yet — click <strong>New Site</strong> to create one.');
+}
+
+function renderActiveProjects() {
+  renderSiteCollection("activeProjectsList",
+    _sites.filter(s => s.site_type === "project" && s.status === "active"),
+    'No active projects. Create a site/project and choose <strong>Project</strong> with <strong>active</strong> status.');
+}
+
+function renderSiteHistory() {
+  renderSiteCollection("siteHistoryList",
+    _sites.filter(s => s.status === "completed" || s.status === "cancelled"),
+    "No completed or archived site/project history yet.", true);
 }
 
 // ── Site CRUD ──────────────────────────────────────────────────────────────
@@ -2624,14 +2645,15 @@ function siteRowFromForm(fd, orgId, extra) {
   };
 }
 
-window.openNewSite = async function() {
-  openEditModal("New Site / Project", siteFormHtml(null), async fd => {
+window.openNewSite = async function(initialType = "site") {
+  const initial = initialType === "project" ? { site_type: "project", status: "active" } : null;
+  openEditModal("New Site / Project", siteFormHtml(initial), async fd => {
     const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
     const ok = await fwCloud.authInsert("sites", siteRowFromForm(fd, orgId, { created_by: fwCloud.uid() }));
     if (!ok) throw new Error("Could not save — check your connection.");
     toast(`"${(fd.name||"").trim()}" created.`);
     closeEditModal();
-    await loadSites(); renderSites(); renderHubSites(); renderVehicleStatusBoard(); populateFilterDropdowns();
+    await loadSites(); renderSites(); renderActiveProjects(); renderSiteHistory(); renderHubSites(); renderVehicleStatusBoard(); populateFilterDropdowns();
   });
 };
 
@@ -2643,7 +2665,7 @@ window.openEditSite = async function(id) {
     if (!ok) throw new Error("Could not save — check your connection.");
     toast("Site updated.");
     closeEditModal();
-    await loadSites(); renderSites(); renderHubSites(); renderVehicleStatusBoard(); populateFilterDropdowns();
+    await loadSites(); renderSites(); renderActiveProjects(); renderSiteHistory(); renderHubSites(); renderVehicleStatusBoard(); populateFilterDropdowns();
   });
 };
 
@@ -2652,7 +2674,7 @@ window.siteArchive = async function(id) {
   if (!confirm(`Archive "${s.name}"? It will be hidden but data is preserved.`)) return;
   await fwCloud.authPatch(`sites?id=eq.${id}`, { status: "cancelled" });
   toast("Site archived.");
-  await loadSites(); renderSites(); renderHubSites(); renderVehicleStatusBoard();
+  await loadSites(); renderSites(); renderActiveProjects(); renderSiteHistory(); renderHubSites(); renderVehicleStatusBoard();
 };
 
 // ── Assign vehicles to site (with per-vehicle billing) ────────────────────
@@ -5011,7 +5033,8 @@ function activateTab(tabName, options = {}) {
   // see the demo prompt — they get the Getting Started landing instead.
   if (!db.vehicles.length) {
     const exempt = tabName === "account" || tabName === "home" || tabName === "addvehicle"
-                || tabName === "sites" || tabName === "smsnotif" || tabName === "purchaseinvoices";
+                || tabName === "sites" || tabName === "projects" || tabName === "sitehistory"
+                || tabName === "smsnotif" || tabName === "purchaseinvoices";
     const signedIn = !!(window.fwCloud && fwCloud.user());
     document.getElementById("emptyState").hidden = exempt || signedIn;
     const startEl = document.getElementById("startState");
@@ -5024,6 +5047,8 @@ function activateTab(tabName, options = {}) {
   if (tabName === "analytics" && window.renderGfIq)      renderGfIq();
   if (tabName === "smsnotif")        renderNotifSettings();
   if (tabName === "sites")           { loadSites().then(() => { renderSites(); renderHubSites(); }); }
+  if (tabName === "projects")        { loadSites().then(renderActiveProjects); }
+  if (tabName === "sitehistory")     { loadSites().then(renderSiteHistory); }
   if (tabName === "purchaseinvoices") renderPurchaseInvoices();
   if (tabName === "trips") { renderTrips(); loadActiveTripWorkflow(); }
   if (tabName === "tyres") loadTyreManager();
@@ -5494,6 +5519,23 @@ function buildDynamicPanels() {
     <div id="sitesList"></div>
   </div>`);
 
+  mk("projects", `<div class="chart-card">
+    <div class="chart-head">
+      <div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="mapPin" data-icon-size="22"></i></span> Active Projects</h2>
+      <p class="muted">Projects currently in progress, with their assigned vehicles, staff and commercial details.</p></div>
+      <button class="btn btn-primary" onclick="openNewSite('project')">${FWIcon("plus",{size:14})} New Project</button>
+    </div>
+    <div id="activeProjectsList"></div>
+  </div>`);
+
+  mk("sitehistory", `<div class="chart-card">
+    <div class="chart-head">
+      <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="document" data-icon-size="22"></i></span> Site History</h2>
+      <p class="muted">Completed and archived sites/projects, retained with their deployment details.</p></div>
+    </div>
+    <div id="siteHistoryList"></div>
+  </div>`);
+
   mk("dispatch", `<div class="chart-card">
     <div class="chart-head" style="flex-wrap:wrap;gap:10px">
       <div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="calendar" data-icon-size="22"></i></span> Daily Dispatch</h2>
@@ -5811,7 +5853,8 @@ function renderAll() {
   const has = db.vehicles.length > 0;
   const activeId = document.querySelector("#fleetContent > .tab-panel.active")?.id;
   const exempt = activeId === "tab-home" || activeId === "tab-account" || activeId === "tab-addvehicle"
-              || activeId === "tab-sites" || activeId === "tab-smsnotif";
+              || activeId === "tab-sites" || activeId === "tab-projects" || activeId === "tab-sitehistory"
+              || activeId === "tab-smsnotif";
   // Signed-in owners with an empty fleet get the Getting Started landing,
   // never the demo prompt — their account starts clean.
   const signedIn = !!(window.fwCloud && fwCloud.user());

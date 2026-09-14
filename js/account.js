@@ -212,7 +212,7 @@ document.getElementById("authForm").addEventListener("submit", async e => {
         trial_started: new Date().toISOString().slice(0, 10)
       };
       const res = await fwCloud.signup(fd.email, fd.password, profile);
-      if (res === "ready") { await fwCloud.pull(); location.reload(); }
+      if (res === "ready") { await fwCloud.pull(); location.replace("fleet.html#home"); }
       else { showEmailConfirm(fd.email); }
     } else {
       await fwCloud.login(fd.email, fd.password);
@@ -222,7 +222,10 @@ document.getElementById("authForm").addEventListener("submit", async e => {
         return;
       }
       if (fwCloud.pull) await fwCloud.pull();
-      location.reload();
+      // Always land an owner on the welcome hub after signing in. Keeping the
+      // previous hash (for example #team) made that action look like the owner
+      // landing page after reload.
+      location.replace("fleet.html#home");
     }
   } catch (ex) { err.textContent = ex.message; err.hidden = false; }
 });
