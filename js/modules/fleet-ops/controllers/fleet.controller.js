@@ -5032,7 +5032,7 @@ function activateTab(tabName, options = {}) {
   // Home & My Account work even with an empty fleet. Signed-in owners never
   // see the demo prompt — they get the Getting Started landing instead.
   if (!db.vehicles.length) {
-    const exempt = tabName === "account" || tabName === "home" || tabName === "addvehicle"
+    const exempt = tabName === "account" || tabName === "home" || tabName === "addvehicle" || tabName === "team"
                 || tabName === "sites" || tabName === "projects" || tabName === "sitehistory"
                 || tabName === "smsnotif" || tabName === "purchaseinvoices";
     const signedIn = !!(window.fwCloud && fwCloud.user());
@@ -5852,7 +5852,7 @@ document.getElementById("sideClose")?.addEventListener("click", () =>
 function renderAll() {
   const has = db.vehicles.length > 0;
   const activeId = document.querySelector("#fleetContent > .tab-panel.active")?.id;
-  const exempt = activeId === "tab-home" || activeId === "tab-account" || activeId === "tab-addvehicle"
+  const exempt = activeId === "tab-home" || activeId === "tab-account" || activeId === "tab-addvehicle" || activeId === "tab-team"
               || activeId === "tab-sites" || activeId === "tab-projects" || activeId === "tab-sitehistory"
               || activeId === "tab-smsnotif";
   // Signed-in owners with an empty fleet get the Getting Started landing,
