@@ -43,6 +43,20 @@
     }, {});
   }
 
+  // RLS is the authoritative security boundary, but the portal must not turn
+  // a temporarily broad/misconfigured API response into a visible data leak.
+  // Vehicle assignments use the browser-stable ext_id, so intersect every
+  // vehicle response with that allow-list before it reaches the view model.
+  function assignedVehicles(vehicles, assignments) {
+    const allowed = assignments && !Array.isArray(assignments)
+      ? assignments
+      : assignmentMap(assignments || []);
+    return (vehicles || []).filter(vehicle => {
+      const extId = vehicle && (vehicle.ext_id || vehicle.extId);
+      return !!extId && Object.prototype.hasOwnProperty.call(allowed, extId);
+    });
+  }
+
   function canUseTeamPortal(membership) {
     const role = normalizeMembership(membership).role;
     return role === "driver" || role === "supervisor";
@@ -127,6 +141,7 @@
     normalizeMembership,
     normalizeAssignment,
     assignmentMap,
+    assignedVehicles,
     canUseTeamPortal,
     canUpdate,
     roleLabel,

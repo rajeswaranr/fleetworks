@@ -43,7 +43,10 @@
     },
 
     async ownerOrg() {
-      const rows = await requireCloud().authGet("memberships", "select=org_id&role=in.(owner,manager)&limit=1").catch(() => null);
+      const id = userId();
+      const rows = id
+        ? await requireCloud().authGet("memberships", `select=org_id&user_id=eq.${encodeURIComponent(id)}&role=in.(owner,manager)&limit=1`).catch(() => null)
+        : null;
       return rows && rows[0] ? rows[0].org_id : null;
     },
 

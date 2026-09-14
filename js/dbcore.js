@@ -85,7 +85,10 @@ async function dbOrgId() {
   // an unfiltered query here can pick a DIFFERENT membership row (e.g. a
   // supervisor/driver membership picked up via Team & Access) and silently
   // point every fetch at the wrong org, making a real fleet look empty.
-  let rows = await fwCloud.authGet("memberships", "select=org_id&role=in.(owner,manager)&limit=1").catch(() => null);
+  const currentUid = fwCloud.uid ? fwCloud.uid() : null;
+  let rows = currentUid
+    ? await fwCloud.authGet("memberships", "select=org_id&user_id=eq." + encodeURIComponent(currentUid) + "&role=in.(owner,manager)&limit=1").catch(() => null)
+    : null;
   if (rows && rows[0]) {
     _dbOrgId = rows[0].org_id;
     return _dbOrgId;

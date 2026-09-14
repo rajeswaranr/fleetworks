@@ -38,9 +38,13 @@ const OP_STATUS_META = {
 };
 
 async function loadVehicles(portalVehicles) {
-  // RLS (can_view_vehicle) already restricts this to assigned vehicles —
-  // no need to filter client-side; what comes back IS the permission.
-  const vehicles = portalVehicles || await fwCloud.authGet("vehicles", "select=*&order=name.asc") || [];
+  // RLS is authoritative, and this explicit intersection is defense-in-depth:
+  // even if a stale/broad database policy returns the whole organization, the
+  // team portal renders only vehicle ext_ids assigned to this login.
+  const returnedVehicles = portalVehicles || await fwCloud.authGet("vehicles", "select=*&order=name.asc") || [];
+  const vehicles = window.FWTeamAccessDomain
+    ? FWTeamAccessDomain.assignedVehicles(returnedVehicles, ASSIGN)
+    : returnedVehicles.filter(v => Object.prototype.hasOwnProperty.call(ASSIGN, v.ext_id));
 
   // Load op statuses for all visible vehicles
   const opRows = await fwCloud.authGet("vehicle_op_statuses", "select=*").catch(() => null) || [];

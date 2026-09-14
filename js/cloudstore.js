@@ -365,13 +365,15 @@
         return accountKindCache;
       }
 
-      const ownerRows = await fwCloud.authGet("memberships", "select=org_id,role&role=in.(owner,manager)&limit=1").catch(() => null);
+      const uid = fwCloud.uid();
+      const ownerRows = uid
+        ? await fwCloud.authGet("memberships", "select=org_id,role&user_id=eq." + encodeURIComponent(uid) + "&role=in.(owner,manager)&limit=1").catch(() => null)
+        : null;
       if (ownerRows && ownerRows.length) {
         accountKindCache = "owner";
         return accountKindCache;
       }
 
-      const uid = fwCloud.uid();
       if (uid) {
         const apps = await fwCloud.authGet("vendor_applications", "select=id&owner_id=eq." + encodeURIComponent(uid) + "&limit=1").catch(() => null);
         if (apps && apps.length) {
@@ -380,12 +382,11 @@
         }
       }
 
-      if (profileRole === "owner" || p.transport_name || p.gst_pan || p.fleet_size) {
-        accountKindCache = "owner";
-        return accountKindCache;
-      }
-
-      const anyRows = await fwCloud.authGet("memberships", "select=role&limit=1").catch(() => null);
+      // Membership is authoritative. Supabase user_metadata is user-editable,
+      // so profile fields must never grant access to the owner dashboard.
+      const anyRows = uid
+        ? await fwCloud.authGet("memberships", "select=role&user_id=eq." + encodeURIComponent(uid) + "&limit=1").catch(() => null)
+        : null;
       if (anyRows && anyRows.length) {
         accountKindCache = "team";
         return accountKindCache;

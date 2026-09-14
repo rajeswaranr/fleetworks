@@ -30,8 +30,9 @@
         return { uid, membership, profile, email, assignments: [], assignmentMap: {}, vehicles: [] };
       }
       const assignments = (await repo.listAssignments(uid, membership.orgId)).map(FWTeamAccessDomain.normalizeAssignment);
-      const vehicles = await repo.listVehicles();
-      return { uid, membership, profile, email, assignments, assignmentMap: FWTeamAccessDomain.assignmentMap(assignments), vehicles };
+      const assignmentMap = FWTeamAccessDomain.assignmentMap(assignments);
+      const vehicles = FWTeamAccessDomain.assignedVehicles(await repo.listVehicles(), assignmentMap);
+      return { uid, membership, profile, email, assignments, assignmentMap, vehicles };
     }),
 
     vehicleHistory: register("teamAccess.vehicleHistory", input => {

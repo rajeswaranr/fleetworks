@@ -452,7 +452,10 @@ async function getMyOrgId() {
     myOrgId = await FWTeamAccess.ownerOrg().catch(() => null);
     if (myOrgId) return myOrgId;
   }
-  const rows = await fwCloud.authGet("memberships", "select=org_id&role=in.(owner,manager)&limit=1").catch(() => null);
+  const currentUid = fwCloud.uid ? fwCloud.uid() : null;
+  const rows = currentUid
+    ? await fwCloud.authGet("memberships", "select=org_id&user_id=eq." + encodeURIComponent(currentUid) + "&role=in.(owner,manager)&limit=1").catch(() => null)
+    : null;
   myOrgId = rows && rows[0] ? rows[0].org_id : null;
   return myOrgId;
 }

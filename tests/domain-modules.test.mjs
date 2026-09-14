@@ -219,6 +219,13 @@ test('team access domain normalizes membership, assignment, and portal writes', 
     v1: 'update',
     v2: 'view',
   });
+  assert.deepEqual(plain(team.assignedVehicles([
+    { id: 'db1', ext_id: 'v1', name: 'Assigned truck' },
+    { id: 'db2', ext_id: 'v9', name: 'Another team member truck' },
+    { id: 'db3', name: 'Missing external id' },
+  ], { v1: 'view' })), [
+    { id: 'db1', ext_id: 'v1', name: 'Assigned truck' },
+  ]);
   assert.deepEqual(plain(team.normalizeFuelLog({ orgId: 'org1', vehicleId: 'veh1', litres: '12.5', amount: '1000', odo: '500' })), {
     org_id: 'org1',
     vehicle_id: 'veh1',

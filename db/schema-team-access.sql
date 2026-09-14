@@ -186,6 +186,12 @@ end $$;
 -- every read of this table (Postgres re-evaluates this same policy for the
 -- subquery's own scan), which Postgres rejects and PostgREST surfaces as a
 -- flat 500 on every single memberships request, however innocuous.
+-- Team members may read only their own membership. Owners/managers still see
+-- the organization roster through membership_admin_manage/team_roster below.
+drop policy if exists membership_read on memberships;
+create policy membership_read on memberships for select to authenticated
+  using (user_id = auth.uid());
+
 drop policy if exists membership_admin_manage on memberships;
 create policy membership_admin_manage on memberships for all to authenticated
   using (is_org_admin(org_id))

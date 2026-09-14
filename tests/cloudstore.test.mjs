@@ -176,6 +176,30 @@ test('admin accounts are classified before owner or partner lookups', async () =
   assert.equal(fetchCalls.some(([u]) => u.includes('/rest/v1/vendor_applications')), false);
 });
 
+test('account classification scopes every membership lookup to the signed-in user', async () => {
+  const { window, fetchCalls } = loadCloudstore();
+
+  await window.fwCloud.login('driver@example.com', 'secret-1');
+  const kind = await window.fwCloud.accountKind();
+
+  assert.equal(kind, 'unknown');
+  const membershipCalls = fetchCalls.filter(([u]) => u.includes('/rest/v1/memberships'));
+  assert.equal(membershipCalls.length, 2);
+  assert.equal(membershipCalls.every(([u]) => u.includes('user_id=eq.user-driver%40example.com')), true);
+});
+
+test('user-editable owner profile metadata cannot grant owner dashboard classification', async () => {
+  const { window } = loadCloudstore();
+
+  await window.fwCloud.login('driver@example.com', 'secret-1');
+  const activeKey = window.localStorage.getItem('fw_session:active');
+  const active = JSON.parse(window.localStorage.getItem(activeKey));
+  active.user.user_metadata = { fleetworks_role: 'owner', transport_name: 'Not authoritative' };
+  window.localStorage.setItem(activeKey, JSON.stringify(active));
+
+  assert.equal(await window.fwCloud.accountKind(), 'unknown');
+});
+
 test('logout removes only the active session and preserves the previous account', async () => {
   const { window, localStorage } = loadCloudstore();
   const fwCloud = window.fwCloud;
