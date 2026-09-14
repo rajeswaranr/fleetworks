@@ -2196,6 +2196,7 @@ window.dispatchPlanAll = async function() {
 let _sites    = [];   // site rows from DB
 let _siteVeh  = {};   // { siteId: [site_vehicle_assignments rows] }
 let _siteStaff = {};  // { siteId: [site_staff_assignments rows] }
+let _teamRoster = []; // owner-visible supervisor/driver vehicle assignments
 // reverse map: vehicleDbId → { site, sva row }
 let _vehSiteMap  = {};
 // vehicle manual status overrides: vehicleId → 'moving'|'halted'|null
@@ -2250,22 +2251,30 @@ function filteredVehicles() {
     const siteIds = _sites.filter(s => s.supervisor_name === value || s.supervisor_user_id === value).map(s => s.id);
     const vDbIds  = new Set();
     siteIds.forEach(sid => (_siteVeh[sid] || []).filter(r => !r.removed_date).forEach(r => vDbIds.add(r.vehicle_id)));
-    return db.vehicles.filter(v => vDbIds.has(v.dbId));
+    const member = _teamRoster.find(m => m.role === "supervisor" && (m.user_id === value || m.email === value));
+    const extIds = new Set(member?.assigned_vehicles || []);
+    return db.vehicles.filter(v => vDbIds.has(v.dbId) || extIds.has(v.id));
   }
   if (by === "driver") {
     const d = db.drivers.find(d => d.id === value || d.name === value);
-    return d && d.vehicleId ? db.vehicles.filter(v => v.id === d.vehicleId) : [];
+    const member = _teamRoster.find(m => m.role === "driver" && (m.user_id === value || m.email === value));
+    const extIds = new Set(member?.assigned_vehicles || []);
+    return db.vehicles.filter(v => (d && d.vehicleId === v.id) || extIds.has(v.id));
   }
   return db.vehicles;
 }
 
 // ── data load ──────────────────────────────────────────────────────────────
 async function loadSites() {
-  if (!coreDbBacked()) { _sites = []; _siteVeh = {}; _siteStaff = {}; _vehSiteMap = {}; return; }
+  if (!coreDbBacked()) { _sites = []; _siteVeh = {}; _siteStaff = {}; _vehSiteMap = {}; _teamRoster = []; return; }
+  const orgId = typeof dbOrgId === "function" ? await dbOrgId() : null;
+  _teamRoster = orgId
+    ? await fwCloud.authRpc("team_roster", { p_org: orgId }).catch(() => []) || []
+    : [];
   // Keep completed/cancelled rows in memory: the Site History view needs them.
   // Individual operational views filter to active rows when appropriate.
   _sites = await fwCloud.authGet("sites", "select=*&order=created_at.desc") || [];
-  if (!_sites.length) { _siteVeh = {}; _siteStaff = {}; _vehSiteMap = {}; return; }
+  if (!_sites.length) { _siteVeh = {}; _siteStaff = {}; _vehSiteMap = {}; populateFilterDropdowns(); return; }
   const ids = _sites.map(s => s.id);
   const vaRows = await fwCloud.authGet("site_vehicle_assignments",
     `select=*&site_id=in.(${ids.join(",")})&order=assigned_date.desc`) || [];
@@ -2294,12 +2303,19 @@ function populateFilterDropdowns() {
     el.value = cur;
   });
 
-  const sups = [...new Set(_sites.filter(s => s.supervisor_name).map(s => s.supervisor_name))];
-  const supOpts = sups.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+  const sups = [
+    ..._sites.filter(s => s.supervisor_name).map(s => ({ value: s.supervisor_name, label: s.supervisor_name })),
+    ..._teamRoster.filter(m => m.role === "supervisor").map(m => ({ value: m.user_id, label: m.email || "Supervisor" })),
+  ].filter((item, index, all) => all.findIndex(x => x.value === item.value) === index);
+  const supOpts = sups.map(s => `<option value="${esc(s.value)}">${esc(s.label)}</option>`).join("");
   const supEl = document.getElementById("fltSupervisor");
   if (supEl) supEl.innerHTML = `<option value="">— Supervisor —</option>${supOpts}`;
 
-  const drvOpts = db.drivers.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join("");
+  const drivers = [
+    ...db.drivers.map(d => ({ value: d.id, label: d.name })),
+    ..._teamRoster.filter(m => m.role === "driver").map(m => ({ value: m.user_id, label: m.email || "Driver" })),
+  ].filter((item, index, all) => all.findIndex(x => x.value === item.value) === index);
+  const drvOpts = drivers.map(d => `<option value="${esc(d.value)}">${esc(d.label)}</option>`).join("");
   ["fltDriver","fltDriverFin"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = `<option value="">— Driver —</option>${drvOpts}`;

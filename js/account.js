@@ -36,6 +36,12 @@ function applyAuthGate() {
 
 function showWrongPortal(kind) {
   sessionStorage.removeItem("fwDemo");
+  // Team accounts have a dedicated, vehicle-scoped portal. Do not leave a
+  // driver/supervisor sitting behind the owner shell after classification.
+  if (kind === "team") {
+    location.replace("team.html");
+    return;
+  }
   document.getElementById("authGate").hidden = false;
   const shell = document.querySelector(".app-shell");
   if (shell) shell.style.display = "none";
