@@ -1,0 +1,145 @@
+FleetWorks — Connect to Supabase and Deploy Database Migrations
+================================================================
+
+Project directory:
+/run/media/sharanesh-singapurean/GeethaSasi/FleetWorks_Project/fleetworks
+
+Supabase project reference:
+crdblxeufbhysglbbtxi
+
+
+1. Open a terminal and enter the FleetWorks project directory
+--------------------------------------------------------------
+
+cd /run/media/sharanesh-singapurean/GeethaSasi/FleetWorks_Project/fleetworks
+
+
+2. Log in to Supabase
+---------------------
+
+npx supabase@latest login
+
+This opens a browser or asks for a Supabase personal access token.
+Log in with the Supabase account that owns the FleetWorks project.
+
+
+3. Connect this local repository to the Supabase project
+---------------------------------------------------------
+
+npx supabase@latest link --project-ref crdblxeufbhysglbbtxi
+
+When prompted, enter the database password for the Supabase project.
+
+The database password can be changed from:
+Supabase Dashboard -> Project Settings -> Database
+
+
+4. Preview pending migrations (always do this first)
+----------------------------------------------------
+
+npx supabase@latest db push --dry-run
+
+Check the output before continuing. For the driver/owner permission fix, it
+should include:
+
+20260914120000_membership_self_scope.sql
+
+The command may show other migrations that have not yet been deployed.
+"db push" deploys every pending migration in timestamp order.
+
+
+5. Deploy the pending migrations
+--------------------------------
+
+npx supabase@latest db push
+
+Approve the migration list if the CLI asks for confirmation. A successful run
+normally ends with a message saying that the remote database is up to date.
+
+
+6. Verify migration status
+--------------------------
+
+npx supabase@latest migration list
+
+The local and remote columns should both contain:
+
+20260914120000
+
+You can also run another preview:
+
+npx supabase@latest db push --dry-run
+
+It should say the linked project is up to date.
+
+
+7. Test the permission fix
+--------------------------
+
+1. Deploy the updated FleetWorks website files.
+2. Sign out of all FleetWorks accounts.
+3. Hard-refresh the browser with Ctrl+Shift+R.
+4. Sign in as the owner and confirm the complete fleet is visible.
+5. Sign in through team.html as a supervisor and confirm that only assigned
+   vehicles are visible.
+6. Sign in through team.html as a driver and confirm that only assigned
+   vehicles are visible.
+
+
+Important safety warnings
+-------------------------
+
+DO NOT run:
+
+npx supabase@latest db reset --linked
+
+That command can erase and rebuild the linked remote database. It must not be
+used on the production FleetWorks project.
+
+Do not use "--include-seed" when deploying to production because it can add
+development/test data.
+
+Always run "db push --dry-run" before running "db push".
+
+
+Useful commands
+---------------
+
+Show installed Supabase CLI version:
+npx supabase@latest --version
+
+Show linked migration history:
+npx supabase@latest migration list
+
+Preview pending database changes:
+npx supabase@latest db push --dry-run
+
+Deploy pending migrations:
+npx supabase@latest db push
+
+Log in again if the token expires:
+npx supabase@latest login
+
+Reconnect to the FleetWorks project:
+npx supabase@latest link --project-ref crdblxeufbhysglbbtxi
+
+
+Troubleshooting
+---------------
+
+Problem: "Access token not provided"
+Solution: Run "npx supabase@latest login" again.
+
+Problem: Database password/authentication error
+Solution: Confirm or reset the database password in Supabase Dashboard under
+Project Settings -> Database, and run the link command again.
+
+Problem: Migration history is out of sync
+Solution: Do not reset the production database. Read the CLI error carefully
+and inspect "npx supabase@latest migration list" before using any migration
+repair command.
+
+Problem: Driver still sees old screens after successful migration
+Solution: Confirm the updated website was also deployed, sign out, clear the
+site cache or hard-refresh with Ctrl+Shift+R, and then sign in through
+team.html.
