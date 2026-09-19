@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  # MQTT Broker - Receives data from vehicle IoT devices
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: fleetworks-mosquitto
+    ports:
+      - "1883:1883"  # MQTT unencrypted
+      - "8883:8883"  # MQTT encrypted (TLS)
+      - "9001:9001"  # WebSocket
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    environment:
+      - TZ=Asia/Kolkata
+    restart: unless-stopped
+    networks:
+      - fleetworks
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "health", "-m", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Telegraf - Metrics collection agent
+  telegraf:
+    image: telegraf:latest
+    container_name: fleetworks-telegraf
+    ports:
+      - "8125:8125/udp"  # StatsD listener
+      - "9273:9273"      # Prometheus metrics
+    volumes:
+      - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - telegraf_logs:/var/log/telegraf
+    environment:
+      # MQTT Configuration
+      MQTT_BROKER: mosquitto
+      MQTT_USERNAME: fleetworks
+      MQTT_PASSWORD: ${MQTT_PASSWORD:-change-me-in-production}
+
+      # Supabase Configuration
+      SUPABASE_FUNCTION_URL: ${SUPABASE_FUNCTION_URL}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
+
+      # InfluxDB (optional)
+      INFLUXDB_URL: ${INFLUXDB_URL:-}
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-}
+      INFLUXDB_ORG: ${INFLUXDB_ORG:fleetworks}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET:vehicle_metrics}
+
+      # Samsara (optional)
+      SAMSARA_API_TOKEN: ${SAMSARA_API_TOKEN:-}
+
+      # Timezone
+      TZ: Asia/Kolkata
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - fleetworks
+    healthcheck:
+      test: ["CMD", "telegraf", "--config=/etc/telegraf/telegraf.conf", "--test"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Optional: Grafana for dashboard visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: fleetworks-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      TZ: Asia/Kolkata
+    volumes:
+      - grafana_storage:/var/lib/grafana
+      - ./grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    depends_on:
+      - telegraf
+    restart: unless-stopped
+    networks:
+      - fleetworks
+
+volumes:
+  mosquitto_data:
+    driver: local
+  mosquitto_logs:
+    driver: local
+  telegraf_logs:
+    driver: local
+  grafana_storage:
+    driver: local
+
+networks:
+  fleetworks:
+    driver: bridge
