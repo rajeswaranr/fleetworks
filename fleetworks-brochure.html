@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FleetWorks: 66 Features of India's AI Fleet Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    :root {
+      --primary: #0f1e33;
+      --primary-dark: #0a1420;
+      --accent: #00d9ff;
+      --accent-alt: #10b981;
+      --warning: #f59e0b;
+      --critical: #ef4444;
+      --surface-1: #f8fafc;
+      --surface-2: #e2e8f0;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #cbd5e1;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --primary: #0f1e33;
+        --primary-dark: #0a1420;
+        --accent: #00d9ff;
+        --accent-alt: #10b981;
+        --warning: #f59e0b;
+        --critical: #ef4444;
+        --surface-1: #1e293b;
+        --surface-2: #334155;
+        --text: #f1f5f9;
+        --text-muted: #cbd5e1;
+        --border: #475569;
+      }
+    }
+
+    :root[data-theme="dark"] {
+      --primary: #0f1e33;
+      --primary-dark: #0a1420;
+      --accent: #00d9ff;
+      --accent-alt: #10b981;
+      --warning: #f59e0b;
+      --critical: #ef4444;
+      --surface-1: #1e293b;
+      --surface-2: #334155;
+      --text: #f1f5f9;
+      --text-muted: #cbd5e1;
+      --border: #475569;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: var(--surface-1);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .pdf-button-wrapper {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1000;
+      display: flex;
+      gap: 12px;
+    }
+
+    .pdf-btn {
+      padding: 12px 20px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.95rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .pdf-btn:hover {
+      background: var(--primary-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .pdf-btn.loading {
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .brochure {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: var(--surface-1);
+      padding-top: 80px;
+    }
+
+    /* Hero Section */
+    .hero {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 60px 20px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -10%;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+      opacity: 0.1;
+      pointer-events: none;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 3.2rem;
+      font-weight: 800;
+      margin-bottom: 16px;
+      letter-spacing: -1px;
+    }
+
+    .hero .tagline {
+      font-size: 1.3rem;
+      color: var(--accent);
+      margin-bottom: 24px;
+      font-weight: 600;
+    }
+
+    .hero p {
+      font-size: 1.1rem;
+      max-width: 700px;
+      margin: 0 auto 20px;
+      color: rgba(255, 255, 255, 0.9);
+      line-height: 1.8;
+    }
+
+    .feature-count {
+      display: inline-block;
+      background: var(--accent);
+      color: var(--primary);
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-top: 20px;
+    }
+
+    /* Section */
+    .section {
+      padding: 60px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.4rem;
+      margin-bottom: 12px;
+      color: var(--primary);
+    }
+
+    .section-subtitle {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      margin-bottom: 40px;
+      max-width: 800px;
+    }
+
+    /* Features Grid */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+
+    .feature-card {
+      background: var(--surface-2);
+      padding: 24px;
+      border-radius: 12px;
+      border-left: 4px solid var(--accent);
+      page-break-inside: avoid;
+    }
+
+    .feature-card h3 {
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .feature-card p {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .feature-icon {
+      display: inline-block;
+      font-size: 1.8rem;
+      margin-bottom: 12px;
+    }
+
+    /* Module Sections */
+    .module-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .module-icon {
+      font-size: 2.8rem;
+      opacity: 0.9;
+    }
+
+    .module-info h3 {
+      font-size: 1.3rem;
+      margin-bottom: 4px;
+      color: var(--primary);
+      font-weight: 700;
+    }
+
+    .module-info p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    /* Unique Advantages */
+    .advantages {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+      margin-top: 40px;
+    }
+
+    .advantage {
+      background: var(--surface-2);
+      padding: 32px;
+      border-radius: 12px;
+      text-align: center;
+      page-break-inside: avoid;
+    }
+
+    .advantage-icon {
+      font-size: 2.4rem;
+      margin-bottom: 16px;
+    }
+
+    .advantage h3 {
+      font-size: 1.2rem;
+      margin-bottom: 12px;
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .advantage p {
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* Comparison Table */
+    .comparison {
+      overflow-x: auto;
+      margin-top: 30px;
+      page-break-inside: avoid;
+    }
+
+    .comparison table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface-2);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .comparison th {
+      background: var(--primary);
+      color: white;
+      padding: 16px;
+      text-align: left;
+      font-weight: 700;
+    }
+
+    .comparison td {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .comparison tr:last-child td {
+      border-bottom: none;
+    }
+
+    .check {
+      color: var(--accent-alt);
+      font-weight: 700;
+      font-size: 1.2rem;
+    }
+
+    .cross {
+      color: var(--critical);
+      font-weight: 700;
+    }
+
+    /* CTA Section */
+    .cta-section {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+      color: white;
+      padding: 60px 20px;
+      text-align: center;
+      border-radius: 12px;
+      margin: 40px 20px;
+    }
+
+    .cta-section h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.2rem;
+      margin-bottom: 20px;
+      color: white;
+    }
+
+    .cta-section p {
+      font-size: 1.1rem;
+      margin-bottom: 30px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+      color: rgba(255, 255, 255, 0.95);
+    }
+
+    .cta-button {
+      display: inline-block;
+      background: white;
+      color: var(--primary);
+      padding: 16px 40px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      text-decoration: none;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .cta-button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Footer */
+    .footer {
+      background: var(--primary);
+      color: white;
+      padding: 40px 20px;
+      text-align: center;
+      font-size: 0.95rem;
+    }
+
+    .footer p {
+      margin-bottom: 10px;
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    .contact-info {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    /* Print Styles */
+    @media print {
+      .pdf-button-wrapper {
+        display: none;
+      }
+
+      .brochure {
+        padding-top: 0;
+      }
+
+      body {
+        background: white;
+      }
+
+      .section {
+        page-break-inside: avoid;
+      }
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero h1 {
+        font-size: 2.2rem;
+      }
+
+      .section h2 {
+        font-size: 1.8rem;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .pdf-button-wrapper {
+        top: 10px;
+        right: 10px;
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="pdf-button-wrapper">
+    <button class="pdf-btn" onclick="generatePDF()">📥 Download PDF</button>
+    <button class="pdf-btn" onclick="window.print()">🖨️ Print</button>
+  </div>
+
+  <div class="brochure" id="brochureContent">
+    <!-- Hero Section -->
+    <div class="hero">
+      <div class="hero-content">
+        <h1>FleetWorks</h1>
+        <div class="tagline">India's First AI/ML Vehicle Management Platform</div>
+        <p>One platform for operations, safety, compliance, and analytics. Built for India's fleet operators, truck owners, and logistics companies.</p>
+        <div class="feature-count">66 Unique Features</div>
+      </div>
+    </div>
+
+    <!-- FleetSafe Module -->
+    <div class="section">
+      <div class="module-header">
+        <div class="module-icon">🛡️</div>
+        <div class="module-info">
+          <h3>FleetSafe: Driver & Vehicle Safety</h3>
+          <p>Real-time safety monitoring, incident tracking, and preventive analytics</p>
+        </div>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">📹</div>
+          <h3>Live Video Dashboard</h3>
+          <p>Real-time dashcam & 360° camera feeds. HLS streaming with 3-5s latency. GPS-synchronized playback.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🎯</div>
+          <h3>Safety Events Tracking</h3>
+          <p>Harshly braking, rapid acceleration, lane drift detection. Severity color-coded alerts.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Driver Scorecards</h3>
+          <p>Performance ratings with critical event counts. Coaching assignment workflow.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🛞</div>
+          <h3>TPMS Safety Monitoring</h3>
+          <p>Real-time tire pressure monitoring. Critical alerts for imminent failure (>80% risk). 7-day AI predictions.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">❄️</div>
+          <h3>Cold Chain Management</h3>
+          <p>Temperature monitoring for refrigerated cargo. FSSAI compliance. Cargo loss estimation.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📍</div>
+          <h3>Geofencing & Route Alerts</h3>
+          <p>Define safe zones & routes. Instant alerts for deviations or unauthorized stops.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- FleetOps Module -->
+    <div class="section">
+      <div class="module-header">
+        <div class="module-icon">🚗</div>
+        <div class="module-info">
+          <h3>FleetOps: Fleet & Vehicle Management</h3>
+          <p>Vehicle lifecycle, maintenance, compliance, and operational efficiency</p>
+        </div>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">📋</div>
+          <h3>Vehicle Registry & RTO Compliance</h3>
+          <p>Track insurance, PUC, fitness, permit, RC validity. Automated renewal reminders (30/15/7 days before expiry).</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔧</div>
+          <h3>Maintenance Scheduling</h3>
+          <p>Preventive maintenance by km/months. Service center integration. Parts inventory tracking.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⛽</div>
+          <h3>Fuel Dashboard & Analytics</h3>
+          <p>Fleet-wide fuel consumption tracking. 14-day mileage trends. Top consumption factors.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🚨</div>
+          <h3>Fuel Pilferage Detection</h3>
+          <p>AI anomaly detection with 25% variance threshold. Confidence scoring. Estimated loss in liters & rupees.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">💳</div>
+          <h3>Fleet Card Integration</h3>
+          <p>Multi-provider tracking (HPCL, BPCL, IOCL, JIOBP). Rate & liter analysis. Usage statistics.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">👥</div>
+          <h3>Driver Settlement Module</h3>
+          <p>Automated pay calculation: base + distance (₹1.5/km) + dearness (₹2/km) + halt allowance (₹100).</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📱</div>
+          <h3>Trip Management</h3>
+          <p>Real-time trip progression with actual vs planned distance. ETA calculation. Pre-trip checklists.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🛞</div>
+          <h3>RFID Tire Tracking</h3>
+          <p>Impinj Monza Gen2+ tags (915 MHz). Real-time pressure, temperature, wear monitoring. 5-10m read range.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">👨‍💼</div>
+          <h3>Team Access & Permissions</h3>
+          <p>Role-based access (Supervisor, Driver). Vehicle-scoped logins via RLS. Separate team.html portal.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Overview Dashboard</h3>
+          <p>Real-time vehicle status board (max 10). 3-way filtering: Site, Supervisor, Driver. Utilization %.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- GST Compliance Module -->
+    <div class="section">
+      <div class="module-header">
+        <div class="module-icon">📜</div>
+        <div class="module-info">
+          <h3>GST Compliance Suite</h3>
+          <p>India-exclusive tax compliance automation and documentation</p>
+        </div>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🧾</div>
+          <h3>GST Invoice Generator</h3>
+          <p>Auto-generate from trip data. SGST/CGST/IGST calculations (5%, 12%, 18%, 28% configurable).</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📋</div>
+          <h3>E-way Bill Generation</h3>
+          <p>SBIN API integration with OAuth. 30-min validity. Automatic bill creation from GST invoices.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">💰</div>
+          <h3>Monthly Settlement & GSTR-1</h3>
+          <p>Automated settlement summary. GSTR-1 filing ready. Monthly compliance reports.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔐</div>
+          <h3>Audit Trail & Certification</h3>
+          <p>100% compliance audit log. Encrypted credential storage. Tamper-proof documentation.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- FleetInsure Module -->
+    <div class="section">
+      <div class="module-header">
+        <div class="module-icon">🛡️</div>
+        <div class="module-info">
+          <h3>FleetInsure: Insurance Management</h3>
+          <p>Policy tracking, claims management, and coverage analysis</p>
+        </div>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">📋</div>
+          <h3>Insurance Policy Tracker</h3>
+          <p>Comprehensive policy details. Premium tracking. Expiry reminders (30/15/7 days).</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📞</div>
+          <h3>Claims Management</h3>
+          <p>Claim filing workflow. Status tracking. Document upload. Settlement tracking.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Coverage Analysis</h3>
+          <p>Compare policies. Coverage gaps identification. Premium optimization suggestions.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">✅</div>
+          <h3>Compliance Dashboard</h3>
+          <p>Real-time compliance status. Policy validity matrix. Risk assessment.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- FleetAI Module -->
+    <div class="section">
+      <div class="module-header">
+        <div class="module-icon">🤖</div>
+        <div class="module-info">
+          <h3>FleetAI: Predictive Analytics</h3>
+          <p>AI-powered insights, forecasts, and recommendations</p>
+        </div>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">🔮</div>
+          <h3>Maintenance Predictions</h3>
+          <p>AI forecasts component failures 30 days in advance based on sensor data.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">💔</div>
+          <h3>Tire Failure Forecasting</h3>
+          <p>7-day failure probability (0-100%). Wear rate calculation (mm/day & mm/1000km). Replacement scheduling.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📈</div>
+          <h3>Price Anomaly Detection</h3>
+          <p>Spare parts pricing analysis. Detect overcharging. Supplier optimization.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🗺️</div>
+          <h3>Route Optimization</h3>
+          <p>Real-time route suggestions. Fuel & time optimization. Traffic-aware ETA.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⭐</div>
+          <h3>Driver Safety Scoring</h3>
+          <p>Multi-factor driver rating. Safety event weighting. Coaching recommendations.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Fleet Analytics</h3>
+          <p>Usage patterns, efficiency trends, ROI analysis. Custom report generation.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Communications -->
+    <div class="section">
+      <div class="module-header">
+        <div class="module-icon">📢</div>
+        <div class="module-info">
+          <h3>Communications & Alerts</h3>
+          <p>Multi-channel notifications and real-time alerts</p>
+        </div>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon">💬</div>
+          <h3>SMS Alerts (MSG91)</h3>
+          <p>Indian SMS provider integration. DLT template support (SOS, Halt, Dispatch, WorkOrder).</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📱</div>
+          <h3>WhatsApp Integration</h3>
+          <p>Interactive WhatsApp notifications. Driver messaging. Team alerts.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🔔</div>
+          <h3>Push Notifications</h3>
+          <p>Real-time app notifications. Configurable alert rules. Priority-based delivery.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⚙️</div>
+          <h3>SMS Configuration Dashboard</h3>
+          <p>Customize alert templates. Set alert frequencies. Manage notification rules.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Unique Advantages Section -->
+    <div class="section">
+      <h2>Why FleetWorks is Different</h2>
+      <p class="section-subtitle">10 features no competitor offers in India</p>
+
+      <div class="advantages">
+        <div class="advantage">
+          <div class="advantage-icon">🛞</div>
+          <h3>TPMS in Safety Module</h3>
+          <p>Tire failures framed as safety first, not maintenance. Critical risk >80% triggers immediate action.</p>
+        </div>
+        <div class="advantage">
+          <div class="advantage-icon">❄️</div>
+          <h3>Cold Chain Monitoring</h3>
+          <p>Real-time temp tracking for 6 product types. FSSAI compliance automation. Cargo loss estimation.</p>
+        </div>
+        <div class="advantage">
+          <div class="advantage-icon">📜</div>
+          <h3>GST E-way Bills</h3>
+          <p>Automated SBIN API integration. GSTR-1 ready. 100% audit trail for compliance.</p>
+        </div>
+        <div class="advantage">
+          <div class="advantage-icon">⛽</div>
+          <h3>Fuel Pilferage Detection</h3>
+          <p>AI anomaly detection with confidence scoring. Tracks estimated loss in liters & rupees.</p>
+        </div>
+        <div class="advantage">
+          <div class="advantage-icon">💳</div>
+          <h3>Fleet Card Integration</h3>
+          <p>All 4 major Indian providers (HPCL, BPCL, IOCL, JIOBP). Rate & liter analysis built-in.</p>
+        </div>
+        <div class="advantage">
+          <div class="advantage-icon">👨‍💼</div>
+          <h3>Driver Settlement</h3>
+          <p>Automated pay calc: base + km distance + dearness + halt allowance. Deduction tracking.</p>
+        </div>
+        <div class="advantage">
+          <div class="advantage-icon">📡</div>
+          <h3>SMS Alerts (MSG91)</h3>
+          <p>Indian SMS provider with DLT compliance. Not Twilio or AWS (which struggle with Indian telcos).</p>
+        </div>
+        <div class="advantage">
+          <div class="advantage-icon">🎯</div>
+          <h3>Tire AI Predictions</h3>
+          <p>7-day failure forecasting. Wear rate calculation (mm/day). 30% pressure, 25% temp, 30% wear, 15% age weighting.</p>
+        </div>
+        <div class="advantage">
+          <div class="advantage-icon">💰</div>
+          <h3>Pricing & Flexibility</h3>
+          <p>₹300-900/month vs competitors at ₹750-3000/month. No lock-in contracts.</p>
+        </div>
+        <div class="advantage">
+          <div class="advantage-icon">🏭</div>
+          <h3>No Self-Hosted Infra</h3>
+          <p>Everything on Supabase Edge Functions. Zero DevOps overhead. India-hosted (Mumbai data center).</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Competitor Comparison -->
+    <div class="section">
+      <h2>Competitive Comparison</h2>
+      <p class="section-subtitle">How FleetWorks stacks up against global competitors</p>
+
+      <div class="comparison">
+        <table>
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>FleetWorks</th>
+              <th>Samsara</th>
+              <th>Geotab</th>
+              <th>Fleetio</th>
+              <th>Motive</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>TPMS in Safety</td>
+              <td class="check">✓</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+            </tr>
+            <tr>
+              <td>Tire Failure AI (7-day)</td>
+              <td class="check">✓</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+            </tr>
+            <tr>
+              <td>GST E-way Bills</td>
+              <td class="check">✓</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+            </tr>
+            <tr>
+              <td>Fuel Pilferage Detection</td>
+              <td class="check">✓</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+            </tr>
+            <tr>
+              <td>Fleet Card Integration</td>
+              <td class="check">✓</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+            </tr>
+            <tr>
+              <td>Driver Settlement Module</td>
+              <td class="check">✓</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+            </tr>
+            <tr>
+              <td>Cold Chain Monitoring</td>
+              <td class="check">✓</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+            </tr>
+            <tr>
+              <td>SMS Alerts (Indian)</td>
+              <td class="check">✓</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+              <td class="cross">✗</td>
+            </tr>
+            <tr>
+              <td>15-day Free Trial</td>
+              <td class="check">✓</td>
+              <td class="cross">✗</td>
+              <td class="check">✓</td>
+              <td class="check">✓</td>
+              <td class="check">✓</td>
+            </tr>
+            <tr>
+              <td>Base Price/Month</td>
+              <td>₹300-900</td>
+              <td>₹2000+</td>
+              <td>₹750-1350</td>
+              <td>₹300-750</td>
+              <td>₹1500-3000</td>
+            </tr>
+            <tr>
+              <td>No Lock-in</td>
+              <td class="check">✓</td>
+              <td class="cross">36mo</td>
+              <td class="check">✓</td>
+              <td class="check">✓</td>
+              <td class="check">✓</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="section">
+      <h2>FleetWorks by Numbers</h2>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div style="font-size: 2.8rem; font-weight: 800; color: var(--accent); margin-bottom: 12px;">66</div>
+          <h3>Unique Features</h3>
+          <p>Across 5 specialized modules, built for India's fleet operators.</p>
+        </div>
+        <div class="feature-card">
+          <div style="font-size: 2.8rem; font-weight: 800; color: var(--accent-alt); margin-bottom: 12px;">10</div>
+          <h3>India-Exclusive Features</h3>
+          <p>Gaps in global competitors that FleetWorks uniquely addresses.</p>
+        </div>
+        <div class="feature-card">
+          <div style="font-size: 2.8rem; font-weight: 800; color: var(--accent); margin-bottom: 12px;">30 days</div>
+          <h3>Data Retention</h3>
+          <p>TimescaleDB auto-compression with 90-day retention for deep analytics.</p>
+        </div>
+        <div class="feature-card">
+          <div style="font-size: 2.8rem; font-weight: 800; color: var(--accent-alt); margin-bottom: 12px;">3-5s</div>
+          <h3>Video Latency</h3>
+          <p>Real-time dashcam feeds via HLS/Nginx RTMP. Not cloud-dependent.</p>
+        </div>
+        <div class="feature-card">
+          <div style="font-size: 2.8rem; font-weight: 800; color: var(--accent); margin-bottom: 12px;">0.1 sec</div>
+          <h3>Geofence Alerts</h3>
+          <p>Instant notification on zone violation or unauthorized stop.</p>
+        </div>
+        <div class="feature-card">
+          <div style="font-size: 2.8rem; font-weight: 800; color: var(--accent-alt); margin-bottom: 12px;">100%</div>
+          <h3>Compliance Coverage</h3>
+          <p>RTO compliance, GST automation, FSSAI cold chain, driver settlement.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA Section -->
+    <div class="cta-section">
+      <h2>Ready to Transform Your Fleet?</h2>
+      <p>Join India's leading fleet operators using FleetWorks to reduce costs, improve safety, and stay compliant.</p>
+      <a href="https://fleetworks.in" class="cta-button">Start 15-Day Free Trial →</a>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <p><strong>FleetWorks Private Limited</strong></p>
+      <p>India's First AI/ML Vehicle Management Platform</p>
+      <p>Live at: <a href="https://fleetworks.in" style="color: var(--accent);">https://fleetworks.in</a></p>
+      <div class="contact-info">
+        <p>📧 Admin: admin@fleetworks.in</p>
+        <p>📧 Support: support@fleetworks.in</p>
+        <p>📞 Phone: +91 97407 99722</p>
+        <p>🏢 Data Center: Mumbai (Supabase)</p>
+      </div>
+      <p style="margin-top: 20px; opacity: 0.8;">© 2026 FleetWorks Private Limited. All rights reserved.</p>
+    </div>
+  </div>
+
+  <script>
+    function generatePDF() {
+      const element = document.getElementById('brochureContent');
+      const opt = {
+        margin: 10,
+        filename: 'FleetWorks-Brochure-66-Features.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+      };
+
+      const btn = event.target;
+      btn.classList.add('loading');
+      btn.textContent = '⏳ Generating...';
+
+      html2pdf().set(opt).from(element).save().then(() => {
+        btn.classList.remove('loading');
+        btn.textContent = '📥 Download PDF';
+      });
+    }
+  </script>
+</body>
+</html>
