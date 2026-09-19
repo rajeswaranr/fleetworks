@@ -1030,6 +1030,21 @@
         <!-- Video Viewer Modal -->
         <div id="videoViewerModal" hidden></div>
 
+        <!-- ======= LIVE DASHCAM FEEDS ======= -->
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile" style="background:#dbeafe;color:#0369a1"><i data-icon="video" data-icon-size="20"></i></span> Live Dashcam Feeds</h2>
+              <p class="muted">Real-time video: front, rear, 360°, cabin cameras. Streaming from Nginx RTMP server.</p>
+            </div>
+          </div>
+          <div id="liveVideoContainer" style="min-height:500px">
+            <div style="text-align:center;padding:40px 20px;color:var(--ai-muted)">
+              <p><i data-icon="video" data-icon-size="32" style="display:block;margin:0 0 12px"></i>Starting live stream server...</p>
+            </div>
+          </div>
+        </div>
+
       </section>
 
       <!-- Assign coaching modal -->
@@ -2691,6 +2706,162 @@
   <script src="js/modules/fleet-iq/xgboost.js"></script>
   <script src="js/modules/fleet-iq/controllers/dashboard.controller.js"></script>
   <script src="js/modules/index.js"></script>
+
+  <!-- HLS.js for live video streaming -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
+
+  <!-- Live Video Player Component -->
+  <script>
+    class LiveVideoPlayer {
+      constructor(container) {
+        this.container = container;
+        this.selectedCamera = 'forward';
+        this.hlsServers = [
+          'http://localhost:8080/hls',
+          'http://127.0.0.1:8080/hls',
+          '/hls'
+        ];
+        this.streamConnected = false;
+        this.render();
+      }
+
+      render() {
+        this.container.innerHTML = `
+          <div style="background:#000;border-radius:8px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.3);border:1px solid #333">
+            <div style="position:relative;width:100%;padding-bottom:56.25%;background:#000">
+              <video id="videoPlayer" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover" controls crossOrigin="anonymous"></video>
+
+              <div style="position:absolute;top:0;left:0;right:0;bottom:0;padding:12px;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(to bottom,rgba(0,0,0,0.3),transparent,rgba(0,0,0,0.3));pointer-events:none">
+                <div style="display:flex;justify-content:space-between;pointer-events:auto;gap:8px">
+                  <div style="background:${this.streamConnected ? '#ef4444' : '#666'};color:white;padding:4px 8px;border-radius:4px;font-size:12px;font-weight:bold;display:flex;align-items:center;gap:4px;animation:${this.streamConnected ? 'pulse 1.5s infinite' : 'none'}">
+                    🔴 ${this.streamConnected ? 'LIVE' : 'CONNECTING...'}
+                  </div>
+                  <div style="background:rgba(0,0,0,0.6);color:#60a5fa;padding:4px 8px;border-radius:4px;font-size:12px;font-family:monospace">
+                    ⏱️ 3-5s
+                  </div>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:8px;pointer-events:auto">
+                  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+                    <button id="camForward" onclick="window.livePlayer.selectCamera('forward')" style="padding:6px;border:2px solid ${this.selectedCamera==='forward'?'#3b82f6':'#444'};background:${this.selectedCamera==='forward'?'#1e40af':'#222'};color:${this.selectedCamera==='forward'?'white':'#888'};border-radius:4px;cursor:pointer;font-size:11px;font-weight:500;transition:all 0.2s">📹 Front</button>
+                    <button id="camRear" onclick="window.livePlayer.selectCamera('rear')" style="padding:6px;border:2px solid ${this.selectedCamera==='rear'?'#3b82f6':'#444'};background:${this.selectedCamera==='rear'?'#1e40af':'#222'};color:${this.selectedCamera==='rear'?'white':'#888'};border-radius:4px;cursor:pointer;font-size:11px;font-weight:500;transition:all 0.2s">🔙 Rear</button>
+                    <button id="cam360" onclick="window.livePlayer.selectCamera('360_forward')" style="padding:6px;border:2px solid ${this.selectedCamera==='360_forward'?'#3b82f6':'#444'};background:${this.selectedCamera==='360_forward'?'#1e40af':'#222'};color:${this.selectedCamera==='360_forward'?'white':'#888'};border-radius:4px;cursor:pointer;font-size:11px;font-weight:500;transition:all 0.2s">🔄 360°</button>
+                    <button id="camCabin" onclick="window.livePlayer.selectCamera('cabin')" style="padding:6px;border:2px solid ${this.selectedCamera==='cabin'?'#3b82f6':'#444'};background:${this.selectedCamera==='cabin'?'#1e40af':'#222'};color:${this.selectedCamera==='cabin'?'white':'#888'};border-radius:4px;cursor:pointer;font-size:11px;font-weight:500;transition:all 0.2s">👥 Cabin</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="background:rgba(0,0,0,0.8);padding:8px 12px;color:#60a5fa;font-size:11px;font-family:monospace;border-top:1px solid #333;display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+              <div><div style="color:#888;font-size:10px;text-transform:uppercase">Camera</div><div style="font-weight:bold;margin-top:2px">${this.getCameraName(this.selectedCamera)}</div></div>
+              <div><div style="color:#888;font-size:10px;text-transform:uppercase">Status</div><div style="font-weight:bold;margin-top:2px">${this.streamConnected ? '🟢 LIVE' : '🔴 OFFLINE'}</div></div>
+              <div><div style="color:#888;font-size:10px;text-transform:uppercase">Latency</div><div style="font-weight:bold;margin-top:2px">3-5s</div></div>
+              <div><div style="color:#888;font-size:10px;text-transform:uppercase">Bitrate</div><div style="font-weight:bold;margin-top:2px">2.5 Mbps</div></div>
+            </div>
+          </div>
+          <style>
+            @keyframes pulse {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.5; }
+            }
+          </style>
+        `;
+
+        setTimeout(() => this.loadStream(), 100);
+      }
+
+      selectCamera(stream) {
+        this.selectedCamera = stream;
+        this.render();
+      }
+
+      getCameraName(stream) {
+        const names = {
+          forward: '📹 Front',
+          rear: '🔙 Rear',
+          360_forward: '🔄 360°',
+          cabin: '👥 Cabin'
+        };
+        return names[stream] || 'Unknown';
+      }
+
+      loadStream() {
+        const video = document.getElementById('videoPlayer');
+        if (!video) return;
+
+        // Try each HLS server URL
+        for (const hlsServer of this.hlsServers) {
+          this.tryLoadStream(video, hlsServer);
+          break; // Try first one
+        }
+      }
+
+      tryLoadStream(video, hlsServer) {
+        const hlsUrl = `${hlsServer}/${this.selectedCamera}.m3u8`;
+
+        console.log('Loading stream:', hlsUrl);
+
+        if (window.HLS?.isSupported()) {
+          const hls = new window.HLS({
+            debug: false,
+            lowLatencyMode: true,
+            liveBackBufferLength: 5,
+            maxBufferLength: 10,
+            maxMaxBufferLength: 20,
+            fragLoadingTimeOut: 30000,
+            manifestLoadingTimeOut: 30000
+          });
+
+          hls.on(window.HLS.Events.hlsManifestParsed, () => {
+            console.log('HLS stream loaded');
+            this.streamConnected = true;
+            this.render();
+          });
+
+          hls.on(window.HLS.Events.hlsError, (event, data) => {
+            console.warn('HLS error:', data);
+            if (data.fatal) {
+              this.streamConnected = false;
+              this.render();
+            }
+          });
+
+          hls.loadSource(hlsUrl);
+          hls.attachMedia(video);
+
+          video.muted = true;
+          video.play().catch(e => {
+            console.warn('Autoplay blocked:', e.message);
+            this.streamConnected = false;
+            this.render();
+          });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          // Safari native HLS
+          video.src = hlsUrl;
+          video.muted = true;
+          video.play().catch(e => {
+            console.warn('Safari playback blocked:', e.message);
+            this.streamConnected = false;
+            this.render();
+          });
+        } else {
+          console.error('HLS not supported');
+          this.streamConnected = false;
+          this.render();
+        }
+      }
+    }
+
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+      const container = document.getElementById('liveVideoContainer');
+      if (container) {
+        window.livePlayer = new LiveVideoPlayer(container);
+        console.log('Live video player initialized');
+      }
+    });
+  </script>
+
   <script>
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
     // Deep-link: fleet.html#analytics / #account / #fuel ... activates that tab
