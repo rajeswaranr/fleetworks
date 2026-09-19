@@ -1,0 +1,3 @@
+# Sample dashcam videos will be stored here
+# Generate with: bash scripts/generate-sample-videos.sh
+# Or download from Samsara/Viofo APIs

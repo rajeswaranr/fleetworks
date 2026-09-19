@@ -1,0 +1,73 @@
+# Generate Sample Videos for FleetWorks
+# Usage: docker build -f Dockerfile.sample-videos -t fleetworks-sample-videos .
+#        docker run --rm -v ./assets/videos:/output fleetworks-sample-videos
+
+FROM jrottenberg/ffmpeg:latest
+
+WORKDIR /output
+
+RUN mkdir -p /output
+
+# Generate sample videos with labels
+RUN ffmpeg -f lavfi -i testsrc=size=1280x720:duration=10:rate=30 \
+  -f lavfi -i sine=frequency=1000:duration=10 \
+  -vf "drawtext=fontsize=72:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:text='HARSH%20BRAKE%0ACRITICAL'" \
+  -c:v libx264 -preset ultrafast -crf 28 -b:v 1000k \
+  -c:a aac -b:a 64k \
+  -y harsh-brake.mp4 && \
+  echo "✓ harsh-brake.mp4" && \
+  \
+  ffmpeg -f lavfi -i testsrc=size=1280x720:duration=10:rate=30 \
+  -f lavfi -i sine=frequency=2000:duration=10 \
+  -vf "drawtext=fontsize=72:fontcolor=red:x=(w-text_w)/2:y=(h-text_h)/2:text='COLLISION%0ACRITICAL'" \
+  -c:v libx264 -preset ultrafast -crf 28 -b:v 1000k \
+  -c:a aac -b:a 64k \
+  -y collision.mp4 && \
+  echo "✓ collision.mp4" && \
+  \
+  ffmpeg -f lavfi -i testsrc=size=1280x720:duration=10:rate=30 \
+  -f lavfi -i sine=frequency=800:duration=10 \
+  -vf "drawtext=fontsize=72:fontcolor=yellow:x=(w-text_w)/2:y=(h-text_h)/2:text='LANE%20DEPARTURE%0AWARNING'" \
+  -c:v libx264 -preset ultrafast -crf 28 -b:v 1000k \
+  -c:a aac -b:a 64k \
+  -y lane-departure.mp4 && \
+  echo "✓ lane-departure.mp4" && \
+  \
+  ffmpeg -f lavfi -i testsrc=size=1280x720:duration=10:rate=30 \
+  -f lavfi -i sine=frequency=1500:duration=10 \
+  -vf "drawtext=fontsize=72:fontcolor=orange:x=(w-text_w)/2:y=(h-text_h)/2:text='SPEEDING%0AWARNING'" \
+  -c:v libx264 -preset ultrafast -crf 28 -b:v 1000k \
+  -c:a aac -b:a 64k \
+  -y speeding.mp4 && \
+  echo "✓ speeding.mp4" && \
+  \
+  ffmpeg -f lavfi -i testsrc=size=1280x720:duration=10:rate=30 \
+  -f lavfi -i sine=frequency=1200:duration=10 \
+  -vf "drawtext=fontsize=72:fontcolor=cyan:x=(w-text_w)/2:y=(h-text_h)/2:text='HARSH%20TURN%0AINFO'" \
+  -c:v libx264 -preset ultrafast -crf 28 -b:v 1000k \
+  -c:a aac -b:a 64k \
+  -y harsh-turn.mp4 && \
+  echo "✓ harsh-turn.mp4" && \
+  \
+  ffmpeg -f lavfi -i testsrc=size=1280x720:duration=10:rate=30 \
+  -f lavfi -i sine=frequency=1100:duration=10 \
+  -vf "drawtext=fontsize=72:fontcolor=green:x=(w-text_w)/2:y=(h-text_h)/2:text='360%20CAMERA%0A'" \
+  -c:v libx264 -preset ultrafast -crf 28 -b:v 1000k \
+  -c:a aac -b:a 64k \
+  -y 360-forward.mp4 && \
+  echo "✓ 360-forward.mp4" && \
+  \
+  ffmpeg -f lavfi -i testsrc=size=1280x720:duration=10:rate=30 \
+  -f lavfi -i sine=frequency=900:duration=10 \
+  -vf "drawtext=fontsize=72:fontcolor=blue:x=(w-text_w)/2:y=(h-text_h)/2:text='CABIN%20CAMERA'" \
+  -c:v libx264 -preset ultrafast -crf 28 -b:v 1000k \
+  -c:a aac -b:a 64k \
+  -y cabin.mp4 && \
+  echo "✓ cabin.mp4" && \
+  \
+  echo "" && \
+  ls -lh /output/*.mp4 && \
+  echo "" && \
+  echo "✅ All sample videos generated!"
+
+CMD ["/bin/sh"]
