@@ -48,7 +48,8 @@ const FooterContact = {
             <ul style="margin:0;padding:0;list-style:none">
               <li style="margin-bottom:8px">📧 <a href="mailto:admin@fleetworks.in" style="color:#f1f5f9;text-decoration:none" onmouseover="this.style.color='#00d9ff'" onmouseout="this.style.color='#f1f5f9'">admin@fleetworks.in</a></li>
               <li style="margin-bottom:8px">📧 <a href="mailto:support@fleetworks.in" style="color:#f1f5f9;text-decoration:none" onmouseover="this.style.color='#00d9ff'" onmouseout="this.style.color='#f1f5f9'">support@fleetworks.in</a></li>
-              <li>📞 <a href="tel:+919740799722" style="color:#f1f5f9;text-decoration:none" onmouseover="this.style.color='#00d9ff'" onmouseout="this.style.color='#f1f5f9'">+91 97407 99722</a></li>
+              <li style="margin-bottom:8px">📞 <a href="tel:+919444960009" style="color:#f1f5f9;text-decoration:none" onmouseover="this.style.color='#00d9ff'" onmouseout="this.style.color='#f1f5f9'">+91 94449 60009</a></li>
+              <li>📱 Sales: <a href="tel:+919740799722" style="color:#f1f5f9;text-decoration:none" onmouseover="this.style.color='#00d9ff'" onmouseout="this.style.color='#f1f5f9'">+91 97407 99722</a></li>
             </ul>
           </div>
 

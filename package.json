@@ -13,5 +13,8 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.17",
     "playwright": "^1.62.1"
+  },
+  "dependencies": {
+    "html2pdf.js": "^0.14.0"
   }
 }
