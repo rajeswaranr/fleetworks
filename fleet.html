@@ -1012,6 +1012,24 @@
           <div class="chart-scroll"><div id="safetyCoaching"></div></div>
         </div>
 
+        <!-- ======= DASHCAM VIDEO EVENTS ======= -->
+        <div class="chart-card">
+          <div class="chart-head">
+            <div>
+              <h2 class="head-ic"><span class="ic-tile" style="background:#fef3c7;color:#92400e"><i data-icon="video" data-icon-size="20"></i></span> Dashcam Video Events</h2>
+              <p class="muted">Real-time dashcam incidents: harsh braking, collisions, lane departure. Click to review with telemetry overlay.</p>
+            </div>
+          </div>
+          <div id="videoEventsContainer" style="min-height:200px">
+            <div style="text-align:center;padding:40px 20px;color:var(--ai-muted)">
+              <p><i data-icon="video" data-icon-size="32" style="display:block;margin:0 0 12px"></i>Loading video events...</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Video Viewer Modal -->
+        <div id="videoViewerModal" hidden></div>
+
       </section>
 
       <!-- Assign coaching modal -->
@@ -2620,6 +2638,7 @@
   <script src="js/dbcore.js"></script>
   <script src="js/modules/iot-telemetry/dashcam-clip.js"></script>
   <script src="js/modules/fleet-ops/controllers/fleet.controller.js"></script>
+  <script src="js/modules/fleet-ops/controllers/video-events.controller.js"></script>
   <script src="js/modules/fleet-iq/controllers/analytics.controller.js"></script>
   <script src="js/account.js"></script>
   <script src="js/modules/payments/domain/payment.domain.js"></script>
