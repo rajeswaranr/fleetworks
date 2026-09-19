@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # Nginx RTMP Server - receives dashcam streams and outputs HLS
+  streaming-server:
+    image: tiangolo/nginx-rtmp:latest
+    container_name: fleetworks-streaming
+    ports:
+      - "1935:1935"  # RTMP input from cameras
+      - "8080:8080"  # HTTP HLS output
+    volumes:
+      - ./nginx-rtmp.conf:/etc/nginx/nginx.conf:ro
+      - hls_data:/var/www/hls
+      - recordings:/var/www/recordings
+      - ./nginx_logs:/var/log/nginx
+    environment:
+      TZ: Asia/Kolkata
+    restart: unless-stopped
+    networks:
+      - fleetworks
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/stat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # FFmpeg Transcoding Service (Optional - for on-demand transcoding)
+  # Uncomment if you need custom encoding profiles
+  # transcoder:
+  #   image: jrottenberg/ffmpeg:latest
+  #   container_name: fleetworks-transcoder
+  #   depends_on:
+  #     - streaming-server
+  #   volumes:
+  #     - hls_data:/var/www/hls
+  #     - transcoder_logs:/var/log
+  #   command: >
+  #     -i rtmp://streaming-server:1935/live/forward
+  #     -c:v libx264 -preset ultrafast -b:v 2500k
+  #     -c:a aac -b:a 128k
+  #     -f hls -hls_time 3 -hls_list_size 12
+  #     /var/www/hls/forward.m3u8
+  #   restart: unless-stopped
+  #   networks:
+  #     - fleetworks
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
+
+  # Caddy Reverse Proxy (Optional - for HTTPS/TLS)
+  # Uncomment for production with SSL certificates
+  # caddy:
+  #   image: caddy:latest
+  #   container_name: fleetworks-caddy
+  #   ports:
+  #     - "443:443"
+  #     - "80:80"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy_data:/data
+  #     - caddy_config:/config
+  #   depends_on:
+  #     - streaming-server
+  #   restart: unless-stopped
+  #   networks:
+  #     - fleetworks
+
+volumes:
+  hls_data:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=2g  # 2GB for HLS segments
+  recordings:
+    driver: local
+  nginx_logs:
+    driver: local
+  # transcoder_logs:
+  #   driver: local
+  # caddy_data:
+  #   driver: local
+  # caddy_config:
+  #   driver: local
+
+networks:
+  fleetworks:
+    driver: bridge
