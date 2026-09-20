@@ -193,6 +193,14 @@ document.getElementById("authToggle").addEventListener("click", () => {
 const mobileInput = document.querySelector('#signupOnlyFields input[name="mobile"]');
 mobileInput.addEventListener("input", () => { mobileInput.value = mobileInput.value.replace(/\D/g, "").slice(0, 10); });
 
+// A bare location.replace("fleet.html#home") is only a hash change when the
+// user is already on fleet.html, so the page never reloads and the login
+// screen stays up. Always do a real reload into the app.
+function enterApp() {
+  history.replaceState(null, "", "fleet.html#home");
+  location.reload();
+}
+
 document.getElementById("authForm").addEventListener("submit", async e => {
   e.preventDefault();
   const fd = Object.fromEntries(new FormData(e.target));
@@ -218,7 +226,7 @@ document.getElementById("authForm").addEventListener("submit", async e => {
         trial_started: new Date().toISOString().slice(0, 10)
       };
       const res = await fwCloud.signup(fd.email, fd.password, profile);
-      if (res === "ready") { await fwCloud.pull(); location.replace("fleet.html#home"); }
+      if (res === "ready") { await fwCloud.pull(); enterApp(); }
       else { showEmailConfirm(fd.email); }
     } else {
       await fwCloud.login(fd.email, fd.password);
@@ -231,7 +239,7 @@ document.getElementById("authForm").addEventListener("submit", async e => {
       // Always land an owner on the welcome hub after signing in. Keeping the
       // previous hash (for example #team) made that action look like the owner
       // landing page after reload.
-      location.replace("fleet.html#home");
+      enterApp();
     }
   } catch (ex) { err.textContent = ex.message; err.hidden = false; }
 });

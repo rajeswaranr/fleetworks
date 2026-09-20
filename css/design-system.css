@@ -5,6 +5,10 @@
    ============================================================ */
 
 :root {
+  /* Form fields: selects are white in every theme, so their option lists must be too */
+  --field-bg: #ffffff;
+  --field-fg: #1c2733;
+
   /* Enhanced Design Tokens */
   --navy: #0f1e33;
   --navy-2: #16294a;
@@ -444,14 +448,14 @@ select.valid {
 /* Select options styling */
 select option {
   font-weight: var(--fw-bold);
-  color: var(--ink);
-  background: var(--bg);
+  color: var(--field-fg);
+  background-color: var(--field-bg);
 }
 
 select optgroup {
   font-weight: var(--fw-extrabold);
-  color: var(--ink);
-  background: var(--bg);
+  color: var(--field-fg);
+  background-color: var(--field-bg);
   font-style: normal;
 }
 

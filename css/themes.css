@@ -7,39 +7,8 @@
    Theme overrides below.
 
    Usage: <html data-theme="theme-name">
-   Default: data-theme="dark-minimal" (current design)
+   Default: no data-theme attribute = the original FleetWorks look (no overrides)
 */
-
-/* =========================================
-   THEME 1: Dark Minimal (DEFAULT)
-   ========================================= */
-:root,
-:root[data-theme="dark-minimal"] {
-  /* Primary Colors */
-  --navy: #0f1e33;
-  --amber: #f5a623;
-  --green: #16a34a;
-  --red: #dc2626;
-  --blue: #2563eb;
-  --orange: #ea580c;
-
-  /* Grayscale */
-  --ink: #0f1e33;
-  --ink2: #1e293b;
-  --muted: #64748b;
-  --muted-light: #94a3b8;
-  --bg: #0f1e33;
-  --bg-alt: #1e293b;
-  --bg-light: #334155;
-  --line: #475569;
-  --border: #64748b;
-
-  /* Semantic Colors */
-  --success: #16a34a;
-  --warning: #d97706;
-  --danger: #dc2626;
-  --info: #2563eb;
-}
 
 /* =========================================
    THEME 2: Light Minimal
@@ -325,7 +294,7 @@ html[data-theme] {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-html[data-theme] body {
+html[data-theme]:not([data-theme="default"]) body {
   background-color: var(--bg);
   color: var(--ink);
 }

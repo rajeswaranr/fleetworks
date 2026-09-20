@@ -7,9 +7,9 @@
 class ThemeSwitcher {
   constructor() {
     this.storageKey = 'fleetworks-theme';
-    this.defaultTheme = 'dark-minimal';
+    this.defaultTheme = 'default';
     this.themes = [
-      { id: 'dark-minimal', name: 'Dark Minimal', category: 'Default' },
+      { id: 'default', name: 'FleetWorks (Default)', category: 'Default' },
       { id: 'light-minimal', name: 'Light Minimal', category: 'Default' },
       { id: 'material-3-dark', name: 'Material Design 3 (Dark)', category: 'Open Source' },
       { id: 'material-3-light', name: 'Material Design 3 (Light)', category: 'Open Source' },
@@ -58,8 +58,9 @@ class ThemeSwitcher {
       themeId = this.defaultTheme;
     }
 
-    // Apply theme to HTML element
-    document.documentElement.setAttribute('data-theme', themeId);
+    // Default = no overrides, the original stylesheet look
+    if (themeId === this.defaultTheme) document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', themeId);
 
     // Save preference
     try {

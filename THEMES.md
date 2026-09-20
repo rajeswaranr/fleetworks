@@ -110,7 +110,7 @@ const switcher = window.themeSwitcher;
 
 // Get current theme
 const currentTheme = switcher.getCurrentTheme();
-// Returns: "dark-minimal", "dracula", etc.
+// Returns: "default", "dracula", etc.
 
 // Set a theme
 switcher.setTheme('nord');
@@ -341,7 +341,7 @@ All themes are open-source and free to use and modify.
 ### Q: Can I set a default theme for all users?
 **A:** Yes. Edit `defaultTheme` in `js/theme-switcher.js`:
 ```javascript
-this.defaultTheme = 'dracula'; // Change from 'dark-minimal'
+this.defaultTheme = 'dracula'; // Change from default
 ```
 
 ### Q: Are there dark/light mode auto-detection?

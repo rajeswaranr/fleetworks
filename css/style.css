@@ -217,8 +217,8 @@ input.invalid, select.invalid { border-color: #dc2626; box-shadow: 0 0 0 3px rgb
    restyled, but the option text underneath it can, so nothing looks
    washed-out next to the highlighted row. Applies site-wide: booking
    modal, fleet app forms, every <select> everywhere. */
-select option { font-weight: 700; color: var(--navy); }
-select optgroup { font-weight: 800; color: var(--navy); font-style: normal; }
+select option { font-weight: 700; color: var(--field-fg, #1c2733); background-color: var(--field-bg, #fff); }
+select optgroup { font-weight: 800; color: var(--field-fg, #1c2733); background-color: var(--field-bg, #fff); font-style: normal; }
 .form-note { font-size: 0.72rem; color: var(--muted); text-align: center; }
 
 /* ---------- Sections ---------- */
