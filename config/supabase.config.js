@@ -53,13 +53,21 @@ const SupabaseConfig = {
   }
 };
 
-// Auto-init on load
+// Auto-init on load — wait for CDN to load
+function waitForSupabaseLib() {
+  if (typeof supabase !== 'undefined') {
+    console.log('📡 Supabase library detected, initializing...');
+    SupabaseConfig.init();
+  } else {
+    console.log('⏳ Waiting for Supabase CDN...');
+    setTimeout(waitForSupabaseLib, 100);
+  }
+}
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => SupabaseConfig.init(), 100);
-  });
+  document.addEventListener('DOMContentLoaded', waitForSupabaseLib);
 } else {
-  SupabaseConfig.init();
+  waitForSupabaseLib();
 }
 
 window.SupabaseConfig = SupabaseConfig;
