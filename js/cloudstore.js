@@ -411,6 +411,26 @@
 
     /* Authenticated PATCH — path is table + PostgREST filter,
        e.g. "driver_entries?id=eq.<uuid>". */
+    /* Like authPatch, but succeeds only if at least one row was really changed.
+       A plain PATCH answers 204 even when a row-level security rule filters the
+       target out (zero rows updated), which looks like success. Returns true/false
+       and leaves the reason in lastError(). */
+    async authPatchChecked(path, body) {
+      const r = await authFetch("/rest/v1/" + path, {
+        method: "PATCH",
+        headers: { "Prefer": "return=representation" },
+        body: JSON.stringify(body)
+      });
+      if (!r.ok) { await reportDbError("update " + path.split("?")[0], r); return false; }
+      const rows = await r.json().catch(() => []);
+      if (!Array.isArray(rows) || !rows.length) {
+        fwCloud._lastErr = "Nothing was updated in " + path.split("?")[0] + " — the record was not found or your account is not allowed to change it.";
+        console.error("[FleetWorks]", fwCloud._lastErr);
+        return false;
+      }
+      return true;
+    },
+
     async authPatch(path, body) {
       const r = await authFetch("/rest/v1/" + path, {
         method: "PATCH",

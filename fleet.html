@@ -1120,17 +1120,20 @@
           <span class="lt-count" id="dashUpdated"></span>
           <span class="lt-spacer"></span>
         </div>
-        <!-- Global filter bar — filters Status Board + KPI dashboards by site/supervisor/driver -->
+        <!-- Global filter bar — filters Status Board + KPI dashboards by project, site (of that project), supervisor and driver -->
         <div class="dash-filter-bar" id="dashFilterBar" style="display:flex;align-items:center;gap:10px;padding:0 0 12px;flex-wrap:wrap">
           <strong style="font-size:0.82rem;color:var(--text-muted)">Filter:</strong>
           <button class="fw-chip is-active" id="fltAll" onclick="setDashFilter('all')">All</button>
-          <select id="fltSite" onchange="setDashFilter('site',this.value)" style="height:28px;font-size:0.82rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 8px">
-            <option value="">— Site / Project —</option>
+          <select id="fltProject" onchange="setDashFilter('project',this.value)" class="fw-filter-select" aria-label="Project">
+            <option value="">All projects</option>
           </select>
-          <select id="fltSupervisor" onchange="setDashFilter('supervisor',this.value)" style="height:28px;font-size:0.82rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 8px">
+          <select id="fltSite" onchange="setDashFilter('site',this.value)" class="fw-filter-select" aria-label="Site">
+            <option value="">All sites</option>
+          </select>
+          <select id="fltSupervisor" onchange="setDashFilter('supervisor',this.value)" class="fw-filter-select">
             <option value="">— Supervisor —</option>
           </select>
-          <select id="fltDriver" onchange="setDashFilter('driver',this.value)" style="height:28px;font-size:0.82rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 8px">
+          <select id="fltDriver" onchange="setDashFilter('driver',this.value)" class="fw-filter-select">
             <option value="">— Driver —</option>
           </select>
           <span id="fltLabel" class="muted" style="font-size:0.78rem"></span>
@@ -1178,10 +1181,16 @@
         <div class="dash-filter-bar" style="display:flex;align-items:center;gap:10px;padding:0 0 12px;flex-wrap:wrap">
           <strong style="font-size:0.82rem;color:var(--text-muted)">Filter:</strong>
           <button class="fw-chip is-active" id="fltAllFin" onclick="setDashFilter('all')">All</button>
-          <select id="fltSiteFin" onchange="setDashFilter('site',this.value)" style="height:28px;font-size:0.82rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 8px">
-            <option value="">— Site / Project —</option>
+          <select id="fltProjectFin" onchange="setDashFilter('project',this.value)" class="fw-filter-select" aria-label="Project">
+            <option value="">All projects</option>
           </select>
-          <select id="fltDriverFin" onchange="setDashFilter('driver',this.value)" style="height:28px;font-size:0.82rem;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 8px">
+          <select id="fltSiteFin" onchange="setDashFilter('site',this.value)" class="fw-filter-select" aria-label="Site">
+            <option value="">All sites</option>
+          </select>
+          <select id="fltSupervisorFin" onchange="setDashFilter('supervisor',this.value)" class="fw-filter-select" aria-label="Supervisor">
+            <option value="">— Supervisor —</option>
+          </select>
+          <select id="fltDriverFin" onchange="setDashFilter('driver',this.value)" class="fw-filter-select">
             <option value="">— Driver —</option>
           </select>
           <span id="fltLabelFin" class="muted" style="font-size:0.78rem"></span>
@@ -2969,6 +2978,7 @@
   </style>
 <script src="js/control-guard.js"></script>
 <script src="js/window-controls.js"></script>
+<script src="js/multiselect.js"></script>
 <script src="js/dialogs.js"></script>
 </body>
 </html>

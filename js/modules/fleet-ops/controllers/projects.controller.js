@@ -181,18 +181,6 @@ function projectFormHtml(p, linked) {
   p = p || {};
   const cur = p.billing_basis || "trip";
   const vtypes = p.vehicle_types || [];
-  const siteRows = _sites.filter(s => s.status !== "cancelled").map(s => {
-    const l = linked[s.id];
-    return `<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line)">
-      <label style="display:flex;align-items:center;gap:8px;flex:1;min-width:180px;cursor:pointer">
-        <input type="checkbox" name="site_${s.id}" value="1" ${l ? "checked" : ""} style="margin:0" />
-        <span><strong>${esc(s.name)}</strong>${s.location ? ` <span class="muted" style="font-size:0.78rem">· ${esc(s.location)}</span>` : ""}</span>
-      </label>
-      <select name="siterole_${s.id}" style="height:32px;font-size:0.82rem">
-        ${Object.entries(SITE_ROLE_LABEL).map(([k, v]) => `<option value="${k}"${(l ? l.site_role : "operating") === k ? " selected" : ""}>${v}</option>`).join("")}
-      </select>
-    </div>`;
-  }).join("");
   return `
     <div class="form-row">
       <label>Project name *<input type="text" name="name" value="${escAttr(p.name || "")}" required placeholder="e.g. Metro Phase 2 — earthwork" /></label>
@@ -214,11 +202,10 @@ function projectFormHtml(p, linked) {
     </div>
 
     ${HR}${sectionLabel("Sites this project runs at")}
-    <p class="muted" style="font-size:0.8rem;margin:0 0 6px">A project can run at several sites, and a site can serve several projects. Mark a site as a loading or unloading point when material moves between sites.</p>
-    ${siteRows || `<p class="muted" style="margin:0 0 6px">No sites yet — add the first one below.</p>`}
+    <p class="muted" style="font-size:0.8rem;margin:0 0 8px">Pick one or more sites, or create a new one. A project can run at several sites and a site can serve several projects; mark a site as a loading or unloading point when material moves between sites.</p>
+    <div id="projSitePicker"></div>
+    <div id="projSiteRoles"></div>
     <div id="projNewSites"></div>
-    <button type="button" class="btn btn-outline btn-sm" style="margin-top:8px" onclick="projectAddNewSiteRow()">${FWIcon("plus", { size: 13 })} New site</button>
-    <span class="muted" style="font-size:0.78rem;margin-left:8px">Create a site here and it is added and linked when you save.</span>
 
     ${HR}${sectionLabel("Commercial terms")}
     <div class="form-row">
@@ -278,6 +265,47 @@ function projectFormHtml(p, linked) {
       <label>Ends<input type="date" name="contractEnd" value="${p.contract_end || ""}" /></label>
     </div>
     <label>Notes<textarea name="notes" rows="2" style="width:100%">${esc(p.notes || "")}</textarea></label>`;
+}
+
+// Site picker: a multi-select dropdown; each ticked site gets a row with its role
+// (operating / loading / unloading) and hidden fields that the save reads.
+function projectSitePickerInit(linked) {
+  const host = document.getElementById("projSitePicker"), rolesBox = document.getElementById("projSiteRoles");
+  if (!host || !rolesBox || !window.FWMultiSelect) return;
+  const roles = {};
+  Object.entries(linked).forEach(([sid, l]) => { roles[sid] = l.site_role || "operating"; });
+  const sites = _sites.filter(x => x.status !== "cancelled");
+  const renderRoles = ids => {
+    rolesBox.innerHTML = ids.map(id => {
+      const site = sites.find(x => x.id === id); if (!site) return "";
+      return `<div class="proj-sel-site" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:7px 0;border-bottom:1px solid var(--line)">
+        <input type="hidden" name="site_${id}" value="1" />
+        <span style="flex:1;min-width:150px">${FWIcon("mapPin", { size: 13 })} <strong>${esc(site.name)}</strong>${site.location ? ` <span class="muted" style="font-size:0.78rem">· ${esc(site.location)}</span>` : ""}</span>
+        <select name="siterole_${id}" data-site="${id}" style="width:auto;min-width:170px;height:34px;font-size:0.85rem">
+          ${Object.entries(SITE_ROLE_LABEL).map(([k, v]) => `<option value="${k}"${(roles[id] || "operating") === k ? " selected" : ""}>${v}</option>`).join("")}
+        </select>
+        <button type="button" class="link-btn" style="color:#ef4444" data-remove="${id}">Remove</button>
+      </div>`;
+    }).join("");
+  };
+  const ms = FWMultiSelect.mount(host, {
+    options: sites.map(x => ({ id: x.id, label: x.name, sub: x.location || "" })),
+    selected: Object.keys(linked),
+    placeholder: sites.length ? "Select one or more sites" : "No sites yet — create one",
+    searchPlaceholder: "Search sites…",
+    createLabel: "+ Create new site",
+    onCreate: () => window.projectAddNewSiteRow(),
+    onChange: ids => {
+      rolesBox.querySelectorAll("select[data-site]").forEach(sel => { roles[sel.dataset.site] = sel.value; });
+      renderRoles(ids);
+    },
+  });
+  rolesBox.addEventListener("change", e => { if (e.target.dataset && e.target.dataset.site) roles[e.target.dataset.site] = e.target.value; });
+  rolesBox.addEventListener("click", e => {
+    const id = e.target.dataset && e.target.dataset.remove; if (!id) return;
+    ms.setSelected(ms.getSelected().filter(x => x !== id));
+  });
+  renderRoles(ms.getSelected());
 }
 
 let _newSiteSeq = 0;
@@ -368,7 +396,7 @@ function openProjectModal(title, project, onSave) {
   const linked = {};
   if (project) (_projSites[project.id] || []).forEach(l => { linked[l.site_id] = l; });
   openEditModal(title, projectFormHtml(project, linked), onSave);
-  setTimeout(() => window.projectFormBillingChange(), 0);
+  setTimeout(() => { window.projectFormBillingChange(); projectSitePickerInit(linked); }, 0);
 }
 
 window.openNewProject = function () {

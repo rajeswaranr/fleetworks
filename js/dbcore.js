@@ -236,12 +236,12 @@ async function dbUpdateDriver(extId, patch) {
   if ("bankAccount" in patch) dbPatch.bank_account = patch.bankAccount || null;
   if ("bankIfsc" in patch) dbPatch.bank_ifsc = patch.bankIfsc || null;
   if ("payBasis" in patch) dbPatch.pay_basis = normPayBasis(patch.payBasis);
-  return fwCloud.authPatch(`drivers?id=eq.${d.dbId}`, dbPatch);
+  return fwCloud.authPatchChecked(`drivers?id=eq.${d.dbId}`, dbPatch);
 }
 // Used when a vehicle is created with a driver pre-assigned — patches the
 // OTHER side (the driver row) by its own dbId, not by vehicle lookup.
 async function dbAssignVehicleToDriver(driverDbId, vehicleDbId) {
-  return fwCloud.authPatch(`drivers?id=eq.${driverDbId}`, { vehicle_id: vehicleDbId });
+  return fwCloud.authPatchChecked(`drivers?id=eq.${driverDbId}`, { vehicle_id: vehicleDbId });
 }
 
 // ---------- Expenses (no ext_id needed — nothing else references these by id) ----------

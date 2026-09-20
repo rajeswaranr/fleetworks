@@ -680,7 +680,11 @@ async function saveNewVehicle(form) {
     }
     if (fd.driverId) {
       const d = db.drivers.find(x => x.id === fd.driverId);
-      if (d) { d.vehicleId = v.id; if (d.dbId && v.dbId) await dbAssignVehicleToDriver(d.dbId, v.dbId); }
+      if (d) {
+        const ok = d.dbId && v.dbId ? await dbAssignVehicleToDriver(d.dbId, v.dbId) : false;
+        if (ok) d.vehicleId = v.id;
+        else alert(`The vehicle was saved, but ${d.name} could not be assigned to it${fwCloud.lastError && fwCloud.lastError() ? " — " + fwCloud.lastError() : ""}. Use the Driver button on the Fleet Status Board to assign again.`);
+      }
     }
   } else {
     db.vehicles.push(v);
@@ -712,15 +716,17 @@ async function updateVehicleInPlace(form, id) {
   const currentDriver = db.drivers.find(d => d.vehicleId === v.id);
   const newDriverId = fd.driverId || "";
   if (newDriverId !== (currentDriver ? currentDriver.id : "")) {
+    const signed = typeof coreDbBacked === "function" && coreDbBacked();
     if (currentDriver) {
-      currentDriver.vehicleId = "";
-      if (typeof coreDbBacked === "function" && coreDbBacked() && currentDriver.dbId) await dbUpdateDriver(currentDriver.id, { vehicleId: "" });
+      const ok = signed && currentDriver.dbId ? await dbUpdateDriver(currentDriver.id, { vehicleId: "" }) : true;
+      if (ok) currentDriver.vehicleId = "";
     }
     if (newDriverId) {
       const d = db.drivers.find(x => x.id === newDriverId);
       if (d) {
-        d.vehicleId = v.id;
-        if (typeof coreDbBacked === "function" && coreDbBacked() && d.dbId && v.dbId) await dbAssignVehicleToDriver(d.dbId, v.dbId);
+        const ok = signed ? (d.dbId && v.dbId ? await dbAssignVehicleToDriver(d.dbId, v.dbId) : false) : true;
+        if (ok) d.vehicleId = v.id;
+        else alert(`The vehicle was saved, but ${d.name} could not be assigned to it${fwCloud.lastError && fwCloud.lastError() ? " — " + fwCloud.lastError() : ""}.`);
       }
     }
   }
@@ -2214,70 +2220,84 @@ let _vehSiteMap  = {};
 const _vstatus = {};
 
 // ── global dashboard filter ────────────────────────────────────────────────
-let _dashFilter = { by: "all", value: "", label: "" };
+let _dashFilter = { by: "all", value: "", label: "", project: "", site: "", supervisor: "", driver: "" };
 
+const _EMPTY_DASH_FILTER = { by: "all", value: "", label: "", project: "", site: "", supervisor: "", driver: "" };
+const _DASH_KEYS = ["project", "site", "supervisor", "driver"];
+
+function siteInProject(siteId, projectId) {
+  return typeof _projSites !== "undefined" && (_projSites[projectId] || []).some(l => l.site_id === siteId);
+}
+
+function dashFilterLabel() {
+  const f = _dashFilter, parts = [];
+  if (f.project) parts.push("Project: " + ((typeof projectById === "function" && projectById(f.project)) || {}).name);
+  if (f.site) parts.push("Site: " + ((_sites.find(s => s.id === f.site)) || {}).name);
+  if (f.supervisor) parts.push("Supervisor: " + f.supervisor);
+  if (f.driver) parts.push("Driver: " + ((db.drivers.find(d => d.id === f.driver)) || {}).name);
+  return parts.join(" · ");
+}
+
+// Project, Site, Supervisor and Driver combine: every one that is set narrows
+// the vehicle list. Choosing a project limits the Site list to its own sites.
 window.setDashFilter = function(by, value) {
-  if (by === "all") {
-    _dashFilter = { by: "all", value: "", label: "" };
-  } else {
-    if (!value) { _dashFilter = { by: "all", value: "", label: "" }; by = "all"; }
-    else {
-      const labels = { site: "Site", supervisor: "Supervisor", driver: "Driver" };
-      _dashFilter = { by, value, label: labels[by] + ": " + value };
-    }
+  value = String(value || "").replace(/^proj:/, "");
+  if (by === "all") _dashFilter = { ..._EMPTY_DASH_FILTER };
+  else if (_DASH_KEYS.includes(by)) {
+    _dashFilter[by] = value;
+    if (by === "project" && value && _dashFilter.site && !siteInProject(_dashFilter.site, value)) _dashFilter.site = "";
   }
+  _dashFilter.by = _DASH_KEYS.find(k => _dashFilter[k]) || "all";
+  _dashFilter.value = _dashFilter.by === "all" ? "" : _dashFilter[_dashFilter.by];
+  _dashFilter.label = dashFilterLabel();
+  populateFilterDropdowns();
   syncFilterBarUI();
   renderVehicleStatusBoard();
   renderDashboard();
 };
 
 function syncFilterBarUI() {
-  const { by, value, label } = _dashFilter;
-  // "All" button
-  ["fltAll","fltAllFin"].forEach(id => {
+  const f = _dashFilter;
+  ["fltAll", "fltAllFin"].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.classList.toggle("is-active", by === "all");
+    if (el) el.classList.toggle("is-active", f.by === "all");
   });
-  // reset all selects to blank when filter is "all"
-  if (by === "all") {
-    ["fltSite","fltSiteFin","fltSupervisor","fltDriver","fltDriverFin"].forEach(id => {
-      const el = document.getElementById(id); if (el) el.value = "";
-    });
-  }
-  // labels
-  ["fltLabel","fltLabelFin"].forEach(id => {
-    const el = document.getElementById(id); if (el) el.textContent = label;
+  const set = (ids, v) => ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = v; });
+  set(["fltProject", "fltProjectFin"], f.project);
+  set(["fltSite", "fltSiteFin"], f.site);
+  set(["fltSupervisor", "fltSupervisorFin"], f.supervisor);
+  set(["fltDriver", "fltDriverFin"], f.driver);
+  ["fltLabel", "fltLabelFin"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = f.label;
   });
 }
 
 function filteredVehicles() {
-  const { by, value } = _dashFilter;
-  if (by === "all" || !value) return db.vehicles;
-  if (by === "site" && String(value).startsWith("proj:")) {
-    const pid = value.slice(5);
-    const dbIds = new Set(Object.values(_siteVeh).flat().filter(r => r.project_id === pid && !r.removed_date).map(r => r.vehicle_id));
-    return db.vehicles.filter(v => dbIds.has(v.dbId));
+  const f = _dashFilter;
+  let list = db.vehicles;
+  if (f.project || f.site) {
+    const ids = new Set(Object.values(_siteVeh).flat()
+      .filter(r => !r.removed_date && (!f.project || r.project_id === f.project) && (!f.site || r.site_id === f.site))
+      .map(r => r.vehicle_id));
+    list = list.filter(v => ids.has(v.dbId));
   }
-  if (by === "site") {
-    const svaRows = _siteVeh[value] || [];
-    const vDbIds  = new Set(svaRows.filter(r => !r.removed_date).map(r => r.vehicle_id));
-    return db.vehicles.filter(v => vDbIds.has(v.dbId));
-  }
-  if (by === "supervisor") {
+  if (f.supervisor) {
+    const value = f.supervisor;
     const siteIds = _sites.filter(s => s.supervisor_name === value || s.supervisor_user_id === value).map(s => s.id);
     const vDbIds  = new Set();
     siteIds.forEach(sid => (_siteVeh[sid] || []).filter(r => !r.removed_date).forEach(r => vDbIds.add(r.vehicle_id)));
     const member = _teamRoster.find(m => m.role === "supervisor" && (m.user_id === value || m.email === value));
     const extIds = new Set(member?.assigned_vehicles || []);
-    return db.vehicles.filter(v => vDbIds.has(v.dbId) || extIds.has(v.id));
+    list = list.filter(v => vDbIds.has(v.dbId) || extIds.has(v.id));
   }
-  if (by === "driver") {
+  if (f.driver) {
+    const value = f.driver;
     const d = db.drivers.find(d => d.id === value || d.name === value);
     const member = _teamRoster.find(m => m.role === "driver" && (m.user_id === value || m.email === value));
     const extIds = new Set(member?.assigned_vehicles || []);
-    return db.vehicles.filter(v => (d && d.vehicleId === v.id) || extIds.has(v.id));
+    list = list.filter(v => (d && d.vehicleId === v.id) || extIds.has(v.id));
   }
-  return db.vehicles;
+  return list;
 }
 
 // ── data load ──────────────────────────────────────────────────────────────
@@ -2312,25 +2332,36 @@ async function loadSites() {
 }
 
 function populateFilterDropdowns() {
-  const siteOpts = _sites.filter(s => s.status === "active")
-    .map(s => `<option value="${s.id}">Site: ${esc(s.name)}</option>`).join("") +
-    (typeof _projects !== "undefined" ? _projects.filter(p => p.status === "active")
-      .map(p => `<option value="proj:${p.id}">Project: ${esc(p.name)}</option>`).join("") : "");
-  ["fltSite","fltSiteFin"].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const cur = el.value;
-    el.innerHTML = `<option value="">— Site / Project —</option>${siteOpts}`;
-    el.value = cur;
+  const f = _dashFilter;
+  const projs = typeof _projects !== "undefined" ? _projects : [];
+  const projOpts = projs.filter(p => p.status !== "cancelled" || p.id === f.project)
+    .map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  ["fltProject", "fltProjectFin"].forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    el.innerHTML = `<option value="">All projects</option>${projOpts}`;
+    el.value = f.project;
   });
+
+  // Sites: only the chosen project's sites when a project is selected.
+  const siteList = _sites.filter(s => s.status !== "cancelled" && (!f.project || siteInProject(s.id, f.project)));
+  const siteOpts = siteList.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("");
+  ["fltSite", "fltSiteFin"].forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    el.innerHTML = `<option value="">${f.project ? "All sites of this project" : "All sites"}</option>${siteOpts}`;
+    el.value = f.site;
+  });
+  const noSites = !!f.project && !siteList.length;
+  ["fltSite", "fltSiteFin"].forEach(id => { const el = document.getElementById(id); if (el) { el.disabled = noSites; el.title = noSites ? "This project has no sites linked yet" : ""; } });
 
   const sups = [
     ..._sites.filter(s => s.supervisor_name).map(s => ({ value: s.supervisor_name, label: s.supervisor_name })),
     ..._teamRoster.filter(m => m.role === "supervisor").map(m => ({ value: m.user_id, label: m.email || "Supervisor" })),
   ].filter((item, index, all) => all.findIndex(x => x.value === item.value) === index);
   const supOpts = sups.map(s => `<option value="${esc(s.value)}">${esc(s.label)}</option>`).join("");
-  const supEl = document.getElementById("fltSupervisor");
-  if (supEl) supEl.innerHTML = `<option value="">— Supervisor —</option>${supOpts}`;
+  ["fltSupervisor", "fltSupervisorFin"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.innerHTML = `<option value="">— Supervisor —</option>${supOpts}`; el.value = f.supervisor; }
+  });
 
   const drivers = [
     ...db.drivers.map(d => ({ value: d.id, label: d.name })),
@@ -2339,7 +2370,7 @@ function populateFilterDropdowns() {
   const drvOpts = drivers.map(d => `<option value="${esc(d.value)}">${esc(d.label)}</option>`).join("");
   ["fltDriver","fltDriverFin"].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.innerHTML = `<option value="">— Driver —</option>${drvOpts}`;
+    if (el) { el.innerHTML = `<option value="">— Driver —</option>${drvOpts}`; el.value = f.driver; }
   });
 }
 
@@ -2417,7 +2448,8 @@ function renderVehicleStatusBoard() {
       <td>${site ? `<strong>${esc(site.name)}</strong><br/><span class="muted" style="font-size:0.73rem">${siteInfo.project ? esc(siteInfo.project.name) : esc(SITE_TYPE_LABELS[site.project_type]||site.project_type)}</span>` : `<span class="muted">—</span>`}</td>
       <td>${site?.manager_name ? esc(site.manager_name) : `<span class="muted">—</span>`}</td>
       <td>${siteSup !== "—" ? esc(siteSup) : `<span class="muted">—</span>`}</td>
-      <td>${driver ? esc(driver.name) : `<span class="fw-badge soon" style="font-size:0.7rem">No Driver</span>`}</td>
+      <td>${driver ? `<strong>${esc(driver.name)}</strong>` : `<span class="fw-badge soon" style="font-size:0.7rem">No Driver</span>`}<br/>
+        <button class="link-btn" style="font-size:0.78rem" onclick="openAssignDriver('${v.id}')">${driver ? "Change" : "Assign driver"}</button></td>
       <td><span class="fw-badge ${stMeta.cls}" style="font-size:0.72rem">${FWIcon(stMeta.icon,{size:12})} ${stMeta.label}</span>
           <div style="display:inline-flex;gap:4px;margin-left:6px">
             <button class="link-btn" style="font-size:0.72rem;padding:2px 6px;border:1px solid var(--border);border-radius:6px;${isMov?"background:var(--accent-dim)":""}" onclick="toggleVStatus('${v.id}','moving')" title="Mark Moving">▶ Mov</button>
@@ -2808,6 +2840,44 @@ window.removeSiteStaff = async function(ssaId, siteId) {
 };
 
 // Assigning a vehicle to a site/project: see openDeploymentModal in projects.controller.js
+
+// ── Assign the driver of a vehicle (Fleet Status Board) ────────────────────
+// A driver runs one truck at a time, so picking a driver who is on another
+// truck moves them. Database writes are checked; the in-memory copy only
+// changes once they succeed, so what shows here is what is stored.
+window.openAssignDriver = function (vehLocalId) {
+  const v = db.vehicles.find(x => x.id === vehLocalId); if (!v) return;
+  const cur = db.drivers.find(d => d.vehicleId === v.id);
+  const drivers = [...db.drivers].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  openEditModal(`Driver — ${v.name}`, `
+    <p class="muted" style="font-size:0.82rem;margin:0 0 10px">Choose who drives this truck. A driver runs one truck at a time, so picking someone already on another truck moves them here.</p>
+    <label>Driver
+      <select name="driverId">
+        <option value="">— No driver —</option>
+        ${drivers.map(d => `<option value="${escAttr(d.id)}"${cur && cur.id === d.id ? " selected" : ""}>${esc(d.name)}${d.vehicleId && d.vehicleId !== v.id ? " (now on " + esc(vName(d.vehicleId)) + ")" : ""}</option>`).join("")}
+      </select>
+    </label>`,
+    async fd => {
+      const newId = fd.driverId || "";
+      if (newId === (cur ? cur.id : "")) { closeEditModal(); return; }
+      const target = newId ? db.drivers.find(x => x.id === newId) : null;
+      const signed = typeof coreDbBacked === "function" && coreDbBacked();
+      const why = () => (fwCloud.lastError && fwCloud.lastError()) || "check your connection";
+      if (signed) {
+        if (cur && !(await dbUpdateDriver(cur.id, { vehicleId: "" }))) throw new Error("Could not free the current driver — " + why());
+        if (target && !(await dbAssignVehicleToDriver(target.dbId, v.dbId))) {
+          if (cur) await dbAssignVehicleToDriver(cur.dbId, v.dbId);
+          throw new Error(`Could not assign ${target.name} — ${why()}`);
+        }
+      }
+      if (cur) cur.vehicleId = "";
+      if (target) target.vehicleId = v.id;
+      saveStore();
+      toast(target ? `${target.name} assigned to ${v.name}.` : `${v.name} now has no driver.`);
+      closeEditModal();
+      renderAll();
+    });
+};
 
 // ---------- Render: work orders (job cards) ----------
 function renderWorkOrders() {
