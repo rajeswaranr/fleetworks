@@ -158,14 +158,14 @@ function renderOverviewDash() {
   const filtered = getFilteredVehicles();
   document.getElementById('dashUpdated').textContent = `${filtered.length} vehicles`;
 
-  renderVehicleStatusBoard(filtered);
+  renderOverviewVehicleStatusBoard(filtered);
   renderOpsStats(filtered);
 }
 
 /**
  * Render vehicle status board
  */
-function renderVehicleStatusBoard(vehicles) {
+function renderOverviewVehicleStatusBoard(vehicles) {
   const container = document.getElementById('vehicleStatusBoard');
   if (!container) return;
 

@@ -610,7 +610,9 @@ function renderOverview() {
   // severity -> [icon name, tile colour class] : one professional SVG per row
   const sevIcon = s => s >= 4 ? ["alert", "danger"] : s === 3 ? ["shieldAlert", "warning"] :
     s === 2 ? ["eye", "info"] : s === 1 ? ["bell", "brand"] : ["shieldCheck", "success"];
-  document.getElementById("insightsFeed").innerHTML = insights.map(i => {
+  const insightsFeed = document.getElementById("insightsFeed");
+  if (!insightsFeed) return;
+  insightsFeed.innerHTML = insights.map(i => {
     const [ic, tone] = sevIcon(i.sev);
     return `
     <div class="insight-row" style="border-left-color:${sevColor(i.sev)}">
