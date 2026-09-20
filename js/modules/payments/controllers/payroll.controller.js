@@ -11,6 +11,25 @@
 
 let PAYOUTS = {}; // driver_ext_id -> row from driver_payout_details
 
+// What a payment to a driver was for. Stored on salary_payments.category.
+const PAY_CATEGORIES = [
+  { id: "salary", label: "Salary" },
+  { id: "advance", label: "Advance" },
+  { id: "trip_advance", label: "Trip advance" },
+  { id: "salary_advance", label: "Salary advance" },
+  { id: "last_month_salary", label: "Last month salary" },
+  { id: "pending_payment", label: "Pending payment" },
+  { id: "miscellaneous", label: "Miscellaneous payment" },
+];
+window.FW_PAY_CATEGORIES = PAY_CATEGORIES;
+function payCategoryLabel(id) { return (PAY_CATEGORIES.find(c => c.id === id) || PAY_CATEGORIES[0]).label; }
+function fillPayCategorySelects() {
+  ["manualPayCategory", "editPayCategory"].forEach(sid => {
+    const sel = document.getElementById(sid);
+    if (sel && !sel.options.length) sel.innerHTML = PAY_CATEGORIES.map(c => `<option value="${c.id}">${c.label}</option>`).join("");
+  });
+}
+
 function payrollSignedIn() { return !!(window.fwCloud && fwCloud.user()); }
 
 // Every early-return path below must still leave `sel` (the automated-
@@ -28,6 +47,7 @@ async function renderPayroll() {
   const sendBtn = document.querySelector("#paySalaryForm button[type=submit]");
   const manualSel = document.getElementById("manualSalaryDriver");
   if (!roster) return; // tab not in DOM yet
+  fillPayCategorySelects();
 
   renderApprovals(); // independent of the Cashfree roster below — never blocked by its early returns
 
@@ -96,7 +116,7 @@ async function renderPayrollHistory(org) {
   if (!rows || !rows.length) { el.innerHTML = "<p class='muted'>No salary payments logged yet.</p>"; return; }
   // Kept so the edit modal can populate itself without another round trip.
   PAY_HISTORY = rows;
-  el.innerHTML = `<table class="chart-table-el"><thead><tr><th>Logged</th><th>Driver</th><th>Basis</th><th>For</th><th>Payable</th><th>Paid</th><th>Amount</th><th>Method</th><th>Source</th><th>Status</th><th>Ref</th><th></th></tr></thead><tbody>` +
+  el.innerHTML = `<table class="chart-table-el"><thead><tr><th>Logged</th><th>Driver</th><th>Type</th><th>Basis</th><th>For</th><th>Payable</th><th>Paid</th><th>Amount</th><th>Method</th><th>Source</th><th>Status</th><th>Ref</th><th></th></tr></thead><tbody>` +
     rows.map(r => {
       const d = db.drivers.find(x => x.id === r.driver_ext_id);
       const cls = r.status === "success" ? "ok" : r.status === "failed" ? "overdue" : "soon";
@@ -112,6 +132,7 @@ async function renderPayrollHistory(org) {
       const qtyRate = (r.qty && r.rate) ? `<br /><span class="muted" style="font-size:0.72rem">${r.qty} × ${fmtINR(r.rate)}</span>` : "";
       const dash = "<span class='muted'>—</span>";
       return `<tr><td>${fmtDate(r.initiated_at)}${edited}</td><td>${esc(d ? d.name : r.driver_ext_id)}</td>
+        <td><span class="fw-badge upcoming">${esc(payCategoryLabel(r.category))}</span></td>
         <td><span class="fw-badge">${basis}</span></td>
         <td>${esc(fmtPeriod(r.period))}</td>
         <td>${r.payable_date ? fmtDate(r.payable_date) : dash}</td>
@@ -300,6 +321,8 @@ window.openEditPay = function (id) {
   form.rate.value = r.rate ?? "";
   const editAmt = form.querySelector('input[name="amount"]');
   if (editAmt) editAmt.dataset.userSet = "1";   // editing starts from the stored amount — never auto-overwrite it
+  fillPayCategorySelects();
+  form.category.value = r.category || "salary";
   form.period.value = r.period || "";
   form.payableDate.value = r.payable_date || "";
   form.paidDate.value = r.paid_date || "";
@@ -329,7 +352,9 @@ document.getElementById("editPayForm")?.addEventListener("submit", async e => {
   // worked without moving payable_date would leave the two disagreeing.
   const row = PAY_HISTORY.find(x => x.id === fd.id);
   const basis = row?.pay_basis || driverPayBasis(row?.driver_ext_id);
+  const catChanged = (fd.category || "salary") !== (row?.category || "salary");
   const ok = await fwCloud.authPatch(`salary_payments?id=eq.${fd.id}`, {
+    ...(catChanged ? { category: fd.category } : {}),
     period: fd.period || null,
     payable_date: fd.payableDate || (basis === "monthly" ? null : (fd.period || null)),
     paid_date: fd.paidDate || null,
@@ -659,6 +684,9 @@ document.getElementById("manualSalaryForm")?.addEventListener("submit", async e 
   const ok = await fwCloud.authInsert("salary_payments", {
     org_id: org, driver_ext_id: fd.driverExtId, period: fd.period, amount: +fd.amount,
     method: fd.method, source: "manual", status: "success",
+    // Omitted for plain salary so logging still works if the category column
+    // migration has not been applied yet.
+    ...(fd.category && fd.category !== "salary" ? { category: fd.category } : {}),
     pay_basis: basis,
     // Both bases carry a payable date. For a daily wage it defaults to the day
     // worked; for a monthly salary it's the due date, which is a separate thing

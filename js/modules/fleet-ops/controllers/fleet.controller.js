@@ -5033,9 +5033,14 @@ function setWorkspace(ws) {
   document.body.dataset.ws = ws;
 }
 
+const SETTINGS_SUBTABS = { smsnotif: "SMS Notifications", sites: "Sites & Projects", projects: "Active Projects", sitehistory: "Site History" };
+
 function tabButtonFor(tabName, preferredBtn) {
   if (preferredBtn && preferredBtn.dataset && preferredBtn.dataset.tab === tabName) return preferredBtn;
   const buttons = [...document.querySelectorAll("#tabBar .tab-btn")].filter(b => b.dataset.tab === tabName);
+  // Pages reached from the Settings page have no sidebar item of their own;
+  // Settings stays highlighted while they are open.
+  if (!buttons.length && SETTINGS_SUBTABS[tabName]) return tabButtonFor("settings");
   if (!buttons.length) return null;
   const visibleWorkspaceButtons = buttons.filter(b => {
     const ws = b.closest("[data-ws]");
@@ -5058,7 +5063,14 @@ function activateTab(tabName, options = {}) {
   document.querySelectorAll("#tabBar .tab-btn").forEach(b => b.classList.toggle("active", b === btn));
   document.querySelectorAll("#fleetContent > .tab-panel").forEach(p => p.classList.toggle("active", p.id === "tab-" + tabName));
   const title = document.getElementById("pageTitle");
-  if (title) title.textContent = (btn.textContent || "").trim();
+  if (title) title.textContent = SETTINGS_SUBTABS[tabName] || (btn.textContent || "").trim();
+  document.querySelectorAll("#fleetContent > .tab-panel .settings-back").forEach(el => { if (!el.closest("#tab-" + tabName)) el.remove(); });
+  if (SETTINGS_SUBTABS[tabName]) {
+    const panel = document.getElementById("tab-" + tabName);
+    if (panel && !panel.querySelector(".settings-back")) {
+      panel.insertAdjacentHTML("afterbegin", `<div class="settings-back"><button type="button" class="link-btn" onclick="activateTab('settings')">&larr; Back to Settings</button></div>`);
+    }
+  }
   document.getElementById("appSide")?.classList.remove("open");
   clearPageSearch();
   updateToolbarCounts();

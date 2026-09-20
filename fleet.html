@@ -353,7 +353,7 @@
             <span id="notifBadge" class="notif-badge" hidden>0</span>
           </button>
           <button class="btn btn-sm sos-btn" id="sosBtn"><i data-icon="alert" data-icon-size="14"></i> SOS</button>
-          <button class="btn btn-sm settings-btn" id="settingsBtn" onclick="toggleSettingsPanel()" title="Settings">
+          <button class="btn btn-sm settings-btn" id="settingsBtn" onclick="openSettingsPage()" title="Settings">
             <i data-icon="settings" data-icon-size="16"></i>
           </button>
         </div>
@@ -368,57 +368,6 @@
         <div id="actionInbox" class="notif-panel-body"></div>
       </div>
 
-      <!-- ======= SETTINGS PANEL ======= -->
-      <div id="settingsPanel" class="settings-panel" hidden>
-        <div class="settings-panel-head">
-          <strong>Settings</strong>
-          <button class="link-btn" onclick="toggleSettingsPanel()" style="font-size:1.1rem;line-height:1">&#x2715;</button>
-        </div>
-        <div class="settings-panel-body">
-          <!-- SMS Notifications -->
-          <div class="settings-section">
-            <h3>SMS Notifications</h3>
-            <button class="settings-option" onclick="navigateToTab('smsnotif')">
-              <i data-icon="chat" data-icon-size="16"></i>
-              <div>
-                <strong>Notification Log</strong>
-                <p class="muted">View SMS sent to you</p>
-              </div>
-            </button>
-            <button class="settings-option" onclick="navigateToTab('smssettings')">
-              <i data-icon="toggleOn" data-icon-size="16"></i>
-              <div>
-                <strong>Notification Settings</strong>
-                <p class="muted">Configure SMS alerts</p>
-              </div>
-            </button>
-          </div>
-
-          <!-- Push Notifications -->
-          <div class="settings-section">
-            <h3>App Notifications</h3>
-            <button class="settings-option" onclick="navigateToTab('alerthistory')">
-              <i data-icon="bell" data-icon-size="16"></i>
-              <div>
-                <strong>Past Notifications</strong>
-                <p class="muted">View notification history</p>
-              </div>
-            </button>
-          </div>
-
-          <!-- Sites & Projects -->
-          <div class="settings-section">
-            <h3>Sites & Projects</h3>
-            <button class="settings-option" onclick="navigateToTab('sites')">
-              <i data-icon="map" data-icon-size="16"></i>
-              <div>
-                <strong>Manage Sites</strong>
-                <p class="muted">Add and manage project sites</p>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
       <main class="app-content">
 
         <!-- Empty state -->
@@ -1534,6 +1483,9 @@
           </div></div>
           <form id="manualSalaryForm" class="entry-form">
             <div class="form-row">
+              <label>Payment type
+                <select name="category" id="manualPayCategory"></select>
+              </label>
               <label>Driver
                 <select name="driverExtId" id="manualSalaryDriver" required></select>
               </label>
@@ -1670,6 +1622,11 @@
           <p class="muted" id="editPayWho" style="margin-bottom:12px"></p>
           <form id="editPayForm" class="entry-form">
             <input type="hidden" name="id" />
+            <div class="form-row">
+              <label>Payment type
+                <select name="category" id="editPayCategory"></select>
+              </label>
+            </div>
             <div class="form-row">
               <label id="editPayPeriodLabel">Salary for month
                 <!-- label + input type swap to a date picker for daily-wage
@@ -2377,6 +2334,28 @@
               <p class="muted">Your business profile and how FleetWorks alerts you. These are saved with your fleet and sync to your account.</p>
             </div>
           </div>
+          <div class="settings-menu">
+            <button type="button" class="settings-tile" onclick="document.getElementById('settingsForm').scrollIntoView({behavior:'smooth'})">
+              <i data-icon="user" data-icon-size="18"></i>
+              <div><strong>Business Profile &amp; Alerts</strong><p class="muted">Company details, expiry warnings, mileage alerts</p></div>
+            </button>
+            <button type="button" class="settings-tile" onclick="activateTab('smsnotif')">
+              <i data-icon="chat" data-icon-size="18"></i>
+              <div><strong>SMS Notifications</strong><p class="muted">Where SMS alerts go and which ones you get</p></div>
+            </button>
+            <button type="button" class="settings-tile" onclick="toggleNotifPanel()">
+              <i data-icon="bell" data-icon-size="18"></i>
+              <div><strong>Past Notifications</strong><p class="muted">Open your notification history and action inbox</p></div>
+            </button>
+            <button type="button" class="settings-tile" onclick="activateTab('sites')">
+              <i data-icon="mapPin" data-icon-size="18"></i>
+              <div><strong>Sites &amp; Projects</strong><p class="muted">Add and manage project sites</p></div>
+            </button>
+            <button type="button" class="settings-tile" onclick="document.getElementById('exportDataBtn').scrollIntoView({behavior:'smooth'})">
+              <i data-icon="download" data-icon-size="18"></i>
+              <div><strong>Data &amp; Backup</strong><p class="muted">Export your fleet, clear demo data</p></div>
+            </button>
+          </div>
           <form id="settingsForm" class="entry-form">
             <div class="form-row">
               <label>Transport / Company Name
@@ -2947,17 +2926,9 @@
   <script>
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 
-    // Settings Panel Toggle
-    window.toggleSettingsPanel = function() {
-      const panel = document.getElementById('settingsPanel');
-      if (panel) panel.hidden = !panel.hidden;
-    };
-
-    // Navigate to Tab from Settings
-    window.navigateToTab = function(tabName) {
-      toggleSettingsPanel(); // Close settings
-      const btn = document.querySelector(`[data-tab="${tabName}"]`);
-      if (btn) btn.click();
+    // Gear icon = the Settings page (same as the sidebar item), not a pop-up
+    window.openSettingsPage = function () {
+      if (typeof activateTab === "function") activateTab("settings");
     };
 
     // Deep-link: fleet.html#analytics / #account / #fuel ... activates that tab
@@ -2971,78 +2942,20 @@
     fwActivateHashTab();
   </script>
 
-  <!-- Settings Panel Styles -->
+  <!-- Settings page styles -->
   <style>
-    .settings-panel {
-      position: fixed;
-      top: 60px;
-      left: 0;
-      width: 320px;
-      max-height: 70vh;
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 0 8px 0 0;
-      box-shadow: 4px 4px 12px rgba(0,0,0,0.15);
-      display: flex;
-      flex-direction: column;
-      z-index: 1000;
-      overflow: hidden;
-    }
-    .settings-panel[hidden] { display: none !important; }
-
-    .settings-panel-head {
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--line);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-weight: 600;
-      background: var(--bg-alt);
-    }
-
-    .settings-panel-body {
-      flex: 1;
-      overflow-y: auto;
-      padding: 8px 0;
-    }
-
-    .settings-section {
-      border-bottom: 1px solid var(--line);
-      padding: 12px 0;
-    }
-    .settings-section:first-child { border-top: 1px solid var(--line); }
-    .settings-section h3 {
-      font-size: 0.75rem;
-      font-weight: 700;
-      color: var(--muted);
-      text-transform: uppercase;
-      padding: 8px 16px 8px 16px;
-      margin: 0;
-      letter-spacing: 0.5px;
-    }
-
-    .settings-option {
-      display: flex;
-      gap: 12px;
-      padding: 12px 16px;
-      border: none;
-      background: transparent;
-      cursor: pointer;
-      width: 100%;
-      text-align: left;
-      transition: background 0.2s;
-    }
-    .settings-option:hover { background: var(--bg-alt); }
-    .settings-option i { flex-shrink: 0; color: var(--primary); }
-    .settings-option strong { display: block; margin-bottom: 2px; }
-    .settings-option p { margin: 0; font-size: 0.8rem; }
-
-    .settings-btn {
-      padding: 6px 10px !important;
-      background: transparent !important;
-      border: 1px solid var(--line) !important;
-    }
+    .settings-btn { padding: 6px 10px !important; background: transparent !important; border: 1px solid var(--line) !important; }
     .settings-btn:hover { background: var(--bg-alt) !important; }
+    .settings-menu { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 14px; }
+    .settings-tile {
+      display: flex; gap: 12px; align-items: flex-start; text-align: left; width: 100%;
+      padding: 14px 16px; background: #fff; border: 1px solid var(--line); border-radius: 12px;
+      cursor: pointer; font: inherit; color: var(--ink); transition: border-color .15s, box-shadow .15s, transform .15s;
+    }
+    .settings-tile:hover { border-color: var(--amber); box-shadow: 0 4px 14px rgba(15,30,51,.08); transform: translateY(-1px); }
+    .settings-tile strong { display: block; margin-bottom: 2px; }
+    .settings-tile p { margin: 0; font-size: 0.8rem; }
+    .settings-back { margin: 0 0 12px; }
   </style>
 </body>
 </html>
