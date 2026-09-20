@@ -93,10 +93,13 @@ const DriverKhataController = {
             <label style="display: block; font-size: 0.8rem; margin-bottom: 4px;">From</label>
             <input type="date" id="khataStartDate" value="${thirtyDaysAgo}" style="width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px;" />
           </div>
-          <div>
+          <div style="margin-bottom: 20px;">
             <label style="display: block; font-size: 0.8rem; margin-bottom: 4px;">To</label>
             <input type="date" id="khataEndDate" value="${today}" style="width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px;" />
           </div>
+
+          <!-- SUBMIT BUTTON -->
+          <button id="khataSubmitBtn" class="btn btn-primary btn-block" style="width: 100%; padding: 12px; font-weight: 600; font-size: 1rem;">Generate Khata</button>
         </div>
 
         <!-- RIGHT MAIN AREA -->
@@ -496,30 +499,29 @@ const DriverKhataController = {
     // Driver selection from dropdown
     container.querySelector('#driverSelect')?.addEventListener('change', (e) => {
       this.currentFilter.driverId = e.target.value || null;
-      this.renderTable(container);
     });
 
     // Filters
     container.querySelector('#filterAdvances')?.addEventListener('change', (e) => {
       this.currentFilter.showAdvances = e.target.checked;
-      this.renderTable(container);
     });
     container.querySelector('#filterSalary')?.addEventListener('change', (e) => {
       this.currentFilter.showSalary = e.target.checked;
-      this.renderTable(container);
     });
     container.querySelector('#filterBalance')?.addEventListener('change', (e) => {
       this.currentFilter.showBalance = e.target.checked;
-      this.renderTable(container);
     });
 
     // Timeline
     container.querySelector('#khataStartDate')?.addEventListener('change', () => {
       this.currentFilter.startDate = container.querySelector('#khataStartDate').value;
-      this.renderTable(container);
     });
     container.querySelector('#khataEndDate')?.addEventListener('change', () => {
       this.currentFilter.endDate = container.querySelector('#khataEndDate').value;
+    });
+
+    // SUBMIT BUTTON - Generate Khata
+    container.querySelector('#khataSubmitBtn')?.addEventListener('click', () => {
       this.renderTable(container);
     });
 
