@@ -41,6 +41,7 @@ interface Body {
   password?: string;
   name?: string;
   role?: "supervisor" | "driver";
+  driverExtId?: string | null;
   vehicles?: { extId: string; access: "view" | "update" }[];
 }
 
@@ -60,11 +61,13 @@ Deno.serve(async (req) => {
   const password = (body.password || "").trim();
   const name = (body.name || "").trim();
   const role = body.role === "driver" ? "driver" : "supervisor";
+  const driverExtId = (body.driverExtId || "").trim();
   const vehicles = Array.isArray(body.vehicles) ? body.vehicles.slice(0, 200) : [];
 
   if (!email || !email.includes("@")) return err(origin, 400, "Enter a valid email.");
   if (!password || password.length < 6) return err(origin, 400, "Password must be at least 6 characters.");
   if (!vehicles.length) return err(origin, 400, "Assign at least one vehicle.");
+  if (role === "driver" && !driverExtId) return err(origin, 400, "Select the driver record for this login.");
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
 
@@ -83,6 +86,18 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (memErr || !membership) return err(origin, 403, "Only the fleet owner or a manager can invite team members.");
   const orgId = membership.org_id as string;
+
+  // Validate the selected business record before creating an Auth user, so a
+  // bad/already-linked selection cannot leave a half-created team account.
+  if (role === "driver") {
+    const { data: driver, error: driverErr } = await admin.from("drivers")
+      .select("id")
+      .eq("org_id", orgId)
+      .eq("ext_id", driverExtId)
+      .is("user_id", null)
+      .maybeSingle();
+    if (driverErr || !driver) return err(origin, 409, "Select an unlinked driver record from this fleet.");
+  }
 
   // 3. Create the team member's real auth account.
   const { data: created, error: createErr } = await admin.auth.admin.createUser({
@@ -111,5 +126,18 @@ Deno.serve(async (req) => {
     if (vErr) return err(origin, 500, "Account + role created but vehicle assignment failed: " + vErr.message);
   }
 
-  return new Response(JSON.stringify({ ok: true, userId: newUserId, email, role, vehicleCount: rows.length }), { headers: cors(origin) });
+  if (role === "driver") {
+    const { data: linked, error: linkErr } = await admin.from("drivers")
+      .update({ user_id: newUserId })
+      .eq("org_id", orgId)
+      .eq("ext_id", driverExtId)
+      .is("user_id", null)
+      .select("id")
+      .maybeSingle();
+    if (linkErr || !linked) {
+      return err(origin, 409, "Login created, but the selected driver record could not be linked. It may already belong to another login.");
+    }
+  }
+
+  return new Response(JSON.stringify({ ok: true, userId: newUserId, email, role, vehicleCount: rows.length, driverLinked: role !== "driver" || !!driverExtId }), { headers: cors(origin) });
 });

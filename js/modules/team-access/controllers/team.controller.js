@@ -197,6 +197,7 @@ window.openVehicle = async function (vehId, extId, name, access) {
   if (window.FWIcons) FWIcons.hydrate(body);
 };
 
+function clearTvErr() { const e = document.getElementById("tvErr"); if (e) { e.textContent = ""; e.hidden = true; } }
 function tvErr(msg) { const e = document.getElementById("tvErr"); if (e) { e.textContent = msg; e.hidden = false; } }
 
 // Supervisor: toggle status button highlight
@@ -210,6 +211,7 @@ window.tvSetStatusActive = function(status) {
 
 // Supervisor: save vehicle status + current driver to vehicle_op_statuses
 window.tvSaveStatus = async function(vehId) {
+  clearTvErr();
   const status = (document.getElementById("tvStatusVal")?.value || "").trim();
   const driverName = (document.getElementById("tvDriverName")?.value || "").trim();
   if (!status) return tvErr("Pick a status (Moving / Halted / Maintenance).");
@@ -248,6 +250,7 @@ function toast(msg, tone) {
 // derived rather than asked for, because a driver mis-typing km is far more
 // likely than mis-reading the dial twice.
 window.tvSaveTrip = async function (vehId) {
+  clearTvErr();
   const start = +document.getElementById("tvOdoStart").value || 0;
   const end = +document.getElementById("tvOdoEnd").value || 0;
   const from = (document.getElementById("tvFrom").value || "").trim();
@@ -268,6 +271,7 @@ window.tvSaveTrip = async function (vehId) {
 // It needs the driver row linked to this login; without that link there is no
 // khata to write to, and saying so is better than failing silently.
 window.tvSaveAdvance = async function () {
+  clearTvErr();
   const amount = +document.getElementById("tvAdvAmt").value || 0;
   const note = (document.getElementById("tvAdvNote").value || "").trim();
   if (!amount) return tvErr("Enter the advance amount.");
@@ -282,6 +286,7 @@ window.tvSaveAdvance = async function () {
 };
 
 window.tvSaveFuel = async function (vehId) {
+  clearTvErr();
   const litres = +document.getElementById("tvLitres").value || 0;
   const amount = +document.getElementById("tvFuelAmt").value || 0;
   const odo = +document.getElementById("tvOdo").value || 0;
@@ -297,6 +302,7 @@ window.tvSaveFuel = async function (vehId) {
 // approvals.sql). Only the owner's own edits, made in Fleet Manager, write
 // straight to the expenses table; this portal never does.
 window.tvSaveExpense = async function (vehId) {
+  clearTvErr();
   const category = (document.getElementById("tvExpCat").value || "").trim();
   const amount = +document.getElementById("tvExpAmt").value || 0;
   if (!category || !amount) return tvErr("Enter category and amount.");
@@ -311,6 +317,7 @@ window.tvSaveExpense = async function (vehId) {
   else tvErr("Could not submit — check your access for this vehicle.");
 };
 window.tvSaveIssue = async function (vehId) {
+  clearTvErr();
   const title = (document.getElementById("tvIssTitle").value || "").trim();
   const severity = document.getElementById("tvIssSev").value;
   if (!title) return tvErr("Describe the problem.");
@@ -322,6 +329,7 @@ window.tvSaveIssue = async function (vehId) {
 };
 
 window.tvSaveInspection = async function (vehId) {
+  clearTvErr();
   const type = document.getElementById("tvInspType").value;
   const passed = document.getElementById("tvInspPassed").checked;
   const notes = (document.getElementById("tvInspNotes").value || "").trim();
