@@ -12,6 +12,19 @@
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icons/icon-96.png" />
   <meta name="theme-color" content="#0f1e33" />
+
+  <!-- Supabase Client Initialization -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // Initialize Supabase client
+    const SUPABASE_URL = 'https://vlrqobmgbmskktvfzvkg.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZscnFvYm1nYm1za2t0dmZ6dmtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjAwMzU1NTgsImV4cCI6MTkzNTYxMTU1OH0.dVRWwN3_M8H8H6n1KlbHY6qDKZGxWKQh_8pJk0nUcNY';
+
+    if (typeof supabase !== 'undefined') {
+      window.supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      console.log('✅ Supabase client initialized');
+    }
+  </script>
 </head>
 <body class="app-body">
 
