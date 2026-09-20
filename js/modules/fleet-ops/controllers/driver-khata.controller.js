@@ -541,10 +541,6 @@ const DriverKhataController = {
     container.querySelector('#khataDownloadExcelBtn')?.addEventListener('click', () => this.downloadKhataExcel());
     container.querySelector('#khataDownloadPDFBtn')?.addEventListener('click', () => this.downloadKhataPDF());
 
-    // Auto-filter on date change
-    startDateInput?.addEventListener('change', () => filterBtn?.click());
-    endDateInput?.addEventListener('change', () => filterBtn?.click());
-
     // Expense form handling (for drivers only)
     const expenseForm = container.querySelector('#khataExpenseForm');
     if (expenseForm) {

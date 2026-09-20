@@ -17,8 +17,8 @@
 
   <!-- Supabase Configuration & Initialization -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/backend.js"></script>
   <script src="config/supabase.config.js"></script>
-  <script src="js/auth/init-supabase.js"></script>
   <script src="js/theme-switcher.js"></script>
 </head>
 <body class="app-body">
@@ -2650,7 +2650,6 @@
   </div>
 
   <script src="js/icons.js"></script>
-  <script src="js/backend.js"></script>
   <script src="js/modules/auth/domain/auth.domain.js"></script>
   <script src="js/modules/auth/ports/auth-repository.port.js"></script>
   <script src="js/modules/auth/adapters/supabase-auth.repository.js"></script>
@@ -2820,7 +2819,7 @@
         const names = {
           forward: '📹 Front',
           rear: '🔙 Rear',
-          360_forward: '🔄 360°',
+          '360_forward': '🔄 360°',
           cabin: '👥 Cabin'
         };
         return names[stream] || 'Unknown';
@@ -2906,9 +2905,6 @@
   <!-- Fleet Operations Controllers -->
   <script src="js/modules/fleet-ops/controllers/safety-events.controller.js"></script>
   <script src="js/modules/fleet-ops/controllers/insurance-dashboard.controller.js"></script>
-  <script src="js/modules/fleet-ops/controllers/tyre-readings.controller.js"></script>
-  <script src="js/modules/fleet-ops/controllers/garage-directory.controller.js"></script>
-  <script src="js/modules/fleet-ops/controllers/service-requests.controller.js"></script>
   <script src="js/modules/fleet-ops/controllers/whatsapp.controller.js"></script>
   <script src="js/modules/fleet-ops/controllers/live-video-dashboard.controller.js"></script>
   <script src="js/modules/fleet-ops/controllers/video-config.controller.js"></script>
@@ -2923,10 +2919,7 @@
   <script src="js/utils/footer-contact.js"></script>
   <script src="js/modules/demo/vehicle-simulator.js"></script>
   <script src="js/modules/demo/demo-dashboard.controller.js"></script>
-  <script src="js/auth/supabase-auth.js"></script>
-  <script src="js/auth/trial-signup.js"></script>
-  <script src="js/auth/auth-form-handler.js"></script>
-  <script src="js/auth/role-based-router.js"></script>
+  <script src="js/auth/supabase-bridge.js"></script>
   <script src="js/utils/google-maps-integration.js"></script>
   <script src="js/modules/fleet-iq/fleet-ai-dashboard.controller.js"></script>
   <script src="js/modules/fleet-insure/fleet-insure-dashboard.controller.js"></script>

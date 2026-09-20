@@ -345,6 +345,19 @@
        owner-scoped rows like driver_entries. */
     uid() { const s = session(); return (s && s.user && s.user.id) || null; },
 
+    /* Current access token, refreshed if it expires within a minute. Used by
+       the shared supabase-js client (config/supabase.config.js) so fwCloud
+       stays the only owner of the session and refresh token. */
+    async accessToken() {
+      let s = session();
+      if (!s || !s.access_token) return null;
+      try {
+        const exp = JSON.parse(atob(s.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))).exp;
+        if (exp && exp * 1000 - Date.now() < 60000 && await refresh()) s = session();
+      } catch { }
+      return (s && s.access_token) || null;
+    },
+
     accountKindCached() { return accountKindCache; },
 
     async accountKind() {

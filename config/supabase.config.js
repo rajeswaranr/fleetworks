@@ -1,73 +1,29 @@
 /**
- * Supabase Configuration
- * Update these credentials with your actual Supabase project details
+ * Shared supabase-js client (window.supabase) for the module controllers.
+ *
+ * Single source of truth: URL and key come from js/backend.js (FW_BACKEND),
+ * which must load first. Sign-in/session is owned by fwCloud (js/cloudstore.js);
+ * this client only borrows its access token via the `accessToken` option, so
+ * there is never a second session or a competing refresh token. Signed out,
+ * requests go out with the anon key.
  */
-
-const SupabaseConfig = {
-  // 🔧 UPDATE THESE WITH YOUR SUPABASE CREDENTIALS
-  // Go to: https://app.supabase.com → Settings → API → Project URL & Anon Key
-
-  URL: 'https://crdblxeufbhysglbbtxi.supabase.co',
-  KEY: 'sb_publishable_DOrG4C5uWnD1HJZ9HONFlA_T9MOp9fb',  // Must match FW_BACKEND.anonKey
-
-  // Initialize Supabase client
-  init() {
-    try {
-      // Check if Supabase library is loaded
-      if (typeof supabase === 'undefined' || !supabase.createClient) {
-        console.error('❌ Supabase library not loaded. Check CDN link.');
-        return false;
-      }
-
-      if (!this.URL || !this.KEY) {
-        console.error('❌ Supabase credentials missing');
-        return false;
-      }
-
-      // Create client using global supabase object from CDN
-      window.supabase = supabase.createClient(this.URL, this.KEY);
-      console.log('✅ Supabase client initialized:', this.URL);
-      return true;
-    } catch (error) {
-      console.error('❌ Supabase init error:', error);
-      return false;
-    }
-  },
-
-  // Test connection
-  async testConnection() {
-    try {
-      if (!window.supabase) return false;
-
-      const { data, error } = await window.supabase.auth.getSession();
-      if (error) {
-        console.error('❌ Connection test failed:', error);
-        return false;
-      }
-      console.log('✅ Connection test passed');
-      return true;
-    } catch (error) {
-      console.error('❌ Connection test error:', error);
-      return false;
-    }
+(function () {
+  var cfg = window.FW_BACKEND;
+  if (!cfg || !cfg.url || !cfg.anonKey) {
+    console.error("[FleetWorks] FW_BACKEND missing — load js/backend.js before config/supabase.config.js");
+    return;
   }
-};
-
-// Auto-init on load — wait for CDN to load
-function waitForSupabaseLib() {
-  if (typeof supabase !== 'undefined') {
-    console.log('📡 Supabase library detected, initializing...');
-    SupabaseConfig.init();
-  } else {
-    console.log('⏳ Waiting for Supabase CDN...');
-    setTimeout(waitForSupabaseLib, 100);
+  if (!window.supabase || typeof window.supabase.createClient !== "function") {
+    console.error("[FleetWorks] supabase-js library not loaded (CDN blocked?)");
+    return;
   }
-}
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', waitForSupabaseLib);
-} else {
-  waitForSupabaseLib();
-}
+  window.SUPABASE_URL = cfg.url;
+  window.SUPABASE_ANON_KEY = cfg.anonKey;
 
-window.SupabaseConfig = SupabaseConfig;
+  window.supabase = window.supabase.createClient(cfg.url, cfg.anonKey, {
+    accessToken: async function () {
+      return (window.fwCloud && await window.fwCloud.accessToken()) || null;
+    }
+  });
+})();
