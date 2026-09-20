@@ -1019,7 +1019,7 @@ input[type="file"] {
   padding: var(--space-md);
 }
 
-.tab-btn {
+.tab-btn:not(.side-item) {
   font-family: inherit;
   font-size: var(--text-sm);
   font-weight: var(--fw-semibold);
@@ -1032,12 +1032,12 @@ input[type="file"] {
   transition: all var(--transition-fast);
 }
 
-.tab-btn:hover {
+.tab-btn:not(.side-item):hover {
   background: var(--bg-alt);
   color: var(--navy);
 }
 
-.tab-btn.active {
+.tab-btn.active:not(.side-item) {
   background: var(--navy);
   color: #fff;
 }
@@ -1177,7 +1177,7 @@ tbody tr:last-child td {
   th, td { padding: var(--space-sm); }
 
   .tab-bar { gap: var(--space-xs); padding: var(--space-sm); }
-  .tab-btn { padding: var(--space-sm) var(--space-md); }
+  .tab-btn:not(.side-item) { padding: var(--space-sm) var(--space-md); }
 }
 
 /* Utility breakpoint helpers */
