@@ -8,10 +8,16 @@ const SupabaseAuth = {
   user: null,
 
   init() {
-    // Initialize Supabase (already injected from fleet.html)
-    this.client = window.supabase;
+    // Get Supabase client - try multiple sources
+    this.client = window.supabaseClient || (window.supabase && window.supabase.createClient ? window.supabase : null);
+
+    if (!this.client) {
+      console.error('❌ Supabase client not available');
+      return;
+    }
+
     this.checkAuth();
-    console.log('Supabase Auth initialized');
+    console.log('✅ Supabase Auth initialized');
   },
 
   // Check if user is logged in

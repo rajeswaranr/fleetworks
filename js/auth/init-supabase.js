@@ -1,54 +1,59 @@
 /**
  * Supabase Initialization Script
- * Simpler init with better error handling
+ * Waits for library to load, then initializes with credentials
  */
 
 function initSupabase() {
-  // Check if Supabase library is loaded
-  if (typeof supabase === 'undefined') {
-    console.error('❌ Supabase library not loaded. Make sure it\'s imported.');
-    return false;
-  }
-
-  // Get config from window.SupabaseConfig or use defaults
+  // Get config from window.SupabaseConfig
   const config = window.SupabaseConfig || {};
-  const url = config.URL || localStorage.getItem('supabase_url');
-  const key = config.KEY || localStorage.getItem('supabase_key');
+  const url = config.URL;
+  const key = config.KEY;
 
   if (!url || !key) {
-    console.error('❌ Supabase URL or API Key missing');
-    console.log('Please configure Supabase credentials in config/supabase.config.js');
+    console.error('❌ Supabase URL or API Key missing in config');
     return false;
   }
 
-  try {
-    // Create Supabase client
-    window.supabase = supabase.createClient(url, key);
-    console.log('✅ Supabase client created successfully');
+  // Wait for supabase library to be available
+  let attempts = 0;
+  const maxAttempts = 50;
 
-    // Test connection
-    window.supabase.auth.getSession()
-      .then(({ data, error }) => {
-        if (error) {
-          console.error('⚠️ Connection test failed:', error.message);
-        } else {
-          console.log('✅ Supabase connection test passed');
-        }
-      })
-      .catch(err => console.error('Connection test error:', err));
+  const tryInit = () => {
+    attempts++;
 
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to create Supabase client:', error);
-    return false;
-  }
+    // Check if window.supabase exists and has createClient
+    if (window.supabase && typeof window.supabase.createClient === 'function') {
+      try {
+        // Create Supabase client
+        const supabaseClient = window.supabase.createClient(url, key);
+        window.supabaseClient = supabaseClient;
+        console.log('✅ Supabase client created successfully');
+
+        // Make it available as window.supabase for backward compatibility
+        window.supabase.client = supabaseClient;
+
+        return true;
+      } catch (error) {
+        console.error('❌ Failed to create Supabase client:', error);
+        return false;
+      }
+    } else if (attempts < maxAttempts) {
+      // Library not ready yet, try again
+      setTimeout(tryInit, 100);
+    } else {
+      console.error('❌ Supabase library did not load after', maxAttempts, 'attempts');
+      console.error('window.supabase:', window.supabase);
+    }
+  };
+
+  tryInit();
 }
 
 // Initialize when ready
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(initSupabase, 100);
+    setTimeout(initSupabase, 500);
   });
 } else {
-  initSupabase();
+  setTimeout(initSupabase, 500);
 }
