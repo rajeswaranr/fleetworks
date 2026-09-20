@@ -87,7 +87,7 @@ const DriverKhataController = {
 
     const currentDriver = drivers.find(d => d.email === user.email || d.id === user.id);
 
-    // Build driver dropdown or show driver name
+    // Build drivers table
     let driverControl = '';
     if (userRole === 'driver' && currentDriver) {
       driverControl = `
@@ -99,12 +99,32 @@ const DriverKhataController = {
         </div>
       `;
     } else {
+      // Show drivers as TABLE instead of dropdown
+      const driverRows = drivers.map((d, idx) => `
+        <tr onclick="DriverKhataController.selectDriver('${d.id}')" style="cursor: pointer;">
+          <td>${d.name || '-'}</td>
+          <td>${d.phone || '-'}</td>
+          <td>${d.email || '-'}</td>
+          <td><button type="button" class="btn btn-sm btn-primary" onclick="event.stopPropagation(); DriverKhataController.selectDriver('${d.id}')">View Khata</button></td>
+        </tr>
+      `).join('');
+
       driverControl = `
-        <div class="control-group">
-          <label>Driver</label>
-          <select id="khataDriverFilter">
-            <option value="">All Drivers</option>
-          </select>
+        <div style="margin-bottom: 20px;">
+          <h3 style="margin: 0 0 12px 0;">Select Driver</h3>
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: var(--bg-alt); border-bottom: 2px solid var(--line);">
+                <th style="padding: 10px; text-align: left; font-weight: 600;">Name</th>
+                <th style="padding: 10px; text-align: left; font-weight: 600;">Phone</th>
+                <th style="padding: 10px; text-align: left; font-weight: 600;">Email</th>
+                <th style="padding: 10px; text-align: left; font-weight: 600;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${driverRows || '<tr><td colspan="4" style="padding: 20px; text-align: center; color: var(--muted);">No drivers found</td></tr>'}
+            </tbody>
+          </table>
         </div>
       `;
     }
@@ -166,9 +186,17 @@ const DriverKhataController = {
             <input type="date" id="khataEndDate" value="${today}" />
           </div>
           <button class="btn btn-primary" id="khataFilterBtn">Filter</button>
-          <button class="btn btn-outline" id="khataDownloadBtn" title="Download as CSV">
-            <i data-icon="download" data-icon-size="16"></i> Download
-          </button>
+          <div class="control-group" style="flex-direction: row; gap: 8px;">
+            <button class="btn btn-outline" id="khataDownloadCSVBtn" title="Download as CSV">
+              <i data-icon="download" data-icon-size="16"></i> CSV
+            </button>
+            <button class="btn btn-outline" id="khataDownloadExcelBtn" title="Download as Excel">
+              <i data-icon="download" data-icon-size="16"></i> Excel
+            </button>
+            <button class="btn btn-outline" id="khataDownloadPDFBtn" title="Download as PDF (Coming Soon)">
+              <i data-icon="download" data-icon-size="16"></i> PDF
+            </button>
+          </div>
         </div>
       </div>
 
@@ -342,7 +370,9 @@ const DriverKhataController = {
 
   attachEventListeners(container) {
     const filterBtn = container.querySelector('#khataFilterBtn');
-    const downloadBtn = container.querySelector('#khataDownloadBtn');
+    const downloadCSVBtn = container.querySelector('#khataDownloadCSVBtn');
+    const downloadExcelBtn = container.querySelector('#khataDownloadExcelBtn');
+    const downloadPDFBtn = container.querySelector('#khataDownloadPDFBtn');
     const driverFilter = container.querySelector('#khataDriverFilter');
     const startDateInput = container.querySelector('#khataStartDate');
     const endDateInput = container.querySelector('#khataEndDate');
@@ -357,7 +387,9 @@ const DriverKhataController = {
       this.renderTable(container);
     });
 
-    downloadBtn?.addEventListener('click', () => this.downloadKhata());
+    downloadCSVBtn?.addEventListener('click', () => this.downloadKhata());
+    downloadExcelBtn?.addEventListener('click', () => this.downloadKhataExcel());
+    downloadPDFBtn?.addEventListener('click', () => this.downloadKhataPDF());
 
     // Auto-filter on date change
     startDateInput?.addEventListener('change', () => filterBtn?.click());
@@ -514,6 +546,62 @@ const DriverKhataController = {
     document.body.removeChild(link);
 
     console.log('✅ Khata downloaded:', fileName);
+  },
+
+  selectDriver(driverId) {
+    this.currentFilter.driverId = driverId;
+    const container = document.getElementById('khataContainer');
+    if (container) {
+      this.renderTable(container);
+      container.scrollIntoView({ behavior: 'smooth' });
+    }
+  },
+
+  downloadKhataExcel() {
+    const { driverId, startDate, endDate } = this.currentFilter;
+    const ledger = (db.driverLedger || []);
+    const drivers = this.drivers || (db.drivers || []);
+
+    let filtered = ledger;
+    if (driverId) filtered = filtered.filter(l => l.driverId === driverId);
+    if (startDate) filtered = filtered.filter(l => l.date >= startDate);
+    if (endDate) filtered = filtered.filter(l => l.date <= endDate);
+    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    const totals = {
+      advance: filtered.filter(l => l.type === 'advance').reduce((sum, l) => sum + (l.amount || 0), 0),
+      expense: filtered.filter(l => l.type === 'expense').reduce((sum, l) => sum + (l.amount || 0), 0),
+      settlement: filtered.filter(l => l.type === 'settlement').reduce((sum, l) => sum + (l.amount || 0), 0),
+    };
+    const netBalance = totals.advance - totals.expense - totals.settlement;
+
+    // Build HTML table for Excel
+    let html = '<table><tr><th>Date</th><th>Driver</th><th>Type</th><th>Amount (₹)</th><th>Notes</th></tr>';
+    filtered.forEach(entry => {
+      const driver = drivers.find(d => d.id === entry.driverId);
+      const dateStr = new Date(entry.date).toLocaleDateString('en-IN');
+      html += `<tr><td>${dateStr}</td><td>${driver?.name || 'Unknown'}</td><td>${entry.type}</td><td>${entry.amount || 0}</td><td>${entry.note || ''}</td></tr>`;
+    });
+    html += '<tr><td colspan="5"><strong>Summary</strong></td></tr>';
+    html += `<tr><td>Total Advances</td><td></td><td></td><td>${totals.advance}</td></tr>`;
+    html += `<tr><td>Total Expenses</td><td></td><td></td><td>${totals.expense}</td></tr>`;
+    html += `<tr><td>Total Settlements</td><td></td><td></td><td>${totals.settlement}</td></tr>`;
+    html += `<tr><td>Net Balance</td><td></td><td></td><td>${netBalance}</td></tr></table>`;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const link = document.createElement('a');
+    const fileName = `Driver_Khata_${new Date().toISOString().split('T')[0]}.xls`;
+    link.setAttribute('href', URL.createObjectURL(blob));
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    console.log('✅ Khata downloaded (Excel):', fileName);
+  },
+
+  downloadKhataPDF() {
+    alert('📄 PDF download coming soon! For now, use Excel or CSV format.');
   }
 };
 
