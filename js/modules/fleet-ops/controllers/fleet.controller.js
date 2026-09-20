@@ -1143,6 +1143,7 @@ window.openLegacyTripForm = function() {
 // ---------- Render: driver khata ----------
 const KHATA_LABEL = { advance: "Advance given", expense: "Trip expense", settlement: "Cash returned" };
 function renderKhata() {
+  if (window.DriverKhataController) DriverKhataController.refresh();
   const bal = document.getElementById("khataBalances"), tbl = document.getElementById("khataTable");
   if (!bal || !tbl) return;
   const sel = document.getElementById("khataDriver");

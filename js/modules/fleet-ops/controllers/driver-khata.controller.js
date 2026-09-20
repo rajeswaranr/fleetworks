@@ -1,763 +1,240 @@
 /**
- * Driver Khata Controller
- * Manages driver expense ledger, settlements, and downloads
+ * Driver Khata — reporting tool
+ * Filter panel + summary cards + per-driver balance table + transaction table,
+ * with CSV / Excel / PDF (print) export. Reads db.drivers and db.driverLedger,
+ * the same in-memory data the rest of FleetOps uses (loaded from Supabase when
+ * signed in), so driver ids always match ledger entries.
  */
 
 const DriverKhataController = {
-  currentFilter: {
-    driverId: null,
-    startDate: null,
-    endDate: null,
-    showAdvances: true,
-    showSalary: true,
-    showBalance: true
-  },
-  drivers: [],
+  filter: { driverId: "", from: "", to: "", types: { advance: true, expense: true, settlement: true } },
+  rows: [],
+  summary: null,
+
+  TYPE_LABEL: { advance: "Advance given", expense: "Expense by driver", settlement: "Settled / returned" },
+
+  container() { return document.getElementById("khataContainer"); },
+
+  esc(v) { return typeof esc === "function" ? esc(v) : String(v == null ? "" : v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); },
+  inr(n) { return "₹" + (Number(n) || 0).toLocaleString("en-IN"); },
+  fmtDate(d) { return d ? new Date(d).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" }) : "—"; },
+  driverName(id) { const d = (db.drivers || []).find(x => x.id === id); return d ? d.name : "Unknown driver"; },
 
   init() {
-    const container = document.getElementById('khataContainer');
-    if (!container) return;
-
-    const user = window.supabaseUser || { user_metadata: { role: 'owner' } };
-    const userRole = user.user_metadata?.role || 'owner';
-
-    if (userRole === 'driver') {
-      const drivers = (db.drivers || []);
-      const currentDriver = drivers.find(d => d.email === user.email || d.id === user.id);
-      if (currentDriver) {
-        this.currentFilter.driverId = currentDriver.id;
-        this.isDriverView = true;
-      }
-    }
-
-    this.renderKhata(container).then(() => {
-      this.attachEventListeners(container);
-      console.log('✅ Driver Khata initialized (role: ' + userRole + ')');
-    });
+    const c = this.container();
+    if (!c) return;
+    const iso = d => d.toISOString().slice(0, 10);
+    if (!this.filter.to) this.filter.to = iso(new Date());
+    if (!this.filter.from) this.filter.from = iso(new Date(Date.now() - 30 * 864e5));
+    this.build(c);
   },
 
-  async renderKhata(container) {
-    // Load drivers from Supabase
-    let drivers = [];
-    if (!window.supabase || !window.supabase.from) {
-      container.innerHTML = '<div style="padding:20px;color:red">❌ Supabase not connected</div>';
-      return;
-    }
+  // Called by fleet.controller whenever data changes; keeps the report live.
+  refresh() {
+    const c = this.container();
+    if (!c) return;
+    if (!c.querySelector("#khDriver")) this.init();
+    else { this.syncDriverOptions(c); this.generate(); }
+  },
 
-    try {
-      const { data, error } = await window.supabase.from('drivers').select('*');
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        container.innerHTML = '<div style="padding:20px;color:orange"><strong>No drivers found.</strong> Add drivers to your account first.</div>';
-        return;
-      }
-      drivers = data.filter(d => d && d.name);
-      this.drivers = drivers;
-    } catch (e) {
-      container.innerHTML = `<div style="padding:20px;color:red">❌ ${e.message}</div>`;
-      return;
-    }
-
-    const today = new Date().toISOString().split('T')[0];
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-    // Build two-column layout
-    container.innerHTML = `
-      <div style="display: grid; grid-template-columns: 300px 1fr; gap: 0; min-height: 100vh;">
-        <!-- LEFT SIDEBAR MENU -->
-        <div style="background: var(--bg-alt); border-right: 1px solid var(--line); overflow-y: auto; padding: 20px;">
-          <h3 style="margin-top: 0; margin-bottom: 16px; font-size: 1rem;">Select Driver</h3>
-
-          <!-- Driver Dropdown -->
-          <select id="driverSelect" style="width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 24px; font-size: 0.95rem; background: white; cursor: pointer;">
-            <option value="">🔷 All Drivers</option>
-            ${drivers.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
-          </select>
-
-          <!-- FILTERS -->
-          <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--muted); margin-bottom: 12px;">Filters</h4>
-
-          <label style="display: flex; gap: 8px; margin-bottom: 10px; cursor: pointer;">
-            <input type="checkbox" id="filterAdvances" checked /> Advances
-          </label>
-          <label style="display: flex; gap: 8px; margin-bottom: 10px; cursor: pointer;">
-            <input type="checkbox" id="filterSalary" checked /> Salary Paid
-          </label>
-          <label style="display: flex; gap: 8px; margin-bottom: 20px; cursor: pointer;">
-            <input type="checkbox" id="filterBalance" checked /> Balance
-          </label>
-
-          <!-- TIMELINE -->
-          <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--muted); margin-bottom: 12px;">Timeline</h4>
-          <div style="margin-bottom: 10px;">
-            <label style="display: block; font-size: 0.8rem; margin-bottom: 4px;">From</label>
-            <input type="date" id="khataStartDate" value="${thirtyDaysAgo}" style="width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px;" />
-          </div>
-          <div style="margin-bottom: 20px;">
-            <label style="display: block; font-size: 0.8rem; margin-bottom: 4px;">To</label>
-            <input type="date" id="khataEndDate" value="${today}" style="width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px;" />
-          </div>
-
-          <!-- SUBMIT BUTTON -->
-          <button id="khataSubmitBtn" style="width: 100%; padding: 14px 16px; background: linear-gradient(135deg, var(--primary) 0%, #fb9238 100%); color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 1.05rem; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(251, 146, 60, 0.3); margin-top: 8px;">
-            🔍 Generate Khata
-          </button>
-          <style>
-            #khataSubmitBtn:hover {
-              transform: translateY(-2px);
-              box-shadow: 0 8px 20px rgba(251, 146, 60, 0.4);
-            }
-            #khataSubmitBtn:active {
-              transform: translateY(0);
-            }
-          </style>
-        </div>
-
-        <!-- RIGHT MAIN AREA -->
-        <div style="padding: 20px; overflow-y: auto;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2 id="khataTitle" style="margin: 0;">Driver Khata</h2>
-            <div style="display: flex; gap: 8px;">
-              <button class="btn btn-outline" id="khataDownloadCSVBtn">CSV</button>
-              <button class="btn btn-outline" id="khataDownloadExcelBtn">Excel</button>
-              <button class="btn btn-outline" id="khataDownloadPDFBtn">PDF</button>
-            </div>
-          </div>
-          <div id="khataTable"></div>
-        </div>
-      </div>
-
+  build(c) {
+    const f = this.filter, t = f.types;
+    c.innerHTML = `
       <style>
-        .khata-driver-item:hover { background: var(--primary-light); border-color: var(--primary); }
-        .khata-driver-item.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .kh-wrap { padding: 4px 0 24px; }
+        .kh-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+        .kh-head h2 { margin: 0 0 2px; }
+        .kh-panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+        .kh-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; }
+        .kh-filters label { font-size: 0.8rem; font-weight: 600; color: var(--muted); display: flex; flex-direction: column; gap: 5px; }
+        .kh-types { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin-top: 12px; font-size: 0.88rem; }
+        .kh-types label { flex-direction: row; align-items: center; gap: 6px; font-weight: 500; color: var(--ink); }
+        .kh-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+        .kh-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+        .kh-card small { color: var(--muted); font-weight: 600; font-size: 0.78rem; }
+        .kh-card b { display: block; font-size: 1.4rem; margin-top: 4px; }
+        .kh-table-wrap { overflow-x: auto; }
+        .kh-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        .kh-table th { background: var(--bg-alt); color: var(--ink); font-weight: 700; text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--line); white-space: nowrap; }
+        .kh-table td { padding: 10px 12px; border-bottom: 1px solid var(--line); }
+        .kh-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .kh-table tfoot td { font-weight: 700; background: var(--bg-alt); }
+        .kh-table tr.kh-click { cursor: pointer; }
+        .kh-table tr.kh-click:hover { background: var(--bg-alt); }
+        .kh-pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 0.75rem; font-weight: 700; }
+        .kh-pill.advance { background: #dbeafe; color: #1e40af; }
+        .kh-pill.expense { background: #fef3c7; color: #92400e; }
+        .kh-pill.settlement { background: #dcfce7; color: #166534; }
+        .kh-pos { color: #166534; } .kh-neg { color: #dc2626; }
+        .kh-h3 { margin: 0 0 10px; font-size: 1rem; }
       </style>
-    `;
-
-    this.renderTable(container);
-  },
-
-  async renderFilters(container) {
-    const today = new Date().toISOString().split('T')[0];
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-    // Get user role and driver info
-    const user = window.supabaseUser || { user_metadata: { role: 'owner' } };
-    const userRole = user.user_metadata?.role || 'owner';
-
-    // Load drivers from Supabase or demo fallback
-    let drivers = [];
-    let datasource = 'demo';
-
-    // ALWAYS load from Supabase (no fallback)
-    if (!window.supabase || !window.supabase.from) {
-      console.error('❌ Supabase not available');
-      container.innerHTML = '<div style="padding: 20px; color: red;"><strong>Error:</strong> Supabase not connected. Reload page.</div>';
-      return;
-    }
-
-    try {
-      console.log('📡 Loading drivers from Supabase...');
-      const { data, error } = await window.supabase.from('drivers').select('*');
-
-      if (error) {
-        console.error('❌ Supabase error:', error.code, '-', error.message);
-        container.innerHTML = `<div style="padding: 20px; color: red; font-family: monospace;">
-          <strong>Error:</strong> ${error.message}<br/>
-          <small>Code: ${error.code}</small><br/>
-          Check browser console for details.
-        </div>`;
-        return;
-      }
-
-      if (!data || data.length === 0) {
-        console.warn('⚠️ No drivers in database');
-        container.innerHTML = '<div style="padding: 20px; color: orange;"><strong>No drivers found.</strong> Add drivers to your account first.</div>';
-        return;
-      }
-
-      drivers = data.filter(d => d && d.name);
-      this.drivers = drivers; // Store for use in renderTable
-      console.log('✅ Loaded', drivers.length, 'drivers:', drivers.map(d => d.name).join(', '));
-    } catch (e) {
-      console.error('❌ Exception:', e.message);
-      container.innerHTML = `<div style="padding: 20px; color: red;"><strong>Error:</strong> ${e.message}</div>`;
-      return;
-    }
-
-    const currentDriver = drivers.find(d => d.email === user.email || d.id === user.id);
-
-    // Build drivers table
-    let driverControl = '';
-    if (userRole === 'driver' && currentDriver) {
-      driverControl = `
-        <div class="control-group">
-          <label>My Ledger</label>
-          <div style="padding: 8px 12px; background: var(--bg-alt); border-radius: 6px; font-weight: 500;">
-            ${currentDriver.name}
+      <div class="kh-wrap">
+        <div class="kh-head">
+          <div>
+            <h2>Driver Khata</h2>
+            <p class="muted" style="margin:0">Advances, expenses and settlements per driver &mdash; filter, review and export.</p>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn btn-outline btn-sm" id="khCsv">CSV</button>
+            <button type="button" class="btn btn-outline btn-sm" id="khXls">Excel</button>
+            <button type="button" class="btn btn-outline btn-sm" id="khPdf">PDF / Print</button>
           </div>
         </div>
-      `;
+
+        <div class="kh-panel">
+          <div class="kh-filters">
+            <label>Driver <select id="khDriver"></select></label>
+            <label>From <input type="date" id="khFrom" value="${f.from}" /></label>
+            <label>To <input type="date" id="khTo" value="${f.to}" /></label>
+            <button type="button" class="btn btn-primary" id="khGo">Generate Khata</button>
+          </div>
+          <div class="kh-types">
+            <strong style="font-size:0.8rem;color:var(--muted)">Show</strong>
+            <label><input type="checkbox" id="khAdv" ${t.advance ? "checked" : ""} /> Advances</label>
+            <label><input type="checkbox" id="khExp" ${t.expense ? "checked" : ""} /> Expenses</label>
+            <label><input type="checkbox" id="khSet" ${t.settlement ? "checked" : ""} /> Settlements</label>
+          </div>
+        </div>
+
+        <div id="khCards" class="kh-cards"></div>
+        <div id="khBalances"></div>
+        <div id="khTable"></div>
+      </div>`;
+
+    this.syncDriverOptions(c);
+    const go = () => this.generate();
+    c.querySelector("#khGo").addEventListener("click", go);
+    c.querySelectorAll("#khDriver,#khFrom,#khTo,#khAdv,#khExp,#khSet").forEach(el => el.addEventListener("change", go));
+    c.querySelector("#khCsv").addEventListener("click", () => this.download("csv"));
+    c.querySelector("#khXls").addEventListener("click", () => this.download("xls"));
+    c.querySelector("#khPdf").addEventListener("click", () => this.print());
+    this.generate();
+  },
+
+  syncDriverOptions(c) {
+    const sel = c.querySelector("#khDriver");
+    if (!sel) return;
+    const keep = sel.value || this.filter.driverId;
+    sel.innerHTML = `<option value="">All drivers</option>` +
+      (db.drivers || []).map(d => `<option value="${this.esc(d.id)}">${this.esc(d.name)}</option>`).join("");
+    if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+  },
+
+  readControls() {
+    const c = this.container();
+    const v = id => c.querySelector(id);
+    this.filter.driverId = v("#khDriver").value;
+    this.filter.from = v("#khFrom").value;
+    this.filter.to = v("#khTo").value;
+    this.filter.types = { advance: v("#khAdv").checked, expense: v("#khExp").checked, settlement: v("#khSet").checked };
+  },
+
+  compute() {
+    const { driverId, from, to, types } = this.filter;
+    const rows = (db.driverLedger || []).filter(l =>
+      types[l.type] &&
+      (!driverId || l.driverId === driverId) &&
+      (!l.date || ((!from || l.date >= from) && (!to || l.date <= to)))
+    ).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+
+    const sum = (list, type) => list.filter(l => l.type === type).reduce((s, l) => s + (l.amount || 0), 0);
+    const totals = { advance: sum(rows, "advance"), expense: sum(rows, "expense"), settlement: sum(rows, "settlement") };
+    totals.balance = totals.advance - totals.expense - totals.settlement;
+
+    const byDriver = (db.drivers || []).map(d => {
+      const mine = rows.filter(l => l.driverId === d.id);
+      const t = { id: d.id, name: d.name, advance: sum(mine, "advance"), expense: sum(mine, "expense"), settlement: sum(mine, "settlement"), count: mine.length };
+      t.balance = t.advance - t.expense - t.settlement;
+      return t;
+    }).filter(t => t.count > 0);
+
+    this.rows = rows; this.summary = { totals, byDriver };
+  },
+
+  generate() {
+    const c = this.container();
+    if (!c || !c.querySelector("#khDriver")) return;
+    this.readControls();
+    this.compute();
+    const { totals, byDriver } = this.summary;
+    const bal = n => `<span class="${n >= 0 ? "kh-pos" : "kh-neg"}">${this.inr(n)}</span>`;
+
+    c.querySelector("#khCards").innerHTML = `
+      <div class="kh-card"><small>Total advances</small><b style="color:#1e40af">${this.inr(totals.advance)}</b></div>
+      <div class="kh-card"><small>Total expenses</small><b style="color:#92400e">${this.inr(totals.expense)}</b></div>
+      <div class="kh-card"><small>Total settlements</small><b style="color:#166534">${this.inr(totals.settlement)}</b></div>
+      <div class="kh-card"><small>Balance with driver</small><b>${bal(totals.balance)}</b></div>`;
+
+    const balBox = c.querySelector("#khBalances");
+    if (!this.filter.driverId && byDriver.length) {
+      balBox.innerHTML = `<div class="kh-panel"><h3 class="kh-h3">Balance by driver</h3><div class="kh-table-wrap"><table class="kh-table">
+        <thead><tr><th>Driver</th><th class="num">Advances</th><th class="num">Expenses</th><th class="num">Settled</th><th class="num">With driver</th></tr></thead><tbody>` +
+        byDriver.map(t => `<tr class="kh-click" data-id="${this.esc(t.id)}"><td>${this.esc(t.name)}</td><td class="num">${this.inr(t.advance)}</td><td class="num">${this.inr(t.expense)}</td><td class="num">${this.inr(t.settlement)}</td><td class="num"><b>${bal(t.balance)}</b></td></tr>`).join("") +
+        `</tbody></table></div><p class="muted" style="margin:8px 0 0;font-size:0.78rem">Click a driver to see only their entries.</p></div>`;
+      balBox.querySelectorAll("tr.kh-click").forEach(tr => tr.addEventListener("click", () => {
+        c.querySelector("#khDriver").value = tr.dataset.id; this.generate();
+      }));
+    } else balBox.innerHTML = "";
+
+    const body = this.rows.length ? this.rows.map(l => `<tr>
+        <td>${this.fmtDate(l.date)}</td><td>${this.esc(this.driverName(l.driverId))}</td>
+        <td><span class="kh-pill ${this.esc(l.type)}">${this.esc(this.TYPE_LABEL[l.type] || l.type || "Other")}</span></td>
+        <td class="num">${this.inr(l.amount)}</td><td>${this.esc(l.note || "—")}</td></tr>`).join("")
+      : `<tr><td colspan="5" style="text-align:center;padding:26px;color:var(--muted)">No entries for this selection. Add entries under Fleet &rarr; Drivers &amp; Contacts, or widen the dates.</td></tr>`;
+
+    c.querySelector("#khTable").innerHTML = `<div class="kh-panel"><h3 class="kh-h3">Transactions <span class="muted" style="font-weight:400">(${this.rows.length})</span></h3>
+      <div class="kh-table-wrap"><table class="kh-table">
+        <thead><tr><th>Date</th><th>Driver</th><th>Type</th><th class="num">Amount</th><th>Notes</th></tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot><tr><td colspan="3">Balance with driver (advances − expenses − settled)</td><td class="num">${bal(totals.balance)}</td><td></td></tr></tfoot>
+      </table></div></div>`;
+  },
+
+  periodText() { return `${this.filter.from || "start"} to ${this.filter.to || "today"}`; },
+
+  download(kind) {
+    this.readControls(); this.compute();
+    const { totals } = this.summary;
+    const stamp = new Date().toISOString().slice(0, 10);
+    let blob, name;
+    if (kind === "csv") {
+      const q = s => `"${String(s == null ? "" : s).replace(/"/g, '""')}"`;
+      const lines = [["Date", "Driver", "Type", "Amount (INR)", "Notes"].join(",")].concat(
+        this.rows.map(l => [q(l.date || ""), q(this.driverName(l.driverId)), q(l.type), l.amount || 0, q(l.note || "")].join(",")));
+      lines.push("", "Summary", `Total advances,${totals.advance}`, `Total expenses,${totals.expense}`, `Total settlements,${totals.settlement}`, `Balance with driver,${totals.balance}`);
+      blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" }); name = `Driver_Khata_${stamp}.csv`;
     } else {
-      // Show drivers as TABLE instead of dropdown
-      const driverRows = drivers.map((d, idx) => `
-        <tr onclick="DriverKhataController.selectDriver('${d.id}')" style="cursor: pointer;">
-          <td>${d.name || '-'}</td>
-          <td>${d.phone || '-'}</td>
-          <td>${d.email || '-'}</td>
-          <td><button type="button" class="btn btn-sm btn-primary" onclick="event.stopPropagation(); DriverKhataController.selectDriver('${d.id}')">View Khata</button></td>
-        </tr>
-      `).join('');
-
-      driverControl = `
-        <div style="margin-bottom: 20px;">
-          <h3 style="margin: 0 0 12px 0;">Select Driver</h3>
-          <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-              <tr style="background: var(--bg-alt); border-bottom: 2px solid var(--line);">
-                <th style="padding: 10px; text-align: left; font-weight: 600;">Name</th>
-                <th style="padding: 10px; text-align: left; font-weight: 600;">Phone</th>
-                <th style="padding: 10px; text-align: left; font-weight: 600;">Email</th>
-                <th style="padding: 10px; text-align: left; font-weight: 600;">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${driverRows || '<tr><td colspan="4" style="padding: 20px; text-align: center; color: var(--muted);">No drivers found</td></tr>'}
-            </tbody>
-          </table>
-        </div>
-      `;
+      blob = new Blob(["﻿" + this.reportHtml(false)], { type: "application/vnd.ms-excel;charset=utf-8;" }); name = `Driver_Khata_${stamp}.xls`;
     }
-
-    const title = userRole === 'driver' && currentDriver
-      ? `My Khata - ${currentDriver.name}`
-      : 'Driver Khata (Ledger)';
-
-    container.innerHTML = `
-      <div class="khata-header">
-        <h2>${title}</h2>
-
-        <!-- Add Expense Form (visible to drivers) -->
-        ${userRole === 'driver' ? `
-          <div class="expense-form-section" style="margin-top: 20px; padding: 15px; background: var(--bg-alt); border-radius: 8px;">
-            <h3 style="margin: 0 0 15px 0;">Add Expense</h3>
-            <form id="khataExpenseForm" class="khata-expense-form">
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-                <div class="form-group">
-                  <label>Amount (₹)</label>
-                  <input type="number" id="expenseAmount" name="amount" min="0" placeholder="0" required />
-                </div>
-                <div class="form-group">
-                  <label>Type</label>
-                  <select id="expenseType" name="type" required>
-                    <option value="">Select type</option>
-                    <option value="expense">Expense</option>
-                    <option value="advance">Advance Request</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-group" style="margin-bottom: 12px;">
-                <label>Description/Notes</label>
-                <input type="text" id="expenseNote" name="note" placeholder="e.g., Diesel, Food, Toll..." />
-              </div>
-              <div class="form-group" style="margin-bottom: 12px;">
-                <label>Bill/Receipt Photo</label>
-                <div style="display: flex; gap: 8px;">
-                  <input type="file" id="expensePhoto" name="photo" accept="image/*" style="flex: 1;" />
-                  <button type="button" class="btn btn-outline" id="cameraBtn" title="Take photo with camera">
-                    <i data-icon="camera" data-icon-size="16"></i> Camera
-                  </button>
-                </div>
-                <div id="photoPreview" style="margin-top: 10px;"></div>
-              </div>
-              <button type="submit" class="btn btn-primary btn-block">Add to Khata</button>
-            </form>
-          </div>
-        ` : ''}
-
-        <div class="khata-controls">
-          ${driverControl}
-          <div class="control-group">
-            <label>From</label>
-            <input type="date" id="khataStartDate" value="${thirtyDaysAgo}" />
-          </div>
-          <div class="control-group">
-            <label>To</label>
-            <input type="date" id="khataEndDate" value="${today}" />
-          </div>
-          <button class="btn btn-primary" id="khataFilterBtn">Filter</button>
-          <div class="control-group" style="flex-direction: row; gap: 8px;">
-            <button class="btn btn-outline" id="khataDownloadCSVBtn" title="Download as CSV">
-              <i data-icon="download" data-icon-size="16"></i> CSV
-            </button>
-            <button class="btn btn-outline" id="khataDownloadExcelBtn" title="Download as Excel">
-              <i data-icon="download" data-icon-size="16"></i> Excel
-            </button>
-            <button class="btn btn-outline" id="khataDownloadPDFBtn" title="Download as PDF (Coming Soon)">
-              <i data-icon="download" data-icon-size="16"></i> PDF
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div id="khataTable" class="khata-table"></div>
-
-      <style>
-        .khata-header { padding: 20px; background: var(--surface); border-radius: 8px; margin-bottom: 20px; }
-        .khata-controls { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 15px; }
-        .control-group { display: flex; flex-direction: column; gap: 6px; }
-        .control-group label { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
-        .control-group input,
-        .control-group select { padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 0.9rem; }
-
-        .khata-table { margin-top: 20px; }
-        .khata-table table { width: 100%; border-collapse: collapse; }
-        .khata-table th {
-          background: var(--surface);
-          padding: 12px;
-          text-align: left;
-          font-weight: 600;
-          border-bottom: 2px solid var(--line);
-        }
-        .khata-table td {
-          padding: 12px;
-          border-bottom: 1px solid var(--line);
-        }
-        .khata-table tr:hover { background: var(--bg-alt); }
-
-        .khata-type {
-          display: inline-block;
-          padding: 4px 10px;
-          border-radius: 4px;
-          font-size: 0.8rem;
-          font-weight: 600;
-        }
-        .type-advance { background: #dbeafe; color: #1e40af; }
-        .type-expense { background: #fef3c7; color: #92400e; }
-        .type-settlement { background: #dcfce7; color: #166534; }
-
-        .khata-amount { font-weight: 600; text-align: right; }
-        .khata-summary {
-          margin-top: 20px;
-          padding: 15px;
-          background: var(--surface);
-          border-radius: 8px;
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-          gap: 15px;
-        }
-        .summary-item { text-align: center; }
-        .summary-label { font-size: 0.8rem; color: var(--muted); }
-        .summary-value { font-size: 1.2rem; font-weight: 700; color: var(--navy); }
-      </style>
-    `;
-
-    // Populate driver dropdown (only if not driver view)
-    const driverSelect = container.querySelector('#khataDriverFilter');
-    if (driverSelect) {
-      const driverOptions = drivers.filter(d => d.name && d.id);
-      console.log('Adding', driverOptions.length, 'drivers to dropdown');
-      driverOptions.forEach(d => {
-        const option = document.createElement('option');
-        option.value = d.id;
-        option.textContent = d.name;
-        driverSelect.appendChild(option);
-      });
-      if (driverOptions.length === 0) {
-        const noOption = document.createElement('option');
-        noOption.textContent = 'No drivers found';
-        noOption.disabled = true;
-        driverSelect.appendChild(noOption);
-      }
-    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   },
 
-  renderTable(container) {
-    const { driverId, startDate, endDate } = this.currentFilter;
-    const ledger = (db.driverLedger || []);
-    const drivers = this.drivers || (db.drivers || []); // Use stored drivers from Supabase
-
-    // Filter ledger
-    let filtered = ledger;
-    if (driverId) {
-      filtered = filtered.filter(l => l.driverId === driverId);
-    }
-    if (startDate) {
-      filtered = filtered.filter(l => l.date >= startDate);
-    }
-    if (endDate) {
-      filtered = filtered.filter(l => l.date <= endDate);
-    }
-
-    // Sort by date descending
-    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    // Calculate summary
-    const totals = {
-      advance: filtered.filter(l => l.type === 'advance').reduce((sum, l) => sum + (l.amount || 0), 0),
-      expense: filtered.filter(l => l.type === 'expense').reduce((sum, l) => sum + (l.amount || 0), 0),
-      settlement: filtered.filter(l => l.type === 'settlement').reduce((sum, l) => sum + (l.amount || 0), 0),
-    };
-    const netBalance = totals.advance - totals.expense - totals.settlement;
-
-    // Get selected driver name
-    const selectedDriver = driverId ? drivers.find(d => d.id === driverId) : null;
-    const dateRangeText = `${startDate || 'Start'} to ${endDate || 'End'}`;
-
-    // Build professional header
-    let html = `
-      <div style="background: linear-gradient(135deg, #0f1e33 0%, #1a2f4a 100%); color: white; padding: 30px; border-radius: 8px; margin-bottom: 30px;">
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
-          <div>
-            <h1 style="margin: 0 0 8px 0; font-size: 1.8rem;">DRIVER KHATA</h1>
-            <p style="margin: 0; opacity: 0.9; font-size: 0.9rem;">Financial Statement & Expense Report</p>
-          </div>
-          <div style="text-align: right;">
-            <p style="margin: 0 0 4px 0; font-size: 0.9rem;"><strong>Report Date:</strong> ${new Date().toLocaleDateString('en-IN')}</p>
-            <p style="margin: 0 0 4px 0; font-size: 0.9rem;"><strong>Period:</strong> ${dateRangeText}</p>
-            ${selectedDriver ? `<p style="margin: 0; font-size: 0.9rem;"><strong>Driver:</strong> ${selectedDriver.name}</p>` : ''}
-          </div>
-        </div>
-      </div>
-
-      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 4px solid var(--primary);">
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: center;">
-          <div>
-            <p style="margin: 0; font-size: 0.85rem; color: var(--muted);">Total Advances</p>
-            <p style="margin: 8px 0 0 0; font-size: 1.5rem; font-weight: 700; color: #1e40af;">₹${totals.advance.toLocaleString('en-IN')}</p>
-          </div>
-          <div>
-            <p style="margin: 0; font-size: 0.85rem; color: var(--muted);">Total Expenses</p>
-            <p style="margin: 8px 0 0 0; font-size: 1.5rem; font-weight: 700; color: #92400e;">₹${totals.expense.toLocaleString('en-IN')}</p>
-          </div>
-          <div>
-            <p style="margin: 0; font-size: 0.85rem; color: var(--muted);">Total Settlements</p>
-            <p style="margin: 8px 0 0 0; font-size: 1.5rem; font-weight: 700; color: #166534;">₹${totals.settlement.toLocaleString('en-IN')}</p>
-          </div>
-          <div>
-            <p style="margin: 0; font-size: 0.85rem; color: var(--muted);">Net Balance</p>
-            <p style="margin: 8px 0 0 0; font-size: 1.5rem; font-weight: 700; color: ${netBalance >= 0 ? '#166534' : '#dc2626'};">₹${netBalance.toLocaleString('en-IN')}</p>
-          </div>
-        </div>
-      </div>
-
-      <table style="width: 100%; border-collapse: collapse; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden;">
-        <thead>
-          <tr style="background: #f0f2f5; border-bottom: 2px solid #ddd;">
-            <th style="padding: 14px; text-align: left; font-weight: 700; font-size: 0.9rem; color: #333;">Date</th>
-            <th style="padding: 14px; text-align: left; font-weight: 700; font-size: 0.9rem; color: #333;">Driver</th>
-            <th style="padding: 14px; text-align: left; font-weight: 700; font-size: 0.9rem; color: #333;">Type</th>
-            <th style="padding: 14px; text-align: right; font-weight: 700; font-size: 0.9rem; color: #333;">Amount (₹)</th>
-            <th style="padding: 14px; text-align: left; font-weight: 700; font-size: 0.9rem; color: #333;">Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-    `;
-
-    if (filtered.length === 0) {
-      html += `<tr><td colspan="5" style="text-align:center; padding: 30px; color: var(--muted);">No entries found</td></tr>`;
-    } else {
-      filtered.forEach(entry => {
-        const driver = drivers.find(d => d.id === entry.driverId);
-        const typeClass = `type-${entry.type}`;
-        const dateObj = new Date(entry.date);
-        const dateStr = dateObj.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' });
-
-        const hasPhoto = entry.photo ? '📎' : '';
-        html += `
-          <tr>
-            <td>${dateStr}</td>
-            <td><strong>${driver?.name || 'Unknown'}</strong></td>
-            <td>
-              <span class="khata-type ${typeClass}">${(entry.type || 'other').toUpperCase()}</span>
-              ${entry.status === 'pending' ? '<span class="khata-type" style="background: #fca5a5; color: #7f1d1d; margin-left: 8px;">PENDING</span>' : ''}
-            </td>
-            <td class="khata-amount">₹${(entry.amount || 0).toLocaleString('en-IN')}</td>
-            <td>${entry.note || '-'} ${hasPhoto}</td>
-          </tr>
-        `;
-      });
-    }
-
-    html += `
-        </tbody>
-      </table>
-
-      <div class="khata-summary">
-        <div class="summary-item">
-          <div class="summary-label">Total Advances</div>
-          <div class="summary-value" style="color: #1e40af;">₹${totals.advance.toLocaleString('en-IN')}</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">Total Expenses</div>
-          <div class="summary-value" style="color: #92400e;">₹${totals.expense.toLocaleString('en-IN')}</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">Total Settlements</div>
-          <div class="summary-value" style="color: #166534;">₹${totals.settlement.toLocaleString('en-IN')}</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">Net Balance</div>
-          <div class="summary-value" style="color: ${netBalance >= 0 ? '#166534' : '#dc2626'};">₹${netBalance.toLocaleString('en-IN')}</div>
-        </div>
-      </div>
-    `;
-
-    const tableContainer = container.querySelector('#khataTable');
-    if (tableContainer) tableContainer.innerHTML = html;
+  reportHtml(styled) {
+    const { totals } = this.summary;
+    const rows = this.rows.map(l => `<tr><td>${this.fmtDate(l.date)}</td><td>${this.esc(this.driverName(l.driverId))}</td><td>${this.esc(this.TYPE_LABEL[l.type] || l.type || "")}</td><td style="text-align:right">${l.amount || 0}</td><td>${this.esc(l.note || "")}</td></tr>`).join("");
+    const who = this.filter.driverId ? this.driverName(this.filter.driverId) : "All drivers";
+    return `${styled ? `<style>body{font-family:Arial,sans-serif;padding:24px;color:#1c2733}table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid #ccd3dc;padding:7px 9px;text-align:left}th{background:#eef2f7}h1{margin:0 0 4px}.s{margin:14px 0;font-size:14px}</style>` : ""}
+      <h1>Driver Khata</h1><div>${this.esc(who)} &middot; ${this.esc(this.periodText())} &middot; Generated ${new Date().toLocaleDateString("en-IN")}</div>
+      <p class="s"><b>Advances:</b> ${this.inr(totals.advance)} &nbsp; <b>Expenses:</b> ${this.inr(totals.expense)} &nbsp; <b>Settled:</b> ${this.inr(totals.settlement)} &nbsp; <b>Balance with driver:</b> ${this.inr(totals.balance)}</p>
+      <table><thead><tr><th>Date</th><th>Driver</th><th>Type</th><th>Amount (INR)</th><th>Notes</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No entries</td></tr>'}</tbody></table>`;
   },
 
-  attachEventListeners(container) {
-    // Driver selection from dropdown
-    container.querySelector('#driverSelect')?.addEventListener('change', (e) => {
-      this.currentFilter.driverId = e.target.value || null;
-    });
-
-    // Filters
-    container.querySelector('#filterAdvances')?.addEventListener('change', (e) => {
-      this.currentFilter.showAdvances = e.target.checked;
-    });
-    container.querySelector('#filterSalary')?.addEventListener('change', (e) => {
-      this.currentFilter.showSalary = e.target.checked;
-    });
-    container.querySelector('#filterBalance')?.addEventListener('change', (e) => {
-      this.currentFilter.showBalance = e.target.checked;
-    });
-
-    // Timeline
-    container.querySelector('#khataStartDate')?.addEventListener('change', () => {
-      this.currentFilter.startDate = container.querySelector('#khataStartDate').value;
-    });
-    container.querySelector('#khataEndDate')?.addEventListener('change', () => {
-      this.currentFilter.endDate = container.querySelector('#khataEndDate').value;
-    });
-
-    // SUBMIT BUTTON - Generate Khata
-    container.querySelector('#khataSubmitBtn')?.addEventListener('click', () => {
-      this.renderTable(container);
-    });
-
-    // Downloads
-    container.querySelector('#khataDownloadCSVBtn')?.addEventListener('click', () => this.downloadKhata());
-    container.querySelector('#khataDownloadExcelBtn')?.addEventListener('click', () => this.downloadKhataExcel());
-    container.querySelector('#khataDownloadPDFBtn')?.addEventListener('click', () => this.downloadKhataPDF());
-
-    // Expense form handling (for drivers only)
-    const expenseForm = container.querySelector('#khataExpenseForm');
-    if (expenseForm) {
-      const photoInput = container.querySelector('#expensePhoto');
-      const cameraBtn = container.querySelector('#cameraBtn');
-      const photoPreview = container.querySelector('#photoPreview');
-
-      // Camera button
-      cameraBtn?.addEventListener('click', (e) => {
-        e.preventDefault();
-        photoInput.click();
-      });
-
-      // Photo preview
-      photoInput?.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            photoPreview.innerHTML = `
-              <img src="${event.target.result}" style="max-width: 100%; max-height: 150px; border-radius: 6px; border: 1px solid var(--line);" />
-              <p style="font-size: 0.8rem; color: var(--muted); margin: 8px 0 0 0;">Photo ready to upload</p>
-            `;
-          };
-          reader.readAsDataURL(file);
-        }
-      });
-
-      // Form submission
-      expenseForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        this.submitExpense(e.target, container);
-      });
-    }
-  },
-
-  submitExpense(form, container) {
-    const amount = parseFloat(form.querySelector('#expenseAmount').value);
-    const type = form.querySelector('#expenseType').value;
-    const note = form.querySelector('#expenseNote').value;
-    const photoInput = form.querySelector('#expensePhoto');
-
-    if (!amount || amount <= 0 || !type) {
-      alert('Please fill in amount and type');
-      return;
-    }
-
-    // Get current driver ID
-    const user = window.supabaseUser || {};
-    const drivers = (db.drivers || []);
-    const currentDriver = drivers.find(d => d.email === user.email || d.id === user.id);
-
-    if (!currentDriver) {
-      alert('Driver information not found');
-      return;
-    }
-
-    // Create expense entry
-    const expense = {
-      id: this.generateId(),
-      driverId: currentDriver.id,
-      date: new Date().toISOString().split('T')[0],
-      type: type,
-      amount: amount,
-      note: note || '',
-      photo: null,
-      status: 'pending', // pending approval from admin
-      createdAt: new Date().toISOString()
-    };
-
-    // Handle photo if provided
-    if (photoInput.files[0]) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        expense.photo = event.target.result; // Store as base64
-        this.saveExpense(expense, form, container);
-      };
-      reader.readAsDataURL(photoInput.files[0]);
-    } else {
-      this.saveExpense(expense, form, container);
-    }
-  },
-
-  saveExpense(expense, form, container) {
-    // Add to driverLedger
-    if (!db.driverLedger) db.driverLedger = [];
-    db.driverLedger.push(expense);
-
-    // Save to localStorage
-    saveStore();
-
-    // Show success message
-    alert(`✅ Expense added! Pending admin approval.\nAmount: ₹${expense.amount}`);
-
-    // Reset form
-    form.reset();
-    container.querySelector('#photoPreview').innerHTML = '';
-
-    // Refresh table
-    this.renderTable(container);
-  },
-
-  generateId() {
-    return 'exp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-  },
-
-  downloadKhata() {
-    const { driverId, startDate, endDate } = this.currentFilter;
-    const ledger = (db.driverLedger || []);
-    const drivers = (db.drivers || []);
-
-    let filtered = ledger;
-    if (driverId) filtered = filtered.filter(l => l.driverId === driverId);
-    if (startDate) filtered = filtered.filter(l => l.date >= startDate);
-    if (endDate) filtered = filtered.filter(l => l.date <= endDate);
-    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    // CSV format
-    let csv = 'Date,Driver,Type,Amount (₹),Notes\n';
-    filtered.forEach(entry => {
-      const driver = drivers.find(d => d.id === entry.driverId);
-      const dateStr = new Date(entry.date).toLocaleDateString('en-IN');
-      csv += `"${dateStr}","${driver?.name || 'Unknown'}","${entry.type}",${entry.amount || 0},"${(entry.note || '').replace(/"/g, '""')}"\n`;
-    });
-
-    // Calculate totals
-    const totals = {
-      advance: filtered.filter(l => l.type === 'advance').reduce((sum, l) => sum + (l.amount || 0), 0),
-      expense: filtered.filter(l => l.type === 'expense').reduce((sum, l) => sum + (l.amount || 0), 0),
-      settlement: filtered.filter(l => l.type === 'settlement').reduce((sum, l) => sum + (l.amount || 0), 0),
-    };
-    const netBalance = totals.advance - totals.expense - totals.settlement;
-
-    csv += '\n\nSummary\n';
-    csv += `Total Advances,${totals.advance}\n`;
-    csv += `Total Expenses,${totals.expense}\n`;
-    csv += `Total Settlements,${totals.settlement}\n`;
-    csv += `Net Balance,${netBalance}\n`;
-
-    // Download
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const fileName = `Driver_Khata_${new Date().toISOString().split('T')[0]}.csv`;
-    link.setAttribute('href', URL.createObjectURL(blob));
-    link.setAttribute('download', fileName);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    console.log('✅ Khata downloaded:', fileName);
-  },
-
-  selectDriver(driverId) {
-    this.currentFilter.driverId = driverId;
-    const container = document.getElementById('khataContainer');
-    if (container) {
-      this.renderTable(container);
-      container.scrollIntoView({ behavior: 'smooth' });
-    }
-  },
-
-  downloadKhataExcel() {
-    const { driverId, startDate, endDate } = this.currentFilter;
-    const ledger = (db.driverLedger || []);
-    const drivers = this.drivers || (db.drivers || []);
-
-    let filtered = ledger;
-    if (driverId) filtered = filtered.filter(l => l.driverId === driverId);
-    if (startDate) filtered = filtered.filter(l => l.date >= startDate);
-    if (endDate) filtered = filtered.filter(l => l.date <= endDate);
-    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
-
-    const totals = {
-      advance: filtered.filter(l => l.type === 'advance').reduce((sum, l) => sum + (l.amount || 0), 0),
-      expense: filtered.filter(l => l.type === 'expense').reduce((sum, l) => sum + (l.amount || 0), 0),
-      settlement: filtered.filter(l => l.type === 'settlement').reduce((sum, l) => sum + (l.amount || 0), 0),
-    };
-    const netBalance = totals.advance - totals.expense - totals.settlement;
-
-    // Build HTML table for Excel
-    let html = '<table><tr><th>Date</th><th>Driver</th><th>Type</th><th>Amount (₹)</th><th>Notes</th></tr>';
-    filtered.forEach(entry => {
-      const driver = drivers.find(d => d.id === entry.driverId);
-      const dateStr = new Date(entry.date).toLocaleDateString('en-IN');
-      html += `<tr><td>${dateStr}</td><td>${driver?.name || 'Unknown'}</td><td>${entry.type}</td><td>${entry.amount || 0}</td><td>${entry.note || ''}</td></tr>`;
-    });
-    html += '<tr><td colspan="5"><strong>Summary</strong></td></tr>';
-    html += `<tr><td>Total Advances</td><td></td><td></td><td>${totals.advance}</td></tr>`;
-    html += `<tr><td>Total Expenses</td><td></td><td></td><td>${totals.expense}</td></tr>`;
-    html += `<tr><td>Total Settlements</td><td></td><td></td><td>${totals.settlement}</td></tr>`;
-    html += `<tr><td>Net Balance</td><td></td><td></td><td>${netBalance}</td></tr></table>`;
-
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
-    const link = document.createElement('a');
-    const fileName = `Driver_Khata_${new Date().toISOString().split('T')[0]}.xls`;
-    link.setAttribute('href', URL.createObjectURL(blob));
-    link.setAttribute('download', fileName);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    console.log('✅ Khata downloaded (Excel):', fileName);
-  },
-
-  downloadKhataPDF() {
-    alert('📄 PDF download coming soon! For now, use Excel or CSV format.');
+  print() {
+    this.readControls(); this.compute();
+    const w = window.open("", "_blank");
+    if (!w) { alert("Allow pop-ups to export the PDF, or use CSV / Excel."); return; }
+    w.document.write(`<!doctype html><title>Driver Khata</title>${this.reportHtml(true)}`);
+    w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
   }
 };
 
-// Initialize when page loads
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    setTimeout(() => DriverKhataController.init(), 1000);
-  });
-} else {
-  setTimeout(() => DriverKhataController.init(), 1000);
-}
-
 window.DriverKhataController = DriverKhataController;
+
+document.addEventListener("click", e => {
+  if (e.target.closest && e.target.closest('[data-tab="khata"]')) setTimeout(() => DriverKhataController.refresh(), 50);
+});
+window.addEventListener("hashchange", () => { if (location.hash === "#khata") DriverKhataController.refresh(); });
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => DriverKhataController.refresh());
+else DriverKhataController.refresh();
