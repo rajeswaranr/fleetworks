@@ -8,7 +8,7 @@ const SupabaseConfig = {
   // Go to: https://app.supabase.com → Settings → API → Project URL & Anon Key
 
   URL: 'https://crdblxeufbhysglbbtxi.supabase.co',
-  KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNyZGJseGV1ZmJoeXNnbGJidHhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0NjEwMTcsImV4cCI6MjEwMDAzNzAxN30.0K1CHa4Xj16s169y_5gW5lhEPQKhF_b-G4-HzuEIKyY',
+  KEY: 'sb_publishable_DOrG4C5uWnD1HJZ9HONFlA_T9MOp9fb',  // Must match FW_BACKEND.anonKey
 
   // Initialize Supabase client
   init() {
