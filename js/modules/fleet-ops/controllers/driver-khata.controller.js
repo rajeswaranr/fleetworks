@@ -7,19 +7,20 @@ const DriverKhataController = {
   currentFilter: {
     driverId: null,
     startDate: null,
-    endDate: null
+    endDate: null,
+    showAdvances: true,
+    showSalary: true,
+    showBalance: true
   },
-  drivers: [], // Store loaded drivers here
+  drivers: [],
 
   init() {
     const container = document.getElementById('khataContainer');
     if (!container) return;
 
-    // Get user role (from SupabaseAuth or demo user)
     const user = window.supabaseUser || { user_metadata: { role: 'owner' } };
     const userRole = user.user_metadata?.role || 'owner';
 
-    // If driver, auto-filter to their ledger
     if (userRole === 'driver') {
       const drivers = (db.drivers || []);
       const currentDriver = drivers.find(d => d.email === user.email || d.id === user.id);
@@ -29,12 +30,102 @@ const DriverKhataController = {
       }
     }
 
-    // Build UI (async renderFilters)
-    this.renderFilters(container).then(() => {
-      this.renderTable(container);
+    this.renderKhata(container).then(() => {
       this.attachEventListeners(container);
       console.log('✅ Driver Khata initialized (role: ' + userRole + ')');
     });
+  },
+
+  async renderKhata(container) {
+    // Load drivers from Supabase
+    let drivers = [];
+    if (!window.supabase || !window.supabase.from) {
+      container.innerHTML = '<div style="padding:20px;color:red">❌ Supabase not connected</div>';
+      return;
+    }
+
+    try {
+      const { data, error } = await window.supabase.from('drivers').select('*');
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        container.innerHTML = '<div style="padding:20px;color:orange"><strong>No drivers found.</strong> Add drivers to your account first.</div>';
+        return;
+      }
+      drivers = data.filter(d => d && d.name);
+      this.drivers = drivers;
+    } catch (e) {
+      container.innerHTML = `<div style="padding:20px;color:red">❌ ${e.message}</div>`;
+      return;
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+    // Build two-column layout
+    container.innerHTML = `
+      <div style="display: grid; grid-template-columns: 300px 1fr; gap: 0; min-height: 100vh;">
+        <!-- LEFT SIDEBAR MENU -->
+        <div style="background: var(--bg-alt); border-right: 1px solid var(--line); overflow-y: auto; padding: 20px;">
+          <h3 style="margin-top: 0; margin-bottom: 16px; font-size: 1rem;">Select Driver</h3>
+
+          <!-- Select All Button -->
+          <button id="selectAllBtn" class="btn btn-primary btn-block" style="margin-bottom: 12px;">Select All</button>
+
+          <!-- Drivers List -->
+          <div id="driversList" style="margin-bottom: 24px;">
+            ${drivers.map(d => `
+              <button class="khata-driver-item" data-driver-id="${d.id}" style="display: block; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 8px; text-align: left; background: white; cursor: pointer; transition: all 0.2s;">
+                ${d.name}
+              </button>
+            `).join('')}
+          </div>
+
+          <!-- FILTERS -->
+          <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--muted); margin-bottom: 12px;">Filters</h4>
+
+          <label style="display: flex; gap: 8px; margin-bottom: 10px; cursor: pointer;">
+            <input type="checkbox" id="filterAdvances" checked /> Advances
+          </label>
+          <label style="display: flex; gap: 8px; margin-bottom: 10px; cursor: pointer;">
+            <input type="checkbox" id="filterSalary" checked /> Salary Paid
+          </label>
+          <label style="display: flex; gap: 8px; margin-bottom: 20px; cursor: pointer;">
+            <input type="checkbox" id="filterBalance" checked /> Balance
+          </label>
+
+          <!-- TIMELINE -->
+          <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--muted); margin-bottom: 12px;">Timeline</h4>
+          <div style="margin-bottom: 10px;">
+            <label style="display: block; font-size: 0.8rem; margin-bottom: 4px;">From</label>
+            <input type="date" id="khataStartDate" value="${thirtyDaysAgo}" style="width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px;" />
+          </div>
+          <div>
+            <label style="display: block; font-size: 0.8rem; margin-bottom: 4px;">To</label>
+            <input type="date" id="khataEndDate" value="${today}" style="width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px;" />
+          </div>
+        </div>
+
+        <!-- RIGHT MAIN AREA -->
+        <div style="padding: 20px; overflow-y: auto;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2 id="khataTitle" style="margin: 0;">Driver Khata</h2>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-outline" id="khataDownloadCSVBtn">CSV</button>
+              <button class="btn btn-outline" id="khataDownloadExcelBtn">Excel</button>
+              <button class="btn btn-outline" id="khataDownloadPDFBtn">PDF</button>
+            </div>
+          </div>
+          <div id="khataTable"></div>
+        </div>
+      </div>
+
+      <style>
+        .khata-driver-item:hover { background: var(--primary-light); border-color: var(--primary); }
+        .khata-driver-item.active { background: var(--primary); color: white; border-color: var(--primary); }
+      </style>
+    `;
+
+    this.renderTable(container);
   },
 
   async renderFilters(container) {
@@ -369,27 +460,52 @@ const DriverKhataController = {
   },
 
   attachEventListeners(container) {
-    const filterBtn = container.querySelector('#khataFilterBtn');
-    const downloadCSVBtn = container.querySelector('#khataDownloadCSVBtn');
-    const downloadExcelBtn = container.querySelector('#khataDownloadExcelBtn');
-    const downloadPDFBtn = container.querySelector('#khataDownloadPDFBtn');
-    const driverFilter = container.querySelector('#khataDriverFilter');
-    const startDateInput = container.querySelector('#khataStartDate');
-    const endDateInput = container.querySelector('#khataEndDate');
+    // Driver selection
+    const driverItems = container.querySelectorAll('.khata-driver-item');
+    driverItems.forEach(item => {
+      item.addEventListener('click', () => {
+        driverItems.forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        this.currentFilter.driverId = item.dataset.driverId;
+        this.renderTable(container);
+      });
+    });
 
-    // Filter functionality
-    filterBtn?.addEventListener('click', () => {
-      this.currentFilter = {
-        driverId: driverFilter?.value || null,
-        startDate: startDateInput.value || null,
-        endDate: endDateInput.value || null,
-      };
+    // Select all button
+    container.querySelector('#selectAllBtn')?.addEventListener('click', () => {
+      this.currentFilter.driverId = null;
+      driverItems.forEach(i => i.classList.remove('active'));
       this.renderTable(container);
     });
 
-    downloadCSVBtn?.addEventListener('click', () => this.downloadKhata());
-    downloadExcelBtn?.addEventListener('click', () => this.downloadKhataExcel());
-    downloadPDFBtn?.addEventListener('click', () => this.downloadKhataPDF());
+    // Filters
+    container.querySelector('#filterAdvances')?.addEventListener('change', (e) => {
+      this.currentFilter.showAdvances = e.target.checked;
+      this.renderTable(container);
+    });
+    container.querySelector('#filterSalary')?.addEventListener('change', (e) => {
+      this.currentFilter.showSalary = e.target.checked;
+      this.renderTable(container);
+    });
+    container.querySelector('#filterBalance')?.addEventListener('change', (e) => {
+      this.currentFilter.showBalance = e.target.checked;
+      this.renderTable(container);
+    });
+
+    // Timeline
+    container.querySelector('#khataStartDate')?.addEventListener('change', () => {
+      this.currentFilter.startDate = container.querySelector('#khataStartDate').value;
+      this.renderTable(container);
+    });
+    container.querySelector('#khataEndDate')?.addEventListener('change', () => {
+      this.currentFilter.endDate = container.querySelector('#khataEndDate').value;
+      this.renderTable(container);
+    });
+
+    // Downloads
+    container.querySelector('#khataDownloadCSVBtn')?.addEventListener('click', () => this.downloadKhata());
+    container.querySelector('#khataDownloadExcelBtn')?.addEventListener('click', () => this.downloadKhataExcel());
+    container.querySelector('#khataDownloadPDFBtn')?.addEventListener('click', () => this.downloadKhataPDF());
 
     // Auto-filter on date change
     startDateInput?.addEventListener('change', () => filterBtn?.click());
