@@ -14,28 +14,70 @@ const DriverKhataController = {
     const container = document.getElementById('khataContainer');
     if (!container) return;
 
+    // Get user role (from SupabaseAuth or demo user)
+    const user = window.supabaseUser || { user_metadata: { role: 'owner' } };
+    const userRole = user.user_metadata?.role || 'owner';
+
+    // If driver, auto-filter to their ledger
+    if (userRole === 'driver') {
+      const drivers = (db.drivers || []);
+      // Find driver by email or ID
+      const currentDriver = drivers.find(d => d.email === user.email || d.id === user.id);
+      if (currentDriver) {
+        this.currentFilter.driverId = currentDriver.id;
+        this.isDriverView = true;
+      }
+    }
+
     // Build UI
     this.renderFilters(container);
     this.renderTable(container);
     this.attachEventListeners(container);
 
-    console.log('✅ Driver Khata initialized');
+    console.log('✅ Driver Khata initialized (role: ' + userRole + ')');
   },
 
   renderFilters(container) {
     const today = new Date().toISOString().split('T')[0];
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+    // Get user role and driver info
+    const user = window.supabaseUser || { user_metadata: { role: 'owner' } };
+    const userRole = user.user_metadata?.role || 'owner';
+    const drivers = (db.drivers || []);
+    const currentDriver = drivers.find(d => d.email === user.email || d.id === user.id);
+
+    // Build driver dropdown or show driver name
+    let driverControl = '';
+    if (userRole === 'driver' && currentDriver) {
+      driverControl = `
+        <div class="control-group">
+          <label>My Ledger</label>
+          <div style="padding: 8px 12px; background: var(--bg-alt); border-radius: 6px; font-weight: 500;">
+            ${currentDriver.name}
+          </div>
+        </div>
+      `;
+    } else {
+      driverControl = `
+        <div class="control-group">
+          <label>Driver</label>
+          <select id="khataDriverFilter">
+            <option value="">All Drivers</option>
+          </select>
+        </div>
+      `;
+    }
+
+    const title = userRole === 'driver' && currentDriver
+      ? `My Khata - ${currentDriver.name}`
+      : 'Driver Khata (Ledger)';
+
     container.innerHTML = `
       <div class="khata-header">
-        <h2>Driver Khata (Ledger)</h2>
+        <h2>${title}</h2>
         <div class="khata-controls">
-          <div class="control-group">
-            <label>Driver</label>
-            <select id="khataDriverFilter">
-              <option value="">All Drivers</option>
-            </select>
-          </div>
+          ${driverControl}
           <div class="control-group">
             <label>From</label>
             <input type="date" id="khataStartDate" value="${thirtyDaysAgo}" />
@@ -103,15 +145,16 @@ const DriverKhataController = {
       </style>
     `;
 
-    // Populate driver dropdown
-    const drivers = (db.drivers || []).filter(d => d.name);
+    // Populate driver dropdown (only if not driver view)
     const driverSelect = container.querySelector('#khataDriverFilter');
-    drivers.forEach(d => {
-      const option = document.createElement('option');
-      option.value = d.id;
-      option.textContent = d.name;
-      driverSelect.appendChild(option);
-    });
+    if (driverSelect) {
+      drivers.filter(d => d.name).forEach(d => {
+        const option = document.createElement('option');
+        option.value = d.id;
+        option.textContent = d.name;
+        driverSelect.appendChild(option);
+      });
+    }
   },
 
   renderTable(container) {
