@@ -1,0 +1,450 @@
+/* ============================================
+   FleetWorks Theme System
+   ============================================
+
+   Multiple color themes using CSS variables.
+   Base variables defined in style.css :root
+   Theme overrides below.
+
+   Usage: <html data-theme="theme-name">
+   Default: data-theme="dark-minimal" (current design)
+*/
+
+/* =========================================
+   THEME 1: Dark Minimal (DEFAULT)
+   ========================================= */
+:root,
+:root[data-theme="dark-minimal"] {
+  /* Primary Colors */
+  --navy: #0f1e33;
+  --amber: #f5a623;
+  --green: #16a34a;
+  --red: #dc2626;
+  --blue: #2563eb;
+  --orange: #ea580c;
+
+  /* Grayscale */
+  --ink: #0f1e33;
+  --ink2: #1e293b;
+  --muted: #64748b;
+  --muted-light: #94a3b8;
+  --bg: #0f1e33;
+  --bg-alt: #1e293b;
+  --bg-light: #334155;
+  --line: #475569;
+  --border: #64748b;
+
+  /* Semantic Colors */
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --info: #2563eb;
+}
+
+/* =========================================
+   THEME 2: Light Minimal
+   ========================================= */
+:root[data-theme="light-minimal"] {
+  --navy: #ffffff;
+  --amber: #f59e0b;
+  --green: #10b981;
+  --red: #ef4444;
+  --blue: #3b82f6;
+  --orange: #f97316;
+
+  --ink: #1f2937;
+  --ink2: #374151;
+  --muted: #6b7280;
+  --muted-light: #9ca3af;
+  --bg: #f9fafb;
+  --bg-alt: #f3f4f6;
+  --bg-light: #e5e7eb;
+  --line: #d1d5db;
+  --border: #d1d5db;
+
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #3b82f6;
+}
+
+/* =========================================
+   THEME 3: Material Design 3 (Google)
+   Open Source - Material Design System
+   ========================================= */
+:root[data-theme="material-3-dark"] {
+  --navy: #1a1a1a;
+  --amber: #ffd60a;
+  --green: #66bb6a;
+  --red: #f44336;
+  --blue: #2196f3;
+  --orange: #ff9800;
+
+  --ink: #ffffff;
+  --ink2: #e0e0e0;
+  --muted: #bdbdbd;
+  --muted-light: #757575;
+  --bg: #121212;
+  --bg-alt: #1e1e1e;
+  --bg-light: #2c2c2c;
+  --line: #424242;
+  --border: #616161;
+
+  --success: #66bb6a;
+  --warning: #ffa726;
+  --danger: #f44336;
+  --info: #2196f3;
+}
+
+:root[data-theme="material-3-light"] {
+  --navy: #f9f9f9;
+  --amber: #ffc400;
+  --green: #4caf50;
+  --red: #f44336;
+  --blue: #2196f3;
+  --orange: #ff9800;
+
+  --ink: #1a1a1a;
+  --ink2: #424242;
+  --muted: #757575;
+  --muted-light: #9e9e9e;
+  --bg: #f9f9f9;
+  --bg-alt: #f5f5f5;
+  --bg-light: #eeeeee;
+  --line: #e0e0e0;
+  --border: #bdbdbd;
+
+  --success: #4caf50;
+  --warning: #ff9800;
+  --danger: #f44336;
+  --info: #2196f3;
+}
+
+/* =========================================
+   THEME 4: Dracula (Popular Dark Theme)
+   Open Source - MIT License
+   ========================================= */
+:root[data-theme="dracula"] {
+  --navy: #282a36;
+  --amber: #f1fa8c;
+  --green: #50fa7b;
+  --red: #ff5555;
+  --blue: #8be9fd;
+  --orange: #ffb86c;
+
+  --ink: #f8f8f2;
+  --ink2: #e6db74;
+  --muted: #6272a4;
+  --muted-light: #6272a4;
+  --bg: #282a36;
+  --bg-alt: #21222c;
+  --bg-light: #44475a;
+  --line: #44475a;
+  --border: #6272a4;
+
+  --success: #50fa7b;
+  --warning: #ffb86c;
+  --danger: #ff5555;
+  --info: #8be9fd;
+}
+
+/* =========================================
+   THEME 5: Nord (Arctic Nord)
+   Open Source - MIT License
+   ========================================= */
+:root[data-theme="nord"] {
+  --navy: #2e3440;
+  --amber: #ebcb8b;
+  --green: #a3be8c;
+  --red: #bf616a;
+  --blue: #81a1c1;
+  --orange: #d08770;
+
+  --ink: #eceff4;
+  --ink2: #e5e9f0;
+  --muted: #d08770;
+  --muted-light: #81a1c1;
+  --bg: #2e3440;
+  --bg-alt: #3b4252;
+  --bg-light: #434c5e;
+  --line: #4c566a;
+  --border: #d08770;
+
+  --success: #a3be8c;
+  --warning: #ebcb8b;
+  --danger: #bf616a;
+  --info: #81a1c1;
+}
+
+/* =========================================
+   THEME 6: One Dark (Atom Editor)
+   Open Source - MIT License
+   ========================================= */
+:root[data-theme="one-dark"] {
+  --navy: #282c34;
+  --amber: #e5c07b;
+  --green: #98c379;
+  --red: #e06c75;
+  --blue: #61afef;
+  --orange: #d19a66;
+
+  --ink: #abb2bf;
+  --ink2: #5c6370;
+  --muted: #5c6370;
+  --muted-light: #abb2bf;
+  --bg: #282c34;
+  --bg-alt: #3e4451;
+  --bg-light: #45494f;
+  --line: #3e4451;
+  --border: #5c6370;
+
+  --success: #98c379;
+  --warning: #e5c07b;
+  --danger: #e06c75;
+  --info: #61afef;
+}
+
+/* =========================================
+   THEME 7: Solarized Dark
+   Open Source - MIT License
+   ========================================= */
+:root[data-theme="solarized-dark"] {
+  --navy: #002b36;
+  --amber: #b58900;
+  --green: #859900;
+  --red: #dc322f;
+  --blue: #268bd2;
+  --orange: #cb4b16;
+
+  --ink: #839496;
+  --ink2: #586e75;
+  --muted: #586e75;
+  --muted-light: #839496;
+  --bg: #002b36;
+  --bg-alt: #073642;
+  --bg-light: #586e75;
+  --line: #073642;
+  --border: #586e75;
+
+  --success: #859900;
+  --warning: #b58900;
+  --danger: #dc322f;
+  --info: #268bd2;
+}
+
+/* =========================================
+   THEME 8: Gruvbox Dark (Popular Linux)
+   Open Source - MIT License
+   ========================================= */
+:root[data-theme="gruvbox-dark"] {
+  --navy: #282828;
+  --amber: #fabd2f;
+  --green: #b8bb26;
+  --red: #fb4934;
+  --blue: #83a598;
+  --orange: #fe8019;
+
+  --ink: #ebdbb2;
+  --ink2: #d5c4a1;
+  --muted: #a89984;
+  --muted-light: #bdae93;
+  --bg: #282828;
+  --bg-alt: #3c3836;
+  --bg-light: #504945;
+  --line: #3c3836;
+  --border: #928374;
+
+  --success: #b8bb26;
+  --warning: #fabd2f;
+  --danger: #fb4934;
+  --info: #83a598;
+}
+
+/* =========================================
+   THEME 9: Monokai
+   Open Source - Popular Dev Theme
+   ========================================= */
+:root[data-theme="monokai"] {
+  --navy: #272822;
+  --amber: #e6db74;
+  --green: #a6e22e;
+  --red: #f92672;
+  --blue: #66d9ef;
+  --orange: #fd971f;
+
+  --ink: #f8f8f2;
+  --ink2: #f8f8f0;
+  --muted: #75715e;
+  --muted-light: #a1efe4;
+  --bg: #272822;
+  --bg-alt: #3e3d32;
+  --bg-light: #49483e;
+  --line: #3e3d32;
+  --border: #75715e;
+
+  --success: #a6e22e;
+  --warning: #e6db74;
+  --danger: #f92672;
+  --info: #66d9ef;
+}
+
+/* =========================================
+   THEME 10: High Contrast Light
+   Accessibility-Focused
+   ========================================= */
+:root[data-theme="high-contrast-light"] {
+  --navy: #ffffff;
+  --amber: #ff6b35;
+  --green: #004d00;
+  --red: #cc0000;
+  --blue: #0033cc;
+  --orange: #ff6600;
+
+  --ink: #000000;
+  --ink2: #222222;
+  --muted: #444444;
+  --muted-light: #666666;
+  --bg: #ffffff;
+  --bg-alt: #f0f0f0;
+  --bg-light: #e0e0e0;
+  --line: #000000;
+  --border: #000000;
+
+  --success: #004d00;
+  --warning: #ff6600;
+  --danger: #cc0000;
+  --info: #0033cc;
+}
+
+/* ============================================
+   THEME APPLICATION
+   Apply theme styles globally
+   ============================================ */
+
+html[data-theme] {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+html[data-theme] body {
+  background-color: var(--bg);
+  color: var(--ink);
+}
+
+/* All interactive elements inherit theme */
+html[data-theme] button,
+html[data-theme] input,
+html[data-theme] select,
+html[data-theme] textarea,
+html[data-theme] a {
+  transition: all 0.2s ease;
+}
+
+/* ============================================
+   THEME SWITCHER UI STYLES
+   ============================================ */
+
+.theme-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  background-color: var(--bg-alt);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+}
+
+.theme-selector-label {
+  display: block;
+  width: 100%;
+  font-weight: var(--fw-semibold);
+  color: var(--ink);
+  margin-bottom: var(--space-sm);
+  font-size: var(--text-sm);
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+  padding: var(--space-md);
+  background-color: var(--bg);
+  border: 2px solid var(--line);
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+}
+
+.theme-option:hover {
+  border-color: var(--amber);
+  background-color: var(--bg-light);
+}
+
+.theme-option input[type="radio"] {
+  cursor: pointer;
+}
+
+.theme-option.active {
+  border-color: var(--amber);
+  background-color: var(--bg-light);
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--amber);
+}
+
+.theme-preview {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: linear-gradient(
+    135deg,
+    var(--amber) 0%,
+    var(--blue) 50%,
+    var(--green) 100%
+  );
+}
+
+.theme-name {
+  font-size: var(--text-sm);
+  color: var(--ink);
+  font-weight: var(--fw-medium);
+}
+
+/* Theme selector in settings */
+.settings-theme-section {
+  margin: var(--space-lg) 0;
+  padding: var(--space-lg);
+  background-color: var(--bg-alt);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+}
+
+.settings-theme-title {
+  font-size: var(--text-md);
+  font-weight: var(--fw-bold);
+  color: var(--ink);
+  margin-bottom: var(--space-md);
+}
+
+.settings-theme-description {
+  font-size: var(--text-sm);
+  color: var(--muted-light);
+  margin-bottom: var(--space-lg);
+}
+
+/* Grid layout for theme options */
+.theme-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-md);
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .theme-options-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-selector {
+    flex-direction: column;
+  }
+}
