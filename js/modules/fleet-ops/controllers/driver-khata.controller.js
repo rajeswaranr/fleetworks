@@ -76,6 +76,45 @@ const DriverKhataController = {
     container.innerHTML = `
       <div class="khata-header">
         <h2>${title}</h2>
+
+        <!-- Add Expense Form (visible to drivers) -->
+        ${userRole === 'driver' ? `
+          <div class="expense-form-section" style="margin-top: 20px; padding: 15px; background: var(--bg-alt); border-radius: 8px;">
+            <h3 style="margin: 0 0 15px 0;">Add Expense</h3>
+            <form id="khataExpenseForm" class="khata-expense-form">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                <div class="form-group">
+                  <label>Amount (₹)</label>
+                  <input type="number" id="expenseAmount" name="amount" min="0" placeholder="0" required />
+                </div>
+                <div class="form-group">
+                  <label>Type</label>
+                  <select id="expenseType" name="type" required>
+                    <option value="">Select type</option>
+                    <option value="expense">Expense</option>
+                    <option value="advance">Advance Request</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label>Description/Notes</label>
+                <input type="text" id="expenseNote" name="note" placeholder="e.g., Diesel, Food, Toll..." />
+              </div>
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label>Bill/Receipt Photo</label>
+                <div style="display: flex; gap: 8px;">
+                  <input type="file" id="expensePhoto" name="photo" accept="image/*" style="flex: 1;" />
+                  <button type="button" class="btn btn-outline" id="cameraBtn" title="Take photo with camera">
+                    <i data-icon="camera" data-icon-size="16"></i> Camera
+                  </button>
+                </div>
+                <div id="photoPreview" style="margin-top: 10px;"></div>
+              </div>
+              <button type="submit" class="btn btn-primary btn-block">Add to Khata</button>
+            </form>
+          </div>
+        ` : ''}
+
         <div class="khata-controls">
           ${driverControl}
           <div class="control-group">
@@ -209,13 +248,17 @@ const DriverKhataController = {
         const dateObj = new Date(entry.date);
         const dateStr = dateObj.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' });
 
+        const hasPhoto = entry.photo ? '📎' : '';
         html += `
           <tr>
             <td>${dateStr}</td>
             <td><strong>${driver?.name || 'Unknown'}</strong></td>
-            <td><span class="khata-type ${typeClass}">${(entry.type || 'other').toUpperCase()}</span></td>
+            <td>
+              <span class="khata-type ${typeClass}">${(entry.type || 'other').toUpperCase()}</span>
+              ${entry.status === 'pending' ? '<span class="khata-type" style="background: #fca5a5; color: #7f1d1d; margin-left: 8px;">PENDING</span>' : ''}
+            </td>
             <td class="khata-amount">₹${(entry.amount || 0).toLocaleString('en-IN')}</td>
-            <td>${entry.note || '-'}</td>
+            <td>${entry.note || '-'} ${hasPhoto}</td>
           </tr>
         `;
       });
@@ -256,9 +299,10 @@ const DriverKhataController = {
     const startDateInput = container.querySelector('#khataStartDate');
     const endDateInput = container.querySelector('#khataEndDate');
 
+    // Filter functionality
     filterBtn?.addEventListener('click', () => {
       this.currentFilter = {
-        driverId: driverFilter.value || null,
+        driverId: driverFilter?.value || null,
         startDate: startDateInput.value || null,
         endDate: endDateInput.value || null,
       };
@@ -270,6 +314,111 @@ const DriverKhataController = {
     // Auto-filter on date change
     startDateInput?.addEventListener('change', () => filterBtn?.click());
     endDateInput?.addEventListener('change', () => filterBtn?.click());
+
+    // Expense form handling (for drivers only)
+    const expenseForm = container.querySelector('#khataExpenseForm');
+    if (expenseForm) {
+      const photoInput = container.querySelector('#expensePhoto');
+      const cameraBtn = container.querySelector('#cameraBtn');
+      const photoPreview = container.querySelector('#photoPreview');
+
+      // Camera button
+      cameraBtn?.addEventListener('click', (e) => {
+        e.preventDefault();
+        photoInput.click();
+      });
+
+      // Photo preview
+      photoInput?.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            photoPreview.innerHTML = `
+              <img src="${event.target.result}" style="max-width: 100%; max-height: 150px; border-radius: 6px; border: 1px solid var(--line);" />
+              <p style="font-size: 0.8rem; color: var(--muted); margin: 8px 0 0 0;">Photo ready to upload</p>
+            `;
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+
+      // Form submission
+      expenseForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this.submitExpense(e.target, container);
+      });
+    }
+  },
+
+  submitExpense(form, container) {
+    const amount = parseFloat(form.querySelector('#expenseAmount').value);
+    const type = form.querySelector('#expenseType').value;
+    const note = form.querySelector('#expenseNote').value;
+    const photoInput = form.querySelector('#expensePhoto');
+
+    if (!amount || amount <= 0 || !type) {
+      alert('Please fill in amount and type');
+      return;
+    }
+
+    // Get current driver ID
+    const user = window.supabaseUser || {};
+    const drivers = (db.drivers || []);
+    const currentDriver = drivers.find(d => d.email === user.email || d.id === user.id);
+
+    if (!currentDriver) {
+      alert('Driver information not found');
+      return;
+    }
+
+    // Create expense entry
+    const expense = {
+      id: this.generateId(),
+      driverId: currentDriver.id,
+      date: new Date().toISOString().split('T')[0],
+      type: type,
+      amount: amount,
+      note: note || '',
+      photo: null,
+      status: 'pending', // pending approval from admin
+      createdAt: new Date().toISOString()
+    };
+
+    // Handle photo if provided
+    if (photoInput.files[0]) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        expense.photo = event.target.result; // Store as base64
+        this.saveExpense(expense, form, container);
+      };
+      reader.readAsDataURL(photoInput.files[0]);
+    } else {
+      this.saveExpense(expense, form, container);
+    }
+  },
+
+  saveExpense(expense, form, container) {
+    // Add to driverLedger
+    if (!db.driverLedger) db.driverLedger = [];
+    db.driverLedger.push(expense);
+
+    // Save to localStorage
+    saveStore();
+
+    // Show success message
+    alert(`✅ Expense added! Pending admin approval.\nAmount: ₹${expense.amount}`);
+
+    // Reset form
+    form.reset();
+    container.querySelector('#photoPreview').innerHTML = '';
+
+    // Refresh table
+    this.renderTable(container);
+  },
+
+  generateId() {
+    return 'exp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
   },
 
   downloadKhata() {
