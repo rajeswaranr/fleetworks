@@ -444,12 +444,14 @@ select.valid {
 /* Select options styling */
 select option {
   font-weight: var(--fw-bold);
-  color: var(--navy);
+  color: var(--ink);
+  background: var(--bg);
 }
 
 select optgroup {
   font-weight: var(--fw-extrabold);
-  color: var(--navy);
+  color: var(--ink);
+  background: var(--bg);
   font-style: normal;
 }
 
