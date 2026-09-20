@@ -89,18 +89,32 @@ const AuthFormHandler = {
         }
       } else {
         // Login flow - check for demo credentials first
-        if (email === 'demo@fleetworks.in' && password === 'demo123') {
+        const isDemoLogin = (email.toLowerCase() === 'demo@fleetworks.in' && password === 'demo123');
+
+        if (isDemoLogin) {
           // Demo login (bypasses Supabase for testing)
+          console.log('✅ Demo login detected');
           this.showSuccess('Demo login successful! Redirecting...');
           window.supabaseUser = {
             email: email,
             id: 'demo-user-001',
-            user_metadata: { role: 'owner' }
+            user_metadata: { role: 'owner' },
+            aud: 'authenticated'
           };
+          // Directly show dashboard without reload
           setTimeout(() => {
-            window.location.hash = '#account';
-            window.location.reload();
-          }, 1000);
+            const authGate = document.getElementById('authGate');
+            const tabBar = document.getElementById('tabBar');
+            const appContent = document.querySelector('#appContent, [role="main"]');
+
+            if (authGate) authGate.hidden = true;
+            if (tabBar) tabBar.style.display = 'flex';
+            if (appContent) appContent.style.display = 'block';
+
+            // Click account tab
+            const accountBtn = document.querySelector('[data-tab="account"]');
+            if (accountBtn) accountBtn.click();
+          }, 500);
         } else {
           // Real Supabase login
           const result = await SupabaseAuth.signin(email, password);
