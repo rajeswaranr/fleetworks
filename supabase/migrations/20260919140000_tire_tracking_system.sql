@@ -259,13 +259,25 @@ CREATE INDEX idx_tire_analytics_org_date ON tire_analytics(org_id, aggregation_d
 CREATE INDEX idx_tire_ai_predictions_org ON tire_ai_predictions(org_id, tire_id);
 
 -- Hypertable for time-series pressure readings (TimescaleDB)
-SELECT create_hypertable('tire_pressure_readings', 'reading_timestamp', if_not_exists => TRUE);
-ALTER TABLE tire_pressure_readings SET (
+DO $ts$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    PERFORM create_hypertable('tire_pressure_readings', 'reading_timestamp', if_not_exists => TRUE);
+  END IF;
+END $ts$;
+DO $ts$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    EXECUTE $q$ALTER TABLE tire_pressure_readings SET (
   timescaledb.compress,
   timescaledb.compress_segmentby = 'org_id, tire_id',
   timescaledb.compress_orderby = 'reading_timestamp DESC'
-);
-SELECT add_compression_policy('tire_pressure_readings', INTERVAL '30 days', if_not_exists => TRUE);
+)$q$;
+  END IF;
+END $ts$;
+DO $ts$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    PERFORM add_compression_policy('tire_pressure_readings', INTERVAL '30 days', if_not_exists => TRUE);
+  END IF;
+END $ts$;
 
 -- Row-Level Security
 ALTER TABLE tire_registry ENABLE ROW LEVEL SECURITY;
@@ -277,25 +289,25 @@ ALTER TABLE tire_ai_predictions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tire_fleet_analytics ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY tire_registry_org_isolation ON tire_registry
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY tire_pressure_org_isolation ON tire_pressure_readings
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY tire_anomalies_org_isolation ON tire_anomalies
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY tire_analytics_org_isolation ON tire_analytics
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY tire_maintenance_org_isolation ON tire_maintenance_logs
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY tire_ai_org_isolation ON tire_ai_predictions
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY tire_fleet_org_isolation ON tire_fleet_analytics
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 -- AI Helper Functions
 

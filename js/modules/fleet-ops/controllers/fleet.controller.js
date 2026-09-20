@@ -553,9 +553,7 @@ async function sendSms(event, recipients) {
 }
 
 // ── nav helper ─────────────────────────────────────────────────────────────
-window.switchTab = function(tabName) {
-  document.querySelector(`#tabBar .tab-btn[data-tab="${tabName}"]`)?.click();
-};
+window.switchTab = function(tabName) { activateTab(tabName); };
 
 // ── Hub Sites & Projects summary (home page) ───────────────────────────────
 function renderHubSites() {
@@ -2254,6 +2252,11 @@ function syncFilterBarUI() {
 function filteredVehicles() {
   const { by, value } = _dashFilter;
   if (by === "all" || !value) return db.vehicles;
+  if (by === "site" && String(value).startsWith("proj:")) {
+    const pid = value.slice(5);
+    const dbIds = new Set(Object.values(_siteVeh).flat().filter(r => r.project_id === pid && !r.removed_date).map(r => r.vehicle_id));
+    return db.vehicles.filter(v => dbIds.has(v.dbId));
+  }
   if (by === "site") {
     const svaRows = _siteVeh[value] || [];
     const vDbIds  = new Set(svaRows.filter(r => !r.removed_date).map(r => r.vehicle_id));
@@ -2286,6 +2289,7 @@ async function loadSites() {
   // Keep completed/cancelled rows in memory: the Site History view needs them.
   // Individual operational views filter to active rows when appropriate.
   _sites = await fwCloud.authGet("sites", "select=*&order=created_at.desc") || [];
+  if (typeof loadProjects === "function") await loadProjects();
   if (!_sites.length) { _siteVeh = {}; _siteStaff = {}; _vehSiteMap = {}; populateFilterDropdowns(); return; }
   const ids = _sites.map(s => s.id);
   const vaRows = await fwCloud.authGet("site_vehicle_assignments",
@@ -2298,7 +2302,9 @@ async function loadSites() {
   vaRows.forEach(r => {
     (_siteVeh[r.site_id] = _siteVeh[r.site_id] || []).push(r);
     const site = _sites.find(s => s.id === r.site_id);
-    if (!r.removed_date && site?.status === "active") _vehSiteMap[r.vehicle_id] = { site, sva: r };
+    if (!r.removed_date && site?.status === "active") {
+      _vehSiteMap[r.vehicle_id] = { site, sva: r, project: typeof projectById === "function" ? projectById(r.project_id) : null };
+    }
   });
   ssRows.forEach(r => { (_siteStaff[r.site_id] = _siteStaff[r.site_id] || []).push(r); });
   populateFilterDropdowns();
@@ -2306,7 +2312,9 @@ async function loadSites() {
 
 function populateFilterDropdowns() {
   const siteOpts = _sites.filter(s => s.status === "active")
-    .map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join("");
+    .map(s => `<option value="${s.id}">Site: ${esc(s.name)}</option>`).join("") +
+    (typeof _projects !== "undefined" ? _projects.filter(p => p.status === "active")
+      .map(p => `<option value="proj:${p.id}">Project: ${esc(p.name)}</option>`).join("") : "");
   ["fltSite","fltSiteFin"].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -2405,7 +2413,7 @@ function renderVehicleStatusBoard() {
     const isHalt= _vstatus[v.id] === "halted";
     return `<tr>
       <td><strong>${esc(v.name)}</strong><br/><span class="muted" style="font-size:0.75rem">${esc(v.type)}</span></td>
-      <td>${site ? `<strong>${esc(site.name)}</strong><br/><span class="muted" style="font-size:0.73rem">${esc(SITE_TYPE_LABELS[site.project_type]||site.project_type)}</span>` : `<span class="muted">—</span>`}</td>
+      <td>${site ? `<strong>${esc(site.name)}</strong><br/><span class="muted" style="font-size:0.73rem">${siteInfo.project ? esc(siteInfo.project.name) : esc(SITE_TYPE_LABELS[site.project_type]||site.project_type)}</span>` : `<span class="muted">—</span>`}</td>
       <td>${site?.manager_name ? esc(site.manager_name) : `<span class="muted">—</span>`}</td>
       <td>${siteSup !== "—" ? esc(siteSup) : `<span class="muted">—</span>`}</td>
       <td>${driver ? esc(driver.name) : `<span class="fw-badge soon" style="font-size:0.7rem">No Driver</span>`}</td>
@@ -2471,25 +2479,25 @@ function renderSiteCollection(targetId, sites, emptyMessage, historyMode = false
       const v = db.vehicles.find(x => x.dbId === r.vehicle_id); return v ? v.name : "?";
     });
     const staffRoles = ssas.reduce((m, r) => { m[r.staff_role] = (m[r.staff_role]||0)+1; return m; }, {});
-    return `<div class="pred-row site-card" id="site-${s.id}" style="border-left:3px solid ${s.site_type==="project"?"#a855f7":"#22d3ee"}">
+    return `<div class="pred-row site-card" id="site-${s.id}" style="border-left:3px solid #22d3ee">
       <div class="pred-main">
         <span class="fw-badge ${stMeta}" style="font-size:0.7rem">${s.status}</span>
         <strong style="margin-left:8px">${esc(s.name)}</strong>
-        <span class="fw-chip is-pending" style="margin-left:8px;font-size:0.75rem">${s.site_type==="project"?"Project":"Site"} · ${esc(typeLbl)}</span>
+        <span class="fw-chip is-pending" style="margin-left:8px;font-size:0.75rem">Site · ${esc(typeLbl)}</span>
         ${s.location ? `<span class="muted" style="font-size:0.78rem"> · ${FWIcon("mapPin",{size:12})} ${esc(s.location)}</span>` : ""}
       </div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:0.8rem">
-        ${s.client_name     ? `<span>${FWIcon("document",{size:12})} Client: <strong>${esc(s.client_name)}</strong>${s.client_contact?` · ${esc(s.client_contact)}`:""}</span>` : ""}
         ${s.manager_name    ? `<span>${FWIcon("driver",{size:12})} Manager: <strong>${esc(s.manager_name)}</strong></span>` : ""}
         ${s.supervisor_name ? `<span>${FWIcon("eye",{size:12})} Supervisor: <strong>${esc(s.supervisor_name)}</strong></span>` : ""}
+        ${s.address ? `<span class="muted">${esc(s.address)}</span>` : ""}
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center;font-size:0.8rem">
+        <span class="muted">${FWIcon("receipt",{size:12})} Projects here:</span>
+        ${(() => { const ps = typeof projectsForSite === "function" ? projectsForSite(s.id) : []; return ps.length ? ps.map(p => `<span class="fw-chip is-pending" style="font-size:0.75rem;cursor:pointer" onclick="activateTab('projects')">${esc(p.name)}</span>`).join("") : '<span class="muted">none — link this site from a project</span>'; })()}
       </div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:0.8rem">
         <span>${FWIcon("truck",{size:12})} <strong>${vehNames.length}</strong> truck${vehNames.length===1?"":"s"}${vehNames.length ? ": " + vehNames.slice(0,4).map(esc).join(", ") + (vehNames.length>4?" +"+(vehNames.length-4)+" more":"") : ""}</span>
         ${Object.entries(staffRoles).map(([r,n]) => `<span>${FWIcon("driver",{size:12})} ${n} ${r}${n>1?"s":""}</span>`).join("")}
-        ${(() => { const bl = BILLING_BASIS_OPTIONS.find(b=>b[0]===s.billing_basis); return bl ? `<span>${FWIcon("receipt",{size:12})} <strong>${bl[1]}</strong>${s.rate_per_unit?` · ₹${fmtINR(s.rate_per_unit)}/${bl[1].split(" ").pop()}`:""}${s.target_quantity?` · Target: ${s.target_quantity} ${bl[1].split(" ").pop()}`:""}</span>` : ""; })()}
-        ${s.contract_value  ? `<span>${FWIcon("rupee",{size:12})} Contract: <strong>${fmtINR(s.contract_value)}</strong></span>` : ""}
-        ${s.contract_start  ? `<span class="muted">From ${fmtDate(s.contract_start)}${s.contract_end?" to "+fmtDate(s.contract_end):""}</span>` : ""}
-        ${(s.vehicle_types||[]).length ? `<span class="muted">${(s.vehicle_types).join(", ")}</span>` : ""}
       </div>
       <div class="pred-detail" style="margin-top:8px">
         <button class="link-btn" onclick="openEditSite('${s.id}')">${FWIcon("document",{size:13})} Edit</button>
@@ -2507,11 +2515,7 @@ function renderSites() {
     'No sites or projects yet — click <strong>New Site</strong> to create one.');
 }
 
-function renderActiveProjects() {
-  renderSiteCollection("activeProjectsList",
-    _sites.filter(s => s.site_type === "project" && s.status === "active"),
-    'No active projects. Create a site/project and choose <strong>Project</strong> with <strong>active</strong> status.');
-}
+function renderActiveProjects() { if (typeof renderProjects === "function") renderProjects(); }
 
 function renderSiteHistory() {
   renderSiteCollection("siteHistoryList",
@@ -2530,12 +2534,10 @@ const SITE_TYPE_OPTIONS = [
 ];
 
 const BILLING_BASIS_OPTIONS = [
-  ["trip",           "Per Trip",          "Per completed trip / load"],
-  ["tonnage",        "Per MT / Tonnage",  "Per metric tonne transported"],
-  ["monthly_rental", "Monthly Rental",    "Fixed monthly rate per vehicle"],
-  ["hourly",         "Hourly",            "Per hour of vehicle deployment"],
-  ["km_based",       "Per KM",            "Rate per kilometre run"],
-  ["custom",         "Custom",            "Custom or negotiated terms"],
+  ["trip", "Per trip"], ["tonnage", "Per tonne (MT)"], ["tonne_km", "Per tonne-km"], ["cubic_metre", "Per cubic metre"],
+  ["per_unit", "Per unit / bag"], ["per_delivery", "Per delivery / drop"], ["km_based", "Per kilometre"], ["hourly", "Per hour"],
+  ["shift", "Per shift"], ["daily_rental", "Daily rental"], ["weekly_rental", "Weekly rental"], ["monthly_rental", "Monthly rental"],
+  ["lump_sum", "Fixed contract"], ["custom", "Custom"],
 ];
 
 const VEHICLE_TYPE_OPTIONS = [
@@ -2546,127 +2548,46 @@ const VEHICLE_TYPE_OPTIONS = [
 
 function siteFormHtml(s) {
   s = s || {};
-  const curVTypes = s.vehicle_types || [];
-  const curBilling = s.billing_basis || "trip";
+  const hr = `<hr style="margin:12px 0;border:none;border-top:1px solid var(--line)" />`;
+  const lbl = t => `<p style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);margin:0 0 8px">${t}</p>`;
   return `
+    <p class="muted" style="font-size:0.82rem;margin:0 0 10px">A site is a place — yard, depot, quarry, customer site. Contracts, clients and billing belong to <strong>Projects</strong>, which you link to sites.</p>
     <div class="form-row">
-      <label>Name *<input type="text" name="name" value="${escAttr(s.name||"")}" required placeholder="e.g. Hyderabad Metro — Phase 2" /></label>
-      <label>Category
-        <select name="siteType">
-          <option value="site"${s.site_type!=="project"?" selected":""}>Site / Depot</option>
-          <option value="project"${s.site_type==="project"?" selected":""}>Project</option>
-        </select>
-      </label>
-    </div>
-    <div class="form-row">
-      <label>Project / Movement Type
+      <label>Site name *<input type="text" name="name" value="${escAttr(s.name||"")}" required placeholder="e.g. Hyderabad depot" /></label>
+      <label>Site type
         <select name="projectType">
           ${SITE_TYPE_OPTIONS.map(([v,l]) => `<option value="${v}"${(s.project_type||"other")===v?" selected":""}>${l}</option>`).join("")}
         </select>
       </label>
+    </div>
+    <div class="form-row">
       <label>Status
         <select name="status">
           ${["active","paused","completed","cancelled"].map(st => `<option${(s.status||"active")===st?" selected":""}>${st}</option>`).join("")}
         </select>
       </label>
     </div>
-
-    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)" />
-    <p style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin:0 0 8px">Client &amp; Location</p>
-    <div class="form-row">
-      <label>Client / Company name<input type="text" name="clientName" value="${escAttr(s.client_name||"")}" placeholder="Who is the work for?" /></label>
-      <label>Client contact<input type="text" name="clientContact" value="${escAttr(s.client_contact||"")}" placeholder="Phone / email" /></label>
-    </div>
+    ${hr}${lbl("Location")}
     <div class="form-row">
       <label>Location / City<input type="text" name="location" value="${escAttr(s.location||"")}" placeholder="e.g. Hyderabad, Telangana" /></label>
       <label>Address / GPS<input type="text" name="address" value="${escAttr(s.address||"")}" placeholder="Full address or coordinates" /></label>
     </div>
-
-    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)" />
-    <p style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin:0 0 8px">People</p>
+    ${hr}${lbl("People")}
     <div class="form-row">
-      <label>Manager<input type="text" name="managerName" value="${escAttr(s.manager_name||"")}" placeholder="Manager responsible for this site" /></label>
+      <label>Site manager<input type="text" name="managerName" value="${escAttr(s.manager_name||"")}" placeholder="Responsible for this site" /></label>
       <label>Supervisor<input type="text" name="supervisorName" value="${escAttr(s.supervisor_name||"")}" placeholder="On-site daily supervisor" /></label>
-    </div>
-
-    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)" />
-    <p style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin:0 0 8px">Service &amp; Billing</p>
-    <div class="form-row">
-      <label>Billing basis
-        <select name="billingBasis" id="siteBillingBasis" onchange="siteFormBillingChange()">
-          ${BILLING_BASIS_OPTIONS.map(([v,l,d]) => `<option value="${v}"${curBilling===v?" selected":""} title="${d}">${l}</option>`).join("")}
-        </select>
-      </label>
-      <label><span id="siteBillingRateLabel">Rate per Trip (₹)</span>
-        <input type="number" name="ratePerUnit" min="0" step="0.01" value="${s.rate_per_unit||""}" placeholder="0.00" />
-      </label>
-    </div>
-    <div class="form-row">
-      <label>Target quantity <span class="muted" style="font-size:0.75rem" id="siteTargetLabel">(planned trips)</span>
-        <input type="number" name="targetQty" min="0" step="any" value="${s.target_quantity||""}" placeholder="optional" />
-      </label>
-      <label>Total contract value (₹)
-        <input type="number" name="contractValue" min="0" step="0.01" value="${s.contract_value||""}" placeholder="Total ₹ amount" />
-      </label>
-    </div>
-
-    <p style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin:8px 0 6px">Vehicle types deployed at this site</p>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px" id="siteVTypeGrid">
-      ${VEHICLE_TYPE_OPTIONS.map(t => `<label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;padding:4px 8px;border:1px solid var(--border);border-radius:8px;cursor:pointer;${curVTypes.includes(t)?"background:var(--accent-dim);border-color:var(--accent)":""}">
-        <input type="checkbox" name="vtype_${t.replace(/[^a-zA-Z]/g,"_")}" value="${escAttr(t)}" ${curVTypes.includes(t)?"checked":""} style="margin:0" />${esc(t)}
-      </label>`).join("")}
-    </div>
-
-    <hr style="margin:12px 0;border:none;border-top:1px solid var(--border)" />
-    <p style="font-size:0.78rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin:0 0 8px">Schedule</p>
-    <div class="form-row">
-      <label>Contract / Work starts<input type="date" name="contractStart" value="${s.contract_start||s.start_date||""}" /></label>
-      <label>Contract / Work ends<input type="date" name="contractEnd" value="${s.contract_end||s.end_date||""}" /></label>
     </div>
     <label>Notes<textarea name="notes" rows="2" style="width:100%">${esc(s.notes||"")}</textarea></label>`;
 }
 
-// Updates rate label when billing basis changes
-window.siteFormBillingChange = function() {
-  const sel  = document.getElementById("siteBillingBasis");
-  const lbl  = document.getElementById("siteBillingRateLabel");
-  const tl   = document.getElementById("siteTargetLabel");
-  if (!sel || !lbl) return;
-  const labels = {
-    trip: ["Rate per Trip (₹)", "(planned trips)"],
-    tonnage: ["Rate per MT (₹)", "(target MT)"],
-    monthly_rental: ["Monthly rate per vehicle (₹)", "(months)"],
-    hourly: ["Rate per hour (₹)", "(target hours)"],
-    km_based: ["Rate per KM (₹)", "(target KMs)"],
-    custom: ["Custom rate (₹)", "(quantity)"],
-  };
-  const [rl, tl2] = labels[sel.value] || ["Rate (₹)", ""];
-  lbl.textContent = rl;
-  if (tl) tl.textContent = tl2;
-};
-
 function siteRowFromForm(fd, orgId, extra) {
-  const vtypes = VEHICLE_TYPE_OPTIONS.filter(t =>
-    document.querySelector(`input[name="vtype_${t.replace(/[^a-zA-Z]/g,"_")}"]`)?.checked
-  );
   return {
     org_id: orgId, name: (fd.name||"").trim(),
-    site_type: fd.siteType, project_type: fd.projectType,
+    site_type: "site", project_type: fd.projectType || "other",
     location: (fd.location||"").trim()||null,
     address:  (fd.address||"").trim()||null,
-    client_name:    (fd.clientName||"").trim()||null,
-    client_contact: (fd.clientContact||"").trim()||null,
     manager_name:    (fd.managerName||"").trim()||null,
     supervisor_name: (fd.supervisorName||"").trim()||null,
-    billing_basis:   fd.billingBasis || "trip",
-    rate_per_unit:   fd.ratePerUnit  ? +fd.ratePerUnit  : null,
-    target_quantity: fd.targetQty    ? +fd.targetQty    : null,
-    contract_value:  fd.contractValue? +fd.contractValue: null,
-    vehicle_types:   vtypes,
-    contract_start:  fd.contractStart || null,
-    contract_end:    fd.contractEnd   || null,
-    start_date:      fd.contractStart || null,
-    end_date:        fd.contractEnd   || null,
     status: fd.status,
     notes:  (fd.notes||"").trim()||null,
     ...(extra||{}),
@@ -2675,7 +2596,7 @@ function siteRowFromForm(fd, orgId, extra) {
 
 window.openNewSite = async function(initialType = "site") {
   const initial = initialType === "project" ? { site_type: "project", status: "active" } : null;
-  openEditModal("New Site / Project", siteFormHtml(initial), async fd => {
+  openEditModal("New Site", siteFormHtml(initial), async fd => {
     const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
     const ok = await fwCloud.authInsert("sites", siteRowFromForm(fd, orgId, { created_by: fwCloud.uid() }));
     if (!ok) throw new Error("Could not save — check your connection.");
@@ -2687,7 +2608,7 @@ window.openNewSite = async function(initialType = "site") {
 
 window.openEditSite = async function(id) {
   const s = _sites.find(x => x.id === id); if (!s) return;
-  openEditModal("Edit Site / Project", siteFormHtml(s), async fd => {
+  openEditModal("Edit Site", siteFormHtml(s), async fd => {
     const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
     const ok = await fwCloud.authPatch(`sites?id=eq.${id}`, siteRowFromForm(fd, orgId));
     if (!ok) throw new Error("Could not save — check your connection.");
@@ -2712,8 +2633,8 @@ window.openAssignSiteVehicles = function(siteId) {
   const assignedDbIds= new Set(active.map(r => r.vehicle_id));
   const activeBySvId = Object.fromEntries(active.map(r => [r.vehicle_id, r]));
 
-  const billingOpts = BILLING_BASIS_OPTIONS.map(([v,l]) =>
-    `<option value="${v}"${v===s.billing_basis?" selected":""}>${l}</option>`).join("");
+  const siteProjects = typeof projectsForSite === "function" ? projectsForSite(siteId) : [];
+  const billingOpts = BILLING_BASIS_OPTIONS.map(([v,l]) => `<option value="${v}">${l}</option>`).join("");
 
   const rows = db.vehicles.map(v => {
     const cur  = activeBySvId[v.dbId];
@@ -2726,14 +2647,20 @@ window.openAssignSiteVehicles = function(siteId) {
         ${esc(v.name)} <span class="muted" style="font-weight:400;font-size:0.8rem">${esc(v.type)}</span> ${otherNote}
       </label>
       <div class="sva-detail" style="display:${cur?"flex":"none"};gap:10px;margin-top:8px;flex-wrap:wrap">
-        <label style="font-size:0.8rem">Billing basis
-          <select class="sva-billing" style="height:28px;font-size:0.8rem">
-            <option value="site_default">Use site default (${BILLING_BASIS_OPTIONS.find(b=>b[0]===s.billing_basis)?.[1]||s.billing_basis})</option>
-            ${billingOpts}
+        <label style="font-size:0.8rem">Project
+          <select class="sva-project" style="height:28px;font-size:0.8rem">
+            <option value="">— none —</option>
+            ${siteProjects.map(p => `<option value="${p.id}"${cur?.project_id===p.id?" selected":""}>${esc(p.name)}</option>`).join("")}
           </select>
         </label>
-        <label style="font-size:0.8rem">Rate (₹) <span class="muted">(blank = use site rate)</span>
-          <input type="number" class="sva-rate" min="0" step="0.01" value="${cur?.rate_per_unit||""}" placeholder="${s.rate_per_unit||"0"}" style="width:90px;height:28px;font-size:0.8rem" />
+        <label style="font-size:0.8rem">Billing
+          <select class="sva-billing" style="height:28px;font-size:0.8rem">
+            <option value="site_default">Use project default</option>
+            ${billingOpts.replace(`value="${cur?.billing_basis}"`, `value="${cur?.billing_basis}" selected`)}
+          </select>
+        </label>
+        <label style="font-size:0.8rem">Rate (₹) <span class="muted">(blank = project rate)</span>
+          <input type="number" class="sva-rate" min="0" step="0.01" value="${cur?.rate_per_unit||""}" placeholder="0" style="width:90px;height:28px;font-size:0.8rem" />
         </label>
         <label style="font-size:0.8rem">Assigned from
           <input type="date" class="sva-date" value="${cur?.assigned_date||today()}" style="height:28px;font-size:0.8rem" />
@@ -2758,6 +2685,7 @@ window.openAssignSiteVehicles = function(siteId) {
       if (chk.checked) {
         domChecked.add(dbId);
         perVeh[dbId] = {
+          project: row.querySelector(".sva-project")?.value || null,
           billing: row.querySelector(".sva-billing")?.value || "site_default",
           rate:    row.querySelector(".sva-rate")?.value    || null,
           date:    row.querySelector(".sva-date")?.value    || today(),
@@ -2774,6 +2702,7 @@ window.openAssignSiteVehicles = function(siteId) {
     for (const dbId of domChecked) {
       const p = perVeh[dbId] || {};
       const patch = {
+        project_id: p.project || null,
         billing_basis: p.billing !== "site_default" ? p.billing : "site_default",
         rate_per_unit: p.rate ? +p.rate : null,
       };
@@ -2786,7 +2715,7 @@ window.openAssignSiteVehicles = function(siteId) {
         await fwCloud.authInsert("site_vehicle_assignments", {
           site_id: siteId, vehicle_id: dbId, org_id: orgId,
           assigned_date: p.date || today(),
-          billing_basis: patch.billing_basis, rate_per_unit: patch.rate_per_unit,
+          project_id: patch.project_id, billing_basis: patch.billing_basis, rate_per_unit: patch.rate_per_unit,
         });
       }
     }
@@ -2889,6 +2818,12 @@ window.openAssignVehicleToSite = function(vehLocalId) {
          <option value="">— None —</option>${siteOpts}
        </select>
      </label>
+     <label>Project (optional)
+       <select name="projectId">
+         <option value="">— none —</option>
+         ${(typeof _projects !== "undefined" ? _projects.filter(p => p.status === "active" || p.status === "planned") : []).map(p => `<option value="${p.id}"${cur?.project?.id===p.id?" selected":""}>${esc(p.name)}</option>`).join("")}
+       </select>
+     </label>
      <label>From date<input type="date" name="fromDate" value="${today()}" /></label>`,
     async fd => {
       const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
@@ -2896,6 +2831,7 @@ window.openAssignVehicleToSite = function(vehLocalId) {
       if (fd.siteId) {
         await fwCloud.authInsert("site_vehicle_assignments", {
           site_id: fd.siteId, vehicle_id: v.dbId, org_id: orgId, assigned_date: fd.fromDate || today(),
+          project_id: fd.projectId || null,
         });
       }
       const siteName = fd.siteId ? (_sites.find(s=>s.id===fd.siteId)?.name || "site") : "none";
@@ -5033,7 +4969,7 @@ function setWorkspace(ws) {
   document.body.dataset.ws = ws;
 }
 
-const SETTINGS_SUBTABS = { smsnotif: "SMS Notifications", sites: "Sites & Projects", projects: "Active Projects", sitehistory: "Site History" };
+const SETTINGS_SUBTABS = { smsnotif: "SMS Notifications", sites: "Sites", projects: "Projects", sitehistory: "Site History" };
 
 function tabButtonFor(tabName, preferredBtn) {
   if (preferredBtn && preferredBtn.dataset && preferredBtn.dataset.tab === tabName) return preferredBtn;
@@ -5099,6 +5035,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "smsnotif")        renderNotifSettings();
   if (tabName === "sites")           { loadSites().then(() => { renderSites(); renderHubSites(); }); }
   if (tabName === "projects")        { loadSites().then(renderActiveProjects); }
+  if (tabName === "plreport" && window.renderPlReport) renderPlReport();
   if (tabName === "sitehistory")     { loadSites().then(renderSiteHistory); }
   if (tabName === "purchaseinvoices") renderPurchaseInvoices();
   if (tabName === "trips") { renderTrips(); loadActiveTripWorkflow(); }
@@ -5570,18 +5507,24 @@ function buildDynamicPanels() {
 
   mk("sites", `<div class="chart-card">
     <div class="chart-head">
-      <div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="mapPin" data-icon-size="22"></i></span> Sites &amp; Projects</h2>
-      <p class="muted">Create sites, depots and projects — assign trucks, managers and supervisors. Vehicles show up on the Status Board with their site and supervisor.</p></div>
-      <button class="btn btn-primary" onclick="openNewSite()">${FWIcon("plus",{size:14})} New Site</button>
+      <div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="mapPin" data-icon-size="22"></i></span> Sites</h2>
+      <p class="muted">The places you work — yards, depots, quarries, customer sites. Link them to projects to run work there; each site shows the projects, trucks and staff it hosts.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="activateTab('projects')">Projects &rarr;</button>
+        <button class="btn btn-primary" onclick="openNewSite()">${FWIcon("plus",{size:14})} New Site</button>
+      </div>
     </div>
     <div id="sitesList"></div>
   </div>`);
 
   mk("projects", `<div class="chart-card">
     <div class="chart-head">
-      <div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="mapPin" data-icon-size="22"></i></span> Active Projects</h2>
-      <p class="muted">Projects currently in progress, with their assigned vehicles, staff and commercial details.</p></div>
-      <button class="btn btn-primary" onclick="openNewSite('project')">${FWIcon("plus",{size:14})} New Project</button>
+      <div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="mapPin" data-icon-size="22"></i></span> Projects</h2>
+      <p class="muted">Client contracts and work packages. A project can run at several sites and a site can host several projects. Set its billing terms — per trip, tonne, kilometre, daily or monthly rental and more — and deploy trucks to it.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-outline" onclick="activateTab('plreport')">Income &amp; expenses</button>
+        <button class="btn btn-primary" onclick="openNewProject()">${FWIcon("plus",{size:14})} New Project</button>
+      </div>
     </div>
     <div id="activeProjectsList"></div>
   </div>`);
@@ -5589,7 +5532,7 @@ function buildDynamicPanels() {
   mk("sitehistory", `<div class="chart-card">
     <div class="chart-head">
       <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="document" data-icon-size="22"></i></span> Site History</h2>
-      <p class="muted">Completed and archived sites/projects, retained with their deployment details.</p></div>
+      <p class="muted">Completed and archived sites, retained with their deployment details. Completed projects are listed under Projects.</p></div>
     </div>
     <div id="siteHistoryList"></div>
   </div>`);

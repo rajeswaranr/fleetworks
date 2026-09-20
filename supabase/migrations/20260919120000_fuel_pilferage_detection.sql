@@ -101,16 +101,28 @@ CREATE INDEX idx_fuel_trips_anomalous ON fuel_trips(is_anomalous) WHERE is_anoma
 CREATE INDEX idx_fuel_alerts_severity ON fuel_alerts(severity) WHERE is_reviewed = false;
 
 -- Hypertable for time-series fuel data
-SELECT create_hypertable('fuel_trips', 'trip_date', if_not_exists => TRUE);
+DO $ts$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    PERFORM create_hypertable('fuel_trips', 'trip_date', if_not_exists => TRUE);
+  END IF;
+END $ts$;
 
 -- Compression for old data (>30 days)
-ALTER TABLE fuel_trips SET (
+DO $ts$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    EXECUTE $q$ALTER TABLE fuel_trips SET (
   timescaledb.compress,
   timescaledb.compress_segmentby = 'org_id, vehicle_id',
   timescaledb.compress_orderby = 'trip_date DESC'
-);
+)$q$;
+  END IF;
+END $ts$;
 
-SELECT add_compression_policy('fuel_trips', INTERVAL '30 days', if_not_exists => TRUE);
+DO $ts$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    PERFORM add_compression_policy('fuel_trips', INTERVAL '30 days', if_not_exists => TRUE);
+  END IF;
+END $ts$;
 
 -- Row-Level Security
 ALTER TABLE fuel_trips ENABLE ROW LEVEL SECURITY;
@@ -119,15 +131,15 @@ ALTER TABLE fuel_alerts ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY fuel_trips_org_isolation ON fuel_trips
   FOR ALL
-  USING (org_id = current_user_org_id());
+  USING (is_org_admin(org_id));
 
 CREATE POLICY fuel_baseline_org_isolation ON fuel_consumption_baseline
   FOR ALL
-  USING (org_id = current_user_org_id());
+  USING (is_org_admin(org_id));
 
 CREATE POLICY fuel_alerts_org_isolation ON fuel_alerts
   FOR ALL
-  USING (org_id = current_user_org_id());
+  USING (is_org_admin(org_id));
 
 -- Helper function: Calculate fuel consumption anomaly
 CREATE OR REPLACE FUNCTION detect_fuel_anomaly(

@@ -18,7 +18,8 @@ CREATE TABLE IF NOT EXISTS cold_chain_config (
   alert_sms_enabled BOOLEAN DEFAULT true,
 
   created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (org_id, product_type)
 );
 
 CREATE TABLE IF NOT EXISTS cold_chain_vehicles (
@@ -32,7 +33,7 @@ CREATE TABLE IF NOT EXISTS cold_chain_vehicles (
   compartments INTEGER DEFAULT 1, -- Number of temperature zones
 
   -- Configuration
-  product_type TEXT REFERENCES cold_chain_config(product_type),
+  product_type TEXT, -- matches cold_chain_config.product_type for the same org
   min_temp DECIMAL(5, 2),
   max_temp DECIMAL(5, 2),
 
@@ -162,13 +163,25 @@ CREATE INDEX idx_compliance_vehicle ON cold_chain_compliance(vehicle_id, complia
 CREATE INDEX idx_analytics_vehicle ON cold_chain_analytics(vehicle_id, summary_date DESC);
 
 -- Hypertable for time-series temperature readings (TimescaleDB)
-SELECT create_hypertable('temperature_readings', 'reading_timestamp', if_not_exists => TRUE);
-ALTER TABLE temperature_readings SET (
+DO $ts$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    PERFORM create_hypertable('temperature_readings', 'reading_timestamp', if_not_exists => TRUE);
+  END IF;
+END $ts$;
+DO $ts$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    EXECUTE $q$ALTER TABLE temperature_readings SET (
   timescaledb.compress,
   timescaledb.compress_segmentby = 'org_id, vehicle_id',
   timescaledb.compress_orderby = 'reading_timestamp DESC'
-);
-SELECT add_compression_policy('temperature_readings', INTERVAL '30 days', if_not_exists => TRUE);
+)$q$;
+  END IF;
+END $ts$;
+DO $ts$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'timescaledb') THEN
+    PERFORM add_compression_policy('temperature_readings', INTERVAL '30 days', if_not_exists => TRUE);
+  END IF;
+END $ts$;
 
 -- Row-Level Security
 ALTER TABLE cold_chain_config ENABLE ROW LEVEL SECURITY;
@@ -179,19 +192,19 @@ ALTER TABLE cold_chain_compliance ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cold_chain_analytics ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY cold_chain_org_isolation ON cold_chain_vehicles
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY temp_readings_org_isolation ON temperature_readings
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY violations_org_isolation ON temperature_violations
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY compliance_org_isolation ON cold_chain_compliance
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY analytics_org_isolation ON cold_chain_analytics
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 -- AI Helper Functions
 

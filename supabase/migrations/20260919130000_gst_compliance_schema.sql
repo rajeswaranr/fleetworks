@@ -202,19 +202,19 @@ ALTER TABLE gst_settlement_summary ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gst_audit_logs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY gst_config_org_isolation ON gst_configuration
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY gst_invoices_org_isolation ON gst_invoices
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY eway_bills_org_isolation ON eway_bills
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY gst_settlement_org_isolation ON gst_settlement_summary
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 CREATE POLICY gst_audit_org_isolation ON gst_audit_logs
-  FOR ALL USING (org_id = current_user_org_id());
+  FOR ALL USING (is_org_admin(org_id));
 
 -- Helper function: Generate E-way Bill Number (SBIN Format)
 CREATE OR REPLACE FUNCTION generate_eway_bill_number(p_org_id UUID)

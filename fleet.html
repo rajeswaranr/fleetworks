@@ -273,6 +273,7 @@
         <button class="side-item tab-btn" data-tab="gstbills"><i data-icon="receipt"></i><span>Bills — GST / Non-GST</span></button>
         <button class="side-item tab-btn" data-tab="accounts"><i data-icon="rupee"></i><span>Accounts &amp; Tally</span></button>
         <button class="side-item tab-btn" data-tab="reports"><i data-icon="chartBar"></i><span>Reports &amp; Filters</span></button>
+        <button class="side-item tab-btn" data-tab="plreport"><i data-icon="trendUp"></i><span>Income &amp; Expense Report</span></button>
         </div>
 
         <!-- ======= WORKSPACE: FleetSafe — safety, telematics, geofencing ======= -->
@@ -669,8 +670,10 @@
                 <p class="muted">Deployment sites, construction yards, logistics hubs — assign trucks, managers and supervisors</p>
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button class="btn btn-primary btn-sm" onclick="openNewSite()"><i data-icon="plus" data-icon-size="14"></i> New Site / Project</button>
-                <button class="btn btn-outline btn-sm" onclick="switchTab('sites')">View All &rarr;</button>
+                <button class="btn btn-primary btn-sm" onclick="openNewProject()"><i data-icon="plus" data-icon-size="14"></i> New Project</button>
+                <button class="btn btn-outline btn-sm" onclick="openNewSite()"><i data-icon="plus" data-icon-size="14"></i> New Site</button>
+                <button class="btn btn-outline btn-sm" onclick="switchTab('projects')">Projects &rarr;</button>
+                <button class="btn btn-outline btn-sm" onclick="switchTab('sites')">Sites &rarr;</button>
               </div>
             </div>
             <div id="hubSitesList" style="padding:0 4px 4px"></div>
@@ -2349,7 +2352,11 @@
             </button>
             <button type="button" class="settings-tile" onclick="activateTab('sites')">
               <i data-icon="mapPin" data-icon-size="18"></i>
-              <div><strong>Sites &amp; Projects</strong><p class="muted">Add and manage project sites</p></div>
+              <div><strong>Sites</strong><p class="muted">Yards, depots, quarries and customer sites</p></div>
+            </button>
+            <button type="button" class="settings-tile" onclick="activateTab('projects')">
+              <i data-icon="receipt" data-icon-size="18"></i>
+              <div><strong>Projects</strong><p class="muted">Client contracts, billing terms and deployments</p></div>
             </button>
             <button type="button" class="settings-tile" onclick="document.getElementById('exportDataBtn').scrollIntoView({behavior:'smooth'})">
               <i data-icon="download" data-icon-size="18"></i>
@@ -2670,6 +2677,7 @@
   <script src="js/dbcore.js"></script>
   <script src="js/modules/iot-telemetry/dashcam-clip.js"></script>
   <script src="js/modules/fleet-ops/controllers/fleet.controller.js"></script>
+  <script src="js/modules/fleet-ops/controllers/projects.controller.js"></script>
   <script src="js/modules/fleet-ops/controllers/video-events.controller.js"></script>
   <script src="js/modules/fleet-ops/controllers/fuel-dashboard.controller.js"></script>
   <script src="js/modules/fleet-ops/controllers/overview.controller.js"></script>

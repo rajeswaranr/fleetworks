@@ -7,7 +7,7 @@ create unique index if not exists idx_drivers_one_login
 -- First choice: the name entered during invitation exactly matches one driver
 -- in the same organization.
 with matches as (
-  select m.user_id, min(d.id) as driver_id
+  select m.user_id, (array_agg(d.id))[1] as driver_id
   from memberships m
   join auth.users u on u.id = m.user_id
   join drivers d on d.org_id = m.org_id and d.user_id is null
@@ -22,7 +22,7 @@ from matches where d.id = matches.driver_id;
 -- Fallback: the login's assigned vehicles resolve to exactly one unlinked
 -- driver record in the organization.
 with matches as (
-  select m.user_id, min(d.id) as driver_id
+  select m.user_id, (array_agg(d.id))[1] as driver_id
   from memberships m
   join vehicle_assignments va on va.org_id = m.org_id and va.user_id = m.user_id
   join vehicles v on v.org_id = va.org_id and v.ext_id = va.vehicle_ext_id
