@@ -7,11 +7,13 @@
  */
 
 const DriverKhataController = {
-  filter: { driverId: "", from: "", to: "", types: { advance: true, expense: true, settlement: true } },
+  filter: { driverId: "", from: "", to: "", types: { advance: true, expense: true, settlement: true, salary: true } },
+  salary: [],
+  salaryLoadedAt: 0,
   rows: [],
   summary: null,
 
-  TYPE_LABEL: { advance: "Advance given", expense: "Expense by driver", settlement: "Settled / returned" },
+  TYPE_LABEL: { advance: "Advance given", expense: "Expense by driver", settlement: "Settled / returned", salary: "Salary paid" },
 
   container() { return document.getElementById("khataContainer"); },
 
@@ -29,12 +31,32 @@ const DriverKhataController = {
     this.build(c);
   },
 
+  // Salary lives in salary_payments (Payroll tab), not driver_ledger. Only
+  // successful payments count as paid. Reloaded at most every 30s.
+  async loadSalary(force) {
+    if (!(window.fwCloud && fwCloud.user() && typeof getMyOrgId === "function")) return;
+    if (!force && Date.now() - this.salaryLoadedAt < 30000) return;
+    this.salaryLoadedAt = Date.now();
+    const org = await getMyOrgId().catch(() => null);
+    if (!org) return;
+    const rows = await fwCloud.authGet("salary_payments", `select=*&org_id=eq.${org}&status=eq.success&order=initiated_at.desc&limit=1000`).catch(() => null);
+    if (!rows) return;
+    this.salary = rows.map(r => ({
+      id: "sal_" + r.id, driverId: r.driver_ext_id,
+      date: String(r.paid_date || r.initiated_at || "").slice(0, 10) || undefined,
+      type: "salary", amount: Number(r.amount) || 0,
+      note: [r.period ? "Salary " + r.period : "Salary", r.method, r.notes].filter(Boolean).join(" · ")
+    }));
+    this.generate();
+  },
+
   // Called by fleet.controller whenever data changes; keeps the report live.
   refresh() {
     const c = this.container();
     if (!c) return;
     if (!c.querySelector("#khDriver")) this.init();
     else { this.syncDriverOptions(c); this.generate(); }
+    this.loadSalary();
   },
 
   build(c) {
@@ -65,6 +87,7 @@ const DriverKhataController = {
         .kh-pill.advance { background: #dbeafe; color: #1e40af; }
         .kh-pill.expense { background: #fef3c7; color: #92400e; }
         .kh-pill.settlement { background: #dcfce7; color: #166534; }
+        .kh-pill.salary { background: #ede9fe; color: #6d28d9; }
         .kh-pos { color: #166534; } .kh-neg { color: #dc2626; }
         .kh-h3 { margin: 0 0 10px; font-size: 1rem; }
       </style>
@@ -93,6 +116,7 @@ const DriverKhataController = {
             <label><input type="checkbox" id="khAdv" ${t.advance ? "checked" : ""} /> Advances</label>
             <label><input type="checkbox" id="khExp" ${t.expense ? "checked" : ""} /> Expenses</label>
             <label><input type="checkbox" id="khSet" ${t.settlement ? "checked" : ""} /> Settlements</label>
+            <label><input type="checkbox" id="khSal" ${t.salary ? "checked" : ""} /> Salary paid</label>
           </div>
         </div>
 
@@ -104,7 +128,7 @@ const DriverKhataController = {
     this.syncDriverOptions(c);
     const go = () => this.generate();
     c.querySelector("#khGo").addEventListener("click", go);
-    c.querySelectorAll("#khDriver,#khFrom,#khTo,#khAdv,#khExp,#khSet").forEach(el => el.addEventListener("change", go));
+    c.querySelectorAll("#khDriver,#khFrom,#khTo,#khAdv,#khExp,#khSet,#khSal").forEach(el => el.addEventListener("change", go));
     c.querySelector("#khCsv").addEventListener("click", () => this.download("csv"));
     c.querySelector("#khXls").addEventListener("click", () => this.download("xls"));
     c.querySelector("#khPdf").addEventListener("click", () => this.print());
@@ -126,24 +150,24 @@ const DriverKhataController = {
     this.filter.driverId = v("#khDriver").value;
     this.filter.from = v("#khFrom").value;
     this.filter.to = v("#khTo").value;
-    this.filter.types = { advance: v("#khAdv").checked, expense: v("#khExp").checked, settlement: v("#khSet").checked };
+    this.filter.types = { advance: v("#khAdv").checked, expense: v("#khExp").checked, settlement: v("#khSet").checked, salary: v("#khSal").checked };
   },
 
   compute() {
     const { driverId, from, to, types } = this.filter;
-    const rows = (db.driverLedger || []).filter(l =>
+    const rows = (db.driverLedger || []).concat(this.salary).filter(l =>
       types[l.type] &&
       (!driverId || l.driverId === driverId) &&
       (!l.date || ((!from || l.date >= from) && (!to || l.date <= to)))
     ).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
 
     const sum = (list, type) => list.filter(l => l.type === type).reduce((s, l) => s + (l.amount || 0), 0);
-    const totals = { advance: sum(rows, "advance"), expense: sum(rows, "expense"), settlement: sum(rows, "settlement") };
+    const totals = { advance: sum(rows, "advance"), expense: sum(rows, "expense"), settlement: sum(rows, "settlement"), salary: sum(rows, "salary") };
     totals.balance = totals.advance - totals.expense - totals.settlement;
 
     const byDriver = (db.drivers || []).map(d => {
       const mine = rows.filter(l => l.driverId === d.id);
-      const t = { id: d.id, name: d.name, advance: sum(mine, "advance"), expense: sum(mine, "expense"), settlement: sum(mine, "settlement"), count: mine.length };
+      const t = { id: d.id, name: d.name, advance: sum(mine, "advance"), expense: sum(mine, "expense"), settlement: sum(mine, "settlement"), salary: sum(mine, "salary"), count: mine.length };
       t.balance = t.advance - t.expense - t.settlement;
       return t;
     }).filter(t => t.count > 0);
@@ -163,13 +187,14 @@ const DriverKhataController = {
       <div class="kh-card"><small>Total advances</small><b style="color:#1e40af">${this.inr(totals.advance)}</b></div>
       <div class="kh-card"><small>Total expenses</small><b style="color:#92400e">${this.inr(totals.expense)}</b></div>
       <div class="kh-card"><small>Total settlements</small><b style="color:#166534">${this.inr(totals.settlement)}</b></div>
+      <div class="kh-card"><small>Salary paid</small><b style="color:#6d28d9">${this.inr(totals.salary)}</b></div>
       <div class="kh-card"><small>Balance with driver</small><b>${bal(totals.balance)}</b></div>`;
 
     const balBox = c.querySelector("#khBalances");
     if (!this.filter.driverId && byDriver.length) {
       balBox.innerHTML = `<div class="kh-panel"><h3 class="kh-h3">Balance by driver</h3><div class="kh-table-wrap"><table class="kh-table">
-        <thead><tr><th>Driver</th><th class="num">Advances</th><th class="num">Expenses</th><th class="num">Settled</th><th class="num">With driver</th></tr></thead><tbody>` +
-        byDriver.map(t => `<tr class="kh-click" data-id="${this.esc(t.id)}"><td>${this.esc(t.name)}</td><td class="num">${this.inr(t.advance)}</td><td class="num">${this.inr(t.expense)}</td><td class="num">${this.inr(t.settlement)}</td><td class="num"><b>${bal(t.balance)}</b></td></tr>`).join("") +
+        <thead><tr><th>Driver</th><th class="num">Advances</th><th class="num">Expenses</th><th class="num">Settled</th><th class="num">Salary paid</th><th class="num">With driver</th></tr></thead><tbody>` +
+        byDriver.map(t => `<tr class="kh-click" data-id="${this.esc(t.id)}"><td>${this.esc(t.name)}</td><td class="num">${this.inr(t.advance)}</td><td class="num">${this.inr(t.expense)}</td><td class="num">${this.inr(t.settlement)}</td><td class="num">${this.inr(t.salary)}</td><td class="num"><b>${bal(t.balance)}</b></td></tr>`).join("") +
         `</tbody></table></div><p class="muted" style="margin:8px 0 0;font-size:0.78rem">Click a driver to see only their entries.</p></div>`;
       balBox.querySelectorAll("tr.kh-click").forEach(tr => tr.addEventListener("click", () => {
         c.querySelector("#khDriver").value = tr.dataset.id; this.generate();
@@ -186,7 +211,7 @@ const DriverKhataController = {
       <div class="kh-table-wrap"><table class="kh-table">
         <thead><tr><th>Date</th><th>Driver</th><th>Type</th><th class="num">Amount</th><th>Notes</th></tr></thead>
         <tbody>${body}</tbody>
-        <tfoot><tr><td colspan="3">Balance with driver (advances − expenses − settled)</td><td class="num">${bal(totals.balance)}</td><td></td></tr></tfoot>
+        <tfoot><tr><td colspan="3">Balance with driver (advances − expenses − settled; salary is separate)</td><td class="num">${bal(totals.balance)}</td><td></td></tr></tfoot>
       </table></div></div>`;
   },
 
@@ -201,7 +226,7 @@ const DriverKhataController = {
       const q = s => `"${String(s == null ? "" : s).replace(/"/g, '""')}"`;
       const lines = [["Date", "Driver", "Type", "Amount (INR)", "Notes"].join(",")].concat(
         this.rows.map(l => [q(l.date || ""), q(this.driverName(l.driverId)), q(l.type), l.amount || 0, q(l.note || "")].join(",")));
-      lines.push("", "Summary", `Total advances,${totals.advance}`, `Total expenses,${totals.expense}`, `Total settlements,${totals.settlement}`, `Balance with driver,${totals.balance}`);
+      lines.push("", "Summary", `Total advances,${totals.advance}`, `Total expenses,${totals.expense}`, `Total settlements,${totals.settlement}`, `Salary paid,${totals.salary}`, `Balance with driver,${totals.balance}`);
       blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" }); name = `Driver_Khata_${stamp}.csv`;
     } else {
       blob = new Blob(["﻿" + this.reportHtml(false)], { type: "application/vnd.ms-excel;charset=utf-8;" }); name = `Driver_Khata_${stamp}.xls`;
@@ -217,7 +242,7 @@ const DriverKhataController = {
     const who = this.filter.driverId ? this.driverName(this.filter.driverId) : "All drivers";
     return `${styled ? `<style>body{font-family:Arial,sans-serif;padding:24px;color:#1c2733}table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid #ccd3dc;padding:7px 9px;text-align:left}th{background:#eef2f7}h1{margin:0 0 4px}.s{margin:14px 0;font-size:14px}</style>` : ""}
       <h1>Driver Khata</h1><div>${this.esc(who)} &middot; ${this.esc(this.periodText())} &middot; Generated ${new Date().toLocaleDateString("en-IN")}</div>
-      <p class="s"><b>Advances:</b> ${this.inr(totals.advance)} &nbsp; <b>Expenses:</b> ${this.inr(totals.expense)} &nbsp; <b>Settled:</b> ${this.inr(totals.settlement)} &nbsp; <b>Balance with driver:</b> ${this.inr(totals.balance)}</p>
+      <p class="s"><b>Advances:</b> ${this.inr(totals.advance)} &nbsp; <b>Expenses:</b> ${this.inr(totals.expense)} &nbsp; <b>Settled:</b> ${this.inr(totals.settlement)} &nbsp; <b>Salary paid:</b> ${this.inr(totals.salary)} &nbsp; <b>Balance with driver:</b> ${this.inr(totals.balance)}</p>
       <table><thead><tr><th>Date</th><th>Driver</th><th>Type</th><th>Amount (INR)</th><th>Notes</th></tr></thead><tbody>${rows || '<tr><td colspan="5">No entries</td></tr>'}</tbody></table>`;
   },
 
