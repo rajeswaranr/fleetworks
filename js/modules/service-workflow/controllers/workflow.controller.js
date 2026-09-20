@@ -250,11 +250,11 @@ document.getElementById("wfPhotoFile")?.addEventListener("change", e => {
   img.src = URL.createObjectURL(f);
   e.target.value = "";
 });
-function wfReport(id) {
+async function wfReport(id) {
   const r = WFD.find(x => x.id === id);
   const rep = document.getElementById("wfReport-" + id).value.trim();
   if (!rep) { alert("Write a short completion report — the owner reads it before feedback."); return; }
-  if (!r.photos.length && !confirm("No photos attached — submit anyway?")) return;
+  if (!r.photos.length && !(await FWDialog.confirm("No photos attached — submit anyway?"))) return;
   wfAdvance(id, 10, "Mechanic", "Photos & post-work report submitted", { postReport: rep });
 }
 

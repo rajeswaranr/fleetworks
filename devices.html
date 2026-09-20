@@ -291,7 +291,7 @@
     });
 
     $("simClear").addEventListener("click", async () => {
-      if (!confirm("Delete all simulated devices, telemetry and events?\n\nReal device data is not touched.")) return;
+      if (!(await FWDialog.confirm("Delete all simulated devices, telemetry and events?\n\nReal device data is not touched."))) return;
       if (SIM) { clearInterval(SIM); SIM = null; $("simStart").disabled = false; $("simStop").disabled = true; }
       try {
         // Order matters: children first, or the FK cascade does it for us but
@@ -309,9 +309,7 @@
     // here rather than left as a function nobody knows exists. It loops until a
     // pass deletes nothing, since each call is batched to avoid a long lock.
     $("purgeBtn").addEventListener("click", async () => {
-      if (!confirm("Delete telemetry past its retention window?
-
-Default is 90 days for readings and 2 years for acknowledged events. Unacknowledged events are never deleted.")) return;
+      if (!(await FWDialog.confirm("Delete telemetry past its retention window?\n\nDefault is 90 days for readings and 2 years for acknowledged events. Unacknowledged events are never deleted."))) return;
       const btn = $("purgeBtn");
       btn.disabled = true; btn.textContent = "Purging…";
       let tel = 0, ev = 0;
@@ -353,5 +351,7 @@ Default is 90 days for readings and 2 years for acknowledged events. Unacknowled
     })();
   </script>
 <script src="js/control-guard.js"></script>
+<script src="js/window-controls.js"></script>
+<script src="js/dialogs.js"></script>
 </body>
 </html>

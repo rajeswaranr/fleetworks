@@ -572,9 +572,9 @@ document.getElementById("gLogout").addEventListener("click", () => {
   sessionStorage.removeItem("fwGarageDemo");
   if (window.fwCloud && fwCloud.user()) fwCloud.logout(); else location.reload();
 });
-document.getElementById("gDemoReset").addEventListener("click", () => {
-  if (confirm("Reload the demo garage? Your local changes will be replaced.")
-    && confirm("Please confirm once more — your current garage entries will be replaced with fresh demo data. This cannot be undone.")) loadDemoGarage();
+document.getElementById("gDemoReset").addEventListener("click", async () => {
+  if ((await FWDialog.confirm("Reload the demo garage? Your local changes will be replaced."))
+    && (await FWDialog.confirm("Please confirm once more — your current garage entries will be replaced with fresh demo data. This cannot be undone."))) loadDemoGarage();
 });
 
 document.body.classList.add("auth-locked");

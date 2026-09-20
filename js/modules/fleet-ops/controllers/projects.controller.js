@@ -215,7 +215,10 @@ function projectFormHtml(p, linked) {
 
     ${HR}${sectionLabel("Sites this project runs at")}
     <p class="muted" style="font-size:0.8rem;margin:0 0 6px">A project can run at several sites, and a site can serve several projects. Mark a site as a loading or unloading point when material moves between sites.</p>
-    ${siteRows || `<p class="muted">No sites yet — add sites first (Settings → Sites), then link them here.</p>`}
+    ${siteRows || `<p class="muted" style="margin:0 0 6px">No sites yet — add the first one below.</p>`}
+    <div id="projNewSites"></div>
+    <button type="button" class="btn btn-outline btn-sm" style="margin-top:8px" onclick="projectAddNewSiteRow()">${FWIcon("plus", { size: 13 })} New site</button>
+    <span class="muted" style="font-size:0.78rem;margin-left:8px">Create a site here and it is added and linked when you save.</span>
 
     ${HR}${sectionLabel("Commercial terms")}
     <div class="form-row">
@@ -277,6 +280,24 @@ function projectFormHtml(p, linked) {
     <label>Notes<textarea name="notes" rows="2" style="width:100%">${esc(p.notes || "")}</textarea></label>`;
 }
 
+let _newSiteSeq = 0;
+window.projectAddNewSiteRow = function () {
+  const box = document.getElementById("projNewSites"); if (!box) return;
+  const i = ++_newSiteSeq;
+  const row = document.createElement("div");
+  row.className = "proj-newsite";
+  row.style.cssText = "display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:8px 0;border-bottom:1px dashed var(--line)";
+  row.innerHTML = `
+    <label style="flex:2;min-width:160px;font-size:0.8rem">New site name *<input type="text" name="newSiteName_${i}" placeholder="e.g. Kandla terminal" /></label>
+    <label style="flex:2;min-width:140px;font-size:0.8rem">Location<input type="text" name="newSiteLoc_${i}" placeholder="City / district" /></label>
+    <label style="flex:1;min-width:150px;font-size:0.8rem">Role
+      <select name="newSiteRole_${i}">${Object.entries(SITE_ROLE_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+    </label>
+    <button type="button" class="link-btn" style="color:#ef4444;margin-bottom:10px" onclick="this.closest('.proj-newsite').remove()">Remove</button>`;
+  box.appendChild(row);
+  row.querySelector("input").focus();
+};
+
 window.projectFormBillingChange = function () {
   const sel = document.getElementById("projBilling");
   if (!sel) return;
@@ -327,6 +348,20 @@ async function syncProjectSites(projectId, orgId, fd) {
   }
   for (const l of toRemove) await fwCloud.authDelete("project_sites", `id=eq.${l.id}`);
   for (const l of toUpdate) await fwCloud.authPatch(`project_sites?id=eq.${l.id}`, { site_role: wanted[l.site_id] });
+
+  // Sites typed into the form: create each one, then link it to this project.
+  for (const key of Object.keys(fd).filter(k => k.startsWith("newSiteName_"))) {
+    const n = key.slice("newSiteName_".length);
+    const name = (fd[key] || "").trim();
+    if (!name) continue;
+    const site = await fwCloud.authInsertRet("sites", {
+      org_id: orgId, name, site_type: "site", project_type: "other", status: "active",
+      location: (fd["newSiteLoc_" + n] || "").trim() || null, created_by: fwCloud.uid(),
+    });
+    if (!site) throw new Error(`Project saved, but the site "${name}" could not be created.`);
+    const ok = await fwCloud.authInsert("project_sites", { project_id: projectId, site_id: site.id, org_id: orgId, site_role: fd["newSiteRole_" + n] || "operating" });
+    if (!ok) throw new Error(`Site "${name}" was created, but linking it to the project failed.`);
+  }
 }
 
 function openProjectModal(title, project, onSave) {
@@ -364,7 +399,7 @@ window.openEditProject = function (id) {
 
 window.archiveProject = async function (id) {
   const p = projectById(id); if (!p) return;
-  if (!confirm(`Archive "${p.name}"? It moves to history; deployments and financials are kept.`)) return;
+  if (!(await FWDialog.confirm(`Archive "${p.name}"? It moves to history; deployments and financials are kept.`))) return;
   await fwCloud.authPatch(`projects?id=eq.${id}`, { status: "cancelled" });
   for (const r of projectDeployments(id)) await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${r.id}`, { removed_date: today() });
   toast("Project archived.");
@@ -401,7 +436,7 @@ Sites, vehicles, trips and expenses are not deleted. This cannot be undone.` +
     `
 
 To just hide it, use Archive instead. Delete anyway?`;
-  if (!confirm(msg)) return;
+  if (!(await FWDialog.confirm(msg))) return;
   const ok = await fwCloud.authDelete("projects", `id=eq.${id}`);
   if (!ok) { toast("Could not delete the project — check your connection.", "err"); return; }
   toast(`Project "${p.name}" deleted.`);
@@ -522,7 +557,7 @@ window.removeDeployment = async function (svaId) {
   const r = Object.values(_siteVeh).flat().find(x => x.id === svaId); if (!r) return;
   const v = db.vehicles.find(x => x.dbId === r.vehicle_id);
   const site = _sites.find(x => x.id === r.site_id), p = projectById(r.project_id);
-  if (!confirm(`Remove ${v ? v.name : "this truck"} from ${site ? site.name : "the site"}${p ? " / " + p.name : ""}?\n\nThe deployment is closed as of today and kept in history, so past income and expenses stay attributed to it.`)) return;
+  if (!(await FWDialog.confirm(`Remove ${v ? v.name : "this truck"} from ${site ? site.name : "the site"}${p ? " / " + p.name : ""}?\n\nThe deployment is closed as of today and kept in history, so past income and expenses stay attributed to it.`))) return;
   const ok = await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${svaId}`, { removed_date: today() });
   if (!ok) { toast("Could not remove — check your connection.", "err"); return; }
   toast(`${v ? v.name : "Truck"} removed.`);

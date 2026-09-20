@@ -299,7 +299,7 @@
   }
 
   async function removeMaster(table, id, label) {
-    if (!confirm(`Remove this ${label}? Invoices already raised keep their own copy.`)) return;
+    if (!(await FWDialog.confirm(`Remove this ${label}? Invoices already raised keep their own copy.`))) return;
     const ok = await fwCloud.authPatch(`${table}?id=eq.${id}`, { is_active: false });
     if (ok) await loadMasters();
     if (typeof toast === "function") toast(ok ? `${label} removed.` : "Could not remove that.", ok ? "ok" : "err");

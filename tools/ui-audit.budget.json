@@ -1,0 +1,10 @@
+{
+  "Emoji used as icons": 398,
+  "Bare <button> (no .btn / .link-btn / framework class)": 48,
+  "Buttons styled inline (background/color/padding in style=)": 32,
+  "Ad-hoc dialog overlays (inline position:fixed;inset:0)": 13,
+  "Inputs/selects styled inline (border/padding/background)": 34,
+  "Inline layout (display:flex|grid in style=)": 218,
+  "Hard-coded colours in style= (#hex)": 369,
+  "Native confirm() (unstyled, no window controls — use await FWDialog.confirm)": 0
+}

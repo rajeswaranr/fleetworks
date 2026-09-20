@@ -57,7 +57,7 @@ async function initOverviewDash() {
     }
 
     // Populate filter dropdowns
-    populateFilterDropdowns();
+    populateOverviewFilterDropdowns();
 
     // Render dashboard
     renderOverviewDash();
@@ -70,7 +70,7 @@ async function initOverviewDash() {
 /**
  * Populate filter dropdowns
  */
-function populateFilterDropdowns() {
+function populateOverviewFilterDropdowns() {
   const vehicles = overviewData.vehicles;
 
   // Sites
@@ -122,7 +122,7 @@ function populateFilterDropdowns() {
 /**
  * Set dashboard filter
  */
-function setDashFilter(type, value = null) {
+function overviewSetDashFilter(type, value = null) {
   overviewData.filters = { all: false, site: null, supervisor: null, driver: null };
 
   if (type === 'all') {

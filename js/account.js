@@ -95,8 +95,8 @@ function updateAuthPill() {
   if (hg) hg.textContent = user ? "Welcome back, " + ownerDisplayName() : "Welcome to FleetWorks";
 }
 
-function doLogout() {
-  if (confirm("Sign out? Your data stays safely in the cloud.")) fwCloud.logout();
+async function doLogout() {
+  if ((await FWDialog.confirm("Sign out? Your data stays safely in the cloud."))) fwCloud.logout();
 }
 
 async function renderAuthState() {
@@ -524,7 +524,7 @@ async function renderTeamRoster() {
 }
 
 window.teamRevoke = async function (membershipId) {
-  if (!confirmDestructive("Revoke this person's FleetWorks access? They will no longer be able to sign in to your fleet.")) return;
+  if (!(await (await confirmDestructive("Revoke this person's FleetWorks access? They will no longer be able to sign in to your fleet.")))) return;
   const ok = await fwCloud.authDelete("memberships", "id=eq." + membershipId);
   if (ok) renderTeamRoster(); else alert("Could not revoke — check your connection and try again.");
 };

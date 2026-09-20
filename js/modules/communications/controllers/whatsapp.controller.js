@@ -225,7 +225,7 @@
   async function sendToAll(tpl) {
     const targets = waContacts.filter((c) => c.opted_in_at && !c.opted_out_at);
     if (!targets.length) { if (typeof toast === "function") toast("No opted-in drivers.", "err"); return; }
-    if (!confirm(`Send "${tpl.replace(/_/g, " ")}" to ${targets.length} driver(s)?`)) return;
+    if (!(await FWDialog.confirm(`Send "${tpl.replace(/_/g, " ")}" to ${targets.length} driver(s)?`))) return;
     let ok = 0, fail = 0;
     for (const c of targets) {
       const variables = variablesFor(tpl, c);
@@ -264,14 +264,14 @@
     if (!host) return;
     const btnWelcomeAll = $("waBtnWelcomeAll");
     if (btnWelcomeAll) btnWelcomeAll.addEventListener("click", () => sendToAll("welcome_message"));
-    host.addEventListener("click", (e) => {
+    host.addEventListener("click", async (e) => {
       const add = e.target.getAttribute("data-wa-add");
       const inId = e.target.getAttribute("data-wa-optin");
       const outId = e.target.getAttribute("data-wa-optout");
       const sendId = e.target.getAttribute("data-wa-send");
       if (add) return addContact(add);
       if (inId) return setConsent(inId, true);
-      if (outId) { if (confirm("Stop sending WhatsApp messages to this driver?")) setConsent(outId, false); return; }
+      if (outId) { if ((await FWDialog.confirm("Stop sending WhatsApp messages to this driver?"))) setConsent(outId, false); return; }
       if (sendId) return send(sendId, e.target.getAttribute("data-wa-tpl"));
     });
     document.querySelectorAll('[data-tab="whatsapp"]').forEach((b) =>

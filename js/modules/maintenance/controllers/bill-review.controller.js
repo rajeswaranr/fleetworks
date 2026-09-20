@@ -225,7 +225,7 @@
     const rows = usableRows();
     if (!rows.length) { fail("Add at least one line before closing the job card."); return; }
     const total = billTotal();
-    if (!confirm(`Close this job card and record ${money(total)} as an expense?`)) return;
+    if (!(await FWDialog.confirm(`Close this job card and record ${money(total)} as an expense?`))) return;
     const el = $("billCloseJobBtn");
     el.disabled = true;
     try {

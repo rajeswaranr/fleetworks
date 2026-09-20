@@ -2120,3 +2120,10 @@ input[style*="height"]:not([type="checkbox"]):not([type="radio"]) {
   padding-top: 0 !important;
   padding-bottom: 0 !important;
 }
+
+/* A label wrapping a checkbox or radio reads as [box] text, not a stacked column. */
+label:has(> input[type="checkbox"]),
+label:has(> input[type="radio"]) {
+  flex-direction: row;
+  align-items: center;
+}

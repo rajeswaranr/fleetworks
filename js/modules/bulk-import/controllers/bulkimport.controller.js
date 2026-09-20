@@ -155,10 +155,10 @@ function confirmImport(resEl, kind, newCount, dupNames, onChoice) {
     </div>
   </div>`;
   resEl.querySelectorAll("button[data-mode]").forEach(b =>
-    b.addEventListener("click", () => {
+    b.addEventListener("click", async () => {
       // replacing existing values needs a second, explicit confirmation
       if (b.dataset.mode === "update"
-        && !confirm(`Update ${dupNames.length} existing ${kind}${dupNames.length === 1 ? "" : "s"} with the file's values? Only fields filled in the file overwrite what's on record — empty cells never blank out existing data. This cannot be undone.`)) return;
+        && !(await FWDialog.confirm(`Update ${dupNames.length} existing ${kind}${dupNames.length === 1 ? "" : "s"} with the file's values? Only fields filled in the file overwrite what's on record — empty cells never blank out existing data. This cannot be undone.`))) return;
       onChoice(b.dataset.mode);
     }, { once: true }));
 }

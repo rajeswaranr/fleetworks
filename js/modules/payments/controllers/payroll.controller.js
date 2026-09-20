@@ -376,7 +376,7 @@ document.getElementById("editPayDelete")?.addEventListener("click", async () => 
   const form = document.getElementById("editPayForm");
   const id = form.id.value;
   const r = PAY_HISTORY.find(x => x.id === id);
-  if (!confirmDestructive(`Delete this salary payment from your books?${r ? `\n\n${fmtINR(r.amount)}${r.period ? " · " + r.period : ""}` : ""}\n\nThis removes the record entirely — edit it instead if you just need to correct a figure.`)) return;
+  if (!(await confirmDestructive(`Delete this salary payment from your books?${r ? `\n\n${fmtINR(r.amount)}${r.period ? " · " + r.period : ""}` : ""}\n\nThis removes the record entirely — edit it instead if you just need to correct a figure.`))) return;
   const ok = await fwCloud.authDelete("salary_payments", `id=eq.${id}`);
   if (!ok) {
     const errEl = document.getElementById("editPayErr");
@@ -616,7 +616,7 @@ window.markRequestPaid = async function (id) {
 };
 
 window.rejectRequest = async function (id) {
-  if (!confirm("Reject this payment request?")) return;
+  if (!(await FWDialog.confirm("Reject this payment request?"))) return;
   const ok = await fwCloud.authPatch(`payment_requests?id=eq.${id}`, { status: "rejected", decided_at: new Date().toISOString() });
   if (!ok) { toast("Could not update — check your connection and try again.", "err"); return; }
   toast("Request rejected.");
@@ -711,7 +711,7 @@ document.getElementById("paySalaryForm")?.addEventListener("submit", async e => 
   const fd = Object.fromEntries(new FormData(e.target));
   if (!fd.driverExtId) { errEl.textContent = "Set up a driver's payout details first."; errEl.hidden = false; return; }
   const driver = db.drivers.find(d => d.id === fd.driverExtId);
-  if (!confirm(`Send ${fmtINR(+fd.amount)} to ${driver ? driver.name : "this driver"} for ${fd.period}? This moves real money via Cashfree.`)) return;
+  if (!(await FWDialog.confirm(`Send ${fmtINR(+fd.amount)} to ${driver ? driver.name : "this driver"} for ${fd.period}? This moves real money via Cashfree.`))) return;
   const btn = e.target.querySelector("button[type=submit]");
   btn.disabled = true;
   try {

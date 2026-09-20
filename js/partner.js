@@ -325,8 +325,8 @@ partnerLoginForm.addEventListener("submit", async (e) => {
   }
 });
 
-document.getElementById("partnerLogoutBtn").addEventListener("click", () => {
-  if (confirm("Sign out of your partner account?")) fwCloud.logout();
+document.getElementById("partnerLogoutBtn").addEventListener("click", async () => {
+  if ((await FWDialog.confirm("Sign out of your partner account?"))) fwCloud.logout();
 });
 
 if (window.fwCloud && fwCloud.user()) renderPartnerPortal();

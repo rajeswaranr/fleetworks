@@ -1033,7 +1033,7 @@ document.getElementById("planTripForm")?.addEventListener("submit", async e => {
 
 // Complete / cancel trip
 window.completeTripWorkflow = async function(tripId) {
-  if (!confirm("Mark this trip as completed?")) return;
+  if (!(await FWDialog.confirm("Mark this trip as completed?"))) return;
   try {
     const { error } = await fwCloud.supabase().from("trips")
       .update({ status: "completed", actual_end: new Date().toISOString() })
@@ -1044,7 +1044,7 @@ window.completeTripWorkflow = async function(tripId) {
   } catch { toast("Could not update — check connection.", true); }
 };
 window.cancelTripWorkflow = async function(tripId) {
-  if (!confirm("Cancel this trip?")) return;
+  if (!(await FWDialog.confirm("Cancel this trip?"))) return;
   try {
     const { error } = await fwCloud.supabase().from("trips")
       .update({ status: "cancelled" }).eq("id", tripId).eq("org_id", fwCloud.orgId());
@@ -1113,7 +1113,7 @@ window.confirmApproveRequest = async function() {
 };
 window.confirmRejectRequest = async function() {
   if (!_pendingReqId) return;
-  if (!confirm("Reject this request?")) return;
+  if (!(await FWDialog.confirm("Reject this request?"))) return;
   try {
     const { error } = await fwCloud.supabase().from("trip_requests")
       .update({ status: "rejected" }).eq("id", _pendingReqId);
@@ -1905,7 +1905,7 @@ async function poMarkReceived(id) {
 async function poCancelConfirm(id) {
   const p = _pos.find(x => x.id === id);
   if (!p) return;
-  if (!confirm(`Cancel PO ${p.po_number}?`)) return;
+  if (!(await FWDialog.confirm(`Cancel PO ${p.po_number}?`))) return;
   await poSetStatus(id, "cancelled");
 }
 
@@ -2623,7 +2623,7 @@ window.openEditSite = async function(id) {
 
 window.siteArchive = async function(id) {
   const s = _sites.find(x => x.id === id); if (!s) return;
-  if (!confirm(`Archive "${s.name}"? It will be hidden but data is preserved.`)) return;
+  if (!(await FWDialog.confirm(`Archive "${s.name}"? It will be hidden but data is preserved.`))) return;
   await fwCloud.authPatch(`sites?id=eq.${id}`, { status: "cancelled" });
   toast("Site archived.");
   await loadSites(); renderSites(); renderActiveProjects(); renderSiteHistory(); renderHubSites(); renderVehicleStatusBoard();
@@ -2801,7 +2801,7 @@ window.openAssignSiteStaff = function(siteId) {
 };
 
 window.removeSiteStaff = async function(ssaId, siteId) {
-  if (!confirm("Remove this staff member from the site?")) return;
+  if (!(await FWDialog.confirm("Remove this staff member from the site?"))) return;
   await fwCloud.authPatch(`site_staff_assignments?id=eq.${ssaId}`, { left_date: today() });
   toast("Staff member removed from site.");
   await loadSites(); renderSites(); renderHubSites();
@@ -3341,7 +3341,7 @@ function openEditDocument(id) {
 }
 async function deleteDocument(id) {
   const doc = db.documents.find(x => x.id === id);
-  if (!confirmDestructive(`Delete this document?${doc ? `\n\n${doc.docType}${doc.number ? " · " + doc.number : ""}` : ""}`)) return;
+  if (!(await (await confirmDestructive(`Delete this document?${doc ? `\n\n${doc.docType}${doc.number ? " · " + doc.number : ""}` : ""}`)))) return;
   if (typeof coreDbBacked === "function" && coreDbBacked()) {
     const ok = await dbDeleteDocument(id);
     if (!ok) { toast("Could not delete — check your connection and try again.", "err"); return; }
@@ -4478,9 +4478,9 @@ function refreshCrossCutting() {
 let toastTimer = null;
 // Double confirmation for every destructive action — nothing in any table
 // is deleted or replaced on a single click, app-wide.
-function confirmDestructive(summary) {
-  return confirm(summary)
-    && confirm("Please confirm once more — this permanently changes your records and cannot be undone.");
+async function confirmDestructive(summary) {
+  return (await FWDialog.confirm(summary))
+    && (await FWDialog.confirm("Please confirm once more — this permanently changes your records and cannot be undone."));
 }
 
 // ---------- Shared Edit-Entry modal ----------
@@ -4914,9 +4914,9 @@ document.getElementById("exportDataBtn").addEventListener("click", () => {
   a.download = "fleetworks-backup-" + new Date().toISOString().slice(0, 10) + ".json";
   a.click(); URL.revokeObjectURL(a.href);
 });
-document.getElementById("clearDemoBtn").addEventListener("click", () => {
+document.getElementById("clearDemoBtn").addEventListener("click", async () => {
   if (!db.demo) { alert("No demo data loaded — your own records are untouched."); return; }
-  if (!confirmDestructive("Remove the sample demo fleet? Your own added records stay.")) return;
+  if (!(await (await confirmDestructive("Remove the sample demo fleet? Your own added records stay.")))) return;
   localStorage.removeItem(STORE_KEY);
   db = loadStore(); renderAll();
 });
@@ -5627,7 +5627,7 @@ function findExpenseRequest(id) {
 window.approveExpenseRequest = async function (id) {
   const r = findExpenseRequest(id);
   if (!r) return;
-  if (!confirmDestructive("Approve this expense? It will post to your books and cannot be un-approved.")) return;
+  if (!(await (await confirmDestructive("Approve this expense? It will post to your books and cannot be un-approved.")))) return;
   const v = db.vehicles.find(x => x.dbId === r.vehicle_id);
   const p = r.patch || {};
   const row = {
@@ -5647,7 +5647,7 @@ window.approveExpenseRequest = async function (id) {
   toast("Expense approved and posted.");
 };
 window.rejectExpenseRequest = async function (id) {
-  if (!confirmDestructive("Reject this expense submission? It will not be posted, and cannot be undone.")) return;
+  if (!(await (await confirmDestructive("Reject this expense submission? It will not be posted, and cannot be undone.")))) return;
   const ok = await fwCloud.authPatch(`expense_change_requests?id=eq.${id}`, { status: "rejected", decided_by: fwCloud.uid(), decided_at: new Date().toISOString() });
   if (!ok) { toast("Could not reject — check your connection and try again.", "err"); return; }
   renderExpenseApprovals();
@@ -5690,7 +5690,7 @@ function fwGoEditBill(i) {
 async function fwDeleteBill(i) {
   const e = db.expenses[i];
   if (!e) return;
-  if (!confirmDestructive(`Delete this expense?\n\n${fmtDate(e.date)} · ${vName(e.vehicleId)} · ${e.title || e.category} · ${fmtINR(e.amount)}`)) return;
+  if (!(await (await confirmDestructive(`Delete this expense?\n\n${fmtDate(e.date)} · ${vName(e.vehicleId)} · ${e.title || e.category} · ${fmtINR(e.amount)}`)))) return;
   if (typeof coreDbBacked === "function" && coreDbBacked() && e.id) {
     const ok = await dbDeleteExpense(e.id);
     if (!ok) { toast("Could not delete — check your connection and try again.", "err"); return; }
@@ -7360,7 +7360,7 @@ window.coachStepAction = async function(outcome) {
 
 window.endCoachMeeting = async function(status) {
   if (!_csMeeting) return;
-  if (status === "abandoned" && !confirm("Cancel this session? Behaviours you have not marked stay waiting.")) return;
+  if (status === "abandoned" && !(await FWDialog.confirm("Cancel this session? Behaviours you have not marked stay waiting."))) return;
   await fwCloud.authPatch("coaching_meetings?id=eq." + _csMeeting.id, {
     status, ended_at: new Date().toISOString(),
     summary_note: document.getElementById("csNote").value.trim() || null,
@@ -7898,7 +7898,7 @@ window.openClaimModal = async function() {
    why a claim from that period was paid, and dropping the row would orphan the
    claim's only context. */
 window.deletePolicy = async function(id) {
-  if (!confirm("Mark this policy cancelled? It stays on record so its claims keep their context.")) return;
+  if (!(await FWDialog.confirm("Mark this policy cancelled? It stays on record so its claims keep their context."))) return;
   const ok = await fwCloud.authPatch("insurance_policies?id=eq." + id, { status: "cancelled" });
   if (!ok) { alert("Could not update the policy."); return; }
   loadInsure();

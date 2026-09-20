@@ -259,7 +259,7 @@ async function generateEwayBill() {
 }
 
 async function fileGSTR() {
-  if (!confirm('File GSTR-1 for current month? This action cannot be undone.')) return;
+  if (!(await FWDialog.confirm('File GSTR-1 for current month? This action cannot be undone.'))) return;
 
   try {
     const response = await fetch(

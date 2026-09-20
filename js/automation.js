@@ -176,7 +176,7 @@ window.toggleRule = async function(id, enabled) {
 
 // ── delete rule ────────────────────────────────────────────────────────────
 window.deleteRule = async function(id) {
-  if (!confirm("Delete this automation rule?")) return;
+  if (!(await FWDialog.confirm("Delete this automation rule?"))) return;
   const ok = await fwCloud.authDelete("automation_rules", `id=eq.${id}`);
   if (ok) { toast("Rule deleted."); loadRules(); }
   else toast("Could not delete — try again.", "warn");

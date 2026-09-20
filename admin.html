@@ -321,8 +321,8 @@
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "Delete failed");
     }
     // Double confirmation for every destructive action, app-wide policy.
-    function confirmDestructive(summary) {
-      return confirm(summary) && confirm("Please confirm once more — this permanently changes your records and cannot be undone.");
+    async function confirmDestructive(summary) {
+      return (await FWDialog.confirm(summary)) && (await FWDialog.confirm("Please confirm once more — this permanently changes your records and cannot be undone."));
     }
 
     let STAFF = [], LEADS = [], VENDORS = [], VENDOR_LEADS = [];
@@ -524,7 +524,7 @@
       // Worth spelling out: because de-duplication is on place_id, a rejected
       // shop will NOT come back on the next scrape of the same city. That's the
       // intent — reject once, stay rejected — but it's not obvious.
-      if (!confirm(`Reject "${name}"?\n\nIt leaves the review queue. Future scrapes of this city won't re-add it, and you can restore it from "show rejected".`)) return;
+      if (!(await FWDialog.confirm(`Reject "${name}"?\n\nIt leaves the review queue. Future scrapes of this city won't re-add it, and you can restore it from "show rejected".`))) return;
       try { await patchRow("vendor_leads", id, { status: "rejected" }); await loadAll(); }
       catch (ex) { alert(ex.message); }
     };
@@ -614,7 +614,7 @@
       const errEl = $("pwResetErr"), out = $("pwResetOut");
       errEl.hidden = true; out.hidden = true;
       const email = new FormData(e.target).get("email").trim();
-      if (!confirmDestructive(`Issue a new temporary password for ${email}?\n\nTheir current password stops working immediately.`)) return;
+      if (!(await (await confirmDestructive(`Issue a new temporary password for ${email}?\n\nTheir current password stops working immediately.`)))) return;
       const btn = e.target.querySelector("button[type=submit]");
       const label = btn.textContent; btn.disabled = true; btn.textContent = "Working…";
       try {
@@ -725,7 +725,7 @@
           ? `DEEP SCAN — ${vendorType} across ${towns.length} towns of ${city}:\n${towns.slice(0, 6).join(", ")}${towns.length > 6 ? "…" : ""}.\n\nEach town is searched separately — that's where the small independent garages Google buries actually surface. ${towns.length} searches instead of 3, so it costs proportionally more.`
           : `DEEP SCAN — ${vendorType} in ${city}.\n\nNo town list is on file for ${city} (only Tamil Nadu districts have one), so this runs like a normal scrape unless it's Chennai.`)
         : `Search Google Maps for ${vendorType} businesses serving trucks/lorries/buses in ${city}?\n\nThree HCV phrases, up to ${SCRAPE_LIMIT} results each. Takes up to a minute.`;
-      if (!confirm(blurb + "\n\nNew shops go to the review queue; ones already on file are skipped.")) return;
+      if (!(await FWDialog.confirm(blurb + "\n\nNew shops go to the review queue; ones already on file are skipped."))) return;
       const label = btn.textContent;
       btn.textContent = "Scraping…";
       btn.disabled = true;
@@ -812,7 +812,7 @@
     };
 
     window.deleteConfig = async function (configId, vendorType, city) {
-      if (!confirmDestructive(`Delete the "${vendorType} — ${city}" scrape configuration? Leads already sourced with it are kept.`)) return;
+      if (!(await (await confirmDestructive(`Delete the "${vendorType} — ${city}" scrape configuration? Leads already sourced with it are kept.`)))) return;
       try {
         await deleteRow("scraper_configs", configId);
         await loadScraperConfigs();
@@ -930,7 +930,7 @@
       catch (ex) { alert(ex.message); }
     };
     window.removeStaff = async function (id, name) {
-      if (!confirmDestructive(`Remove ${name} from the team? Any leads/vendors assigned to them will show as unassigned.`)) return;
+      if (!(await (await confirmDestructive(`Remove ${name} from the team? Any leads/vendors assigned to them will show as unassigned.`)))) return;
       try { await deleteRow("staff_members", id); await loadAll(); }
       catch (ex) { alert(ex.message); }
     };
@@ -997,5 +997,7 @@
     if (session) showConsole();
   </script>
 <script src="js/control-guard.js"></script>
+<script src="js/window-controls.js"></script>
+<script src="js/dialogs.js"></script>
 </body>
 </html>

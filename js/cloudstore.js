@@ -607,9 +607,9 @@
   }
   renderPill();
 
-  pill.addEventListener("click", () => {
+  pill.addEventListener("click", async () => {
     if (fwCloud.user()) {
-      if (confirm("Sign out of FleetWorks cloud sync? Local data stays on this device.")) fwCloud.logout();
+      if ((await FWDialog.confirm("Sign out of FleetWorks cloud sync? Local data stays on this device."))) fwCloud.logout();
       return;
     }
     openModal();
