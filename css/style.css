@@ -1253,12 +1253,17 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .auth-gate-card > p.muted { text-align: center; }
 .auth-gate-card .entry-form { margin-top: 6px; }
 .auth-gate-card #authSubmit {
+  background: var(--amber) !important;
+  color: var(--navy) !important;
   padding: 14px 24px !important;
   font-size: 1.05rem !important;
   font-weight: 700 !important;
   border-radius: 8px !important;
+  border: none !important;
   box-shadow: 0 4px 12px rgba(251, 146, 60, 0.3);
   transition: all 0.2s ease;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 .auth-gate-card #authSubmit:hover {
   transform: translateY(-2px);
