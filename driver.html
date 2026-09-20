@@ -42,6 +42,7 @@
         <button class="tab-btn" data-tab="issue" style="white-space:nowrap"><i data-icon="alert" data-icon-size="16"></i> பிரச்சனை</button>
         <button class="tab-btn" data-tab="check" style="white-space:nowrap"><i data-icon="clipboardCheck" data-icon-size="16"></i> ஆய்வு</button>
         <button class="tab-btn" data-tab="trip" style="white-space:nowrap"><i data-icon="mapPin" data-icon-size="16"></i> பயண நிலை</button>
+        <button class="tab-btn" data-tab="telemetry" style="white-space:nowrap"><i data-icon="zap" data-icon-size="16"></i> Live Vehicle</button>
         <button class="tab-btn" data-tab="docs" style="white-space:nowrap"><i data-icon="document" data-icon-size="16"></i> ஆவணங்கள்</button>
         <button class="tab-btn" data-tab="spend" style="white-space:nowrap"><i data-icon="rupee" data-icon-size="16"></i> செலவு</button>
         <button class="tab-btn" data-tab="me" style="white-space:nowrap"><i data-icon="user" data-icon-size="16"></i> என் கணக்கு</button>
@@ -119,6 +120,11 @@
           <div class="chart-head"><div><h2>பயண நிலை</h2><p class="muted">ஒவ்வொரு நிலையையும் நடக்கும்போது தொடவும் — உரிமையாளரை அழைக்க தேவையில்லை</p></div></div>
           <div id="dTripPanel"></div>
         </div>
+      </section>
+
+      <!-- Documents -->
+      <section class="tab-panel" id="dtab-telemetry">
+        <div id="driverTelemetryDemo"><p class="muted">Telemetry ஏற்றுகிறது…</p></div>
       </section>
 
       <!-- Documents -->
@@ -212,5 +218,6 @@
   <script src="js/modules/driver-portal/view-models/driver-portal.viewmodel.js"></script>
   <script src="js/modules/driver-portal/driver-portal.module.js"></script>
   <script src="js/modules/driver-portal/controllers/driver.controller.js"></script>
+  <script src="js/modules/iot-telemetry/telemetry-demo.controller.js"></script>
 </body>
 </html>

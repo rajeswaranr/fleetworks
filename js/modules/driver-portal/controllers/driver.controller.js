@@ -7,8 +7,9 @@
 "use strict";
 
 const qs = new URLSearchParams(location.search);
-const OWNER = qs.get("o"), TOKEN = qs.get("t");
-const DNAME = qs.get("n") || "Driver", DVEH = qs.get("v") || "";
+const DRIVER_DEMO = qs.get("demo") === "1";
+const OWNER = qs.get("o") || (DRIVER_DEMO ? "demo-owner" : null), TOKEN = qs.get("t") || (DRIVER_DEMO ? "demo-token" : null);
+const DNAME = qs.get("n") || (DRIVER_DEMO ? "Suresh Kumar" : "Driver"), DVEH = qs.get("v") || (DRIVER_DEMO ? "TN-88-AA-1001" : "");
 const DVID  = qs.get("vid") || "";
 const DRIVER_CTX = { ownerId: OWNER, token: TOKEN, driverName: DNAME, vehicleName: DVEH };
 

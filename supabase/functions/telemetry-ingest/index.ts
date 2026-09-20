@@ -43,6 +43,20 @@ const num = (v: unknown): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+const inRange = (value: number | null, min: number, max: number) =>
+  value === null || (value >= min && value <= max);
+
+function validateReading(r: Record<string, unknown>): string | null {
+  const latitude = num(r.latitude), longitude = num(r.longitude);
+  const speed = num(r.speed_kmph), fuel = num(r.fuel_level_pct);
+  if (!inRange(latitude, -90, 90)) return "latitude must be between -90 and 90";
+  if (!inRange(longitude, -180, 180)) return "longitude must be between -180 and 180";
+  if (!inRange(speed, 0, 250)) return "speed_kmph must be between 0 and 250";
+  if (!inRange(fuel, 0, 100)) return "fuel_level_pct must be between 0 and 100";
+  if (r.recorded_at && Number.isNaN(Date.parse(String(r.recorded_at)))) return "recorded_at must be ISO-8601";
+  return null;
+}
+
 const EVENT_TYPES = new Set([
   "lane_departure", "forward_collision", "headway_warning", "pedestrian_warning",
   "fatigue", "distraction", "phone_use", "no_seatbelt", "smoking",
@@ -76,17 +90,44 @@ Deno.serve(async (req) => {
   // would let anyone holding the ingest key invent devices in an org they have
   // nothing to do with — and would quietly attach telemetry to no vehicle.
   const { data: device, error: devErr } = await admin
-    .from("devices").select("id, org_id, simulated").eq("imei", imei).maybeSingle();
+    .from("devices").select("id, org_id, vehicle_id, simulated").eq("imei", imei).maybeSingle();
   if (devErr) return err(500, "Device lookup failed: " + devErr.message);
   if (!device) return err(404, `No device registered with IMEI ${imei}. Add it first.`);
 
   const readings = Array.isArray(body.readings) ? body.readings.slice(0, 500) : [];
   const events = Array.isArray(body.events) ? body.events.slice(0, 200) : [];
 
+  for (let i = 0; i < readings.length; i++) {
+    const validationError = validateReading(readings[i]);
+    if (validationError) return err(422, `readings[${i}]: ${validationError}`);
+  }
+
   let wroteReadings = 0, wroteEvents = 0;
   let latest: string | null = null;
 
+  // Load the previous accepted state before inserting this batch. Rules below
+  // compare consecutive readings, including the boundary between requests.
+  const { data: previous } = await admin.from("telemetry")
+    .select("recorded_at,fuel_level_pct,ignition,speed_kmph,latitude,longitude")
+    .eq("device_id", device.id).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
+
+  const derivedEvents: Record<string, unknown>[] = [];
   if (readings.length) {
+    const ordered = [...readings].sort((a, b) =>
+      String(a.recorded_at || "").localeCompare(String(b.recorded_at || "")));
+    let prior = previous as Record<string, unknown> | null;
+    for (const reading of ordered) {
+      const speed = num(reading.speed_kmph) || 0;
+      const fuel = num(reading.fuel_level_pct);
+      const priorFuel = prior ? num(prior.fuel_level_pct) : null;
+      if (speed > 70) derivedEvents.push({ ...reading, event_type: "overspeed", severity: "warning" });
+      if (fuel !== null && priorFuel !== null && reading.ignition === false && priorFuel - fuel >= 8) {
+        derivedEvents.push({ ...reading, event_type: "fuel_drop", severity: "critical",
+          fuel_drop_pct: +(priorFuel - fuel).toFixed(1) });
+      }
+      prior = reading;
+    }
+
     const rows = readings.map((r) => {
       const ts = r.recorded_at ? String(r.recorded_at) : new Date().toISOString();
       if (!latest || ts > latest) latest = ts;
@@ -109,10 +150,11 @@ Deno.serve(async (req) => {
     wroteReadings = count ?? rows.length;
   }
 
-  if (events.length) {
+  const allEvents = [...events, ...derivedEvents];
+  if (allEvents.length) {
     // Drop unknown event types rather than failing the whole batch — a vendor
     // adding a new alert should never stop the readings in the same POST.
-    const rows = events
+    const rows = allEvents
       .filter((e) => EVENT_TYPES.has(String(e.event_type)))
       .map((e) => ({
         device_id: device.id, org_id: device.org_id,
@@ -138,6 +180,8 @@ Deno.serve(async (req) => {
 
   return new Response(JSON.stringify({
     ok: true, imei, readings: wroteReadings, events: wroteEvents,
-    skippedEvents: events.length - wroteEvents,
+    derivedEvents: derivedEvents.length,
+    skippedEvents: allEvents.length - wroteEvents,
+    vehicleId: device.vehicle_id || null,
   }), { headers: CORS });
 });
