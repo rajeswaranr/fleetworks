@@ -88,29 +88,44 @@ const AuthFormHandler = {
           this.showError(result.error || 'Sign up failed');
         }
       } else {
-        // Login flow
-        const result = await SupabaseAuth.signin(email, password);
-
-        if (result.success) {
-          this.showSuccess('Login successful! Redirecting...');
-
-          // Redirect based on role (determine role from user metadata or default to owner)
+        // Login flow - check for demo credentials first
+        if (email === 'demo@fleetworks.in' && password === 'demo123') {
+          // Demo login (bypasses Supabase for testing)
+          this.showSuccess('Demo login successful! Redirecting...');
+          window.supabaseUser = {
+            email: email,
+            id: 'demo-user-001',
+            user_metadata: { role: 'owner' }
+          };
           setTimeout(() => {
-            const user = window.supabaseUser;
-            const role = user?.user_metadata?.role || 'owner';
-
-            const rolePages = {
-              'owner': '#account',
-              'driver': '#driver-app',
-              'admin': '#admin',
-              'workshop': '#workshop'
-            };
-
-            window.location.hash = rolePages[role] || '#account';
+            window.location.hash = '#account';
             window.location.reload();
           }, 1000);
         } else {
-          this.showError(result.error || 'Login failed. Check credentials.');
+          // Real Supabase login
+          const result = await SupabaseAuth.signin(email, password);
+
+          if (result.success) {
+            this.showSuccess('Login successful! Redirecting...');
+
+            // Redirect based on role (determine role from user metadata or default to owner)
+            setTimeout(() => {
+              const user = window.supabaseUser;
+              const role = user?.user_metadata?.role || 'owner';
+
+              const rolePages = {
+                'owner': '#account',
+                'driver': '#driver-app',
+                'admin': '#admin',
+                'workshop': '#workshop'
+              };
+
+              window.location.hash = rolePages[role] || '#account';
+              window.location.reload();
+            }, 1000);
+          } else {
+            this.showError(result.error || 'Login failed. Try demo@fleetworks.in / demo123');
+          }
         }
       }
     } catch (error) {
