@@ -3343,12 +3343,23 @@ function docTypeOptions(entityType) {
   return (DOC_TYPES[entityType] || DOC_TYPES.vehicle).map(t => `<option>${t}</option>`).join("");
 }
 function fillDocEntitySelect() {
-  const type = document.getElementById("docEntityType").value;
-  const list = type === "driver" ? db.drivers : db.vehicles;
-  document.getElementById("docEntitySelect").innerHTML =
-    list.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join("") ||
-    `<option value="">No ${type}s added yet</option>`;
-  document.getElementById("docTypeSelect").innerHTML = docTypeOptions(type);
+  const typeEl = document.getElementById("docEntityType");
+  if (!typeEl) return; // Guard: element not ready yet
+
+  const type = typeEl.value;
+  const list = type === "driver" ? (db.drivers || []) : (db.vehicles || []);
+
+  const selectEl = document.getElementById("docEntitySelect");
+  if (selectEl) {
+    selectEl.innerHTML =
+      list.map(x => `<option value="${x.id}">${esc(x.name)}</option>`).join("") ||
+      `<option value="">No ${type}s added yet</option>`;
+  }
+
+  const typeSelectEl = document.getElementById("docTypeSelect");
+  if (typeSelectEl) {
+    typeSelectEl.innerHTML = docTypeOptions(type);
+  }
 }
 function renderDocuments() {
   const rows = [...db.documents].sort((a, b) => (a.expiryDate || "").localeCompare(b.expiryDate || ""));
