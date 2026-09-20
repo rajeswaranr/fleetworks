@@ -140,11 +140,12 @@ function projectCard(p, historyMode) {
       <span>${FWIcon("truck", { size: 12 })} <strong>${vehNames.length}</strong> truck${vehNames.length === 1 ? "" : "s"}${vehNames.length ? ": " + vehNames.slice(0, 4).map(esc).join(", ") + (vehNames.length > 4 ? " +" + (vehNames.length - 4) + " more" : "") : ""}</span>
       ${staff ? `<span>${FWIcon("driver", { size: 12 })} ${staff} staff</span>` : ""}
     </div>
-    <div class="pred-detail" style="margin-top:8px">
-      <button class="link-btn" onclick="openEditProject('${p.id}')">${FWIcon("document", { size: 13 })} Edit</button>
-      ${historyMode ? "" : `<button class="link-btn" onclick="openDeployVehicles('${p.id}')">${FWIcon("truck", { size: 13 })} Vehicles</button>`}
+    <div class="pred-detail" style="margin-top:8px;display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-outline btn-sm" onclick="openEditProject('${p.id}')">${FWIcon("document", { size: 13 })} Edit</button>
+      ${historyMode ? `<button class="btn btn-outline btn-sm" onclick="reopenProject('${p.id}')">${FWIcon("check", { size: 13 })} Reopen</button>` : `<button class="btn btn-outline btn-sm" onclick="openDeployVehicles('${p.id}')">${FWIcon("truck", { size: 13 })} Vehicles</button>`}
       <button class="link-btn" onclick="openProjectReport('${p.id}')">${FWIcon("chartBar", { size: 13 })} Income &amp; expenses</button>
-      ${historyMode ? "" : `<button class="link-btn" style="color:#ef4444" onclick="archiveProject('${p.id}')">${FWIcon("trash", { size: 13 })} Archive</button>`}
+      ${historyMode ? "" : `<button class="link-btn" onclick="archiveProject('${p.id}')">${FWIcon("document", { size: 13 })} Archive</button>`}
+      <button class="link-btn" style="color:#ef4444;margin-left:auto" onclick="deleteProject('${p.id}')">${FWIcon("trash", { size: 13 })} Delete</button>
     </div>
   </div>`;
 }
@@ -367,6 +368,43 @@ window.archiveProject = async function (id) {
   await fwCloud.authPatch(`projects?id=eq.${id}`, { status: "cancelled" });
   for (const r of projectDeployments(id)) await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${r.id}`, { removed_date: today() });
   toast("Project archived.");
+  await loadSites(); refreshProjectViews();
+};
+
+window.reopenProject = async function (id) {
+  const p = projectById(id); if (!p) return;
+  const ok = await fwCloud.authPatch(`projects?id=eq.${id}`, { status: "active" });
+  if (!ok) { toast("Could not reopen — check your connection.", "err"); return; }
+  toast(`"${p.name}" reopened.`);
+  _projFilter = "active";
+  await loadSites(); refreshProjectViews();
+};
+
+// Permanent. Sites, vehicles and financial entries are untouched; what goes is
+// the project record, its site links and the project tag on truck deployments.
+window.deleteProject = async function (id) {
+  const p = projectById(id); if (!p) return;
+  const sites = sitesForProject(id).length;
+  const trucks = projectDeployments(id).length;
+  const history = Object.values(_siteVeh).flat().filter(r => r.project_id === id).length;
+  const msg = `Permanently delete project "${p.name}"?
+
+` +
+    `• Its billing terms and ${sites} site link${sites === 1 ? "" : "s"} are removed.
+` +
+    `• ${trucks} truck${trucks === 1 ? " currently on it stays" : "s currently on it stay"} at ${trucks === 1 ? "its" : "their"} site but ${trucks === 1 ? "loses" : "lose"} the project.
+` +
+    (history > trucks ? `• ${history - trucks} past deployment record${history - trucks === 1 ? " loses" : "s lose"} the project tag, so their income and expenses will show as unassigned in reports.
+` : "") +
+    `
+Sites, vehicles, trips and expenses are not deleted. This cannot be undone.` +
+    `
+
+To just hide it, use Archive instead. Delete anyway?`;
+  if (!confirm(msg)) return;
+  const ok = await fwCloud.authDelete("projects", `id=eq.${id}`);
+  if (!ok) { toast("Could not delete the project — check your connection.", "err"); return; }
+  toast(`Project "${p.name}" deleted.`);
   await loadSites(); refreshProjectViews();
 };
 
