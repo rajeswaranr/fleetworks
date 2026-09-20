@@ -71,6 +71,10 @@ const SupabaseAuth = {
   // Sign in
   async signin(email, password) {
     try {
+      if (!this.client || !this.client.auth) {
+        throw new Error('Supabase client not initialized');
+      }
+
       const { data, error } = await this.client.auth.signInWithPassword({
         email: email,
         password: password
@@ -87,9 +91,10 @@ const SupabaseAuth = {
         data: data
       };
     } catch (error) {
+      console.error('Sign in error:', error);
       return {
         success: false,
-        error: error.message
+        error: error.message || 'Sign in failed'
       };
     }
   },

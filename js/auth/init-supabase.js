@@ -4,49 +4,30 @@
  */
 
 function initSupabase() {
-  // Get config from window.SupabaseConfig
-  const config = window.SupabaseConfig || {};
-  const url = config.URL;
-  const key = config.KEY;
+  // Supabase client should already be created by supabase.config.js
+  // Just verify it's available and working
 
-  if (!url || !key) {
-    console.error('❌ Supabase URL or API Key missing in config');
+  if (window.supabase && typeof window.supabase.auth === 'object') {
+    console.log('✅ Supabase client available and ready');
+
+    // Test connection
+    if (typeof window.supabase.auth.getSession === 'function') {
+      window.supabase.auth.getSession()
+        .then(({ data, error }) => {
+          if (error) {
+            console.log('ℹ️ No active session (expected on first load)');
+          } else {
+            console.log('✅ Supabase session check passed');
+          }
+        })
+        .catch(err => console.error('Session check error:', err));
+    }
+    return true;
+  } else {
+    console.error('❌ Supabase client not available');
+    console.log('window.supabase:', window.supabase);
     return false;
   }
-
-  // Wait for supabase library to be available
-  let attempts = 0;
-  const maxAttempts = 50;
-
-  const tryInit = () => {
-    attempts++;
-
-    // Check if window.supabase exists and has createClient
-    if (window.supabase && typeof window.supabase.createClient === 'function') {
-      try {
-        // Create Supabase client
-        const supabaseClient = window.supabase.createClient(url, key);
-        window.supabaseClient = supabaseClient;
-        console.log('✅ Supabase client created successfully');
-
-        // Make it available as window.supabase for backward compatibility
-        window.supabase.client = supabaseClient;
-
-        return true;
-      } catch (error) {
-        console.error('❌ Failed to create Supabase client:', error);
-        return false;
-      }
-    } else if (attempts < maxAttempts) {
-      // Library not ready yet, try again
-      setTimeout(tryInit, 100);
-    } else {
-      console.error('❌ Supabase library did not load after', maxAttempts, 'attempts');
-      console.error('window.supabase:', window.supabase);
-    }
-  };
-
-  tryInit();
 }
 
 // Initialize when ready
