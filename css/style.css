@@ -2110,3 +2110,13 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
   .fx-list { max-height: 320px; border-right: none; border-bottom: 1px solid var(--border); }
   .fx-map-wrap { min-height: 360px; }
 }
+
+/* Compact controls: anything given an inline fixed height (e.g. 28px selects in
+   dialogs) must not also get the roomy vertical padding above, or the box has
+   no room left for its text and the selected value looks blank. js/control-guard.js
+   catches the same problem when the height comes from somewhere else. */
+select[style*="height"],
+input[style*="height"]:not([type="checkbox"]):not([type="radio"]) {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}

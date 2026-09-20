@@ -1342,10 +1342,11 @@ function renderVehicles() {
     const c = v.compliance || {};
     const driver = db.drivers.find(d => d.vehicleId === v.id);
     return `<tr class="veh-row" data-vid="${v.id}">
-      <td style="cursor:pointer"><strong>${esc(v.name)}</strong><br /><span class="muted">${esc(v.type)} · ${v.kmPerMonth.toLocaleString("en-IN")} km/mo${driver ? " · " + FWIcon("driver", { size: 13, cls: "ic-muted" }) + " " + esc(driver.name) : ""}</span></td>
+      <td style="cursor:pointer"><strong>${esc(v.name)}</strong><br /><span class="muted">${esc(v.type)} · ${v.kmPerMonth.toLocaleString("en-IN")} km/mo${driver ? " · " + FWIcon("driver", { size: 13, cls: "ic-muted" }) + " " + esc(driver.name) : ""}${(() => { const si = _vehSiteMap[v.dbId]; return si && si.site ? " · " + FWIcon("mapPin", { size: 13, cls: "ic-muted" }) + " " + esc(si.site.name) + (si.project ? " / " + esc(si.project.name) : "") : ""; })()}</span></td>
       <td style="cursor:pointer">${healthBadge(healthScore(v))}</td>
       ${complianceCell(c.insurance)}${complianceCell(c.puc)}${complianceCell(c.fitness)}${complianceCell(c.permit)}${complianceCell(c.roadtax)}
-      <td><button class="link-btn" onclick="event.stopPropagation();openEditVehicle('${v.id}')">Edit</button></td></tr>
+      <td style="white-space:nowrap"><button class="link-btn" onclick="event.stopPropagation();openEditVehicle('${v.id}')">Edit</button>
+        <button class="link-btn" onclick="event.stopPropagation();openAssignVehicleToSite('${v.id}')">${(_vehSiteMap[v.dbId] || {}).site ? "Change site" : "Assign site"}</button></td></tr>
       <tr class="veh-history" data-hist="${v.id}" hidden><td colspan="8" style="background:#f8fafc">${serviceHistoryHTML(v.id)}</td></tr>`;
   }).join("");
   document.getElementById("vehicleComplianceTable").innerHTML =
@@ -2425,7 +2426,8 @@ function renderVehicleStatusBoard() {
       </td>
       <td>${pendCell}</td>
       <td>
-        <button class="link-btn" onclick="openAssignVehicleToSite('${v.id}')">${FWIcon("mapPin",{size:13})} Site</button>
+        <button class="link-btn" onclick="openAssignVehicleToSite('${v.id}')">${FWIcon("mapPin",{size:13})} ${site ? "Change" : "Assign"}</button>
+        ${site ? `<button class="link-btn" style="color:#ef4444" onclick="removeDeployment('${siteInfo.sva.id}')">Remove</button>` : ""}
       </td>
     </tr>`;
   }).join("");
@@ -2496,9 +2498,10 @@ function renderSiteCollection(targetId, sites, emptyMessage, historyMode = false
         ${(() => { const ps = typeof projectsForSite === "function" ? projectsForSite(s.id) : []; return ps.length ? ps.map(p => `<span class="fw-chip is-pending" style="font-size:0.75rem;cursor:pointer" onclick="activateTab('projects')">${esc(p.name)}</span>`).join("") : '<span class="muted">none — link this site from a project</span>'; })()}
       </div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:0.8rem">
-        <span>${FWIcon("truck",{size:12})} <strong>${vehNames.length}</strong> truck${vehNames.length===1?"":"s"}${vehNames.length ? ": " + vehNames.slice(0,4).map(esc).join(", ") + (vehNames.length>4?" +"+(vehNames.length-4)+" more":"") : ""}</span>
+        <span>${FWIcon("truck",{size:12})} <strong>${vehNames.length}</strong> truck${vehNames.length===1?"":"s"} deployed</span>
         ${Object.entries(staffRoles).map(([r,n]) => `<span>${FWIcon("driver",{size:12})} ${n} ${r}${n>1?"s":""}</span>`).join("")}
       </div>
+      ${historyMode || typeof deploymentRowsHtml !== "function" ? "" : `<div style="font-size:0.8rem">${deploymentRowsHtml(vvas)}</div>`}
       <div class="pred-detail" style="margin-top:8px">
         <button class="link-btn" onclick="openEditSite('${s.id}')">${FWIcon("document",{size:13})} Edit</button>
         ${historyMode ? "" : `<button class="link-btn" onclick="openAssignSiteVehicles('${s.id}')">${FWIcon("truck",{size:13})} Vehicles</button>
@@ -2804,43 +2807,7 @@ window.removeSiteStaff = async function(ssaId, siteId) {
   await loadSites(); renderSites(); renderHubSites();
 };
 
-// ── Assign vehicle to site from the Status Board ───────────────────────────
-window.openAssignVehicleToSite = function(vehLocalId) {
-  const v = db.vehicles.find(x => x.id === vehLocalId); if (!v) return;
-  const cur = _vehSiteMap[v.dbId];
-  const siteOpts = _sites.filter(s => s.status === "active").map(s =>
-    `<option value="${s.id}"${cur?.site?.id===s.id?" selected":""}>${esc(s.name)}</option>`).join("");
-
-  openEditModal(`Assign Site — ${v.name}`,
-    `<label>Current site: <strong>${cur ? esc(cur.site?.name||"Unknown") : "None"}</strong></label>
-     <label style="margin-top:12px;display:block">Assign to site
-       <select name="siteId">
-         <option value="">— None —</option>${siteOpts}
-       </select>
-     </label>
-     <label>Project (optional)
-       <select name="projectId">
-         <option value="">— none —</option>
-         ${(typeof _projects !== "undefined" ? _projects.filter(p => p.status === "active" || p.status === "planned") : []).map(p => `<option value="${p.id}"${cur?.project?.id===p.id?" selected":""}>${esc(p.name)}</option>`).join("")}
-       </select>
-     </label>
-     <label>From date<input type="date" name="fromDate" value="${today()}" /></label>`,
-    async fd => {
-      const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
-      if (cur) await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${cur.sva.id}`, { removed_date: today() });
-      if (fd.siteId) {
-        await fwCloud.authInsert("site_vehicle_assignments", {
-          site_id: fd.siteId, vehicle_id: v.dbId, org_id: orgId, assigned_date: fd.fromDate || today(),
-          project_id: fd.projectId || null,
-        });
-      }
-      const siteName = fd.siteId ? (_sites.find(s=>s.id===fd.siteId)?.name || "site") : "none";
-      toast(`${v.name} → ${fd.siteId ? siteName : "unassigned"}.`);
-      closeEditModal();
-      await loadSites(); renderSites(); renderHubSites(); renderVehicleStatusBoard();
-    }
-  );
-};
+// Assigning a vehicle to a site/project: see openDeploymentModal in projects.controller.js
 
 // ---------- Render: work orders (job cards) ----------
 function renderWorkOrders() {

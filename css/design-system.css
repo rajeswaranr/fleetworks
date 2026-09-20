@@ -1192,3 +1192,12 @@ tbody tr:last-child td {
 @media (min-width: 769px) {
   .show-mobile { display: none; }
 }
+
+/* Compact controls: anything given an inline fixed height (e.g. 28px selects in
+   dialogs) must not also get the roomy vertical padding above, or the box has
+   no room left for its text and the selected value looks blank. */
+select[style*="height"],
+input[style*="height"]:not([type="checkbox"]):not([type="radio"]) {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}

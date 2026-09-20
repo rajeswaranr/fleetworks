@@ -136,9 +136,9 @@ function projectCard(p, historyMode) {
       <span class="muted">${FWIcon("mapPin", { size: 12 })} Sites:</span>
       ${sites.length ? sites.map(x => `<span class="fw-chip is-pending" style="font-size:0.75rem">${esc(x.site.name)} · ${esc(SITE_ROLE_LABEL[x.link.site_role] || "Operating")}</span>`).join("") : `<span class="muted">none linked yet</span>`}
     </div>
-    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:0.8rem">
-      <span>${FWIcon("truck", { size: 12 })} <strong>${vehNames.length}</strong> truck${vehNames.length === 1 ? "" : "s"}${vehNames.length ? ": " + vehNames.slice(0, 4).map(esc).join(", ") + (vehNames.length > 4 ? " +" + (vehNames.length - 4) + " more" : "") : ""}</span>
-      ${staff ? `<span>${FWIcon("driver", { size: 12 })} ${staff} staff</span>` : ""}
+    <div style="margin-top:8px;font-size:0.8rem">
+      <span>${FWIcon("truck", { size: 12 })} <strong>${deps.length}</strong> truck${deps.length === 1 ? "" : "s"} deployed${staff ? ` · ${FWIcon("driver", { size: 12 })} ${staff} staff` : ""}</span>
+      ${deploymentRowsHtml(deps)}
     </div>
     <div class="pred-detail" style="margin-top:8px;display:flex;gap:6px 14px;flex-wrap:wrap;align-items:center">
       <button class="btn btn-outline btn-sm" onclick="openEditProject('${p.id}')">${FWIcon("document", { size: 13 })} Edit</button>
@@ -408,11 +408,134 @@ To just hide it, use Archive instead. Delete anyway?`;
   await loadSites(); refreshProjectViews();
 };
 
+// ── Single-truck deployment: assign, edit, remove ──────────────────────────
+// One row per active deployment, with Edit and Remove. Used on project cards
+// and site cards.
+function deploymentRowsHtml(list) {
+  if (!list || !list.length) return "";
+  return `<div style="margin-top:4px">` + list.map(r => {
+    const v = db.vehicles.find(x => x.dbId === r.vehicle_id);
+    const site = _sites.find(x => x.id === r.site_id);
+    const p = projectById(r.project_id);
+    const basis = r.billing_basis && r.billing_basis !== "site_default" ? billingMeta(r.billing_basis).label : "";
+    return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:5px 0;border-top:1px dashed var(--line)">
+      <span><strong>${esc(v ? v.name : "Vehicle")}</strong>
+        <span class="muted">${site ? "@ " + esc(site.name) : ""}${p ? " · " + esc(p.name) : ""}${basis ? " · " + esc(basis) : ""}${r.rate_per_unit ? " " + fmtINR(r.rate_per_unit) : ""} · since ${fmtDate(r.assigned_date)}</span></span>
+      <span style="margin-left:auto;display:flex;gap:10px">
+        <button class="link-btn" onclick="openDeploymentModal('${v ? v.id : ""}','${r.id}')">Edit</button>
+        <button class="link-btn" style="color:#ef4444" onclick="removeDeployment('${r.id}')">Remove</button>
+      </span></div>`;
+  }).join("") + `</div>`;
+}
+window.deploymentRowsHtml = deploymentRowsHtml;
+
+// A project running at a site needs a project_sites link; create it on demand
+// so assigning a truck never requires a separate "link the site first" step.
+async function ensureSiteLink(projectId, siteId, orgId) {
+  if (!projectId || !siteId) return;
+  if ((_projSites[projectId] || []).some(l => l.site_id === siteId)) return;
+  await fwCloud.authInsert("project_sites", { project_id: projectId, site_id: siteId, org_id: orgId, site_role: "operating" });
+}
+
+// Assign a truck to a site (and optionally a project), or edit an existing
+// deployment. Changing the site or project closes the old deployment and starts
+// a new one today, so history — and the report's attribution — stays correct.
+window.openDeploymentModal = function (vehLocalId, svaId) {
+  const v = db.vehicles.find(x => x.id === vehLocalId); if (!v) return;
+  const all = Object.values(_siteVeh).flat();
+  const cur = svaId ? all.find(r => r.id === svaId) : (_vehSiteMap[v.dbId] || {}).sva;
+  const sites = _sites.filter(x => x.status !== "cancelled");
+  if (!sites.length) { alert("Add a site first (Settings → Sites), then assign vehicles to it."); return; }
+  const projects = _projects.filter(x => x.status === "active" || x.status === "planned" || x.id === cur?.project_id);
+  const linkedTo = pid => new Set((_projSites[pid] || []).map(l => l.site_id));
+  const billingOpts = PROJECT_BILLING.map(b => `<option value="${b.id}"${cur?.billing_basis === b.id ? " selected" : ""}>${b.label}</option>`).join("");
+  openEditModal(`${cur ? "Edit deployment" : "Assign"} — ${v.name}`, `
+    <p class="muted" style="font-size:0.82rem;margin:0 0 10px">${cur ? "Change where this truck works or its billing terms." : "Choose where this truck works."} A truck is on one site and project at a time; changing the site or project moves it and keeps the old deployment in history.</p>
+    <div class="form-row">
+      <label>Site *
+        <select name="siteId" id="depSite" required>
+          <option value="">— pick a site —</option>
+          ${sites.map(x => `<option value="${x.id}"${cur?.site_id === x.id ? " selected" : ""}>${esc(x.name)}${x.location ? " · " + esc(x.location) : ""}</option>`).join("")}
+        </select>
+      </label>
+      <label>Project <span class="muted">(optional)</span>
+        <select name="projectId" id="depProject">
+          <option value="">— none (site only) —</option>
+          ${projects.map(x => `<option value="${x.id}"${cur?.project_id === x.id ? " selected" : ""}>${esc(x.name)}${x.client_name ? " · " + esc(x.client_name) : ""}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+    <p class="muted" id="depLinkNote" style="font-size:0.78rem;margin:-4px 0 8px"></p>
+    <div class="form-row">
+      <label>Billing
+        <select name="billing"><option value="site_default">Use project default</option>${billingOpts}</select>
+      </label>
+      <label>Rate (₹) <span class="muted">(blank = project rate)</span>
+        <input type="number" name="rate" min="0" step="0.01" value="${cur?.rate_per_unit || ""}" placeholder="0" />
+      </label>
+    </div>
+    <div class="form-row">
+      <label>${cur ? "Deployed since" : "From date"}<input type="date" name="fromDate" value="${cur?.assigned_date || today()}" /></label>
+      <label>Notes<input type="text" name="notes" value="${escAttr(cur?.notes || "")}" placeholder="optional" /></label>
+    </div>
+    ${cur ? `<p style="margin:10px 0 0"><button type="button" class="link-btn" style="color:#ef4444" onclick="closeEditModal();removeDeployment('${cur.id}')">Remove from site / project</button></p>` : ""}`,
+    async fd => {
+      const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
+      if (!fd.siteId) throw new Error("Pick a site.");
+      const projectId = fd.projectId || null;
+      const terms = { billing_basis: fd.billing || "site_default", rate_per_unit: fd.rate ? +fd.rate : null, notes: (fd.notes || "").trim() || null };
+      const moved = !cur || cur.site_id !== fd.siteId || (cur.project_id || null) !== projectId;
+      if (cur && !moved) {
+        const ok = await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${cur.id}`, { ...terms, assigned_date: fd.fromDate || cur.assigned_date });
+        if (!ok) throw new Error("Could not save — check your connection.");
+      } else {
+        const open = cur || (_vehSiteMap[v.dbId] || {}).sva;
+        // Moving an existing deployment starts the new one on the move date (today,
+        // unless a different date was entered), never on the old start date.
+        const start = cur && (!fd.fromDate || fd.fromDate === cur.assigned_date) ? today() : (fd.fromDate || today());
+        if (open) await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${open.id}`, { removed_date: start < open.assigned_date ? open.assigned_date : start });
+        const ok = await fwCloud.authInsert("site_vehicle_assignments", { site_id: fd.siteId, project_id: projectId, vehicle_id: v.dbId, org_id: orgId, assigned_date: start, ...terms });
+        if (!ok) throw new Error("Could not assign — check your connection.");
+      }
+      await ensureSiteLink(projectId, fd.siteId, orgId);
+      const site = _sites.find(x => x.id === fd.siteId);
+      toast(`${v.name} → ${site ? site.name : "site"}${projectId ? " · " + (projectById(projectId)?.name || "project") : ""}.`);
+      closeEditModal();
+      await loadSites(); refreshProjectViews();
+      if (typeof renderVehicles === "function") renderVehicles();
+    });
+  setTimeout(() => {
+    const note = () => {
+      const pid = document.getElementById("depProject")?.value, sid = document.getElementById("depSite")?.value, el = document.getElementById("depLinkNote");
+      if (!el) return;
+      el.textContent = pid && sid && !linkedTo(pid).has(sid) ? "This site isn't linked to the project yet — it will be linked automatically." : "";
+    };
+    document.getElementById("depSite")?.addEventListener("change", note);
+    document.getElementById("depProject")?.addEventListener("change", note);
+    note();
+  }, 0);
+};
+
+window.openAssignVehicleToSite = function (vehLocalId) { openDeploymentModal(vehLocalId); };
+
+window.removeDeployment = async function (svaId) {
+  const r = Object.values(_siteVeh).flat().find(x => x.id === svaId); if (!r) return;
+  const v = db.vehicles.find(x => x.dbId === r.vehicle_id);
+  const site = _sites.find(x => x.id === r.site_id), p = projectById(r.project_id);
+  if (!confirm(`Remove ${v ? v.name : "this truck"} from ${site ? site.name : "the site"}${p ? " / " + p.name : ""}?\n\nThe deployment is closed as of today and kept in history, so past income and expenses stay attributed to it.`)) return;
+  const ok = await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${svaId}`, { removed_date: today() });
+  if (!ok) { toast("Could not remove — check your connection.", "err"); return; }
+  toast(`${v ? v.name : "Truck"} removed.`);
+  await loadSites(); refreshProjectViews();
+  if (typeof renderVehicles === "function") renderVehicles();
+};
+
 // ── Deploy vehicles to a project (at one of its sites) ─────────────────────
 window.openDeployVehicles = function (projectId) {
   const p = projectById(projectId); if (!p) return;
-  const linked = sitesForProject(projectId);
-  if (!linked.length) { alert("Link at least one site to this project first (Edit project → Sites this project runs at)."); return; }
+  const linkedIds = new Set((_projSites[projectId] || []).map(l => l.site_id));
+  const linked = [..._sites.filter(x => x.status !== "cancelled")].sort((a, b) => (linkedIds.has(b.id) ? 1 : 0) - (linkedIds.has(a.id) ? 1 : 0)).map(site => ({ site }));
+  if (!linked.length) { alert("Add a site first (Settings → Sites), then deploy trucks to this project."); return; }
   const active = projectDeployments(projectId);
   const byVeh = Object.fromEntries(active.map(r => [r.vehicle_id, r]));
   const billingOpts = PROJECT_BILLING.map(b => `<option value="${b.id}">${b.label}</option>`).join("");
@@ -427,7 +550,7 @@ window.openDeployVehicles = function (projectId) {
       </label>
       <div class="sva-detail" style="display:${cur ? "flex" : "none"};gap:10px;margin-top:8px;flex-wrap:wrap">
         <label style="font-size:0.8rem">Site
-          <select class="sva-site" style="height:28px;font-size:0.8rem">${linked.map(x => `<option value="${x.site.id}"${cur?.site_id === x.site.id ? " selected" : ""}>${esc(x.site.name)}</option>`).join("")}</select>
+          <select class="sva-site" style="height:28px;font-size:0.8rem">${linked.map(x => `<option value="${x.site.id}"${cur?.site_id === x.site.id ? " selected" : ""}>${esc(x.site.name)}${linkedIds.has(x.site.id) ? "" : " (will be linked)"}</option>`).join("")}</select>
         </label>
         <label style="font-size:0.8rem">Billing
           <select class="sva-billing" style="height:28px;font-size:0.8rem">
@@ -446,7 +569,7 @@ window.openDeployVehicles = function (projectId) {
   }).join("");
 
   openEditModal(`Vehicles — ${p.name}`,
-    `<p class="muted" style="font-size:0.82rem;margin-bottom:10px">Tick the trucks working on this project and pick the site each one is at. A truck can only be on one project and site at a time, so ticking one moves it from wherever it is now. Billing can differ per truck.</p><div id="svaList">${rows}</div>`,
+    `<p class="muted" style="font-size:0.82rem;margin-bottom:10px">Tick the trucks working on this project and pick the site each one is at (any site — it is linked to the project automatically). A truck is on one project and site at a time, so ticking one moves it from wherever it is now. Billing can differ per truck.</p><div id="svaList">${rows}</div>`,
     async () => {
       const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
       const checked = new Map();
@@ -466,6 +589,8 @@ window.openDeployVehicles = function (projectId) {
         else { const prev = _vehSiteMap[dbId]; if (prev) await fwCloud.authPatch(`site_vehicle_assignments?id=eq.${prev.sva.id}`, { removed_date: today() }); }
         const ok = await fwCloud.authInsert("site_vehicle_assignments", { site_id: c.site, project_id: projectId, vehicle_id: dbId, org_id: orgId, assigned_date: c.date, ...terms });
         if (!ok) throw new Error("Could not assign a vehicle — check your connection.");
+        await ensureSiteLink(projectId, c.site, orgId);
+        (_projSites[projectId] = _projSites[projectId] || []).push({ project_id: projectId, site_id: c.site });
       }
       toast("Vehicle deployments saved.");
       closeEditModal();
