@@ -1143,9 +1143,18 @@ window.openLegacyTripForm = function() {
 // ---------- Render: driver khata ----------
 const KHATA_LABEL = { advance: "Advance given", expense: "Trip expense", settlement: "Cash returned" };
 function renderKhata() {
-  if (window.DriverKhataController) DriverKhataController.refresh();
   const bal = document.getElementById("khataBalances"), tbl = document.getElementById("khataTable");
-  if (!bal || !tbl) return;
+  if (!bal || !tbl) {
+    // Report mode: the entry form's driver list still has to be filled.
+    const drvSel = document.getElementById("khataDriver");
+    if (drvSel) {
+      const keep = drvSel.value;
+      drvSel.innerHTML = db.drivers.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join("");
+      if ([...drvSel.options].some(o => o.value === keep)) drvSel.value = keep;
+    }
+    if (window.DriverKhataController) DriverKhataController.refresh();
+    return;
+  }
   const sel = document.getElementById("khataDriver");
   if (sel) {
     const keep = sel.value;
@@ -5306,8 +5315,7 @@ function buildDynamicPanels() {
       <button type="submit" class="btn btn-primary"><i data-icon="plus" data-icon-size="16"></i> Add Khata Entry</button>
     </form>
   </div>
-  <div class="chart-card"><div class="chart-head"><div><h2>Balances</h2><p class="muted">Positive balance = cash with the driver, still to be accounted</p></div></div><div class="chart-scroll"><div id="khataBalances"></div></div></div>
-  <div class="chart-card"><div class="chart-head"><div><h2>Ledger</h2></div></div><div class="chart-scroll"><div id="khataTable"></div></div></div>`);
+  <div id="khataContainer"></div>`);
   // ---------- Invoices ----------
   // The revenue side, built like the bill book on the other side of it: one
   // form, item rows, then a list. gstbills captures what the fleet pays; this
