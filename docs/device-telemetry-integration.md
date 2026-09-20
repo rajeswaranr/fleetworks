@@ -91,6 +91,44 @@ ingest key per vendor in production and rotate it periodically.
 
 ## 5. Send normalized data
 
+### Teltonika FMC125
+
+The included FMC125 adapter supports the capabilities documented in datasheet
+v2.1: GNSS, accelerometer scenarios, external voltage, CAN/OBD engine values,
+analog or RS232/RS485 LLS fuel level, impulse fuel-flow readings, and compatible
+Bluetooth LE temperature sensors. A Teltonika Codec 8/8E gateway must first map
+numeric AVL I/O element IDs to the descriptive `io` properties used by the
+adapter; the IDs depend on the selected FMC125 firmware/configuration and
+should be taken from Teltonika's Codec/AVL parameter documentation.
+
+Generate and send an FMC125 batch with:
+
+```bash
+TELEMETRY_URL="https://PROJECT.supabase.co/functions/v1/telemetry-ingest" \
+TELEMETRY_INGEST_KEY="your-secret" \
+DEVICE_IMEI="861100000000125" \
+node examples/fmc125-telemetry-simulator.mjs
+```
+
+The FMC125 is a tracker, not a dashcam. Video requires a separate camera and a
+vehicle/time correlation in `device_events`; the adapter does not claim native
+video capability.
+
+### Teltonika FMC650
+
+The FMC650 adapter adds dual-band L1+L5 GNSS metadata, two J1939 CAN channels,
+J1708, K-line/tachograph state, tachograph download readiness, TPMS values,
+cold-chain temperature, dual RS232 device modes, external antenna state, and
+the 550 mAh backup-battery level. Values without dedicated telemetry columns
+are retained under `raw.fmc650`.
+
+```bash
+TELEMETRY_URL="https://PROJECT.supabase.co/functions/v1/telemetry-ingest" \
+TELEMETRY_INGEST_KEY="your-secret" \
+DEVICE_IMEI="861100000000650" \
+node examples/fmc650-telemetry-simulator.mjs
+```
+
 ```json
 {
   "imei": "861100000000001",

@@ -5327,7 +5327,15 @@ function buildDynamicPanels() {
       <button type="submit" class="btn btn-primary"><i data-icon="plus" data-icon-size="16"></i> Add Khata Entry</button>
     </form>
   </div>
-  <div id="khataContainer"></div>`);
+  <div id="khataContainer"></div>
+  <div class="chart-card">
+    <div class="chart-head"><div><h2>Current Driver Balances</h2><p class="muted">Advances less trip expenses and returned cash, calculated from the persisted ledger.</p></div></div>
+    <div class="chart-scroll"><div id="khataBalances"></div></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-head"><div><h2>Khata Ledger</h2><p class="muted">Newest persisted advance, expense and settlement entries.</p></div></div>
+    <div class="chart-scroll"><div id="khataTable"></div></div>
+  </div>`);
   // ---------- Invoices ----------
   // The revenue side, built like the bill book on the other side of it: one
   // form, item rows, then a list. gstbills captures what the fleet pays; this

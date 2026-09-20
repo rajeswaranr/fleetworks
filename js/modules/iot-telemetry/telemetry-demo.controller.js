@@ -6,9 +6,9 @@
 (function () {
   "use strict";
 
-  const KEY = "fw_telemetry_demo_v1";
+  const KEY = "fw_telemetry_demo_fmc125_v2";
   const VEHICLE = "TN-88-AA-1001";
-  const DEVICE = "FW-DASH-FUEL-1001";
+  const DEVICE = "FMC125-861100000000125";
   const DRIVER = "Suresh Kumar";
   let timer = null;
 
@@ -24,21 +24,48 @@
   function initialState() {
     const now = Date.now();
     const packets = [
-      { minutes: 5, speed: 54, fuel: 72.4, ignition: true, lat: 11.2189, lng: 78.1677, camera: "online" },
-      { minutes: 4, speed: 58, fuel: 72.1, ignition: true, lat: 11.2298, lng: 78.1581, camera: "online" },
-      { minutes: 3, speed: 76, fuel: 71.8, ignition: true, lat: 11.2415, lng: 78.1488, camera: "online", event: "overspeed" },
-      { minutes: 2, speed: 42, fuel: 71.6, ignition: true, lat: 11.2531, lng: 78.1392, camera: "online", event: "harsh_brake" },
-      { minutes: 1, speed: 0, fuel: 71.5, ignition: false, lat: 11.2570, lng: 78.1355, camera: "online" },
-      { minutes: 0, speed: 0, fuel: 59.2, ignition: false, lat: 11.2570, lng: 78.1355, camera: "online", event: "fuel_drop" },
+      { minutes: 5, speed: 54, fuel: 72.4, ignition: true, lat: 11.2189, lng: 78.1677 },
+      { minutes: 4, speed: 58, fuel: 72.1, ignition: true, lat: 11.2298, lng: 78.1581 },
+      { minutes: 3, speed: 76, fuel: 71.8, ignition: true, lat: 11.2415, lng: 78.1488, event: "overspeed" },
+      { minutes: 2, speed: 42, fuel: 71.6, ignition: true, lat: 11.2531, lng: 78.1392, event: "harsh_brake" },
+      { minutes: 1, speed: 0, fuel: 71.5, ignition: false, lat: 11.2570, lng: 78.1355 },
+      { minutes: 0, speed: 0, fuel: 59.2, ignition: false, lat: 11.2570, lng: 78.1355, event: "fuel_drop" },
     ].map((packet, index) => ({
       id: "raw-" + (index + 1), device_id: DEVICE, vehicle: VEHICLE,
       received_at: new Date(now - packet.minutes * 60000).toISOString(),
       speed_kmph: packet.speed, fuel_level_pct: packet.fuel,
       ignition: packet.ignition, latitude: packet.lat, longitude: packet.lng,
-      dashcam_status: packet.camera, event_type: packet.event || null,
+      tracker_model: "Teltonika FMC125", fuel_source: "RS485 digital LLS",
+      external_voltage_v: packet.ignition ? 27.9 : 24.8,
+      satellites: 15, event_type: packet.event || null,
       simulated: true,
     }));
-    return process({ packets, alerts: [] });
+    return process({ packets, alerts: [], meta: { model: "FMC125", vehicle: VEHICLE, device: DEVICE, driver: DRIVER } });
+  }
+
+  function fmc650State() {
+    if (!window.FWFmc650) return initialState();
+    const batch = window.FWFmc650.sampleBatch(7);
+    const device = "FMC650-" + batch.imei;
+    const packets = batch.readings.map((reading, index) => ({
+      ...reading,
+      id: "fmc650-raw-" + (index + 1),
+      device_id: device,
+      vehicle: "TN-88-AA-6501",
+      tracker_model: "Teltonika FMC650",
+      fuel_source: reading.raw?.fuel_source || "CAN FMS (J1939)",
+      external_voltage_v: reading.battery_voltage,
+      satellites: reading.raw?.satellites,
+      backup_battery_pct: reading.raw?.fmc650?.backup_battery_pct,
+      tacho_driver_state: reading.raw?.fmc650?.tacho_driver_state,
+      tacho_download_ready: reading.raw?.fmc650?.tacho_download_ready,
+      can1_active: reading.raw?.fmc650?.can1_active,
+      can2_active: reading.raw?.fmc650?.can2_active,
+      simulated: true,
+    }));
+    return process({ packets, alerts: [], meta: {
+      model: "FMC650", vehicle: "TN-88-AA-6501", device, driver: "Manoj Yadav",
+    } });
   }
 
   function process(state) {
@@ -53,7 +80,7 @@
         alerts.push(alert(packet, "fuel_drop", "critical", `Fuel dropped ${(previous.fuel_level_pct - packet.fuel_level_pct).toFixed(1)}% while parked`));
       }
     });
-    return { packets, latest, alerts, processed_at: new Date().toISOString(), simulated: true };
+    return { packets, latest, alerts, meta: state.meta || {}, processed_at: new Date().toISOString(), simulated: true };
   }
 
   function alert(packet, type, severity, message) {
@@ -81,14 +108,25 @@
     let event = speed > 70 ? "overspeed" : Math.random() < 0.12 ? "harsh_brake" : null;
     if (!moving && Math.random() < 0.12) { fuel = clamp(fuel - 10.5, 0, 100); event = "fuel_drop"; }
     const packet = {
-      id: "raw-" + Date.now(), device_id: DEVICE, vehicle: VEHICLE,
+      id: "raw-" + Date.now(), device_id: state.meta?.device || DEVICE, vehicle: state.meta?.vehicle || VEHICLE,
       received_at: new Date().toISOString(), speed_kmph: speed,
       fuel_level_pct: +fuel.toFixed(1), ignition: moving,
       latitude: +(previous.latitude + (moving ? 0.0031 : 0)).toFixed(6),
       longitude: +(previous.longitude - (moving ? 0.0024 : 0)).toFixed(6),
-      dashcam_status: "online", event_type: event, simulated: true,
+      tracker_model: "Teltonika FMC125", fuel_source: "RS485 digital LLS",
+      external_voltage_v: moving ? 27.9 : 24.8, satellites: 15,
+      event_type: event, simulated: true,
     };
-    return process({ packets: [...state.packets.slice(-29), packet] });
+    if (state.meta?.model === "FMC650") Object.assign(packet, {
+      tracker_model: "Teltonika FMC650", fuel_source: "CAN FMS (J1939)",
+      external_voltage_v: moving ? 28.1 : 24.7, satellites: 23,
+      backup_battery_pct: previous.backup_battery_pct ?? 96,
+      tacho_driver_state: moving ? "driving" : "rest", tacho_download_ready: true,
+      can1_active: true, can2_active: true,
+      tyre_pressure_min_psi: previous.tyre_pressure_min_psi ?? 100,
+      cargo_temp_c: previous.cargo_temp_c ?? 3.8,
+    });
+    return process({ packets: [...state.packets.slice(-29), packet], meta: state.meta });
   }
 
   function badge(text, tone) {
@@ -110,12 +148,13 @@
           <button class="btn btn-primary btn-sm" id="tdStart">▶ Start live sample</button>
           <button class="btn btn-outline btn-sm" id="tdStep">Receive one packet</button>
           <button class="btn btn-outline btn-sm" id="tdReset">Load / reset test data</button>
+          <button class="btn btn-outline btn-sm" id="tdLoad650">Load FMC650 test data</button>
           <a class="btn btn-outline btn-sm" href="driver.html?demo=1&n=${encodeURIComponent(DRIVER)}&v=${encodeURIComponent(VEHICLE)}&vid=demo-v1" target="_blank">Open driver view ↗</a>
           <span class="muted" id="tdStatus" style="margin-left:auto;font-size:.82rem"></span>
         </div>
       </div>
       <section class="stat-row" id="tdStats"></section>
-      <div class="chart-card"><div class="chart-head"><div><h2>${VEHICLE} · live state</h2><p class="muted">Dashcam + GPS + fuel-level sensor · Device ${DEVICE}</p></div><span id="tdOnline"></span></div><div id="tdState"></div></div>
+      <div class="chart-card"><div class="chart-head"><div><h2 id="tdVehicleTitle">${VEHICLE} · live state</h2><p class="muted" id="tdDeviceSub">Teltonika FMC125 · GNSS + RS485 fuel-level sensor · Device ${DEVICE}</p></div><span id="tdOnline"></span></div><div id="tdState"></div></div>
       <div class="chart-card"><div class="chart-head"><div><h2>Processed alerts</h2><p class="muted">Rules turn raw readings into actions for the fleet owner.</p></div></div><div class="chart-scroll"><div id="tdAlerts"></div></div></div>
       <div class="chart-card"><div class="chart-head"><div><h2>Raw packet intake</h2><p class="muted">Newest device messages received before processing.</p></div></div><div class="chart-scroll"><div id="tdRaw"></div></div></div>`;
     host.appendChild(panel);
@@ -130,6 +169,8 @@
   function renderOwner(state) {
     const latest = state.latest;
     if (!latest || !document.getElementById("tdStats")) return;
+    const meta = state.meta || {};
+    const is650 = meta.model === "FMC650";
     const critical = state.alerts.filter(item => item.severity === "critical").length;
     document.getElementById("tdStats").innerHTML = `
       <div class="stat-tile"><span class="stat-label">Packets received</span><span class="stat-value">${state.packets.length}</span><span class="stat-sub">normalized successfully</span></div>
@@ -137,11 +178,22 @@
       <div class="stat-tile"><span class="stat-label">Fuel level</span><span class="stat-value" style="color:${latest.fuel_level_pct < 20 ? "#b91c1c" : "inherit"}">${latest.fuel_level_pct}%</span><span class="stat-sub">tank sensor</span></div>
       <div class="stat-tile"><span class="stat-label">Open alerts</span><span class="stat-value" style="color:${critical ? "#b91c1c" : "#a16207"}">${state.alerts.length}</span><span class="stat-sub">${critical} critical</span></div>`;
     document.getElementById("tdOnline").innerHTML = badge("● Online · " + ago(latest.received_at), "ok");
+    document.getElementById("tdVehicleTitle").textContent = (meta.vehicle || VEHICLE) + " · live state";
+    document.getElementById("tdDeviceSub").textContent = is650
+      ? `Teltonika FMC650 · L1+L5 GNSS + J1939 CAN + tachograph · Device ${meta.device}`
+      : `Teltonika FMC125 · GNSS + RS485 fuel-level sensor · Device ${meta.device || DEVICE}`;
     document.getElementById("tdState").innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
       <div><span class="muted">Ignition</span><br><strong>${latest.ignition ? "ON" : "OFF / parked"}</strong></div>
-      <div><span class="muted">Dashcam</span><br><strong>● ${esc(latest.dashcam_status)}</strong></div>
+      <div><span class="muted">Tracker</span><br><strong>● ${esc(meta.model || "FMC125")} online</strong></div>
+      <div><span class="muted">Fuel input</span><br><strong>${esc(latest.fuel_source)}</strong></div>
       <div><span class="muted">Position</span><br><strong>${latest.latitude}, ${latest.longitude}</strong></div>
-      <div><span class="muted">Assigned driver</span><br><strong>${DRIVER}</strong></div></div>`;
+      <div><span class="muted">External power</span><br><strong>${latest.external_voltage_v} V</strong></div>
+      <div><span class="muted">Assigned driver</span><br><strong>${esc(meta.driver || DRIVER)}</strong></div>
+      ${is650 ? `<div><span class="muted">CAN buses</span><br><strong>CAN1 ${latest.can1_active ? "active" : "off"} · CAN2 ${latest.can2_active ? "active" : "off"}</strong></div>
+      <div><span class="muted">Tachograph</span><br><strong>${esc(latest.tacho_driver_state)} · ${latest.tacho_download_ready ? "download ready" : "not ready"}</strong></div>
+      <div><span class="muted">TPMS minimum</span><br><strong>${latest.tyre_pressure_min_psi} psi</strong></div>
+      <div><span class="muted">Cargo temperature</span><br><strong>${latest.cargo_temp_c} °C</strong></div>
+      <div><span class="muted">Backup battery</span><br><strong>${latest.backup_battery_pct}%</strong></div>` : ""}</div>`;
     document.getElementById("tdAlerts").innerHTML = state.alerts.length ? `<table class="chart-table-el"><thead><tr><th>Detected</th><th>Rule</th><th>Severity</th><th>Action</th></tr></thead><tbody>${[...state.alerts].reverse().map(item => `<tr><td>${ago(item.occurred_at)}</td><td><strong>${esc(item.message)}</strong></td><td>${badge(item.severity, item.severity === "critical" ? "danger" : "warn")}</td><td>${item.type === "fuel_drop" ? "Call driver · verify fuel" : "Review dashcam clip"}</td></tr>`).join("")}</tbody></table>` : "<p class='muted'>No alerts.</p>";
     document.getElementById("tdRaw").innerHTML = `<table class="chart-table-el"><thead><tr><th>Received</th><th>Device</th><th>Speed</th><th>Fuel</th><th>Ignition</th><th>Camera</th></tr></thead><tbody>${[...state.packets].reverse().slice(0, 8).map(row => `<tr><td>${ago(row.received_at)}</td><td>${esc(row.device_id)}</td><td>${row.speed_kmph} km/h</td><td>${row.fuel_level_pct}%</td><td>${row.ignition ? "on" : "off"}</td><td>${esc(row.dashcam_status)}</td></tr>`).join("")}</tbody></table>`;
     const status = document.getElementById("tdStatus");
@@ -154,11 +206,11 @@
     if (!host || !latest) return;
     const latestAlert = [...state.alerts].reverse()[0];
     host.innerHTML = `
-      <div class="chart-card" style="border-color:#d97706"><div class="chart-head"><div><h2>வாகன நேரடி நிலை</h2><p class="muted">${VEHICLE} · மாதிரி சாதனத் தரவு</p></div><span class="fw-badge upcoming">TEST</span></div>
+      <div class="chart-card" style="border-color:#d97706"><div class="chart-head"><div><h2>வாகன நேரடி நிலை</h2><p class="muted">${esc(state.meta?.vehicle || VEHICLE)} · ${esc(state.meta?.model || "FMC125")} மாதிரி சாதனத் தரவு</p></div><span class="fw-badge upcoming">TEST</span></div>
         <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px">
           <div class="stat-tile"><span class="stat-label">வேகம்</span><span class="stat-value">${latest.speed_kmph}</span><span class="stat-sub">km/h</span></div>
           <div class="stat-tile"><span class="stat-label">டீசல் அளவு</span><span class="stat-value">${latest.fuel_level_pct}%</span><span class="stat-sub">fuel sensor</span></div>
-          <div class="stat-tile"><span class="stat-label">Dashcam</span><span class="stat-value" style="font-size:1rem;color:#15803d">● Online</span><span class="stat-sub">recording</span></div>
+          <div class="stat-tile"><span class="stat-label">${esc(state.meta?.model || "FMC125")}</span><span class="stat-value" style="font-size:1rem;color:#15803d">● Online</span><span class="stat-sub">${state.meta?.model === "FMC650" ? "L1+L5 + J1939" : "GNSS + RS485 LLS"}</span></div>
           <div class="stat-tile"><span class="stat-label">Engine</span><span class="stat-value" style="font-size:1rem">${latest.ignition ? "Running" : "Parked"}</span><span class="stat-sub">${ago(latest.received_at)}</span></div>
         </div>
       </div>
@@ -185,6 +237,12 @@
     save(initialState());
     const status = document.getElementById("tdStatus");
     if (status) status.textContent = "Test data loaded: 1 truck, 6 packets, dashcam events and fuel alert.";
+  });
+  document.getElementById("tdLoad650")?.addEventListener("click", () => {
+    stop();
+    save(fmc650State());
+    const status = document.getElementById("tdStatus");
+    if (status) status.textContent = "FMC650 test data loaded: 7 readings with CAN, tachograph, TPMS, cold-chain and fuel alerts.";
   });
   document.getElementById("tdStart")?.addEventListener("click", event => {
     if (timer) { stop(); return; }
