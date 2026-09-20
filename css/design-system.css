@@ -156,6 +156,9 @@ p, span, li { line-height: 1.6; }
   transition: all var(--transition-base);
   white-space: nowrap;
   user-select: none;
+  visibility: visible;
+  opacity: 1;
+  will-change: auto;
 }
 
 .btn:disabled {
@@ -180,15 +183,21 @@ p, span, li { line-height: 1.6; }
   background: var(--amber);
   color: var(--navy);
   border-color: var(--amber);
+  visibility: visible;
+  opacity: 1;
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--amber-dark);
   border-color: var(--amber-dark);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
+  visibility: visible;
+  opacity: 1;
 }
 .btn-primary:active:not(:disabled) {
   transform: translateY(0);
+  visibility: visible;
+  opacity: 1;
 }
 
 /* Secondary button: Navy outline */
@@ -196,10 +205,14 @@ p, span, li { line-height: 1.6; }
   background: transparent;
   color: var(--navy);
   border-color: var(--navy);
+  visibility: visible;
+  opacity: 1;
 }
 .btn-secondary:hover:not(:disabled) {
   background: var(--navy);
   color: #fff;
+  visibility: visible;
+  opacity: 1;
 }
 
 /* Outline button: Navy border and text */
@@ -207,10 +220,14 @@ p, span, li { line-height: 1.6; }
   background: transparent;
   color: var(--navy);
   border-color: var(--navy);
+  visibility: visible;
+  opacity: 1;
 }
 .btn-outline:hover:not(:disabled) {
   background: var(--navy);
   color: #fff;
+  visibility: visible;
+  opacity: 1;
 }
 
 /* Light button: White background */
@@ -218,10 +235,14 @@ p, span, li { line-height: 1.6; }
   background: #fff;
   color: var(--navy);
   border-color: var(--line);
+  visibility: visible;
+  opacity: 1;
 }
 .btn-light:hover:not(:disabled) {
   background: var(--bg-alt);
   border-color: var(--amber);
+  visibility: visible;
+  opacity: 1;
 }
 
 /* Ghost button: Transparent with optional border */
@@ -229,10 +250,14 @@ p, span, li { line-height: 1.6; }
   background: transparent;
   color: var(--navy);
   border-color: rgba(15, 30, 51, 0.2);
+  visibility: visible;
+  opacity: 1;
 }
 .btn-ghost:hover:not(:disabled) {
   background: rgba(15, 30, 51, 0.05);
   border-color: var(--navy);
+  visibility: visible;
+  opacity: 1;
 }
 
 /* Danger button: Red */
@@ -240,10 +265,14 @@ p, span, li { line-height: 1.6; }
   background: var(--red);
   color: #fff;
   border-color: var(--red);
+  visibility: visible;
+  opacity: 1;
 }
 .btn-danger:hover:not(:disabled) {
   background: #b91c1c;
   border-color: #b91c1c;
+  visibility: visible;
+  opacity: 1;
 }
 
 /* Success button: Green */
@@ -251,10 +280,14 @@ p, span, li { line-height: 1.6; }
   background: var(--green);
   color: #fff;
   border-color: var(--green);
+  visibility: visible;
+  opacity: 1;
 }
 .btn-success:hover:not(:disabled) {
   background: #15803d;
   border-color: #15803d;
+  visibility: visible;
+  opacity: 1;
 }
 
 /* Link button: Text only */
@@ -268,10 +301,14 @@ p, span, li { line-height: 1.6; }
   cursor: pointer;
   text-decoration: none;
   transition: color var(--transition-fast);
+  visibility: visible;
+  opacity: 1;
 }
 .link-btn:hover {
   color: var(--amber-dark);
   text-decoration: underline;
+  visibility: visible;
+  opacity: 1;
 }
 
 /* White text buttons (for dark backgrounds) */
@@ -279,21 +316,29 @@ p, span, li { line-height: 1.6; }
   background: transparent;
   color: #fff;
   border-color: rgba(255, 255, 255, 0.45);
+  visibility: visible;
+  opacity: 1;
 }
 .btn-light-outline:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.12);
   border-color: #fff;
   color: #fff;
+  visibility: visible;
+  opacity: 1;
 }
 
 .btn-ghost-light {
   background: transparent;
   color: #fff;
   border-color: rgba(255, 255, 255, 0.5);
+  visibility: visible;
+  opacity: 1;
 }
 .btn-ghost-light:hover:not(:disabled) {
   border-color: #fff;
   background: rgba(255, 255, 255, 0.1);
+  visibility: visible;
+  opacity: 1;
 }
 
 /* ========== FORMS ==========*/
