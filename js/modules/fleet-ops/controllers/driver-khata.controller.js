@@ -44,8 +44,14 @@ const DriverKhataController = {
     // Get user role and driver info
     const user = window.supabaseUser || { user_metadata: { role: 'owner' } };
     const userRole = user.user_metadata?.role || 'owner';
-    const drivers = (db.drivers || []);
+    const drivers = (db?.drivers || []).filter(d => d && d.name);
     const currentDriver = drivers.find(d => d.email === user.email || d.id === user.id);
+
+    if (drivers.length > 0) {
+      console.log('✅ Khata found', drivers.length, 'drivers:', drivers.map(d => d.name).join(', '));
+    } else {
+      console.log('⚠️ No drivers found in db.drivers');
+    }
 
     // Build driver dropdown or show driver name
     let driverControl = '';
@@ -187,12 +193,20 @@ const DriverKhataController = {
     // Populate driver dropdown (only if not driver view)
     const driverSelect = container.querySelector('#khataDriverFilter');
     if (driverSelect) {
-      drivers.filter(d => d.name).forEach(d => {
+      const driverOptions = drivers.filter(d => d.name && d.id);
+      console.log('Adding', driverOptions.length, 'drivers to dropdown');
+      driverOptions.forEach(d => {
         const option = document.createElement('option');
         option.value = d.id;
         option.textContent = d.name;
         driverSelect.appendChild(option);
       });
+      if (driverOptions.length === 0) {
+        const noOption = document.createElement('option');
+        noOption.textContent = 'No drivers found';
+        noOption.disabled = true;
+        driverSelect.appendChild(noOption);
+      }
     }
   },
 
