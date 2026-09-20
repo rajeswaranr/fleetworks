@@ -479,6 +479,18 @@ function renderTeamPicker() {
         <option value="update" ${defAccess === "update" ? "selected" : ""}>Can update</option>
       </select>
     </label>`).join("") : "<p class='muted'>Add vehicles first — FleetOps → Add Vehicle.</p>";
+
+  const driverWrap = document.getElementById("teamDriverRecordWrap");
+  const driverSelect = document.getElementById("teamDriverRecord");
+  const isDriver = roleSel && roleSel.value === "driver";
+  if (driverWrap) driverWrap.hidden = !isDriver;
+  if (driverSelect) {
+    const current = driverSelect.value;
+    driverSelect.required = !!isDriver;
+    driverSelect.innerHTML = '<option value="">Select driver…</option>' + db.drivers.filter(d => !d.userId)
+      .map(d => `<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+    driverSelect.value = current;
+  }
 }
 document.getElementById("teamRole")?.addEventListener("change", renderTeamPicker);
 
@@ -523,7 +535,13 @@ document.getElementById("teamInviteForm")?.addEventListener("submit", async e =>
   const btn = e.target.querySelector("button[type=submit]");
   btn.disabled = true;
   try {
-    const invite = { email: fd.email, password: fd.password, name: fd.name, role: fd.role, vehicles };
+    if (fd.role === "driver" && !fd.driverExtId) {
+      errEl.textContent = "Select the existing driver record to link with this login.";
+      errEl.hidden = false;
+      btn.disabled = false;
+      return;
+    }
+    const invite = { email: fd.email, password: fd.password, name: fd.name, role: fd.role, driverExtId: fd.driverExtId || null, vehicles };
     const res = window.FWTeamAccess ? await FWTeamAccess.inviteMember(invite) : await fwCloud.callFunction("team-invite", invite);
     const url = window.FWTeamAccess ? FWTeamAccess.ownerPortalUrl(location) : location.origin + location.pathname.replace(/[^/]*$/, "team.html");
     alert(`${fd.name} can now sign in at:\n${url}\n\nEmail: ${res.email}\n\nShare the password with them directly (call/in person) — not over WhatsApp or SMS.`);

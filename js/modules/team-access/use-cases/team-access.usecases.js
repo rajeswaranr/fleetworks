@@ -73,6 +73,7 @@
       const data = input || {};
       if (!data.email || !data.password || !data.name || !data.role) throw new Error("Name, email, password and role are required.");
       if (!Array.isArray(data.vehicles) || !data.vehicles.length) throw new Error("Assign at least one vehicle.");
+      if (data.role === "driver" && !data.driverExtId) throw new Error("Select the driver record for this login.");
       return requireRepository().inviteMember(data);
     }),
   };

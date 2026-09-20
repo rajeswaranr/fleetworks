@@ -205,6 +205,7 @@ function dbRowToDriver(row, vehicleExtId) {
   return {
     id: row.ext_id, dbId: row.id,
     name: row.name, phone: row.phone || "", dlNo: row.dl_no, dlExpiry: row.dl_expiry,
+    userId: row.user_id || "",
     vehicleId: vehicleExtId !== undefined ? vehicleExtId : (row.vehicles ? row.vehicles.ext_id : "") || "",
     upiId: row.upi_id || undefined, bankAccount: row.bank_account || undefined, bankIfsc: row.bank_ifsc || undefined,
     payBasis: normPayBasis(row.pay_basis),
