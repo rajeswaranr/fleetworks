@@ -391,16 +391,55 @@ const DriverKhataController = {
     };
     const netBalance = totals.advance - totals.expense - totals.settlement;
 
-    // Build table
+    // Get selected driver name
+    const selectedDriver = driverId ? drivers.find(d => d.id === driverId) : null;
+    const dateRangeText = `${startDate || 'Start'} to ${endDate || 'End'}`;
+
+    // Build professional header
     let html = `
-      <table>
+      <div style="background: linear-gradient(135deg, #0f1e33 0%, #1a2f4a 100%); color: white; padding: 30px; border-radius: 8px; margin-bottom: 30px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+          <div>
+            <h1 style="margin: 0 0 8px 0; font-size: 1.8rem;">DRIVER KHATA</h1>
+            <p style="margin: 0; opacity: 0.9; font-size: 0.9rem;">Financial Statement & Expense Report</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 0 0 4px 0; font-size: 0.9rem;"><strong>Report Date:</strong> ${new Date().toLocaleDateString('en-IN')}</p>
+            <p style="margin: 0 0 4px 0; font-size: 0.9rem;"><strong>Period:</strong> ${dateRangeText}</p>
+            ${selectedDriver ? `<p style="margin: 0; font-size: 0.9rem;"><strong>Driver:</strong> ${selectedDriver.name}</p>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 4px solid var(--primary);">
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; text-align: center;">
+          <div>
+            <p style="margin: 0; font-size: 0.85rem; color: var(--muted);">Total Advances</p>
+            <p style="margin: 8px 0 0 0; font-size: 1.5rem; font-weight: 700; color: #1e40af;">₹${totals.advance.toLocaleString('en-IN')}</p>
+          </div>
+          <div>
+            <p style="margin: 0; font-size: 0.85rem; color: var(--muted);">Total Expenses</p>
+            <p style="margin: 8px 0 0 0; font-size: 1.5rem; font-weight: 700; color: #92400e;">₹${totals.expense.toLocaleString('en-IN')}</p>
+          </div>
+          <div>
+            <p style="margin: 0; font-size: 0.85rem; color: var(--muted);">Total Settlements</p>
+            <p style="margin: 8px 0 0 0; font-size: 1.5rem; font-weight: 700; color: #166534;">₹${totals.settlement.toLocaleString('en-IN')}</p>
+          </div>
+          <div>
+            <p style="margin: 0; font-size: 0.85rem; color: var(--muted);">Net Balance</p>
+            <p style="margin: 8px 0 0 0; font-size: 1.5rem; font-weight: 700; color: ${netBalance >= 0 ? '#166534' : '#dc2626'};">₹${netBalance.toLocaleString('en-IN')}</p>
+          </div>
+        </div>
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden;">
         <thead>
-          <tr>
-            <th>Date</th>
-            <th>Driver</th>
-            <th>Type</th>
-            <th>Amount (₹)</th>
-            <th>Notes</th>
+          <tr style="background: #f0f2f5; border-bottom: 2px solid #ddd;">
+            <th style="padding: 14px; text-align: left; font-weight: 700; font-size: 0.9rem; color: #333;">Date</th>
+            <th style="padding: 14px; text-align: left; font-weight: 700; font-size: 0.9rem; color: #333;">Driver</th>
+            <th style="padding: 14px; text-align: left; font-weight: 700; font-size: 0.9rem; color: #333;">Type</th>
+            <th style="padding: 14px; text-align: right; font-weight: 700; font-size: 0.9rem; color: #333;">Amount (₹)</th>
+            <th style="padding: 14px; text-align: left; font-weight: 700; font-size: 0.9rem; color: #333;">Notes</th>
           </tr>
         </thead>
         <tbody>
