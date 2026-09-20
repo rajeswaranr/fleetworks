@@ -68,17 +68,11 @@ const DriverKhataController = {
         <div style="background: var(--bg-alt); border-right: 1px solid var(--line); overflow-y: auto; padding: 20px;">
           <h3 style="margin-top: 0; margin-bottom: 16px; font-size: 1rem;">Select Driver</h3>
 
-          <!-- Select All Button -->
-          <button id="selectAllBtn" class="btn btn-primary btn-block" style="margin-bottom: 12px;">Select All</button>
-
-          <!-- Drivers List -->
-          <div id="driversList" style="margin-bottom: 24px;">
-            ${drivers.map(d => `
-              <button class="khata-driver-item" data-driver-id="${d.id}" style="display: block; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 8px; text-align: left; background: white; cursor: pointer; transition: all 0.2s;">
-                ${d.name}
-              </button>
-            `).join('')}
-          </div>
+          <!-- Driver Dropdown -->
+          <select id="driverSelect" style="width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; margin-bottom: 24px; font-size: 0.95rem; background: white; cursor: pointer;">
+            <option value="">🔷 All Drivers</option>
+            ${drivers.map(d => `<option value="${d.id}">${d.name}</option>`).join('')}
+          </select>
 
           <!-- FILTERS -->
           <h4 style="font-size: 0.85rem; font-weight: 700; color: var(--muted); margin-bottom: 12px;">Filters</h4>
@@ -499,21 +493,9 @@ const DriverKhataController = {
   },
 
   attachEventListeners(container) {
-    // Driver selection
-    const driverItems = container.querySelectorAll('.khata-driver-item');
-    driverItems.forEach(item => {
-      item.addEventListener('click', () => {
-        driverItems.forEach(i => i.classList.remove('active'));
-        item.classList.add('active');
-        this.currentFilter.driverId = item.dataset.driverId;
-        this.renderTable(container);
-      });
-    });
-
-    // Select all button
-    container.querySelector('#selectAllBtn')?.addEventListener('click', () => {
-      this.currentFilter.driverId = null;
-      driverItems.forEach(i => i.classList.remove('active'));
+    // Driver selection from dropdown
+    container.querySelector('#driverSelect')?.addEventListener('change', (e) => {
+      this.currentFilter.driverId = e.target.value || null;
       this.renderTable(container);
     });
 
