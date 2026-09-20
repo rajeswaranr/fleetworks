@@ -7,8 +7,8 @@ const SupabaseConfig = {
   // 🔧 UPDATE THESE WITH YOUR SUPABASE CREDENTIALS
   // Go to: https://app.supabase.com → Settings → API → Project URL & Anon Key
 
-  URL: 'https://vlrqobmgbmskktvfzvkg.supabase.co',
-  KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZscnFvYm1nYm1za2t0dmZ6dmtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjAwMzU1NTgsImV4cCI6MTkzNTYxMTU1OH0.dVRWwN3_M8H8H6n1KlbHY6qDKZGxWKQh_8pJk0nUcNY',
+  URL: 'https://crdblxeufbhysglbbtxi.supabase.co',
+  KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNyZGJseGV1ZmJoeXNnbGJidHhpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ0NjEwMTcsImV4cCI6MjEwMDAzNzAxN30.0K1CHa4Xj16s169y_5gW5lhEPQKhF_b-G4-HzuEIKyY',
 
   // Initialize Supabase client
   init() {
