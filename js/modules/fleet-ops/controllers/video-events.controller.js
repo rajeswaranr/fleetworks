@@ -1,8 +1,6 @@
 // Video Events Controller - Load and display dashcam video incidents in FleetSafe
 // Shows recent unreviewed events with telemetry overlay
 
-import { supabase } from '../../../db.js';
-
 // Sample video events for demo (when no real events exist)
 // Includes: 360 cameras, front dashcam, fuel sensor, GPS tracking
 const SAMPLE_VIDEO_EVENTS = [
@@ -138,7 +136,7 @@ const SAMPLE_VIDEO_EVENTS = [
   },
 ];
 
-export async function loadVideoEvents() {
+async function loadVideoEvents() {
   try {
     const container = document.getElementById('videoEventsContainer');
     if (!container) return;
@@ -146,7 +144,7 @@ export async function loadVideoEvents() {
     // Try to load real events, fall back to sample data
     let events = [];
     try {
-      const { data, error } = await supabase
+      const { data, error } = await window.supabase
         .from('video_events_with_telemetry')
         .select('*')
         .eq('status', 'new')
@@ -293,7 +291,7 @@ function renderVideoEventsList(container, events) {
 function subscribeToVideoEvents() {
   try {
     if (!window.videoEventsSubscription) {
-      window.videoEventsSubscription = supabase
+      window.videoEventsSubscription = window.supabase
         .channel('video-events-live')
         .on(
           'postgres_changes',
@@ -360,7 +358,7 @@ function formatCameraPosition(position) {
 // Handle video event actions
 window.handleVideoEventAction = async function (eventId, action) {
   try {
-    const { error } = await supabase
+    const { error } = await window.supabase
       .from('video_events')
       .update({ status: action, reviewed_at: new Date().toISOString() })
       .eq('id', eventId);
