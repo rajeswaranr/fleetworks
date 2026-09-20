@@ -21,7 +21,6 @@ const DriverKhataController = {
     // If driver, auto-filter to their ledger
     if (userRole === 'driver') {
       const drivers = (db.drivers || []);
-      // Find driver by email or ID
       const currentDriver = drivers.find(d => d.email === user.email || d.id === user.id);
       if (currentDriver) {
         this.currentFilter.driverId = currentDriver.id;
@@ -29,29 +28,62 @@ const DriverKhataController = {
       }
     }
 
-    // Build UI
-    this.renderFilters(container);
-    this.renderTable(container);
-    this.attachEventListeners(container);
-
-    console.log('✅ Driver Khata initialized (role: ' + userRole + ')');
+    // Build UI (async renderFilters)
+    this.renderFilters(container).then(() => {
+      this.renderTable(container);
+      this.attachEventListeners(container);
+      console.log('✅ Driver Khata initialized (role: ' + userRole + ')');
+    });
   },
 
-  renderFilters(container) {
+  async renderFilters(container) {
     const today = new Date().toISOString().split('T')[0];
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     // Get user role and driver info
     const user = window.supabaseUser || { user_metadata: { role: 'owner' } };
     const userRole = user.user_metadata?.role || 'owner';
-    const drivers = (db?.drivers || []).filter(d => d && d.name);
-    const currentDriver = drivers.find(d => d.email === user.email || d.id === user.id);
 
-    if (drivers.length > 0) {
-      console.log('✅ Khata found', drivers.length, 'drivers:', drivers.map(d => d.name).join(', '));
-    } else {
-      console.log('⚠️ No drivers found in db.drivers');
+    // Load drivers from Supabase or demo fallback
+    let drivers = [];
+    let datasource = 'demo';
+
+    // ALWAYS load from Supabase (no fallback)
+    if (!window.supabase || !window.supabase.from) {
+      console.error('❌ Supabase not available');
+      container.innerHTML = '<div style="padding: 20px; color: red;"><strong>Error:</strong> Supabase not connected. Reload page.</div>';
+      return;
     }
+
+    try {
+      console.log('📡 Loading drivers from Supabase...');
+      const { data, error } = await window.supabase.from('drivers').select('*');
+
+      if (error) {
+        console.error('❌ Supabase error:', error.code, '-', error.message);
+        container.innerHTML = `<div style="padding: 20px; color: red; font-family: monospace;">
+          <strong>Error:</strong> ${error.message}<br/>
+          <small>Code: ${error.code}</small><br/>
+          Check browser console for details.
+        </div>`;
+        return;
+      }
+
+      if (!data || data.length === 0) {
+        console.warn('⚠️ No drivers in database');
+        container.innerHTML = '<div style="padding: 20px; color: orange;"><strong>No drivers found.</strong> Add drivers to your account first.</div>';
+        return;
+      }
+
+      drivers = data.filter(d => d && d.name);
+      console.log('✅ Loaded', drivers.length, 'drivers:', drivers.map(d => d.name).join(', '));
+    } catch (e) {
+      console.error('❌ Exception:', e.message);
+      container.innerHTML = `<div style="padding: 20px; color: red;"><strong>Error:</strong> ${e.message}</div>`;
+      return;
+    }
+
+    const currentDriver = drivers.find(d => d.email === user.email || d.id === user.id);
 
     // Build driver dropdown or show driver name
     let driverControl = '';
