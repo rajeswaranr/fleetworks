@@ -121,22 +121,34 @@ const SupabaseAuth = {
   // Show app
   showApp() {
     const authGate = document.getElementById('authGate');
-    const appBody = document.querySelector('.app-body');
+    const tabBar = document.getElementById('tabBar');
+    const appContent = document.querySelector('#appContent, [role="main"]');
 
     if (authGate) authGate.hidden = true;
-    if (appBody) appBody.style.display = 'block';
+    if (tabBar) tabBar.style.display = 'flex';
+    if (appContent) appContent.style.display = 'block';
 
     // Make user data globally available
     window.supabaseUser = this.user;
+
+    // Initialize dashboard controllers
+    setTimeout(() => {
+      if (typeof initAccountDashboard === 'function') initAccountDashboard();
+      if (typeof initFleetOps === 'function') initFleetOps();
+      if (typeof initFuelDash === 'function') initFuelDash();
+      console.log('✅ Dashboard initialized');
+    }, 500);
   },
 
   // Show auth page
   showAuthPage() {
     const authGate = document.getElementById('authGate');
-    const appBody = document.querySelector('.app-body');
+    const tabBar = document.getElementById('tabBar');
+    const appContent = document.querySelector('#appContent, [role="main"]');
 
     if (authGate) authGate.hidden = false;
-    if (appBody) appBody.style.display = 'none';
+    if (tabBar) tabBar.style.display = 'none';
+    if (appContent) appContent.style.display = 'none';
   },
 
   // Get current user
