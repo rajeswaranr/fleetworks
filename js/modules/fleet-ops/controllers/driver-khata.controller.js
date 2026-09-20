@@ -9,6 +9,7 @@ const DriverKhataController = {
     startDate: null,
     endDate: null
   },
+  drivers: [], // Store loaded drivers here
 
   init() {
     const container = document.getElementById('khataContainer');
@@ -76,6 +77,7 @@ const DriverKhataController = {
       }
 
       drivers = data.filter(d => d && d.name);
+      this.drivers = drivers; // Store for use in renderTable
       console.log('✅ Loaded', drivers.length, 'drivers:', drivers.map(d => d.name).join(', '));
     } catch (e) {
       console.error('❌ Exception:', e.message);
@@ -245,7 +247,7 @@ const DriverKhataController = {
   renderTable(container) {
     const { driverId, startDate, endDate } = this.currentFilter;
     const ledger = (db.driverLedger || []);
-    const drivers = (db.drivers || []);
+    const drivers = this.drivers || (db.drivers || []); // Use stored drivers from Supabase
 
     // Filter ledger
     let filtered = ledger;
