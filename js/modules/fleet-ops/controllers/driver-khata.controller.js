@@ -99,7 +99,18 @@ const DriverKhataController = {
           </div>
 
           <!-- SUBMIT BUTTON -->
-          <button id="khataSubmitBtn" class="btn btn-primary btn-block" style="width: 100%; padding: 12px; font-weight: 600; font-size: 1rem;">Generate Khata</button>
+          <button id="khataSubmitBtn" style="width: 100%; padding: 14px 16px; background: linear-gradient(135deg, var(--primary) 0%, #fb9238 100%); color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 1.05rem; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(251, 146, 60, 0.3); margin-top: 8px;">
+            🔍 Generate Khata
+          </button>
+          <style>
+            #khataSubmitBtn:hover {
+              transform: translateY(-2px);
+              box-shadow: 0 8px 20px rgba(251, 146, 60, 0.4);
+            }
+            #khataSubmitBtn:active {
+              transform: translateY(0);
+            }
+          </style>
         </div>
 
         <!-- RIGHT MAIN AREA -->
