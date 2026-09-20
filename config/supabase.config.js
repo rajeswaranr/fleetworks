@@ -13,8 +13,9 @@ const SupabaseConfig = {
   // Initialize Supabase client
   init() {
     try {
-      if (!window.supabase) {
-        console.error('❌ Supabase library not loaded');
+      // Check if Supabase library is loaded
+      if (typeof supabase === 'undefined' || !supabase.createClient) {
+        console.error('❌ Supabase library not loaded. Check CDN link.');
         return false;
       }
 
@@ -23,8 +24,9 @@ const SupabaseConfig = {
         return false;
       }
 
-      window.supabase = window.supabase.createClient(this.URL, this.KEY);
-      console.log('✅ Supabase initialized successfully');
+      // Create client using global supabase object from CDN
+      window.supabase = supabase.createClient(this.URL, this.KEY);
+      console.log('✅ Supabase client initialized:', this.URL);
       return true;
     } catch (error) {
       console.error('❌ Supabase init error:', error);
