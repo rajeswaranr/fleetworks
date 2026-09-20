@@ -10,6 +10,7 @@ const DriverKhataController = {
   filter: { driverId: "", from: "", to: "", types: { advance: true, expense: true, settlement: true, salary: true } },
   salary: [],
   salaryLoadedAt: 0,
+  salaryStatus: "not loaded yet",
   rows: [],
   summary: null,
 
@@ -34,13 +35,14 @@ const DriverKhataController = {
   // Salary lives in salary_payments (Payroll tab), not driver_ledger. Only
   // successful payments count as paid. Reloaded at most every 30s.
   async loadSalary(force) {
-    if (!(window.fwCloud && fwCloud.user() && typeof getMyOrgId === "function")) return;
+    if (!(window.fwCloud && fwCloud.user() && typeof getMyOrgId === "function")) { this.salaryStatus = "sign in to load salary payments"; return; }
     if (!force && Date.now() - this.salaryLoadedAt < 30000) return;
     this.salaryLoadedAt = Date.now();
     const org = await getMyOrgId().catch(() => null);
-    if (!org) return;
+    if (!org) { this.salaryStatus = "could not find your organisation"; this.salaryLoadedAt = 0; this.generate(); return; }
     const rows = await fwCloud.authGet("salary_payments", `select=*&org_id=eq.${org}&status=eq.success&order=initiated_at.desc&limit=1000`).catch(() => null);
-    if (!rows) return;
+    if (!rows) { this.salaryStatus = "could not read salary payments (" + ((fwCloud.lastError && fwCloud.lastError()) || "request failed") + ")"; this.salaryLoadedAt = 0; this.generate(); return; }
+    this.salaryStatus = "ok";
     this.salary = rows.map(r => ({
       id: "sal_" + r.id, driverId: r.driver_ext_id,
       date: String(r.paid_date || r.initiated_at || "").slice(0, 10) || undefined,
@@ -120,6 +122,7 @@ const DriverKhataController = {
           </div>
         </div>
 
+        <p id="khNote" class="muted" style="margin:0 0 12px;font-size:0.82rem"></p>
         <div id="khCards" class="kh-cards"></div>
         <div id="khBalances"></div>
         <div id="khTable"></div>
@@ -182,6 +185,13 @@ const DriverKhataController = {
     this.compute();
     const { totals, byDriver } = this.summary;
     const bal = n => `<span class="${n >= 0 ? "kh-pos" : "kh-neg"}">${this.inr(n)}</span>`;
+
+    const ledgerTotal = (db.driverLedger || []).length;
+    c.querySelector("#khNote").innerHTML =
+      `Loaded ${ledgerTotal} ledger ${ledgerTotal === 1 ? "entry" : "entries"} and ${this.salary.length} salary ${this.salary.length === 1 ? "payment" : "payments"} · ` +
+      `<b>${this.rows.length}</b> match the filters (${this.esc(this.periodText())}).` +
+      (this.salaryStatus !== "ok" ? ` <span class="kh-neg">Salary: ${this.esc(this.salaryStatus)}.</span>` : "") +
+      (this.rows.length === 0 && (ledgerTotal + this.salary.length) > 0 ? " Entries exist outside this selection — widen the dates or pick All drivers." : "");
 
     c.querySelector("#khCards").innerHTML = `
       <div class="kh-card"><small>Total advances</small><b style="color:#1e40af">${this.inr(totals.advance)}</b></div>
