@@ -1,0 +1,52 @@
+/* Live dashcam wall: a grid of camera tiles (1x1, 1x2, 2x2 ...), one vehicle per tile. */
+.lw-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.lw-layouts{display:inline-flex;gap:6px;flex-wrap:wrap}
+.lw-lay{display:inline-flex;flex-direction:column;align-items:center;gap:4px;border:1.5px solid var(--line,#e2e8f0);background:#fff;border-radius:12px;padding:8px 10px;cursor:pointer;font:inherit;font-size:.78rem;color:var(--navy,#0f1e33);min-width:64px}
+.lw-lay[aria-pressed="true"]{border-color:var(--amber,#f5a623);background:#fff8e8;font-weight:700}
+.lw-lay:focus-visible{outline:2px solid var(--amber,#f5a623);outline-offset:2px}
+.lw-glyph{display:grid;gap:2px;width:34px;height:24px}
+.lw-glyph i{background:var(--navy,#0f1e33);border-radius:2px;opacity:.75}
+.lw-spacer{flex:1}
+.lw-note{font-size:.8rem;color:var(--muted,#64748b);margin:0 0 12px}
+
+.lw-wall{display:grid;gap:8px;background:#0b1626;border-radius:14px;padding:8px}
+.lw-tile{position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:16/9;min-height:120px}
+.lw-tile.is-fs{position:fixed;inset:0;z-index:900;border-radius:0;aspect-ratio:auto}
+.lw-tile video,.lw-tile canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;background:#000}
+.lw-top,.lw-bot{position:absolute;left:0;right:0;display:flex;align-items:center;gap:8px;padding:8px 10px;color:#fff;font-size:.78rem;z-index:2;pointer-events:none}
+.lw-top{top:0;background:linear-gradient(#000a,transparent)}
+.lw-bot{bottom:0;background:linear-gradient(transparent,#000b);justify-content:space-between}
+.lw-name{font-weight:700;font-size:.9rem}
+.lw-cam{opacity:.8}
+.lw-badge{margin-left:auto;padding:2px 8px;border-radius:999px;font-weight:700;font-size:.68rem;letter-spacing:.04em;background:#dc2626;display:inline-flex;align-items:center;gap:5px}
+.lw-badge.sim{background:#b45309}
+.lw-badge.file{background:#2563eb}
+.lw-badge::before{content:"";width:7px;height:7px;border-radius:50%;background:#fff;animation:lwBlink 1.4s infinite}
+.lw-badge.sim::before,.lw-badge.file::before{animation:none;opacity:.7}
+@keyframes lwBlink{50%{opacity:.25}}
+.lw-acts{position:absolute;right:8px;bottom:8px;display:flex;gap:6px;z-index:3;opacity:0;transition:opacity .15s}
+.lw-tile:hover .lw-acts,.lw-tile:focus-within .lw-acts,.lw-tile.is-fs .lw-acts{opacity:1}
+.lw-acts .lw-btn{border:0;border-radius:8px;background:#000a;color:#fff;padding:6px 10px;font:inherit;font-size:.75rem;cursor:pointer;backdrop-filter:blur(4px)}
+.lw-acts .lw-btn:hover,.lw-acts .lw-btn:focus-visible{background:var(--amber,#f5a623);color:#0f1e33;outline:none}
+.lw-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#94a3b8;font-size:.85rem;text-align:center;padding:10px}
+.lw-empty[hidden]{display:none}
+.lw-sim{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-12deg);z-index:1;color:#fff3;font-weight:800;letter-spacing:.3em;font-size:clamp(.9rem,3vw,1.8rem);pointer-events:none;text-transform:uppercase}
+
+.lw-scrim{position:fixed;inset:0;background:rgba(11,22,38,.55);z-index:950;display:flex;align-items:center;justify-content:center;padding:16px}
+.lw-scrim[hidden]{display:none}
+.lw-dlg{background:#fff;border-radius:16px;padding:20px;width:min(460px,100%);display:grid;gap:12px}
+.lw-dlg h3{margin:0;color:var(--navy,#0f1e33)}
+.lw-dlg label{display:grid;gap:4px;font-size:.85rem;color:var(--muted,#64748b)}
+.lw-dlg select,.lw-dlg input[type=text]{padding:9px 10px;border:1.5px solid var(--line,#e2e8f0);border-radius:10px;font:inherit}
+.lw-row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.lw-src{display:flex;gap:6px;flex-wrap:wrap}
+.lw-src .lw-btn{flex:1;border:1.5px solid var(--line,#e2e8f0);background:#fff;border-radius:10px;padding:8px;font:inherit;font-size:.82rem;cursor:pointer}
+.lw-src .lw-btn[aria-pressed="true"]{border-color:var(--amber,#f5a623);background:#fff8e8;font-weight:700}
+@media (max-width:640px){.lw-wall{grid-template-columns:1fr!important}.lw-lay{min-width:54px}}
+@media (prefers-reduced-motion:reduce){.lw-badge::before{animation:none}}
+
+.nav-title{font-weight:700;color:var(--navy,#0f1e33)}
+#gate{max-width:460px;margin:60px auto;text-align:center}
+#gate h2{color:var(--navy,#0f1e33)}
+#gate .btn{margin-top:10px}
+.lw-file{display:flex;gap:8px;align-items:center;flex-wrap:wrap}

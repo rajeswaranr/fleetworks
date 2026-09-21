@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Dashcam Feeds — FleetWorks</title>
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="stylesheet" href="css/design-system.css" />
+  <link rel="stylesheet" href="css/themes.css" />
+  <link rel="stylesheet" href="css/live-wall.css" />
+  <link rel="icon" type="image/png" href="icons/icon-96.png" />
+  <meta name="theme-color" content="#0f1e33" />
+  <script src="js/theme-switcher.js"></script>
+</head>
+<body>
+  <header class="navbar" id="navbar">
+    <div class="container nav-inner">
+      <a href="index.html" class="logo">
+        <img src="assets/logo-mark.svg" width="34" height="34" alt="" />
+        <span>Fleet<em>Works</em></span>
+      </a>
+      <span class="nav-title">Live Dashcam Feeds</span>
+      <div class="nav-actions">
+        <a href="fleet.html#safehome" class="btn btn-outline btn-sm">← FleetSafe</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container dash-main">
+
+    <div id="gate" class="onboard-card">
+      <h2>Sign in to view live feeds</h2>
+      <p class="muted">Camera feeds belong to your fleet, so this page needs your FleetWorks account.</p>
+      <a href="fleet.html#account" class="btn btn-primary">Go to Sign In</a>
+    </div>
+
+    <div id="app" hidden>
+      <div class="chart-card">
+        <div class="chart-head">
+          <div>
+            <h2 class="head-ic"><span class="ic-tile info"><i data-icon="camera" data-icon-size="18"></i></span> Live wall</h2>
+            <p class="muted">Pick a layout: rows × columns. 1 × 1 is one vehicle full size, 1 × 2 is one row with two columns, 2 × 2 is four vehicles, and so on. Every tile shows one vehicle's camera.</p>
+          </div>
+        </div>
+
+        <div class="lw-bar">
+          <div class="lw-layouts" id="lwLayouts" role="group" aria-label="Layout"></div>
+          <span class="lw-spacer"></span>
+          <button type="button" class="btn btn-sm btn-primary" id="lwFill">Fill with my vehicles</button>
+          <button type="button" class="btn btn-sm btn-outline" id="lwClear">Clear tiles</button>
+        </div>
+        <p class="lw-note">No camera hardware is fitted yet, so tiles start on a <strong>SIMULATED</strong> feed drawn in your browser. Use <strong>Change</strong> on a tile to play a real clip: open a video file, or paste an .mp4 or .m3u8 link. Real feeds show LIVE or FILE instead.</p>
+
+        <div class="lw-wall" id="lwWall" aria-live="off"></div>
+      </div>
+    </div>
+  </main>
+
+  <div class="lw-scrim" id="lwDlg" hidden>
+    <div class="lw-dlg" role="dialog" aria-modal="true" aria-labelledby="lwDlgTitle">
+      <h3 id="lwDlgTitle">Choose the camera for this tile</h3>
+      <label>Vehicle <select id="lwVeh"></select></label>
+      <label>Camera <select id="lwCam"></select></label>
+      <div>
+        <div class="lw-src" id="lwSrc" role="group" aria-label="Video source">
+          <button type="button" class="lw-btn" data-src="sim" aria-pressed="true">Simulated</button>
+          <button type="button" class="lw-btn" data-src="url" aria-pressed="false">Link (.mp4 / .m3u8)</button>
+          <button type="button" class="lw-btn" data-src="file" aria-pressed="false">Open a file</button>
+        </div>
+      </div>
+      <label id="lwUrlRow" hidden>Video link <input type="text" id="lwUrl" placeholder="https://…/stream.m3u8" /></label>
+      <label id="lwFileRow" hidden>Video file
+        <span class="lw-file"><input type="file" id="lwFile" accept="video/*" /> <span id="lwFileName" class="muted">No file chosen</span></span>
+        <span class="muted">Plays on this device only and is not uploaded.</span>
+      </label>
+      <div class="lw-row">
+        <button type="button" class="btn btn-sm btn-outline" id="lwCancel">Cancel</button>
+        <button type="button" class="btn btn-sm btn-primary" id="lwApply">Show in tile</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/backend.js"></script>
+  <script src="js/modules/iot-telemetry/live-wall.js"></script>
+  <script>
+    if (window.FWIcons && FWIcons.hydrate) FWIcons.hydrate(document.body);
+    FWLiveWall.boot();
+  </script>
+  <script src="js/control-guard.js"></script>
+  <script src="js/window-controls.js"></script>
+  <script src="js/dialogs.js"></script>
+</body>
+</html>

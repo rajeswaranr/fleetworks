@@ -35,7 +35,7 @@ const EMOJI = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\
 const CHECKS = {
   "Emoji used as icons": (t) => count(t, new RegExp(EMOJI.source, "gu")),
   "Bare <button> (no .btn / .link-btn / framework class)": (t) =>
-    [...t.matchAll(/<button\b([^>]*)>/g)].filter((m) => !/class\s*=\s*["'][^"']*(btn|link-btn|tab-btn|side-|settings-tile|fw-|chip|pill|toggle|close|nav|qa-|hub|drv-|role|cp-|mk-|ai-|fv-|fx-|gp-|sc-)/.test(m[1])).length,
+    [...t.matchAll(/<button\b([^>]*)>/g)].filter((m) => !/class\s*=\s*["'][^"']*(btn|link-btn|tab-btn|side-|settings-tile|fw-|chip|pill|toggle|close|nav|qa-|hub|drv-|role|cp-|mk-|ai-|fv-|fx-|gp-|sc-|lw-)/.test(m[1])).length,
   "Buttons styled inline (background/color/padding in style=)": (t) =>
     [...t.matchAll(/<button\b[^>]*style\s*=\s*["'][^"']*(background|padding|border)[^"']*["']/g)].length,
   "Ad-hoc dialog overlays (inline position:fixed;inset:0)": (t) => count(t, /position:\s*fixed;\s*inset:\s*0/g),
