@@ -50,7 +50,7 @@ const DC_TA = {
   "Team Sign In": "குழு உள்நுழைவு", "Mobile number": "மொபைல் எண்", "(drivers) — supervisors can use email": "(ஓட்டுநர்கள்) — மேற்பார்வையாளர்கள் மின்னஞ்சல் பயன்படுத்தலாம்", "Password": "கடவுச்சொல்", "Log In": "உள்நுழை",
   "Drivers: your mobile number is your username, and your password is also your mobile number until you change it.": "ஓட்டுநர்கள்: உங்கள் மொபைல் எண்ணே பயனர்பெயர்; மாற்றும் வரை கடவுச்சொல்லும் அதே எண்தான்.",
   "10-digit mobile number": "10 இலக்க மொபைல் எண்", "Send Reset Link": "மீட்டமைப்பு இணைப்பை அனுப்பு", "Back to Sign In": "உள்நுழைவுக்குத் திரும்பு", "Reset your password": "கடவுச்சொல்லை மீட்டமை", "Email": "மின்னஞ்சல்",
-  "Can update": "மாற்றலாம்", "View only": "பார்க்க மட்டும்", "Document": "ஆவணம்", "— goes to the owner for approval": "— உரிமையாளர் அனுமதிக்கு செல்லும்", "— recorded against your khata": "— உங்கள் கணக்கில் பதியப்படும்",
+  "Can update": "மாற்றலாம்", "Update →": "புதுப்பி →", "View →": "பார் →", "View only": "பார்க்க மட்டும்", "Document": "ஆவணம்", "— goes to the owner for approval": "— உரிமையாளர் அனுமதிக்கு செல்லும்", "— recorded against your khata": "— உங்கள் கணக்கில் பதியப்படும்",
   "— pre-trip / post-trip / weekly check": "— பயணத்திற்கு முன் / பின் / வாராந்திர பரிசோதனை", "Faults found or notes (optional)": "கண்ட குறைகள் அல்லது குறிப்புகள் (விருப்பம்)", "Police, RTO, Parking…": "போலீஸ், RTO, பார்க்கிங்…",
   "Fuel": "எரிபொருள்", "Expired": "காலாவதியானது",
   "Change password": "கடவுச்சொல் மாற்று", "New password": "புதிய கடவுச்சொல்", "Confirm new password": "புதிய கடவுச்சொல்லை உறுதிசெய்", "Save password": "கடவுச்சொல்லைச் சேமி",
@@ -357,7 +357,7 @@ function dcKhataPaint() {
   const all = _dcKhata.rows, view = dcKhataFiltered(), f = _dcKhata.f;
   const sum = (rs, t) => rs.filter(r => r.type === t).reduce((s, r) => s + (+r.amount || 0), 0);
   const withMe = sum(all, "advance") - sum(all, "expense") - sum(all, "settlement");
-  const chip = (id, label) => `<button type="button" class="btn btn-sm ${f.range === id ? "btn-primary" : "btn-outline"}" onclick="dcKhataSet('range','${id}')">${label}</button>`;
+  const chip = (id, label) => `<button type="button" class="btn btn-sm ${f.range === id ? "btn-primary" : "dc-chip"}" onclick="dcKhataSet('range','${id}')">${label}</button>`;
   const stat = (label, v, extra) => `<div><small class="muted">${label}</small><div style="font-weight:700;font-size:1.1rem;${extra || ""}">${v}</div></div>`;
   box.innerHTML = `<div class="chart-card">
     <div class="chart-head"><div>

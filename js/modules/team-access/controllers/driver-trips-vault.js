@@ -27,7 +27,7 @@ function dcTripsPaint() {
   const box = document.getElementById("teamTrips");
   const { f, rows } = _dcTrips, view = dcTripsFiltered();
   const vname = id => (_vehRows[id] || {}).name || "—";
-  const chip = (key, val, label) => `<button type="button" class="btn btn-sm ${f[key] === val ? "btn-primary" : "btn-outline"}" onclick="dcTripsSet('${key}','${val}')">${label}</button>`;
+  const chip = (key, val, label) => `<button type="button" class="btn btn-sm ${f[key] === val ? "btn-primary" : "dc-chip"}" onclick="dcTripsSet('${key}','${val}')">${label}</button>`;
   const km = view.reduce((s, t) => s + (+t.km || 0), 0);
   const badge = t => `<span class="fw-badge ${t.status === "completed" ? "ok" : t.status === "started" ? "soon" : t.status === "cancelled" ? "overdue" : "upcoming"}">${dcT(DC_TRIP_STATUS[t.status] || t.status)}</span>`;
   box.innerHTML = `<div class="chart-card">
@@ -97,7 +97,7 @@ function dcVaultPaint() {
     </div>
     <div style="overflow-x:auto"><table class="chart-table-el" style="width:100%">
       <thead><tr><th>Vehicle</th><th>Document</th><th>Number</th><th>Expires</th><th></th></tr></thead>
-      <tbody>${view.length ? view.map(d => `<tr><td>${esc(vname(d.vehicle_id))}</td><td>${esc(dcT(d.doc_type || ""))}</td><td>${esc(d.number || "—")}</td><td>${d.expiry_date ? fmtDate(d.expiry_date) + " " + badge(d.expiry_date) : "—"}</td><td>${d.file_path ? `<button type="button" class="btn btn-sm btn-outline" data-path="${esc(d.file_path)}" onclick="dcOpenDoc(this.dataset.path)">View</button>` : ""}</td></tr>`).join("") : `<tr><td colspan="5" class="muted" style="text-align:center;padding:16px">No documents match.</td></tr>`}</tbody>
+      <tbody>${view.length ? view.map(d => `<tr><td>${esc(vname(d.vehicle_id))}</td><td>${esc(dcT(d.doc_type || ""))}</td><td>${esc(d.number || "—")}</td><td>${d.expiry_date ? fmtDate(d.expiry_date) + " " + badge(d.expiry_date) : "—"}</td><td>${d.file_path ? `<button type="button" class="btn btn-sm dc-chip" data-path="${esc(d.file_path)}" onclick="dcOpenDoc(this.dataset.path)">View</button>` : ""}</td></tr>`).join("") : `<tr><td colspan="5" class="muted" style="text-align:center;padding:16px">No documents match.</td></tr>`}</tbody>
     </table></div>
     <p class="muted" style="margin-top:8px;font-size:0.8rem">${view.length} / ${rows.length} documents shown</p>
   </div>`;

@@ -25,6 +25,7 @@ function dcPanel(id) { return document.getElementById("dcPanel-" + id); }
 function dcShowPanel(id) {
   const launch = document.getElementById("dcLaunch");
   launch.hidden = id !== "";
+  launch.style.display = id !== "" ? "none" : "";   // .role-grid sets display, which beats [hidden]
   DC_TILES.forEach(t => { const p = dcPanel(t.id); if (p) p.hidden = t.id !== id; });
   if (id === "trip" || id === "maint") {
     _dcMode = id;
@@ -59,7 +60,7 @@ function dcStartLauncher() {
   DC_TILES.forEach(t => {
     const panel = document.createElement("div");
     panel.id = "dcPanel-" + t.id; panel.hidden = true;
-    panel.innerHTML = `<div class="chart-head"><div><button type="button" class="btn btn-outline btn-sm" onclick="dcShowPanel('')">← Back</button></div>
+    panel.innerHTML = `<div class="chart-head"><div><button type="button" class="btn btn-primary btn-sm" onclick="dcShowPanel('')">← Back</button></div>
       <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="${t.icon}" data-icon-size="20"></i></span> ${t.title}</h2></div><div class="dc-slot"></div>`;
     main.appendChild(panel);
     const slot = panel.querySelector(".dc-slot");
