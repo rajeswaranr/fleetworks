@@ -168,14 +168,14 @@ window.dcLogStop = async function (tripId) {
 };
 
 // Loading / unloading places set up for the owner's projects (e.g. KRL, Palakkad → Tanjore, Madurai).
-let _dcPlaces = null;
-async function dcPlaces() {
-  if (!_dcPlaces) _dcPlaces = await fwCloud.authRpc("trip_place_options", {}).catch(() => null) || [];
-  return _dcPlaces;
+const _dcPlaces = {};   // per vehicle: the places of the project it is deployed to
+async function dcPlaces(vehId) {
+  if (!_dcPlaces[vehId]) _dcPlaces[vehId] = await fwCloud.authRpc("trip_place_options", { p_vehicle: vehId }).catch(() => null) || [];
+  return _dcPlaces[vehId];
 }
 async function dcApplyPlaces(host) {
   if (!host) return;
-  const places = await dcPlaces();
+  const places = await dcPlaces(_dcVeh.vehId);
   if (!places.length) return;
   const opts = roles => places.filter(p => roles.includes(p.site_role)).map(p => `<option value="${esc(p.name)}" label="${esc(p.project_name || "")}"></option>`).join("");
   host.insertAdjacentHTML("beforeend", `<datalist id="dcLoadList">${opts(["loading", "both"])}</datalist><datalist id="dcUnloadList">${opts(["unloading", "both"])}</datalist>`);
