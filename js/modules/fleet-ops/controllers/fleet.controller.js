@@ -810,8 +810,23 @@ function renderGettingStarted() {
     </button>`).join("");
 }
 
+// ---------- Loading / unloading log (drivers log these from the team portal) ----------
+async function renderTripStops() {
+  const el = document.getElementById("tripStopsTable");
+  if (!el || !(window.fwCloud && fwCloud.user())) return;
+  const org = typeof dbOrgId === "function" ? await dbOrgId() : null;
+  if (!org) return;
+  const rows = await fwCloud.authGet("trip_stops", `select=*,drivers(name)&org_id=eq.${org}&order=happened_at.desc&limit=100`).catch(() => null);
+  if (!rows) return;
+  el.innerHTML = rows.length ?
+    `<table class="chart-table-el"><thead><tr><th>When</th><th>Vehicle</th><th>Driver</th><th></th><th>Place</th><th>Material</th><th>Qty</th><th>Party</th></tr></thead><tbody>` +
+    rows.map(s => `<tr><td>${new Date(s.happened_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</td><td>${esc(((db.vehicles || []).find(v => typeof dbVehicleUuid === "function" && dbVehicleUuid(v.id) === s.vehicle_id) || {}).name || "—")}</td><td>${esc((s.drivers || {}).name || "—")}</td><td><span class="fw-badge ${s.kind === "loading" ? "soon" : "ok"}">${s.kind === "loading" ? "Loaded" : "Unloaded"}</span></td><td>${esc(s.place || "—")}</td><td>${esc(s.material || "—")}</td><td>${s.quantity != null ? esc(s.quantity + " " + (s.unit || "")) : "—"}</td><td>${esc(s.party || "—")}</td></tr>`).join("") + "</tbody></table>"
+    : "<p class='muted'>Nothing logged yet.</p>";
+}
+
 // ---------- Render: trips & revenue ----------
 function renderTrips() {
+  renderTripStops();
   const tbl = document.getElementById("tripsTable"), pt = document.getElementById("profitTable");
   if (!tbl || !pt) return;
   const trips = [...(db.trips || [])].sort((a, b) => b.date.localeCompare(a.date));

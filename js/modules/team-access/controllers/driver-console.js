@@ -45,6 +45,8 @@ const DC_TA = {
   "Petty expense — goes to the owner for approval": "சிறு செலவு — உரிமையாளர் அனுமதிக்கு செல்லும்", "Inspection — pre-trip / post-trip / weekly check": "பரிசோதனை — பயணத்திற்கு முன் / பின் / வாராந்திர",
   "Salary / payroll": "சம்பளம் / பேரோல்", "Paid to me (payroll)": "எனக்கு வழங்கப்பட்டது (பேரோல்)", "In progress": "நடக்கிறது", "Completed": "முடிந்தது", "Planned": "திட்டமிட்டது", "Cancelled": "ரத்து",
   "My trips": "என் பயணங்கள்", "Vehicle": "வாகனம்", "Route": "வழித்தடம்", "Status": "நிலை", "Search route": "வழித்தடத்தில் தேடு", "All vehicles": "அனைத்து வாகனங்கள்", "View": "பார்", "All types": "அனைத்து வகைகள்", "Search document": "ஆவணத்தில் தேடு", "documents shown": "ஆவணங்கள் காட்டப்படுகின்றன", "trips shown": "பயணங்கள் காட்டப்படுகின்றன", "Expired": "காலாவதியானது", "No trips match.": "பொருந்தும் பயணங்கள் இல்லை.", "No documents match.": "பொருந்தும் ஆவணங்கள் இல்லை.",
+  "Log loading / unloading": "ஏற்றம் / இறக்கம் பதிவு", "Loaded": "ஏற்றியது", "Unloaded": "இறக்கியது", "Place": "இடம்", "Party / customer": "பார்ட்டி / வாடிக்கையாளர்", "Material": "சரக்கு", "Quantity": "அளவு",
+  "Save loading / unloading": "ஏற்றம் / இறக்கத்தைச் சேமி", "Loading / unloading log": "ஏற்றம் / இறக்கம் பதிவு", "No loading or unloading logged yet.": "ஏற்றம் / இறக்கம் பதிவு இல்லை.", "Saved to the trip log.": "பயணப் பதிவில் சேமிக்கப்பட்டது.", "Enter the place, material or quantity.": "இடம், சரக்கு அல்லது அளவை உள்ளிடவும்.", "Note (optional)": "குறிப்பு (விருப்பம்)",
   "Change password": "கடவுச்சொல் மாற்று", "New password": "புதிய கடவுச்சொல்", "Confirm new password": "புதிய கடவுச்சொல்லை உறுதிசெய்", "Save password": "கடவுச்சொல்லைச் சேமி",
   "Password changed. Use it next time you sign in.": "கடவுச்சொல் மாற்றப்பட்டது. அடுத்த முறை இதைப் பயன்படுத்தவும்."
 };
@@ -102,7 +104,6 @@ async function dcActiveTrip(vehId) {
 }
 
 function dcTripCard(trip, lastKm) {
-  const inp = "padding:9px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit";
   if (!trip) return `
     <p class="muted" style="font-size:0.8rem;margin-bottom:6px"><strong>Start a trip</strong></p>
     <div class="form-row"><input type="text" id="dcFrom" placeholder="From" /><input type="text" id="dcTo" placeholder="To" /></div>
@@ -126,7 +127,7 @@ function dcRequestCard(trip) {
   return `
     <p class="muted" style="font-size:0.8rem;margin-bottom:6px"><strong>Ask the owner</strong></p>
     <div class="form-row">
-      <select id="dcReqType" style="padding:9px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit">
+      <select id="dcReqType" style="${DC_SEL}">
         <option value="diesel">Need diesel</option><option value="advance">Need advance</option><option value="toll">Need toll money</option>
       </select>
       <input type="number" id="dcReqAmt" placeholder="₹ amount" min="1" />
@@ -134,6 +135,37 @@ function dcRequestCard(trip) {
     <input type="text" id="dcReqReason" placeholder="Reason (optional)" style="width:100%;margin-top:6px;box-sizing:border-box" />
     <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="dcSendRequest('${trip.id}')">Send request</button>`;
 }
+
+function dcStopCard(trip) {
+  if (!trip || trip.status !== "started") return "";
+  return `
+    <p class="muted" style="font-size:0.8rem;margin-bottom:6px"><strong>Log loading / unloading</strong></p>
+    <div class="form-row">
+      <select id="dcStopKind" style="${DC_SEL}"><option value="loading">Loaded</option><option value="unloading">Unloaded</option></select>
+      <input type="text" id="dcStopPlace" placeholder="Place" />
+    </div>
+    <div class="form-row" style="margin-top:6px"><input type="text" id="dcStopParty" placeholder="Party / customer" /><input type="text" id="dcStopMaterial" placeholder="Material" /></div>
+    <div class="form-row" style="margin-top:6px">
+      <input type="number" id="dcStopQty" placeholder="Quantity" min="0" step="0.01" />
+      <select id="dcStopUnit" style="${DC_SEL}"><option>tonnes</option><option>kg</option><option>litres</option><option>bags</option><option>units</option></select>
+    </div>
+    <input type="text" id="dcStopNote" placeholder="Note (optional)" style="width:100%;margin-top:6px;box-sizing:border-box" />
+    <button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="dcLogStop('${trip.id}')">Save loading / unloading</button>`;
+}
+
+window.dcLogStop = async function (tripId) {
+  clearTvErr();
+  const v = id => (document.getElementById(id).value || "").trim();
+  const qty = v("dcStopQty");
+  if (!v("dcStopPlace") && !v("dcStopMaterial") && !qty) return tvErr("Enter the place, material or quantity.");
+  const ok = await fwCloud.authInsert("trip_stops", {
+    org_id: ORG, trip_id: tripId, vehicle_id: _dcVeh.vehId, driver_id: await dcDriverId(),
+    kind: v("dcStopKind"), place: v("dcStopPlace") || null, party: v("dcStopParty") || null, material: v("dcStopMaterial") || null,
+    quantity: qty ? +qty : null, unit: qty ? v("dcStopUnit") : null, note: v("dcStopNote") || null,
+  });
+  if (!ok) return tvErr("Could not save — check your access for this vehicle.");
+  toast("Saved to the trip log."); dcRefresh();
+};
 
 let _dcVeh = null;   // { vehId, ... } of the vehicle open in the modal
 
@@ -198,6 +230,7 @@ async function dcSections(vehId) {
   const veh = _vehRows[vehId] || {};
   const vault = [["Insurance", veh.insurance_till], ["PUC", veh.puc_till], ["Fitness", veh.fitness_till], ["Permit", veh.permit_till], ["Road Tax", veh.roadtax_till]]
     .filter(([, d]) => d).map(([k, d]) => ({ doc_type: dcT(k), expiry_date: d })).concat(docs || []);
+  const stops = await fwCloud.authGet("trip_stops", `select=*&vehicle_id=eq.${vehId}&order=happened_at.desc&limit=15`).catch(() => null);
   const lastKm = done && done[0] && done[0].odo_end ? Math.round(done[0].odo_end) : "";
   const badge = s => `<span class="fw-badge ${s === "paid" || s === "approved" ? "ok" : s === "rejected" ? "overdue" : "soon"}">${dcT(s)}</span>`;
   const box = t => `<div class="wf-form" style="margin:14px 0">${t}</div>`;
@@ -205,7 +238,9 @@ async function dcSections(vehId) {
   const row = t => `<div class="pred-row" style="padding:8px 4px"><div class="pred-detail" style="font-size:0.85rem">${t}</div></div>`;
   const expBadge = d => { const n = daysUntil(d); return n == null ? "" : `<span class="fw-badge ${n < 0 ? "overdue" : n <= 30 ? "soon" : "ok"}">${n < 0 ? "Expired" : n + " d"}</span>`; };
 
-  return box(dcTripCard(trip, lastKm)) + box(dcRequestCard(trip)) +
+  const stopBox = dcStopCard(trip);
+  return box(dcTripCard(trip, lastKm)) + (stopBox ? box(stopBox) : "") + box(dcRequestCard(trip)) +
+    h3("Loading / unloading log") + (stops && stops.length ? stops.map(s => row(`<span class="fw-badge ${s.kind === "loading" ? "soon" : "ok"}">${dcT(s.kind === "loading" ? "Loaded" : "Unloaded")}</span> ${esc(s.place || "—")}${s.material ? " · " + esc(s.material) : ""}${s.quantity != null ? " · " + s.quantity + " " + esc(s.unit || "") : ""}${s.party ? " · " + esc(s.party) : ""} · ${new Date(s.happened_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`)).join("") : `<p class="muted" style="font-size:0.85rem">No loading or unloading logged yet.</p>`) +
     h3("My requests") + (reqs && reqs.length ? reqs.map(r => row(`${badge(r.status)} <strong>${dcT(DC_REQ[r.request_type] || r.request_type)}</strong> ${fmtINR(r.paid_amount || r.amount)}${r.reason ? " · " + esc(r.reason) : ""} · ${fmtDate(r.created_at)}`)).join("") : `<p class="muted" style="font-size:0.85rem">No requests yet.</p>`) +
     h3("Recent trips") + (done && done.length ? done.map(t => row(`${esc(t.from_loc || "—")} → ${esc(t.to_loc || "—")} · ${Math.round(t.km || 0)} km · ${fmtDate(t.actual_end || t.trip_date)}`)).join("") : `<p class="muted" style="font-size:0.85rem">No trips yet.</p>`) +
     h3("Vehicle document vault") + (vault.length ? vault.map(d => row(`<strong>${esc(d.doc_type || "")}</strong>${d.number ? " · " + esc(d.number) : ""}${d.expiry_date ? " · " + dcT("Expires") + " " + fmtDate(d.expiry_date) + " " + expBadge(d.expiry_date) : ""}${d.note ? " · " + esc(d.note) : ""}`)).join("") : `<p class="muted" style="font-size:0.85rem">No documents recorded for this vehicle yet.</p>`);
@@ -277,7 +312,7 @@ function dcKhataPaint() {
       <label>To<input type="date" id="dcKTo" value="${esc(f.to)}" onchange="dcKhataSet('to',this.value)" /></label>
     </div>
     <div class="form-row" style="margin-bottom:10px">
-      <select id="dcKType" onchange="dcKhataSet('type',this.value)" style="padding:9px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit">
+      <select id="dcKType" onchange="dcKhataSet('type',this.value)" style="${DC_SEL}">
         <option value="">All</option><option value="advance">Advance received</option><option value="expense">Expense</option><option value="settlement">Returned / settled</option><option value="salary">Salary / payroll</option>
       </select>
       <input type="text" id="dcKQ" placeholder="Search note" value="${esc(f.q)}" oninput="dcKhataSet('q',this.value,true)" />
