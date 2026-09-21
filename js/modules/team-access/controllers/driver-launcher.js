@@ -11,7 +11,7 @@ const DC_TILES = [
   { id: "maint", icon: "wrench", title: "Maintenance",     text: "Vehicle details, service, problems, inspections and documents." },
 ];
 Object.assign(DC_TA, {
-  "Trip management": "பயண மேலாண்மை", "Khata book": "கணக்கு புத்தகம்", "Maintenance": "பராமரிப்பு", "← Back": "← பின்", "Open →": "திற →",
+  "Trip management": "பயண மேலாண்மை", "Khata book": "கணக்கு புத்தகம்", "Maintenance": "பராமரிப்பு", "← Back": "← பின்", "Open →": "திற →", "Start trip": "பயணம் தொடங்கு", "Update trip": "பயணத்தைப் புதுப்பி", "Close trip": "பயணம் முடி", "In progress": "நடக்கிறது",
   "Start and end trips, log loading and unloading, ask for diesel, advance or toll.": "பயணம் தொடங்கு/முடி, ஏற்றம்/இறக்கம் பதிவு, டீசல், முன்பணம் அல்லது டோல் கேள்.",
   "Your advances, expenses and payroll, with filters.": "உங்கள் முன்பணம், செலவுகள் மற்றும் சம்பளம் — வடிகட்டிகளுடன்.",
   "Vehicle details, service, problems, inspections and documents.": "வாகன விவரங்கள், சேவை, பிரச்சினைகள், பரிசோதனைகள் மற்றும் ஆவணங்கள்.",
@@ -30,10 +30,40 @@ function dcShowPanel(id) {
   if (id === "trip" || id === "maint") {
     _dcMode = id;
     dcPanel(id).querySelector(".dc-slot").prepend(document.getElementById("teamVehicleList"));
+    if (id === "trip") dcRenderCardActions();
   }
   window.scrollTo(0, 0);
 }
 window.dcShowPanel = dcShowPanel;
+
+// Trip management: each vehicle card shows the action that fits its trip: Start trip,
+// or Update trip and Close trip once a trip is running.
+async function dcRenderCardActions() {
+  if (ROLE !== "driver" || _dcMode !== "trip") return;
+  const cards = [...document.querySelectorAll("#teamVehicleList .dc-veh")];
+  if (!cards.length) return;
+  const rows = await fwCloud.authGet("trips", `select=id,vehicle_id,status,from_loc,to_loc&org_id=eq.${ORG}&status=in.(planned,assigned,acknowledged,started)&odo_end=is.null&order=created_at.desc`).catch(() => null) || [];
+  const byVeh = {};
+  rows.forEach(t => { if (!byVeh[t.vehicle_id]) byVeh[t.vehicle_id] = t; });
+  cards.forEach(c => {
+    const box = c.querySelector(".dc-actions"), t = byVeh[c.dataset.veh], canWrite = c.dataset.access === "update";
+    if (!box || !canWrite) return;
+    const btn = (a, label, cls) => `<button type="button" class="btn ${cls} btn-block" onclick="event.stopPropagation(); dcTripAction('${a}', this)">${label}</button>`;
+    box.innerHTML = t && t.status === "started"
+      ? `<p class="muted"><span class="fw-badge soon">In progress</span> ${esc(t.from_loc || "—")} → ${esc(t.to_loc || "—")}</p>${btn("update", "Update trip", "btn-primary")}<p></p>${btn("close", "Close trip", "dc-chip")}`
+      : btn("start", "Start trip", "btn-primary");
+    dcTranslate(box);
+  });
+}
+window.dcRenderCardActions = dcRenderCardActions;
+
+// Opens the vehicle and takes the driver straight to the part of the form for the chosen action.
+window.dcTripAction = async function (act, el) {
+  const c = el.closest(".dc-veh");
+  await openVehicle(c.dataset.veh, c.dataset.ext, c.dataset.name, c.dataset.access);
+  const t = document.getElementById({ start: "dcStartKm", update: "dcStopKind", close: "dcEndKm" }[act]);
+  if (t) { t.scrollIntoView({ block: "center" }); if (act !== "update") t.focus(); }
+};
 
 function dcStartLauncher() {
   if (ROLE !== "driver" || _dcLauncherReady) return;

@@ -297,6 +297,7 @@ async function dcRefresh() {
   host.innerHTML = await dcSections(_dcVeh.vehId, _dcVeh.mode);
   await dcApplyPlaces(host);
   dcTranslate(host);
+  if (window.dcRenderCardActions) dcRenderCardActions();
 }
 
 // A driver opens a vehicle from either Trip management or Maintenance and sees only that side.

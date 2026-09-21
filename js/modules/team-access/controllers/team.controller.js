@@ -60,12 +60,12 @@ async function loadVehicles(portalVehicles) {
     const stMeta = ops ? (OP_STATUS_META[ops.op_status] || {}) : null;
     const statusBadge = stMeta ? `<span class="fw-badge ${stMeta.cls}" style="font-size:0.72rem">${stMeta.label}</span>` : "";
     const driverLine = ops?.current_driver_name ? `<span class="muted" style="font-size:0.78rem">Driver: ${esc(ops.current_driver_name)}</span>` : "";
-    return `<div class="chart-card" style="cursor:pointer" onclick="openVehicle(${escAttr(v.id)},${escAttr(v.ext_id)},${escAttr(v.name)},${escAttr(access)})">
+    return `<div class="chart-card dc-veh" data-veh="${esc(v.id)}" data-ext="${esc(v.ext_id)}" data-name="${esc(v.name)}" data-access="${esc(access)}" style="cursor:pointer" onclick="openVehicle(${escAttr(v.id)},${escAttr(v.ext_id)},${escAttr(v.name)},${escAttr(access)})">
       <div class="chart-head" style="margin-bottom:6px"><div>
         <h2 style="font-size:1.05rem"><strong>${esc(v.name)}</strong> ${statusBadge}</h2>
         <p class="muted">${esc(v.type || "")} ${driverLine}</p>
       </div></div>
-      <button type="button" class="btn btn-primary btn-block" style="margin-bottom:10px">${access === "update" ? "Update" : "View"} →</button>
+      <div class="dc-actions" style="margin-bottom:10px"><button type="button" class="btn btn-primary btn-block">${access === "update" ? "Update" : "View"} →</button></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${complianceBadge("Insurance", v.insurance_till)}${complianceBadge("PUC", v.puc_till)}${complianceBadge("Fitness", v.fitness_till)}${complianceBadge("Permit", v.permit_till)}${complianceBadge("Road Tax", v.roadtax_till)}
       </div>
@@ -413,7 +413,7 @@ window.tvSaveInspection = async function (vehId) {
   else tvErr("Could not save — check your access for this vehicle.");
 };
 
-document.getElementById("teamVehModalClose").addEventListener("click", () => { document.getElementById("teamVehModal").style.display = "none"; });
+document.getElementById("teamVehModalClose").addEventListener("click", () => { document.getElementById("teamVehModal").style.display = "none"; if (window.dcRenderCardActions) dcRenderCardActions(); });
 
 async function unlock() {
   if (window.FWTeamAccess) {
