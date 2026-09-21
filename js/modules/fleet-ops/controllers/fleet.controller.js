@@ -39,6 +39,10 @@ function saveStore() {
   if (window.fwCloud) window.fwCloud.push(db);
 }
 let db = loadStore();
+// The feature modules (dashboards, fin, iq, maintenance...) read window.db, but a top-level
+// `let` is not a window property, so they always saw no data. A getter (not a copy)
+// keeps them pointed at the live object even when db is reassigned by loadStore().
+Object.defineProperty(window, "db", { get: () => db, configurable: true });
 
 // ---------- Utils ----------
 const PAL = {
@@ -2220,10 +2224,10 @@ let _vehSiteMap  = {};
 const _vstatus = {};
 
 // ── global dashboard filter ────────────────────────────────────────────────
-let _dashFilter = { by: "all", value: "", label: "", project: "", site: "", supervisor: "", driver: "" };
+let _dashFilter = { by: "all", value: "", label: "", project: "", site: "", vehicle: "" };
 
-const _EMPTY_DASH_FILTER = { by: "all", value: "", label: "", project: "", site: "", supervisor: "", driver: "" };
-const _DASH_KEYS = ["project", "site", "supervisor", "driver"];
+const _EMPTY_DASH_FILTER = { by: "all", value: "", label: "", project: "", site: "", vehicle: "" };
+const _DASH_KEYS = ["project", "site", "vehicle"];
 
 function siteInProject(siteId, projectId) {
   return typeof _projSites !== "undefined" && (_projSites[projectId] || []).some(l => l.site_id === siteId);
@@ -2233,19 +2237,21 @@ function dashFilterLabel() {
   const f = _dashFilter, parts = [];
   if (f.project) parts.push("Project: " + ((typeof projectById === "function" && projectById(f.project)) || {}).name);
   if (f.site) parts.push("Site: " + ((_sites.find(s => s.id === f.site)) || {}).name);
-  if (f.supervisor) parts.push("Supervisor: " + f.supervisor);
-  if (f.driver) parts.push("Driver: " + ((db.drivers.find(d => d.id === f.driver)) || {}).name);
+  if (f.vehicle) parts.push("Vehicle: " + ((db.vehicles.find(v => v.id === f.vehicle)) || {}).name);
   return parts.join(" · ");
 }
 
-// Project, Site, Supervisor and Driver combine: every one that is set narrows
-// the vehicle list. Choosing a project limits the Site list to its own sites.
+// Project, Site and Vehicle combine: every one that is set narrows the vehicle
+// list. Choosing a project limits the Site list to its own sites, and Project and
+// Site limit the Vehicle list to the trucks deployed there.
 window.setDashFilter = function(by, value) {
   value = String(value || "").replace(/^proj:/, "");
   if (by === "all") _dashFilter = { ..._EMPTY_DASH_FILTER };
   else if (_DASH_KEYS.includes(by)) {
     _dashFilter[by] = value;
     if (by === "project" && value && _dashFilter.site && !siteInProject(_dashFilter.site, value)) _dashFilter.site = "";
+    // A chosen vehicle that is not in the new project/site scope no longer applies.
+    if (_dashFilter.vehicle && !vehiclesInScope().some(v => v.id === _dashFilter.vehicle)) _dashFilter.vehicle = "";
   }
   _dashFilter.by = _DASH_KEYS.find(k => _dashFilter[k]) || "all";
   _dashFilter.value = _dashFilter.by === "all" ? "" : _dashFilter[_dashFilter.by];
@@ -2254,6 +2260,12 @@ window.setDashFilter = function(by, value) {
   syncFilterBarUI();
   renderVehicleStatusBoard();
   renderDashboard();
+  if (window.renderGfDash) renderGfDash();
+};
+
+// Set of vehicle ids the filter bar currently allows, or null when nothing is filtered.
+window.fwDashScope = function () {
+  return _dashFilter.by === "all" ? null : new Set(filteredVehicles().map(v => v.id));
 };
 
 function syncFilterBarUI() {
@@ -2265,39 +2277,25 @@ function syncFilterBarUI() {
   const set = (ids, v) => ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = v; });
   set(["fltProject", "fltProjectFin"], f.project);
   set(["fltSite", "fltSiteFin"], f.site);
-  set(["fltSupervisor", "fltSupervisorFin"], f.supervisor);
-  set(["fltDriver", "fltDriverFin"], f.driver);
+  set(["fltVehicle", "fltVehicleFin"], f.vehicle);
   ["fltLabel", "fltLabelFin"].forEach(id => {
     const el = document.getElementById(id); if (el) el.textContent = f.label;
   });
 }
 
-function filteredVehicles() {
+// Vehicles deployed to the chosen project and/or site (all vehicles when neither is set).
+function vehiclesInScope() {
   const f = _dashFilter;
-  let list = db.vehicles;
-  if (f.project || f.site) {
-    const ids = new Set(Object.values(_siteVeh).flat()
-      .filter(r => !r.removed_date && (!f.project || r.project_id === f.project) && (!f.site || r.site_id === f.site))
-      .map(r => r.vehicle_id));
-    list = list.filter(v => ids.has(v.dbId));
-  }
-  if (f.supervisor) {
-    const value = f.supervisor;
-    const siteIds = _sites.filter(s => s.supervisor_name === value || s.supervisor_user_id === value).map(s => s.id);
-    const vDbIds  = new Set();
-    siteIds.forEach(sid => (_siteVeh[sid] || []).filter(r => !r.removed_date).forEach(r => vDbIds.add(r.vehicle_id)));
-    const member = _teamRoster.find(m => m.role === "supervisor" && (m.user_id === value || m.email === value));
-    const extIds = new Set(member?.assigned_vehicles || []);
-    list = list.filter(v => vDbIds.has(v.dbId) || extIds.has(v.id));
-  }
-  if (f.driver) {
-    const value = f.driver;
-    const d = db.drivers.find(d => d.id === value || d.name === value);
-    const member = _teamRoster.find(m => m.role === "driver" && (m.user_id === value || m.email === value));
-    const extIds = new Set(member?.assigned_vehicles || []);
-    list = list.filter(v => (d && d.vehicleId === v.id) || extIds.has(v.id));
-  }
-  return list;
+  if (!f.project && !f.site) return db.vehicles;
+  const ids = new Set(Object.values(_siteVeh).flat()
+    .filter(r => !r.removed_date && (!f.project || r.project_id === f.project) && (!f.site || r.site_id === f.site))
+    .map(r => r.vehicle_id));
+  return db.vehicles.filter(v => ids.has(v.dbId));
+}
+
+function filteredVehicles() {
+  const list = vehiclesInScope();
+  return _dashFilter.vehicle ? list.filter(v => v.id === _dashFilter.vehicle) : list;
 }
 
 // ── data load ──────────────────────────────────────────────────────────────
@@ -2353,24 +2351,13 @@ function populateFilterDropdowns() {
   const noSites = !!f.project && !siteList.length;
   ["fltSite", "fltSiteFin"].forEach(id => { const el = document.getElementById(id); if (el) { el.disabled = noSites; el.title = noSites ? "This project has no sites linked yet" : ""; } });
 
-  const sups = [
-    ..._sites.filter(s => s.supervisor_name).map(s => ({ value: s.supervisor_name, label: s.supervisor_name })),
-    ..._teamRoster.filter(m => m.role === "supervisor").map(m => ({ value: m.user_id, label: m.email || "Supervisor" })),
-  ].filter((item, index, all) => all.findIndex(x => x.value === item.value) === index);
-  const supOpts = sups.map(s => `<option value="${esc(s.value)}">${esc(s.label)}</option>`).join("");
-  ["fltSupervisor", "fltSupervisorFin"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el.innerHTML = `<option value="">— Supervisor —</option>${supOpts}`; el.value = f.supervisor; }
-  });
-
-  const drivers = [
-    ...db.drivers.map(d => ({ value: d.id, label: d.name })),
-    ..._teamRoster.filter(m => m.role === "driver").map(m => ({ value: m.user_id, label: m.email || "Driver" })),
-  ].filter((item, index, all) => all.findIndex(x => x.value === item.value) === index);
-  const drvOpts = drivers.map(d => `<option value="${esc(d.value)}">${esc(d.label)}</option>`).join("");
-  ["fltDriver","fltDriverFin"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) { el.innerHTML = `<option value="">— Driver —</option>${drvOpts}`; el.value = f.driver; }
+  // Vehicles: only those deployed to the chosen project/site.
+  const scope = vehiclesInScope();
+  const vehOpts = scope.map(v => `<option value="${esc(v.id)}">${esc(v.name)}</option>`).join("");
+  ["fltVehicle", "fltVehicleFin"].forEach(id => {
+    const el = document.getElementById(id); if (!el) return;
+    el.innerHTML = `<option value="">${f.project || f.site ? "All vehicles here" : "All vehicles"}</option>${vehOpts}`;
+    el.value = f.vehicle;
   });
 }
 

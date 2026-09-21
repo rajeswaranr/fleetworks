@@ -44,7 +44,17 @@
   }
 
   /* ---- safe db access ---- */
-  function fl(key) { return (window.db && window.db[key]) || []; }
+  /* The dashboard filter bar (Project / Site / Vehicle) narrows every list that
+     belongs to a vehicle: expenses, fuel, inspections, trips and so on. Drivers
+     and other non-vehicle lists are left whole. */
+  function fl(key) {
+    const arr = (window.db && window.db[key]) || [];
+    const scope = window.fwDashScope ? window.fwDashScope() : null;
+    if (!scope) return arr;
+    if (key === "vehicles") return arr.filter(function (v) { return scope.has(v.id); });
+    if (key === "drivers") return arr;
+    return arr.filter(function (x) { return !x || x.vehicleId === undefined || scope.has(x.vehicleId); });
+  }
 
   /* ---- formatting helpers ---- */
   const fmt = window.fmtINR ? window.fmtINR : (v) => "₹" + Math.round(v).toLocaleString("en-IN");

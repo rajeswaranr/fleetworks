@@ -145,7 +145,7 @@ function projectCard(p, historyMode) {
       ${historyMode ? `<button class="btn btn-outline btn-sm" onclick="reopenProject('${p.id}')">${FWIcon("check", { size: 13 })} Reopen</button>` : `<button class="btn btn-outline btn-sm" onclick="openDeployVehicles('${p.id}')">${FWIcon("truck", { size: 13 })} Vehicles</button>`}
       <button class="link-btn" onclick="openProjectReport('${p.id}')">${FWIcon("chartBar", { size: 13 })} Income &amp; expenses</button>
       ${historyMode ? "" : `<button class="link-btn" onclick="archiveProject('${p.id}')">${FWIcon("document", { size: 13 })} Archive</button>`}
-      <button class="link-btn" style="color:#ef4444;margin-left:auto" onclick="deleteProject('${p.id}')">${FWIcon("trash", { size: 13 })} Delete</button>
+      <button class="link-btn danger" style="margin-left:auto" onclick="deleteProject('${p.id}')">${FWIcon("trash", { size: 13 })} Delete</button>
     </div>
   </div>`;
 }
@@ -284,7 +284,7 @@ function projectSitePickerInit(linked) {
         <select name="siterole_${id}" data-site="${id}" style="width:auto;min-width:170px;height:34px;font-size:0.85rem">
           ${Object.entries(SITE_ROLE_LABEL).map(([k, v]) => `<option value="${k}"${(roles[id] || "operating") === k ? " selected" : ""}>${v}</option>`).join("")}
         </select>
-        <button type="button" class="link-btn" style="color:#ef4444" data-remove="${id}">Remove</button>
+        <button type="button" class="link-btn danger" data-remove="${id}">Remove</button>
       </div>`;
     }).join("");
   };
@@ -321,7 +321,7 @@ window.projectAddNewSiteRow = function () {
     <label style="flex:1;min-width:150px;font-size:0.8rem">Role
       <select name="newSiteRole_${i}">${Object.entries(SITE_ROLE_LABEL).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
     </label>
-    <button type="button" class="link-btn" style="color:#ef4444;margin-bottom:10px" onclick="this.closest('.proj-newsite').remove()">Remove</button>`;
+    <button type="button" class="link-btn danger" style="margin-bottom:10px" onclick="this.closest('.proj-newsite').remove()">Remove</button>`;
   box.appendChild(row);
   row.querySelector("input").focus();
 };
@@ -486,7 +486,7 @@ function deploymentRowsHtml(list) {
         <span class="muted">${site ? "@ " + esc(site.name) : ""}${p ? " · " + esc(p.name) : ""}${basis ? " · " + esc(basis) : ""}${r.rate_per_unit ? " " + fmtINR(r.rate_per_unit) : ""} · since ${fmtDate(r.assigned_date)}</span></span>
       <span style="margin-left:auto;display:flex;gap:10px">
         <button class="link-btn" onclick="openDeploymentModal('${v ? v.id : ""}','${r.id}')">Edit</button>
-        <button class="link-btn" style="color:#ef4444" onclick="removeDeployment('${r.id}')">Remove</button>
+        <button class="link-btn danger" onclick="removeDeployment('${r.id}')">Remove</button>
       </span></div>`;
   }).join("") + `</div>`;
 }
@@ -541,7 +541,7 @@ window.openDeploymentModal = function (vehLocalId, svaId) {
       <label>${cur ? "Deployed since" : "From date"}<input type="date" name="fromDate" value="${cur?.assigned_date || today()}" /></label>
       <label>Notes<input type="text" name="notes" value="${escAttr(cur?.notes || "")}" placeholder="optional" /></label>
     </div>
-    ${cur ? `<p style="margin:10px 0 0"><button type="button" class="link-btn" style="color:#ef4444" onclick="closeEditModal();removeDeployment('${cur.id}')">Remove from site / project</button></p>` : ""}`,
+    ${cur ? `<p style="margin:10px 0 0"><button type="button" class="link-btn danger" onclick="closeEditModal();removeDeployment('${cur.id}')">Remove from site / project</button></p>` : ""}`,
     async fd => {
       const orgId = await dbOrgId(); if (!orgId) throw new Error("Not signed in.");
       if (!fd.siteId) throw new Error("Pick a site.");

@@ -1243,3 +1243,7 @@ input[style*="height"]:not([type="checkbox"]):not([type="radio"]) {
   border: 1px dashed var(--line); border-radius: 8px; padding: 9px 10px; cursor: pointer; text-align: left;
 }
 .fw-multi-create:hover { background: var(--bg-alt); }
+
+/* Destructive text button (Remove, Delete). */
+.link-btn.danger { color: var(--red, #dc2626); }
+.link-btn.danger:hover { color: #b91c1c; }
