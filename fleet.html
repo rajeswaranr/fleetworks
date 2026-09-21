@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="css/design-system.css" />
   <link rel="stylesheet" href="css/themes.css" />
+  <link rel="stylesheet" href="css/safe-command.css" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icons/icon-96.png" />
   <meta name="theme-color" content="#0f1e33" />
@@ -279,6 +280,7 @@
         <!-- ======= WORKSPACE: FleetSafe — safety, telematics, geofencing ======= -->
         <div data-ws="safe" hidden>
         <div class="side-pillar safe"><span class="pp"></span>Fleet<em>Safe</em></div>
+        <button class="side-item tab-btn" data-tab="safehome"><i data-icon="gauge"></i><span>Command Centre</span></button>
         <button class="side-item tab-btn" data-tab="fleetview"><i data-icon="mapPin"></i><span>Fleet View</span></button>
         <button class="side-item tab-btn" data-tab="safety"><i data-icon="shieldCheck"></i><span>Safety &amp; Coaching</span></button>
         <button class="side-item tab-btn" data-tab="opscentre"><i data-icon="network"></i><span>Operation Centre</span></button>
@@ -956,6 +958,8 @@
       </section>
 
       <!-- ======= DRIVER SAFETY — scores, event review, coaching ======= -->
+      <section class="tab-panel" id="tab-safehome"><div id="safeCmdRoot"></div></section>
+
       <section class="tab-panel" id="tab-safety">
 
         <div class="dash-toolbar">
@@ -2911,6 +2915,7 @@
 
   <!-- Section-Specific Dashboards -->
   <script src="js/modules/fleet-safe/fleet-safe-dashboard.controller.js"></script>
+  <script src="js/modules/fleet-safe/safety-command.js"></script>
   <script src="js/modules/fleet-safe/tpms-safety.controller.js"></script>
   <script src="js/modules/fleet-safe/cold-chain-safety.controller.js"></script>
   <script src="js/utils/export-utility.js"></script>

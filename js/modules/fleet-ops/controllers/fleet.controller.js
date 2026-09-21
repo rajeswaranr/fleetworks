@@ -5114,6 +5114,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "tyres") loadTyreManager();
   if (tabName === "opscentre") loadOpsCentre(); else stopOpsCentre();
   if (tabName === "safety") loadSafety();
+  if (tabName === "safehome" && window.SafeCommand) SafeCommand.open();
   if (tabName === "fleetview") loadFleetView();
   if (tabName === "fueldash") loadFuelDash();
   if (tabName === "insuredash" || tabName === "policies" || tabName === "claims") loadInsure();
@@ -6077,7 +6078,7 @@ activateTabFromHash();
 // Home hub cards open their workspace and land on its dashboard
 document.querySelectorAll(".hub-card").forEach(c => c.addEventListener("click", () => {
   const target = { ops: "overview", fin: "fin", ai: "analytics",
-                   safe: "fleetview", care: "insuredash", fix: "garages" }[c.dataset.hub];
+                   safe: "safehome", care: "insuredash", fix: "garages" }[c.dataset.hub];
   document.querySelector(`#tabBar .tab-btn[data-tab="${target}"]`)?.click();
 }));
 if (!activateTabFromHash()) setWorkspace("home");
