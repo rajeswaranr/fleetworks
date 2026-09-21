@@ -3348,9 +3348,38 @@ function renderDocuments() {
         <td>${esc(d.docType)}</td>
         <td>${d.number ? esc(d.number) : "<span class='muted'>—</span>"}</td>
         <td>${d.expiryDate ? fmtDate(d.expiryDate) + " " : ""}${badge}</td>
-        <td><button class="link-btn" onclick="openEditDocument('${d.id}')">Edit</button> <button class="icon-btn" title="Delete" onclick="deleteDocument('${d.id}')">${FWIcon("trash", { size: 16, cls: "ic-danger" })}</button></td></tr>`;
+        <td>${d.filePath ? `<button class="link-btn" onclick="viewDocumentFile('${d.id}')">View file</button> ` : (d.entityType === "vehicle" ? `<button class="link-btn" onclick="attachDocumentFile('${d.id}')">Attach file</button> ` : "")}<button class="link-btn" onclick="openEditDocument('${d.id}')">Edit</button> <button class="icon-btn" title="Delete" onclick="deleteDocument('${d.id}')">${FWIcon("trash", { size: 16, cls: "ic-danger" })}</button></td></tr>`;
     }).join("") + "</tbody></table>"
     : "<p class='muted'>No documents stored yet. Add your first RC, insurance or permit below — expiries will show on the Compliance Radar.</p>";
+}
+// ---- Document files: private "vehicle-docs" bucket, <org>/<vehicle>/<doc>-<name> ----
+async function uploadDocumentFile(doc, file) {
+  if (!doc || doc.entityType !== "vehicle" || !/^[0-9a-f-]{36}$/.test(doc.id)) return false;
+  if (file.size > 10 * 1024 * 1024) { toast("That file is over 10 MB.", "err"); return false; }
+  const org = await dbOrgId(), veh = dbVehicleUuid(doc.entityId);
+  if (!org || !veh) return false;
+  const path = `${org}/${veh}/${doc.id}-${file.name.replace(/[^A-Za-z0-9._-]+/g, "_").slice(-80)}`;
+  if (!(await fwCloud.uploadFile("vehicle-docs", path, file))) return false;
+  if (!(await fwCloud.authPatchChecked(`documents?id=eq.${doc.id}`, { file_path: path }))) return false;
+  doc.filePath = path;
+  return true;
+}
+function attachDocumentFile(id) {
+  const doc = db.documents.find(x => x.id === id);
+  if (!doc) return;
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "application/pdf,image/jpeg,image/png,image/webp";
+  inp.onchange = async () => {
+    if (!inp.files[0]) return;
+    if (await uploadDocumentFile(doc, inp.files[0])) { renderDocuments(); toast("File attached."); }
+    else toast("Could not attach the file — check the type (PDF or photo) and size, then try again.", "err");
+  };
+  inp.click();
+}
+async function viewDocumentFile(id) {
+  const doc = db.documents.find(x => x.id === id);
+  const url = doc && doc.filePath ? await fwCloud.signUrl("vehicle-docs", doc.filePath, 300) : null;
+  if (url) window.open(url, "_blank", "noopener"); else toast("Could not open the file.", "err");
 }
 function openEditDocument(id) {
   const d = db.documents.find(x => x.id === id);
@@ -4835,6 +4864,10 @@ document.getElementById("documentForm").addEventListener("submit", async e => {
     db.documents.push(saved);
   } else {
     db.documents.push({ id: uid(), ...d });
+  }
+  const docFile = fd.docFile && fd.docFile.size ? fd.docFile : null;
+  if (docFile && !(await uploadDocumentFile(db.documents[db.documents.length - 1], docFile))) {
+    toast("Document saved, but the file could not be attached — use Attach file on its row.", "err");
   }
   saveStore(); e.target.reset(); fillDocEntitySelect();
   renderDocuments(); renderRadar(); renderOverview();

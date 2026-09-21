@@ -494,7 +494,7 @@ function dbRowToDocument(row, entityExtId) {
     id: row.id, entityType,
     entityId: entityExtId !== undefined ? entityExtId :
       ((entityType === "vehicle" ? (row.vehicles ? row.vehicles.ext_id : "") : (row.drivers ? row.drivers.ext_id : "")) || ""),
-    docType: row.doc_type, number: row.number || undefined,
+    docType: row.doc_type, number: row.number || undefined, filePath: row.file_path || undefined,
     issueDate: row.issue_date || undefined, expiryDate: row.expiry_date || undefined, note: row.note || undefined,
   };
 }

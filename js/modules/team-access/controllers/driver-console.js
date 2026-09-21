@@ -43,6 +43,8 @@ const DC_TA = {
   "No service reminders.": "சேவை நினைவூட்டல்கள் இல்லை.", "No repair jobs on record.": "பழுதுபார்ப்பு பதிவுகள் இல்லை.", "No fuel logs yet.": "டீசல் பதிவுகள் இல்லை.",
   "No expenses yet.": "செலவுகள் இல்லை.", "No issues reported.": "பிரச்சினைகள் இல்லை.", "No inspections yet.": "பரிசோதனைகள் இல்லை.", "Pending approval": "அனுமதிக்காக காத்திருக்கிறது",
   "Petty expense — goes to the owner for approval": "சிறு செலவு — உரிமையாளர் அனுமதிக்கு செல்லும்", "Inspection — pre-trip / post-trip / weekly check": "பரிசோதனை — பயணத்திற்கு முன் / பின் / வாராந்திர",
+  "Salary / payroll": "சம்பளம் / பேரோல்", "Paid to me (payroll)": "எனக்கு வழங்கப்பட்டது (பேரோல்)", "In progress": "நடக்கிறது", "Completed": "முடிந்தது", "Planned": "திட்டமிட்டது", "Cancelled": "ரத்து",
+  "My trips": "என் பயணங்கள்", "Vehicle": "வாகனம்", "Route": "வழித்தடம்", "Status": "நிலை", "Search route": "வழித்தடத்தில் தேடு", "All vehicles": "அனைத்து வாகனங்கள்", "View": "பார்", "All types": "அனைத்து வகைகள்", "Search document": "ஆவணத்தில் தேடு", "documents shown": "ஆவணங்கள் காட்டப்படுகின்றன", "trips shown": "பயணங்கள் காட்டப்படுகின்றன", "Expired": "காலாவதியானது", "No trips match.": "பொருந்தும் பயணங்கள் இல்லை.", "No documents match.": "பொருந்தும் ஆவணங்கள் இல்லை.",
   "Change password": "கடவுச்சொல் மாற்று", "New password": "புதிய கடவுச்சொல்", "Confirm new password": "புதிய கடவுச்சொல்லை உறுதிசெய்", "Save password": "கடவுச்சொல்லைச் சேமி",
   "Password changed. Use it next time you sign in.": "கடவுச்சொல் மாற்றப்பட்டது. அடுத்த முறை இதைப் பயன்படுத்தவும்."
 };
@@ -82,9 +84,11 @@ function dcMountLangToggle() {
 
 // ---------- who am I ----------
 let _dcDriverId = null;
+let _dcDriverExt = null;
 async function dcDriverId() {
   if (_dcDriverId) return _dcDriverId;
-  const me = await fwCloud.authGet("drivers", `select=id&org_id=eq.${ORG}&user_id=eq.${fwCloud.uid()}&limit=1`).catch(() => null);
+  const me = await fwCloud.authGet("drivers", `select=id,ext_id&org_id=eq.${ORG}&user_id=eq.${fwCloud.uid()}&limit=1`).catch(() => null);
+  _dcDriverExt = me && me[0] ? me[0].ext_id : null;
   return (_dcDriverId = me && me[0] ? me[0].id : null);
 }
 
@@ -236,7 +240,7 @@ async function dcRefresh() {
 })();
 
 // ---------- My Khata book, with filters ----------
-const DC_KHATA_LABEL = { advance: "Advance received", expense: "Expense", settlement: "Returned / settled" };
+const DC_KHATA_LABEL = { advance: "Advance received", expense: "Expense", settlement: "Returned / settled", salary: "Salary / payroll" };
 let _dcKhata = { rows: [], f: { range: "month", from: "", to: "", type: "", q: "" } };
 
 function dcKhataFiltered() {
@@ -265,7 +269,7 @@ function dcKhataPaint() {
     </div></div>
     <div class="fw-stat-grid" style="margin-bottom:12px">
       ${stat("Advances", fmtINR(sum(view, "advance")))}${stat("Expenses", fmtINR(sum(view, "expense")))}${stat("Returned", fmtINR(sum(view, "settlement")))}
-      ${stat("With me", fmtINR(withMe), `color:${withMe >= 0 ? "#166534" : "#dc2626"}`)}
+      ${stat("With me", fmtINR(withMe), `color:${withMe >= 0 ? "#166534" : "#dc2626"}`)}${stat("Paid to me (payroll)", fmtINR(sum(view, "salary")))}
     </div>
     <div class="form-row" style="margin-bottom:8px">${chip("month", "This month")}${chip("30", "Last 30 days")}${chip("all", "All time")}</div>
     <div class="form-row" style="margin-bottom:8px">
@@ -274,7 +278,7 @@ function dcKhataPaint() {
     </div>
     <div class="form-row" style="margin-bottom:10px">
       <select id="dcKType" onchange="dcKhataSet('type',this.value)" style="padding:9px;border:1.5px solid #e2e8f0;border-radius:9px;font-family:inherit">
-        <option value="">All</option><option value="advance">Advance received</option><option value="expense">Expense</option><option value="settlement">Returned / settled</option>
+        <option value="">All</option><option value="advance">Advance received</option><option value="expense">Expense</option><option value="settlement">Returned / settled</option><option value="salary">Salary / payroll</option>
       </select>
       <input type="text" id="dcKQ" placeholder="Search note" value="${esc(f.q)}" oninput="dcKhataSet('q',this.value,true)" />
     </div>
@@ -316,7 +320,15 @@ async function loadMyKhata() {
     return;
   }
   const rows = await fwCloud.authGet("driver_ledger", `select=*&org_id=eq.${ORG}&driver_id=eq.${drv}&order=entry_date.desc.nullslast&limit=1000`) || [];
-  _dcKhata.rows = rows.filter(r => r.driver_id === drv);
+  // payroll paid to this driver (own rows only, enforced by the database) sits in the same book
+  const pay = _dcDriverExt ? await fwCloud.authGet("salary_payments", `select=*&org_id=eq.${ORG}&driver_ext_id=eq.${encodeURIComponent(_dcDriverExt)}&order=paid_date.desc.nullslast&limit=1000`).catch(() => null) : null;
+  const payRows = (pay || []).map(p => ({
+    id: p.id, type: "salary", entry_date: p.paid_date || p.payable_date || (p.initiated_at || "").slice(0, 10), amount: p.amount,
+    note: [p.category, p.period, p.notes, p.status && p.status !== "success" ? p.status : ""].filter(Boolean).join(" · "),
+  }));
+  _dcKhata.rows = rows.filter(r => r.driver_id === drv).concat(payRows).sort((a, b) => String(b.entry_date || "").localeCompare(String(a.entry_date || "")));
   dcKhataPaint();
   dcMountLangToggle();
+  dcLoadTrips();
+  dcLoadVault();
 }
