@@ -106,6 +106,21 @@ function dcMountLangToggle() {
   dcTranslate(document.getElementById("teamGate"));
 })();
 
+// The company the signed-in person works for, shown at the top of the portal.
+window.dcShowCompany = async function () {
+  let bar = document.getElementById("teamCompany");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "teamCompany"; bar.className = "dc-company"; bar.hidden = true;
+    document.querySelector(".drv-head").after(bar);
+  }
+  const rows = await fwCloud.authGet("organizations", `select=name&id=eq.${ORG}&limit=1`).catch(() => null);
+  const name = rows && rows[0] && rows[0].name;
+  if (!name) return;
+  bar.textContent = name;
+  bar.hidden = false;
+};
+
 // ---------- who am I ----------
 let _dcDriverId = null;
 let _dcDriverExt = null;

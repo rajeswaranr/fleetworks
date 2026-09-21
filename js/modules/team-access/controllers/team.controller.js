@@ -432,6 +432,7 @@ async function unlock() {
     }
     ORG = m.orgId;
     ROLE = m.role;
+    if (window.dcShowCompany) dcShowCompany();
     ASSIGN = view.assignmentMap;
     document.getElementById("teamWhoRole").textContent = view.roleLabel;
     document.getElementById("teamWhoName").textContent = view.name;
@@ -456,6 +457,7 @@ async function unlock() {
   }
   ORG = m.org_id;
   ROLE = m.role;
+  if (window.dcShowCompany) dcShowCompany();
   document.getElementById("teamWhoRole").textContent = m.role === "driver" ? "Driver" : "Supervisor";
   const p = fwCloud.profile && fwCloud.profile();
   document.getElementById("teamWhoName").textContent = (p && p.full_name) || (fwCloud.user() || "").split("@")[0];
