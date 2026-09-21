@@ -164,17 +164,7 @@
 
         <!-- ======= TOP-LEVEL MENUS (Always visible, expandable) ======= -->
 
-<!-- Fleet Health Menu -->
-        <div class="side-group has-children">
-          <button type="button" class="side-parent"><i data-icon="heartCheck"></i><span>Fleet Health</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
-          <div class="side-children">
-            <button class="side-item tab-btn" data-tab="fleethealth"><span>Health Status</span></button>
-            <button class="side-item tab-btn" data-tab="vehiclehealth"><span>By Vehicle</span></button>
-            <button class="side-item tab-btn" data-tab="healthtrends"><span>Health Trends</span></button>
-          </div>
-        </div>
-
-        <div class="side-sep"></div>
+<div class="side-sep"></div>
 
         <!-- ======= WORKSPACE: FleetOps — maintenance & daily operations ======= -->
         <div data-ws="ops" hidden>
@@ -2300,10 +2290,6 @@
               <i data-icon="link" data-icon-size="18"></i>
               <div><strong>Integrations</strong><p class="muted">Connect other tools and services</p></div>
             </button>
-            <button type="button" class="settings-tile" onclick="document.getElementById('settingsHealth').scrollIntoView({behavior:'smooth'})">
-              <i data-icon="shieldCheck" data-icon-size="18"></i>
-              <div><strong>Fleet Health</strong><p class="muted">Health score for every vehicle</p></div>
-            </button>
             <button type="button" class="settings-tile" onclick="document.getElementById('settingsForm').scrollIntoView({behavior:'smooth'})">
               <i data-icon="user" data-icon-size="18"></i>
               <div><strong>Business Profile &amp; Alerts</strong><p class="muted">Company details, expiry warnings, mileage alerts</p></div>
@@ -2346,17 +2332,6 @@
             <div id="hubSitesList" style="padding:0 4px 4px"></div>
           </div>
 
-          <div class="chart-card" style="margin-bottom:16px" id="settingsHealth">
-            <div class="chart-card">
-              <div class="chart-head">
-                <div>
-                  <h2 class="head-ic"><span class="ic-tile success"><i data-icon="shieldCheck" data-icon-size="20"></i></span> Fleet Health</h2>
-                  <p class="muted">0–100 per vehicle — compliance, issues, inspections, cost &amp; predictions</p>
-                </div>
-              </div>
-              <div id="healthStrip" class="health-strip"></div>
-            </div>
-          </div>
           <form id="settingsForm" class="entry-form">
             <div class="form-row">
               <label>Transport / Company Name
