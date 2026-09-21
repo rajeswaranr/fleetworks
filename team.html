@@ -27,15 +27,15 @@
       </div>
       <div class="onboard-card auth-gate-card">
         <h2>Team Sign In</h2>
-        <p class="muted" style="margin-bottom:16px">For supervisors &amp; drivers — ask your fleet owner for your login</p>
+        <p class="muted" style="margin-bottom:16px">Drivers: your mobile number is your username, and your password is also your mobile number until you change it.</p>
         <form id="teamLoginForm" class="entry-form">
-          <label>Email or mobile number<input type="text" name="email" required autocomplete="username" /></label>
+          <label>Mobile number <span class="muted">(drivers) — supervisors can use email</span><input type="text" name="email" required inputmode="text" placeholder="10-digit mobile number" autocomplete="username" /></label>
           <label>Password<input type="password" name="password" required autocomplete="current-password" /></label>
           <button type="submit" class="btn btn-primary btn-block">Log In</button>
           <p class="field-error" id="teamLoginErr" hidden></p>
         </form>
         <p class="muted auth-gate-alt" id="teamForgotPasswordWrap">
-          Forgot your password? <button type="button" class="link-btn" id="teamForgotPasswordBtn">Reset it by email</button>
+          Forgot your password? Drivers: ask your fleet owner to reset it. Supervisors: <button type="button" class="link-btn" id="teamForgotPasswordBtn">Reset it by email</button>
         </p>
         <div id="teamForgotPasswordPanel" class="auth-confirm" hidden>
           <span class="auth-confirm-ic"><i data-icon="mailCheck" data-icon-size="30"></i></span>
