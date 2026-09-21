@@ -299,7 +299,8 @@ window.tvSaveTrip = async function (vehId) {
 const KHATA_LABEL = { advance: "Advance received", expense: "Expense", settlement: "Returned / settled" };
 let _myDriverId = null;
 
-async function loadMyKhata() {
+// Superseded by the filtered khata book in driver-console.js (kept as the plain fallback).
+async function loadMyKhataBasic() {
   const box = document.getElementById("teamKhata");
   if (!box) return;
   if (ROLE !== "driver") { box.hidden = true; box.innerHTML = ""; return; }
