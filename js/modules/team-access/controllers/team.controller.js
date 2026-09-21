@@ -479,7 +479,7 @@ document.getElementById("teamLoginForm").addEventListener("submit", async e => {
   const id = String(fd.email || "").trim();
   const digits = id.replace(/[\s-]/g, "").replace(/^(\+?91|0)(?=\d{10}$)/, "");
   const loginId = id.includes("@") ? id : /^\d{10}$/.test(digits) ? `${digits}@driver.fleetworks.in` : id;
-  try { await fwCloud.login(loginId, fd.password); }
+  try { await fwCloud.login(loginId, fd.password); await unlock(); }
   catch (ex) { err.textContent = ex.message; err.hidden = false; }
 });
 window.FWAuthReset?.wire({
