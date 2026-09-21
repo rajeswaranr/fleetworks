@@ -48,7 +48,7 @@
       { p: ["driver link", "driver page", "driver app"], t: "Driver Link", go: "drivers",
         s: "FleetOps → <strong>Fleet → Drivers</strong> → <em>Copy link</em> on the driver's row → send on WhatsApp. He logs diesel, problems and the daily 10-point check from his phone — no app, no login." },
       { p: ["health score", "vehicle health"], t: "Vehicle health scores", go: "home",
-        s: "<strong>Home</strong> shows the Fleet Health strip (0–100 per vehicle, weakest first); the Vehicles & RTO table has a Health column too." },
+        s: "the Vehicles & RTO table has a Health column: a 0–100 score per vehicle from its compliance, issues, inspections and cost." },
       { p: ["what if", "whatif", "simulate"], t: "What-if simulator", go: "whatif",
         s: "FleetIQ → <strong>What-if Analysis</strong> → drag the diesel-price / monthly-running / extra-vehicle sliders and monthly & yearly costs reproject live from your own numbers." },
       { p: ["reminder", "pm due", "service due"], t: "Service reminders", go: "reminders",
