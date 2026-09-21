@@ -17,7 +17,7 @@ const DC_TA = {
   "Advance received": "முன்பணம் பெற்றது", "Expense": "செலவு", "Returned / settled": "திருப்பியது / தீர்வு",
   "All": "அனைத்தும்", "This month": "இந்த மாதம்", "Last 30 days": "கடந்த 30 நாட்கள்", "All time": "எல்லா நாட்களும்",
   "From": "இருந்து", "To": "வரை", "Search note": "குறிப்பில் தேடு", "Download CSV": "CSV பதிவிறக்கு", "entries shown": "பதிவுகள் காட்டப்படுகின்றன",
-  "Change Password": "கடவுச்சொல் மாற்று", "Sign Out": "வெளியேறு", "Driver": "ஓட்டுநர்",
+  "Change Password": "கடவுச்சொல் மாற்று", "Driver portal": "ஓட்டுநர் போர்டல்", "Supervisor portal": "மேற்பார்வையாளர் போர்டல்", "Sign Out": "வெளியேறு", "Driver": "ஓட்டுநர்",
   "Trip": "பயணம்", "Start a trip": "பயணம் தொடங்கு", "Start trip": "பயணம் தொடங்கு", "End trip": "பயணம் முடி", "Trip in progress": "பயணம் நடக்கிறது",
   "Starting km": "தொடக்க கி.மீ", "Ending km": "முடிவு கி.மீ", "Cargo (optional)": "சரக்கு (விருப்பம்)", "Started": "தொடங்கியது", "Planned trip from your owner": "உரிமையாளர் திட்டமிட்ட பயணம்",
   "Trip started. Safe journey!": "பயணம் தொடங்கியது. பாதுகாப்பான பயணம்!", "Trip ended.": "பயணம் முடிந்தது.",
@@ -117,7 +117,8 @@ window.dcShowCompany = async function () {
   const rows = await fwCloud.authGet("organizations", `select=name&id=eq.${ORG}&limit=1`).catch(() => null);
   const name = rows && rows[0] && rows[0].name;
   if (!name) return;
-  bar.textContent = name;
+  const words = name.split(/\s+/), initials = (words[0].length <= 3 ? words[0] : words.map(w => w[0]).join("").slice(0, 2)).toUpperCase();
+  bar.innerHTML = `<span class="dc-mono">${esc(initials)}</span><span class="dc-company-text"><strong>${esc(name)}</strong><small>${dcT(ROLE === "driver" ? "Driver portal" : "Supervisor portal")}</small></span>`;
   bar.hidden = false;
 };
 
