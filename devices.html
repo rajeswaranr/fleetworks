@@ -62,6 +62,22 @@
 
       <div class="chart-card">
         <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="truck" data-icon-size="18"></i></span> Vehicle digital twin</h2>
+          <p class="muted">The live state of each vehicle from all its sensors, with health scores from the AI rules (100 = healthy).</p></div>
+        </div>
+        <div id="twinGrid" class="fw-stat-grid"></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div><h2 class="head-ic"><span class="ic-tile" style="background:#ede9fe;color:#6d28d9"><i data-icon="zap" data-icon-size="18"></i></span> AI detections</h2>
+          <p class="muted">Fuel theft, tyre loss, overheating and more, each with a confidence and the evidence it is based on.</p></div>
+        </div>
+        <div class="chart-scroll"><div id="aiEventsTable"></div></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
           <div><h2 class="head-ic"><span class="ic-tile info"><i data-icon="network" data-icon-size="18"></i></span> Devices</h2><p class="muted">Online means a reading in the last 5 minutes</p></div>
           <button class="btn btn-outline btn-sm" onclick="refreshAll()">↻ Refresh</button>
         </div>
@@ -119,7 +135,7 @@
     const ONLINE_MS = 5 * 60 * 1000;
     const isOnline = d => d.last_seen_at && (Date.now() - new Date(d.last_seen_at)) < ONLINE_MS;
 
-    let DEVICES = [], LATEST = {}, EVENTS = [];
+    let DEVICES = [], LATEST = {}, EVENTS = [], TWINS = [], AI_EVENTS = [], VEHICLES = {};
 
     async function refreshAll() {
       DEVICES = await api("devices?select=*&order=created_at.asc&limit=200");
@@ -132,8 +148,69 @@
       for (const t of recent) if (!LATEST[t.device_id]) LATEST[t.device_id] = t;
 
       EVENTS = await api("device_events?select=*&order=acknowledged_at.asc.nullsfirst,occurred_at.desc&limit=60");
-      renderStats(); renderDevices(); renderEvents();
+      // the twin and AI detections are extra: if they cannot load, the rest of the page still works
+      TWINS = await api("vehicle_twin?select=*&order=updated_at.desc&limit=200").catch(() => []);
+      AI_EVENTS = await api("ai_events?select=*&order=acknowledged_at.asc.nullsfirst,occurred_at.desc&limit=60").catch(() => []);
+      const veh = await api("vehicles?select=id,name&limit=500").catch(() => []);
+      VEHICLES = Object.fromEntries(veh.map(v => [v.id, v.name]));
+      renderStats(); renderDevices(); renderEvents(); renderTwins(); renderAiEvents();
     }
+
+    const SIG = {
+      speed: "Vehicle.Speed", fuel: "Vehicle.Powertrain.FuelSystem.RelativeLevel", tyre: "Vehicle.Chassis.Tyre.MinPressure",
+      coolant: "Vehicle.Powertrain.CombustionEngine.ECT", battery: "Vehicle.LowVoltageBattery.CurrentVoltage",
+      rpm: "Vehicle.Powertrain.CombustionEngine.Speed", ign: "Vehicle.Powertrain.CombustionEngine.IsRunning",
+    };
+    const healthTone = v => v >= 80 ? "#0ca30c" : v >= 50 ? "#c2820a" : "#b91c1c";
+
+    function renderTwins() {
+      const box = $("twinGrid");
+      if (!TWINS.length) { box.innerHTML = "<p class='muted'>No twin yet: it fills as soon as a device sends its first reading.</p>"; return; }
+      const dev = Object.fromEntries(DEVICES.map(d => [d.id, d]));
+      const val = (t, k) => (t.state[SIG[k]] || {}).v;
+      box.innerHTML = TWINS.map(t => {
+        const d = dev[t.device_id] || {};
+        const bars = ["fuel", "tyres", "engine", "driver"].map(k => {
+          const v = t.health && t.health[k] != null ? t.health[k] : 100;
+          return `<div style="margin:3px 0"><small class="muted" style="display:inline-block;width:52px;text-transform:capitalize">${k}</small>
+            <span style="display:inline-block;width:calc(100% - 92px);height:8px;background:#e2e8f0;border-radius:6px;vertical-align:middle"><span style="display:block;height:8px;width:${v}%;background:${healthTone(v)};border-radius:6px"></span></span>
+            <small style="display:inline-block;width:30px;text-align:right;font-weight:600;color:${healthTone(v)}">${v}</small></div>`;
+        }).join("");
+        const cell = (label, v, unit) => `<div><small class="muted">${label}</small><div style="font-weight:600">${v == null ? "—" : v + unit}</div></div>`;
+        return `<div class="chart-card" style="margin:0">
+          <h3 style="margin:0 0 2px">${esc(VEHICLES[t.vehicle_id] || d.model || d.imei || "Vehicle")}${t.simulated ? ' <span class="fw-badge upcoming">sim</span>' : ""}</h3>
+          <p class="muted" style="margin:0 0 8px;font-size:0.78rem">${val(t, "ign") === false ? "Parked" : "Running"} · updated ${fmtAgo(t.last_reading_at)}</p>
+          <div class="fw-stat-grid" style="font-size:0.85rem">${cell("Speed", val(t, "speed"), " km/h")}${cell("Fuel", val(t, "fuel"), "%")}${cell("Tyre", val(t, "tyre"), " psi")}${cell("Coolant", val(t, "coolant"), "°C")}${cell("Battery", val(t, "battery"), " V")}${cell("RPM", val(t, "rpm"), "")}</div>
+          <div style="margin-top:8px">${bars}</div></div>`;
+      }).join("");
+    }
+
+    const AI_LABEL = { fuel_theft: "Fuel theft", fuel_leak: "Fuel leak", tyre_pressure_loss: "Tyre pressure loss", tyre_low_pressure: "Low tyre pressure",
+                       engine_overheat: "Engine overheating", low_battery: "Low battery" };
+    function renderAiEvents() {
+      if (!AI_EVENTS.length) { $("aiEventsTable").innerHTML = "<p class='muted'>Nothing detected yet.</p>"; return; }
+      const dev = Object.fromEntries(DEVICES.map(d => [d.id, d]));
+      $("aiEventsTable").innerHTML = `<table class="chart-table-el"><thead><tr><th>When</th><th>Detection</th><th>Severity</th><th>Confidence</th><th>Vehicle</th><th>Why</th><th></th></tr></thead><tbody>` +
+        AI_EVENTS.map(e => {
+          const tone = e.severity === "critical" ? "#b91c1c" : e.severity === "warning" ? "#c2820a" : "#64748b";
+          const d = dev[e.device_id] || {};
+          return `<tr style="${e.acknowledged_at ? "opacity:.5" : ""}">
+            <td style="white-space:nowrap">${fmtAgo(e.occurred_at)}</td>
+            <td><strong>${esc(AI_LABEL[e.event_type] || e.event_type)}</strong></td>
+            <td><span class="fw-badge" style="background:${tone}18;color:${tone};border-color:${tone}">${esc(e.severity)}</span></td>
+            <td>${e.confidence != null ? Math.round(e.confidence * 100) + "%" : "—"}</td>
+            <td class="muted" style="font-size:0.78rem">${esc(VEHICLES[e.vehicle_id] || d.model || d.imei || "—")}</td>
+            <td style="font-size:0.82rem">${esc(e.summary)}</td>
+            <td>${e.acknowledged_at ? '<span class="muted" style="font-size:0.76rem">acknowledged</span>' : `<button class="link-btn" onclick="ackAi('${e.id}')">Acknowledge</button>`}</td></tr>`;
+        }).join("") + "</tbody></table>";
+    }
+    window.ackAi = async function (id) {
+      try {
+        await api("ai_events?id=eq." + id, { method: "PATCH", headers: { Prefer: "return=minimal" },
+          body: JSON.stringify({ acknowledged_at: new Date().toISOString(), acknowledged_by: SESSION.user.id }) });
+        await refreshAll();
+      } catch (ex) { alert(ex.message); }
+    };
 
     function renderStats() {
       const online = DEVICES.filter(isOnline).length;

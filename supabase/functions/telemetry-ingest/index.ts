@@ -14,6 +14,7 @@
 //   npx supabase secrets set TELEMETRY_INGEST_KEY=<long random string>
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
+import { detect, healthScores, toSignals, type AiEvent } from "./intelligence.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -102,7 +103,7 @@ Deno.serve(async (req) => {
     if (validationError) return err(422, `readings[${i}]: ${validationError}`);
   }
 
-  let wroteReadings = 0, wroteEvents = 0;
+  let wroteReadings = 0, wroteEvents = 0, wroteAi = 0;
   let latest: string | null = null;
 
   // Load the previous accepted state before inserting this batch. Rules below
@@ -148,6 +149,44 @@ Deno.serve(async (req) => {
     const { error, count } = await admin.from("telemetry").insert(rows, { count: "exact" });
     if (error) return err(500, "Telemetry insert failed: " + error.message);
     wroteReadings = count ?? rows.length;
+
+    // ── vehicle intelligence: AI events + the digital twin ──────────────────
+    // Failures here must never lose the readings that were just stored.
+    try {
+      const since = new Date(Date.now() - 15 * 60000).toISOString();
+      const { data: lastEvents } = await admin.from("ai_events")
+        .select("event_type, occurred_at").eq("device_id", device.id).gte("occurred_at", since);
+      const recent: Record<string, number> = {};
+      for (const e of lastEvents || []) recent[e.event_type] = Math.max(recent[e.event_type] || 0, Date.parse(e.occurred_at));
+
+      const aiEvents: AiEvent[] = [];
+      let priorReading = previous as Record<string, unknown> | null;
+      for (const reading of ordered) {
+        aiEvents.push(...detect(priorReading, reading, recent));
+        priorReading = reading;
+      }
+      if (aiEvents.length) {
+        await admin.from("ai_events").insert(aiEvents.map((e) => ({
+          org_id: device.org_id, device_id: device.id, vehicle_id: device.vehicle_id || null,
+          occurred_at: e.occurred_at, event_type: e.event_type, signal_path: e.signal_path,
+          severity: e.severity, confidence: e.confidence, summary: e.summary, evidence: e.evidence,
+          simulated: device.simulated,
+        })));
+      }
+
+      const { data: twin } = await admin.from("vehicle_twin").select("state").eq("device_id", device.id).maybeSingle();
+      const state: Record<string, { v: unknown; ts: string }> = { ...((twin?.state as Record<string, { v: unknown; ts: string }>) || {}) };
+      for (const reading of ordered) Object.assign(state, toSignals(reading));
+      for (const e of aiEvents) state[e.signal_path] = { v: Math.max(Number((state[e.signal_path]?.v as number) || 0), e.confidence), ts: e.occurred_at };
+      await admin.from("vehicle_twin").upsert({
+        device_id: device.id, org_id: device.org_id, vehicle_id: device.vehicle_id || null,
+        state, health: healthScores(state, aiEvents), last_reading_at: latest, simulated: device.simulated,
+        updated_at: new Date().toISOString(),
+      });
+      wroteAi = aiEvents.length;
+    } catch (e) {
+      console.error("intelligence step failed", (e as Error).message);
+    }
   }
 
   const allEvents = [...events, ...derivedEvents];
@@ -180,7 +219,7 @@ Deno.serve(async (req) => {
 
   return new Response(JSON.stringify({
     ok: true, imei, readings: wroteReadings, events: wroteEvents,
-    derivedEvents: derivedEvents.length,
+    derivedEvents: derivedEvents.length, aiEvents: wroteAi,
     skippedEvents: allEvents.length - wroteEvents,
     vehicleId: device.vehicle_id || null,
   }), { headers: CORS });
