@@ -167,6 +167,27 @@ window.dcLogStop = async function (tripId) {
   toast("Saved to the trip log."); dcRefresh();
 };
 
+// Loading / unloading places set up for the owner's projects (e.g. KRL, Palakkad → Tanjore, Madurai).
+let _dcPlaces = null;
+async function dcPlaces() {
+  if (!_dcPlaces) _dcPlaces = await fwCloud.authRpc("trip_place_options", {}).catch(() => null) || [];
+  return _dcPlaces;
+}
+async function dcApplyPlaces(host) {
+  if (!host) return;
+  const places = await dcPlaces();
+  if (!places.length) return;
+  const opts = roles => places.filter(p => roles.includes(p.site_role)).map(p => `<option value="${esc(p.name)}" label="${esc(p.project_name || "")}"></option>`).join("");
+  host.insertAdjacentHTML("beforeend", `<datalist id="dcLoadList">${opts(["loading", "both"])}</datalist><datalist id="dcUnloadList">${opts(["unloading", "both"])}</datalist>`);
+  const bind = (id, list) => { const el = host.querySelector("#" + id); if (el) el.setAttribute("list", list); };
+  bind("dcFrom", "dcLoadList"); bind("dcTo", "dcUnloadList");
+  const kind = host.querySelector("#dcStopKind"), place = host.querySelector("#dcStopPlace");
+  if (kind && place) {
+    const sync = () => place.setAttribute("list", kind.value === "loading" ? "dcLoadList" : "dcUnloadList");
+    kind.addEventListener("change", sync); sync();
+  }
+}
+
 let _dcVeh = null;   // { vehId, ... } of the vehicle open in the modal
 
 window.dcStartTrip = async function () {
@@ -252,6 +273,7 @@ async function dcRefresh() {
   const host = document.getElementById("dcSections");
   if (!host) return;
   host.innerHTML = await dcSections(_dcVeh.vehId, _dcVeh.mode);
+  await dcApplyPlaces(host);
   dcTranslate(host);
 }
 
@@ -286,6 +308,7 @@ function dcFilterModal(body, mode) {
       if (mode === "maint") body.appendChild(holder); else body.children[0].after(holder);
       holder.innerHTML = "<p class='muted'>Loading…</p>";
       holder.innerHTML = await dcSections(vehId, mode);
+      await dcApplyPlaces(holder);
     }
     dcTranslate(body);
   };
