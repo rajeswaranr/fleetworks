@@ -31,7 +31,7 @@ class SMSGateway {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${window.SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${(window.fwCloud && await fwCloud.accessToken()) || window.SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)
@@ -70,7 +70,7 @@ class SMSGateway {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${window.SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${(window.fwCloud && await fwCloud.accessToken()) || window.SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)
