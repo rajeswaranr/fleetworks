@@ -2127,3 +2127,7 @@ label:has(> input[type="radio"]) {
   flex-direction: row;
   align-items: center;
 }
+
+/* Home hub tagline */
+.hub-tagline{color:var(--navy);font-size:1.1rem;margin:4px 0 0}
+.hub-tagline strong{font-weight:700}
