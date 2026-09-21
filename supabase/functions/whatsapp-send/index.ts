@@ -109,9 +109,13 @@ Deno.serve(async (req) => {
     .select("*").eq("id", body.contactId).maybeSingle();
   if (!contact) return err(origin, 404, "Contact not found.");
 
-  const { data: mem } = await admin.from("memberships")
-    .select("role").eq("user_id", caller.user.id).eq("org_id", contact.org_id).maybeSingle();
-  if (!mem) return err(origin, 403, "That contact belongs to another fleet.");
+  // Role-based access: the caller needs whatsapp:create in the contact's organisation.
+  // (Membership alone is not enough — a driver or supervisor login must not be able to
+  // message every driver in the fleet.)
+  const { data: scope } = await admin.rpc("rbac_user_scope", {
+    p_user: caller.user.id, p_org: contact.org_id, p_perm: "whatsapp:create",
+  });
+  if (!scope) return err(origin, 403, "Your role is not allowed to send WhatsApp messages for this fleet.");
 
   if (!contact.opted_in_at) return err(origin, 403, "That contact has not opted in to WhatsApp messages yet.");
   if (contact.opted_out_at) return err(origin, 403, "That contact has opted out of WhatsApp messages.");
