@@ -492,6 +492,15 @@ function renderTeamPicker() {
   const driverSelect = document.getElementById("teamDriverRecord");
   const isDriver = roleSel && roleSel.value === "driver";
   if (driverWrap) driverWrap.hidden = !isDriver;
+  // Drivers sign in with their mobile number (username) and, by default, the same number as password.
+  const idIn = document.getElementById("teamLoginId"), pwIn = document.getElementById("teamLoginPw");
+  if (idIn && pwIn) {
+    idIn.placeholder = isDriver ? "10-digit mobile number" : "name@example.com";
+    document.getElementById("teamLoginIdLabel").firstChild.textContent = isDriver ? "Mobile number (their login)" : "Email (their login)";
+    pwIn.required = !isDriver;
+    pwIn.placeholder = isDriver ? "blank = mobile number" : "min 6 characters";
+    document.getElementById("teamLoginHint").hidden = !isDriver;
+  }
   if (driverSelect) {
     const current = driverSelect.value;
     driverSelect.required = !!isDriver;
@@ -549,10 +558,10 @@ document.getElementById("teamInviteForm")?.addEventListener("submit", async e =>
       btn.disabled = false;
       return;
     }
-    const invite = { email: fd.email, password: fd.password, name: fd.name, role: fd.role, driverExtId: fd.driverExtId || null, vehicles };
+    const invite = { email: fd.email, password: fd.password || undefined, name: fd.name, role: fd.role, driverExtId: fd.driverExtId || null, vehicles };
     const res = window.FWTeamAccess ? await FWTeamAccess.inviteMember(invite) : await fwCloud.callFunction("team-invite", invite);
     const url = window.FWTeamAccess ? FWTeamAccess.ownerPortalUrl(location) : location.origin + location.pathname.replace(/[^/]*$/, "team.html");
-    alert(`${fd.name} can now sign in at:\n${url}\n\nEmail: ${res.email}\n\nShare the password with them directly (call/in person) — not over WhatsApp or SMS.`);
+    alert(`${fd.name} can now sign in at:\n${url}\n\n${res.mobile ? "Mobile number: " + res.mobile : "Email: " + res.email}\n\nShare the password with them directly (call/in person) — not over WhatsApp or SMS.`);
     e.target.reset();
     renderTeamPicker();
     renderTeamRoster();

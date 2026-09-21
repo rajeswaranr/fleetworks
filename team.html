@@ -29,7 +29,7 @@
         <h2>Team Sign In</h2>
         <p class="muted" style="margin-bottom:16px">For supervisors &amp; drivers — ask your fleet owner for your login</p>
         <form id="teamLoginForm" class="entry-form">
-          <label>Email<input type="email" name="email" required autocomplete="username" /></label>
+          <label>Email or mobile number<input type="text" name="email" required autocomplete="username" /></label>
           <label>Password<input type="password" name="password" required autocomplete="current-password" /></label>
           <button type="submit" class="btn btn-primary btn-block">Log In</button>
           <p class="field-error" id="teamLoginErr" hidden></p>
@@ -64,11 +64,22 @@
         <strong id="teamWhoName">—</strong>
         <span class="muted" id="teamWhoRole"></span>
       </div>
-      <button class="btn btn-outline btn-sm" id="teamLogoutBtn" style="margin-left:12px">Sign Out</button>
+      <button class="btn btn-outline btn-sm" id="teamPwBtn" style="margin-left:12px">Change Password</button>
+      <button class="btn btn-outline btn-sm" id="teamLogoutBtn" style="margin-left:8px">Sign Out</button>
     </header>
 
     <main class="drv-main" style="max-width:760px">
       <p class="muted" id="teamAccessNote" style="margin:14px 0"></p>
+      <div id="teamPwCard" class="chart-card" hidden>
+        <h2>Change password</h2>
+        <form id="teamPwForm" class="entry-form">
+          <label>New password<input type="password" name="pw" minlength="6" required autocomplete="new-password" /></label>
+          <label>Confirm new password<input type="password" name="pw2" minlength="6" required autocomplete="new-password" /></label>
+          <button type="submit" class="btn btn-primary">Save password</button>
+          <p class="field-error" id="teamPwErr" hidden></p>
+          <p class="muted" id="teamPwOk" hidden>Password changed. Use it next time you sign in.</p>
+        </form>
+      </div>
       <div id="teamKhata" hidden></div>
       <div id="teamVehicleList"></div>
     </main>

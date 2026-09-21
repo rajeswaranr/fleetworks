@@ -296,6 +296,20 @@
       return true;
     },
 
+    // Signed-in user sets a new password (e.g. a driver replacing the default mobile-number one).
+    async changePassword(password) {
+      const token = await fwCloud.accessToken();
+      if (!token) throw new Error("Sign in again to change your password.");
+      const r = await fetch(cfg().url + "/auth/v1/user", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "apikey": cfg().anonKey, "Authorization": "Bearer " + token },
+        body: JSON.stringify({ password })
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.msg || body.error_description || body.error || "Could not change the password.");
+      return true;
+    },
+
     async login(email, password) {
       const j = window.FWAuth && window.FWAuth.login
         ? await window.FWAuth.login({ email, password })

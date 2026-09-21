@@ -475,7 +475,11 @@ document.getElementById("teamLoginForm").addEventListener("submit", async e => {
   const fd = Object.fromEntries(new FormData(e.target));
   const err = document.getElementById("teamLoginErr");
   err.hidden = true;
-  try { await fwCloud.login(fd.email, fd.password); }
+  // A driver types their mobile number; it maps to the address their login was created with.
+  const id = String(fd.email || "").trim();
+  const digits = id.replace(/[\s-]/g, "").replace(/^(\+?91|0)(?=\d{10}$)/, "");
+  const loginId = id.includes("@") ? id : /^\d{10}$/.test(digits) ? `${digits}@driver.fleetworks.in` : id;
+  try { await fwCloud.login(loginId, fd.password); }
   catch (ex) { err.textContent = ex.message; err.hidden = false; }
 });
 window.FWAuthReset?.wire({
@@ -488,6 +492,18 @@ window.FWAuthReset?.wire({
   loginFormId: "teamLoginForm",
   hideOnOpen: ["teamLoginForm", "teamForgotPasswordWrap"],
   showOnClose: ["teamLoginForm", "teamForgotPasswordWrap"]
+});
+document.getElementById("teamPwBtn").addEventListener("click", () => {
+  const c = document.getElementById("teamPwCard"); c.hidden = !c.hidden;
+});
+document.getElementById("teamPwForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const fd = Object.fromEntries(new FormData(e.target));
+  const err = document.getElementById("teamPwErr"), ok = document.getElementById("teamPwOk");
+  err.hidden = true; ok.hidden = true;
+  if (fd.pw !== fd.pw2) { err.textContent = "The two passwords don't match."; err.hidden = false; return; }
+  try { await fwCloud.changePassword(fd.pw); ok.hidden = false; e.target.reset(); }
+  catch (ex) { err.textContent = ex.message; err.hidden = false; }
 });
 document.getElementById("teamLogoutBtn").addEventListener("click", () => fwCloud.logout());
 

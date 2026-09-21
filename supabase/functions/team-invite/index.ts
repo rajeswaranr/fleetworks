@@ -57,13 +57,22 @@ Deno.serve(async (req) => {
   let body: Body;
   try { body = await req.json(); } catch { return err(origin, 400, "bad_json"); }
 
-  const email = (body.email || "").trim().toLowerCase();
-  const password = (body.password || "").trim();
+  let email = (body.email || "").trim().toLowerCase();
+  let password = (body.password || "").trim();
   const name = (body.name || "").trim();
   const role = body.role === "driver" ? "driver" : "supervisor";
   const driverExtId = (body.driverExtId || "").trim();
   const vehicles = Array.isArray(body.vehicles) ? body.vehicles.slice(0, 200) : [];
 
+  // Drivers sign in with their mobile number: it becomes a synthetic address on a
+  // domain nobody can receive mail on, and (unless the owner sets one) the password.
+  let mobile = "";
+  if (role === "driver" && !email.includes("@")) {
+    mobile = email.replace(/[\s-]/g, "").replace(/^(\+?91|0)(?=\d{10}$)/, "");
+    if (!/^[6-9]\d{9}$/.test(mobile)) return err(origin, 400, "Enter the driver's 10-digit mobile number.");
+    email = `${mobile}@driver.fleetworks.in`;
+    if (!password) password = mobile;
+  }
   if (!email || !email.includes("@")) return err(origin, 400, "Enter a valid email.");
   if (!password || password.length < 6) return err(origin, 400, "Password must be at least 6 characters.");
   if (!vehicles.length) return err(origin, 400, "Assign at least one vehicle.");
@@ -139,5 +148,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return new Response(JSON.stringify({ ok: true, userId: newUserId, email, role, vehicleCount: rows.length, driverLinked: role !== "driver" || !!driverExtId }), { headers: cors(origin) });
+  return new Response(JSON.stringify({ ok: true, userId: newUserId, email, mobile: mobile || undefined, role, vehicleCount: rows.length, driverLinked: role !== "driver" || !!driverExtId }), { headers: cors(origin) });
 });
