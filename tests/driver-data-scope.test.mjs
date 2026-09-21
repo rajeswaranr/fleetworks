@@ -19,7 +19,7 @@ test('blanket "any org member" policies that defeat driver scoping are removed',
 
 test('tables that lose their only policy get an explicit owner/manager one', () => {
   for (const table of ['payment_requests', 'parties', 'whatsapp_contacts']) {
-    assert.match(migration, new RegExp(`create policy \w+ on ${table}[\s\S]{0,120}is_org_admin\(org_id\)`));
+    assert.match(migration, new RegExp(String.raw`create policy \w+ on ${table}[\s\S]{0,120}is_org_admin\(org_id\)`));
   }
 });
 

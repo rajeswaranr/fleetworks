@@ -109,7 +109,7 @@ window.openVehicle = async function (vehId, extId, name, access) {
     ["Axle", veh.axle_config], ["Tyre size", veh.tyre_size], ["Depot", veh.depot], ["Colour", veh.color],
   ].filter(([, v]) => v != null && v !== "");
   html += `<h3 style="font-size:0.85rem;color:var(--navy);margin:14px 0 6px">Vehicle details</h3>` +
-    (detail.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px 14px;font-size:0.85rem">${detail.map(([k, v]) => `<div><small class="muted">${esc(k)}</small><div style="font-weight:600">${esc(v)}</div></div>`).join("")}</div>` : `<p class="muted" style="font-size:0.85rem">No extra details recorded for this vehicle.</p>`) +
+    (detail.length ? `<div class="fw-stat-grid" style="font-size:0.85rem">${detail.map(([k, v]) => `<div><small class="muted">${esc(k)}</small><div style="font-weight:600">${esc(v)}</div></div>`).join("")}</div>` : `<p class="muted" style="font-size:0.85rem">No extra details recorded for this vehicle.</p>`) +
     `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${complianceBadge("Insurance", veh.insurance_till)}${complianceBadge("PUC", veh.puc_till)}${complianceBadge("Fitness", veh.fitness_till)}${complianceBadge("Permit", veh.permit_till)}${complianceBadge("Road Tax", veh.roadtax_till)}</div>`;
 
   // Maintenance & service: this vehicle's repair jobs and upcoming service.
@@ -321,7 +321,7 @@ async function loadMyKhata() {
       <h2 class="head-ic"><span class="ic-tile success"><i data-icon="rupee" data-icon-size="20"></i></span> My Khata</h2>
       <p class="muted">Only your own entries. Cash with you = advances − expenses − amounts returned.</p>
     </div></div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px">
+    <div class="fw-stat-grid" style="margin-bottom:12px">
       <div><small class="muted">Advances</small><div style="font-weight:700;font-size:1.1rem">${fmtINR(adv)}</div></div>
       <div><small class="muted">Expenses</small><div style="font-weight:700;font-size:1.1rem">${fmtINR(exp)}</div></div>
       <div><small class="muted">Returned</small><div style="font-weight:700;font-size:1.1rem">${fmtINR(set)}</div></div>

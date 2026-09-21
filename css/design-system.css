@@ -1247,3 +1247,6 @@ input[style*="height"]:not([type="checkbox"]):not([type="radio"]) {
 /* Destructive text button (Remove, Delete). */
 .link-btn.danger { color: var(--red, #dc2626); }
 .link-btn.danger:hover { color: #b91c1c; }
+
+/* A responsive row of small label/value pairs (summaries, detail lists). */
+.fw-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 10px 14px; }
