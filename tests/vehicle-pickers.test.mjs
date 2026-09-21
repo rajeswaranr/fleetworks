@@ -37,6 +37,8 @@ const OWNED_ELSEWHERE = {
   driverVehicle: { file: fleetJs, fn: 'fillVehicleSelects' },   // handled at the tail, with a "Not assigned" option
   vehicleFilter: { file: analyticsJs, fn: 'renderAnalyticsAll' },
   iqVehicleFilter: { file: analyticsJs, fn: 'vehicleFilterControls' },
+  fltVehicle: { file: fleetJs, fn: 'populateFilterDropdowns' },        // dashboard filter bar, limited to the chosen project/site
+  fltVehicleFin: { file: fleetJs, fn: 'populateFilterDropdowns' },
 };
 
 function vehicleSelectIds() {
