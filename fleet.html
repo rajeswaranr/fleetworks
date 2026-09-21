@@ -638,71 +638,6 @@
             </button>
           </div>
 
-          <div class="chart-card" style="margin-bottom:16px">
-            <div class="chart-head">
-              <div>
-                <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="driver" data-icon-size="20"></i></span> Owner Actions</h2>
-                <p class="muted">Manage your account, people and FleetWorks setup.</p>
-              </div>
-            </div>
-            <div class="settings-actions">
-              <button type="button" class="btn btn-outline" onclick="activateTab('account')"><i data-icon="driver" data-icon-size="16"></i> My Account</button>
-              <button type="button" class="btn btn-outline" onclick="activateTab('team')"><i data-icon="network" data-icon-size="16"></i> Assign Supervisors &amp; Drivers</button>
-              <button type="button" class="btn btn-outline" onclick="activateTab('settings')"><i data-icon="settings" data-icon-size="16"></i> Settings</button>
-              <button type="button" class="btn btn-outline" onclick="activateTab('integrations')"><i data-icon="link" data-icon-size="16"></i> Integrations</button>
-            </div>
-          </div>
-
-          <!-- SMS Notification Settings — home page -->
-          <div class="chart-card" style="margin-bottom:16px" id="hubNotifCard">
-            <div class="chart-head">
-              <div>
-                <h2 class="head-ic"><span class="ic-tile info"><i data-icon="bell" data-icon-size="20"></i></span> SMS Notifications</h2>
-                <p class="muted">Choose which events trigger an SMS to the owner's mobile</p>
-              </div>
-              <button class="btn btn-outline btn-sm" onclick="saveNotifSettings('hub')"><i data-icon="check" data-icon-size="13"></i> Save</button>
-            </div>
-            <div id="hubNotifSettings" style="padding:4px 0 8px"></div>
-          </div>
-
-          <!-- Sites & Projects — full-width on home page -->
-          <div class="chart-card" style="margin-bottom:16px">
-            <div class="chart-head">
-              <div>
-                <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="map" data-icon-size="20"></i></span> Sites &amp; Projects</h2>
-                <p class="muted">Deployment sites, construction yards, logistics hubs — assign trucks, managers and supervisors</p>
-              </div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button class="btn btn-primary btn-sm" onclick="openNewProject()"><i data-icon="plus" data-icon-size="14"></i> New Project</button>
-                <button class="btn btn-outline btn-sm" onclick="openNewSite()"><i data-icon="plus" data-icon-size="14"></i> New Site</button>
-                <button class="btn btn-outline btn-sm" onclick="switchTab('projects')">Projects &rarr;</button>
-                <button class="btn btn-outline btn-sm" onclick="switchTab('sites')">Sites &rarr;</button>
-              </div>
-            </div>
-            <div id="hubSitesList" style="padding:0 4px 4px"></div>
-          </div>
-
-          <div class="hub-sub">
-            <div class="chart-card" style="cursor:pointer" onclick="toggleNotifPanel()" title="Open notification centre">
-              <div class="chart-head" style="margin-bottom:6px">
-                <div>
-                  <h2 class="head-ic"><span class="ic-tile warning"><i data-icon="bell" data-icon-size="20"></i></span> Notifications</h2>
-                  <p class="muted">Pending actions across all workspaces</p>
-                </div>
-                <span id="inboxSummaryBadge" class="fw-badge soon" hidden></span>
-              </div>
-              <p class="muted" style="font-size:0.83rem" id="inboxSummaryText">Click to open notification centre</p>
-            </div>
-            <div class="chart-card">
-              <div class="chart-head">
-                <div>
-                  <h2 class="head-ic"><span class="ic-tile success"><i data-icon="shieldCheck" data-icon-size="20"></i></span> Fleet Health</h2>
-                  <p class="muted">0–100 per vehicle — compliance, issues, inspections, cost &amp; predictions</p>
-                </div>
-              </div>
-              <div id="healthStrip" class="health-strip"></div>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -2353,6 +2288,22 @@
             </div>
           </div>
           <div class="settings-menu">
+            <button type="button" class="settings-tile" onclick="activateTab('account')">
+              <i data-icon="driver" data-icon-size="18"></i>
+              <div><strong>My Account</strong><p class="muted">Your login, plan and business details</p></div>
+            </button>
+            <button type="button" class="settings-tile" onclick="activateTab('team')">
+              <i data-icon="network" data-icon-size="18"></i>
+              <div><strong>Team &amp; Access</strong><p class="muted">Assign supervisors and drivers, roles and logins</p></div>
+            </button>
+            <button type="button" class="settings-tile" onclick="activateTab('integrations')">
+              <i data-icon="link" data-icon-size="18"></i>
+              <div><strong>Integrations</strong><p class="muted">Connect other tools and services</p></div>
+            </button>
+            <button type="button" class="settings-tile" onclick="document.getElementById('settingsHealth').scrollIntoView({behavior:'smooth'})">
+              <i data-icon="shieldCheck" data-icon-size="18"></i>
+              <div><strong>Fleet Health</strong><p class="muted">Health score for every vehicle</p></div>
+            </button>
             <button type="button" class="settings-tile" onclick="document.getElementById('settingsForm').scrollIntoView({behavior:'smooth'})">
               <i data-icon="user" data-icon-size="18"></i>
               <div><strong>Business Profile &amp; Alerts</strong><p class="muted">Company details, expiry warnings, mileage alerts</p></div>
@@ -2377,6 +2328,34 @@
               <i data-icon="download" data-icon-size="18"></i>
               <div><strong>Data &amp; Backup</strong><p class="muted">Export your fleet, clear demo data</p></div>
             </button>
+          </div>
+          <!-- Sites & Projects (Settings) -->
+          <div class="chart-card" style="margin-bottom:16px">
+            <div class="chart-head">
+              <div>
+                <h2 class="head-ic"><span class="ic-tile brand"><i data-icon="map" data-icon-size="20"></i></span> Sites &amp; Projects</h2>
+                <p class="muted">Deployment sites, construction yards, logistics hubs — assign trucks, managers and supervisors</p>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-primary btn-sm" onclick="openNewProject()"><i data-icon="plus" data-icon-size="14"></i> New Project</button>
+                <button class="btn btn-outline btn-sm" onclick="openNewSite()"><i data-icon="plus" data-icon-size="14"></i> New Site</button>
+                <button class="btn btn-outline btn-sm" onclick="switchTab('projects')">Projects &rarr;</button>
+                <button class="btn btn-outline btn-sm" onclick="switchTab('sites')">Sites &rarr;</button>
+              </div>
+            </div>
+            <div id="hubSitesList" style="padding:0 4px 4px"></div>
+          </div>
+
+          <div class="chart-card" style="margin-bottom:16px" id="settingsHealth">
+            <div class="chart-card">
+              <div class="chart-head">
+                <div>
+                  <h2 class="head-ic"><span class="ic-tile success"><i data-icon="shieldCheck" data-icon-size="20"></i></span> Fleet Health</h2>
+                  <p class="muted">0–100 per vehicle — compliance, issues, inspections, cost &amp; predictions</p>
+                </div>
+              </div>
+              <div id="healthStrip" class="health-strip"></div>
+            </div>
           </div>
           <form id="settingsForm" class="entry-form">
             <div class="form-row">
