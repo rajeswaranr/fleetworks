@@ -219,7 +219,7 @@ window.dcSendRequest = async function (tripId) {
 };
 
 // ---------- vehicle modal: driver sections ----------
-async function dcSections(vehId) {
+async function dcSections(vehId, mode) {
   const [trip, done, reqs, docs] = await Promise.all([
     dcActiveTrip(vehId),
     fwCloud.authGet("trips", `select=id,from_loc,to_loc,km,actual_end,trip_date,odo_end&vehicle_id=eq.${vehId}&status=eq.completed&order=actual_end.desc.nullslast&limit=5`).catch(() => null),
@@ -239,19 +239,34 @@ async function dcSections(vehId) {
   const expBadge = d => { const n = daysUntil(d); return n == null ? "" : `<span class="fw-badge ${n < 0 ? "overdue" : n <= 30 ? "soon" : "ok"}">${n < 0 ? "Expired" : n + " d"}</span>`; };
 
   const stopBox = dcStopCard(trip);
-  return box(dcTripCard(trip, lastKm)) + (stopBox ? box(stopBox) : "") + box(dcRequestCard(trip)) +
+  const tripPart = box(dcTripCard(trip, lastKm)) + (stopBox ? box(stopBox) : "") + box(dcRequestCard(trip)) +
     h3("Loading / unloading log") + (stops && stops.length ? stops.map(s => row(`<span class="fw-badge ${s.kind === "loading" ? "soon" : "ok"}">${dcT(s.kind === "loading" ? "Loaded" : "Unloaded")}</span> ${esc(s.place || "—")}${s.material ? " · " + esc(s.material) : ""}${s.quantity != null ? " · " + s.quantity + " " + esc(s.unit || "") : ""}${s.party ? " · " + esc(s.party) : ""} · ${new Date(s.happened_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`)).join("") : `<p class="muted" style="font-size:0.85rem">No loading or unloading logged yet.</p>`) +
     h3("My requests") + (reqs && reqs.length ? reqs.map(r => row(`${badge(r.status)} <strong>${dcT(DC_REQ[r.request_type] || r.request_type)}</strong> ${fmtINR(r.paid_amount || r.amount)}${r.reason ? " · " + esc(r.reason) : ""} · ${fmtDate(r.created_at)}`)).join("") : `<p class="muted" style="font-size:0.85rem">No requests yet.</p>`) +
-    h3("Recent trips") + (done && done.length ? done.map(t => row(`${esc(t.from_loc || "—")} → ${esc(t.to_loc || "—")} · ${Math.round(t.km || 0)} km · ${fmtDate(t.actual_end || t.trip_date)}`)).join("") : `<p class="muted" style="font-size:0.85rem">No trips yet.</p>`) +
-    h3("Vehicle document vault") + (vault.length ? vault.map(d => row(`<strong>${esc(d.doc_type || "")}</strong>${d.number ? " · " + esc(d.number) : ""}${d.expiry_date ? " · " + dcT("Expires") + " " + fmtDate(d.expiry_date) + " " + expBadge(d.expiry_date) : ""}${d.note ? " · " + esc(d.note) : ""}`)).join("") : `<p class="muted" style="font-size:0.85rem">No documents recorded for this vehicle yet.</p>`);
+    h3("Recent trips") + (done && done.length ? done.map(t => row(`${esc(t.from_loc || "—")} → ${esc(t.to_loc || "—")} · ${Math.round(t.km || 0)} km · ${fmtDate(t.actual_end || t.trip_date)}`)).join("") : `<p class="muted" style="font-size:0.85rem">No trips yet.</p>`);
+  const vaultPart = h3("Vehicle document vault") + (vault.length ? vault.map(d => row(`<strong>${esc(d.doc_type || "")}</strong>${d.number ? " · " + esc(d.number) : ""}${d.expiry_date ? " · " + dcT("Expires") + " " + fmtDate(d.expiry_date) + " " + expBadge(d.expiry_date) : ""}${d.note ? " · " + esc(d.note) : ""}`)).join("") : `<p class="muted" style="font-size:0.85rem">No documents recorded for this vehicle yet.</p>`);
+  return mode === "maint" ? vaultPart : tripPart;
 }
 
 async function dcRefresh() {
   if (!_dcVeh) return;
   const host = document.getElementById("dcSections");
   if (!host) return;
-  host.innerHTML = await dcSections(_dcVeh.vehId);
+  host.innerHTML = await dcSections(_dcVeh.vehId, _dcVeh.mode);
   dcTranslate(host);
+}
+
+// A driver opens a vehicle from either Trip management or Maintenance and sees only that side.
+const DC_KEEP = {
+  trip:  /Log diesel|Petty expense|Advance received|Recent Fuel|Recent Expenses/i,
+  maint: /Vehicle details|Maintenance|Report a problem|Inspection|Issues/i,
+};
+function dcFilterModal(body, mode) {
+  let group = null;
+  [...body.children].forEach((el, i) => {
+    if (i === 0 || el.id === "tvErr") return;            // the vehicle title stays
+    if (el.tagName === "H3" || el.classList.contains("wf-form")) group = { keep: DC_KEEP[mode].test(el.textContent) };
+    if (group && !group.keep) el.remove();
+  });
 }
 
 // Wrap the base vehicle modal for drivers: the trip form is replaced by the console.
@@ -262,13 +277,15 @@ async function dcRefresh() {
     await baseOpen(vehId, extId, name, access);
     const body = document.getElementById("teamVehModalBody");
     if (ROLE === "driver" && body) {
-      _dcVeh = { vehId };
+      const mode = typeof _dcMode === "string" ? _dcMode : "trip";
+      _dcVeh = { vehId, mode };
       [...body.querySelectorAll(".wf-form")].forEach(f => { if (f.querySelector("#tvOdoStart")) f.remove(); });
+      dcFilterModal(body, mode);
       const holder = document.createElement("div"); holder.id = "dcSections";
-      const first = body.querySelector("h3");
-      (first ? first.parentNode : body).insertBefore(holder, first || null);
+      // trip tools go right under the vehicle title; documents go at the end
+      if (mode === "maint") body.appendChild(holder); else body.children[0].after(holder);
       holder.innerHTML = "<p class='muted'>Loading…</p>";
-      holder.innerHTML = await dcSections(vehId);
+      holder.innerHTML = await dcSections(vehId, mode);
     }
     dcTranslate(body);
   };
@@ -364,6 +381,6 @@ async function loadMyKhata() {
   _dcKhata.rows = rows.filter(r => r.driver_id === drv).concat(payRows).sort((a, b) => String(b.entry_date || "").localeCompare(String(a.entry_date || "")));
   dcKhataPaint();
   dcMountLangToggle();
-  dcLoadTrips();
-  dcLoadVault();
+  await Promise.all([dcLoadTrips(), dcLoadVault()]);
+  dcStartLauncher();
 }
