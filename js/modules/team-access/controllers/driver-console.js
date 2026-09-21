@@ -47,6 +47,12 @@ const DC_TA = {
   "My trips": "என் பயணங்கள்", "Vehicle": "வாகனம்", "Route": "வழித்தடம்", "Status": "நிலை", "Search route": "வழித்தடத்தில் தேடு", "All vehicles": "அனைத்து வாகனங்கள்", "View": "பார்", "All types": "அனைத்து வகைகள்", "Search document": "ஆவணத்தில் தேடு", "documents shown": "ஆவணங்கள் காட்டப்படுகின்றன", "trips shown": "பயணங்கள் காட்டப்படுகின்றன", "Expired": "காலாவதியானது", "No trips match.": "பொருந்தும் பயணங்கள் இல்லை.", "No documents match.": "பொருந்தும் ஆவணங்கள் இல்லை.",
   "Log loading / unloading": "ஏற்றம் / இறக்கம் பதிவு", "Loaded": "ஏற்றியது", "Unloaded": "இறக்கியது", "Place": "இடம்", "Party / customer": "பார்ட்டி / வாடிக்கையாளர்", "Material": "சரக்கு", "Quantity": "அளவு",
   "Save loading / unloading": "ஏற்றம் / இறக்கத்தைச் சேமி", "Loading / unloading log": "ஏற்றம் / இறக்கம் பதிவு", "No loading or unloading logged yet.": "ஏற்றம் / இறக்கம் பதிவு இல்லை.", "Saved to the trip log.": "பயணப் பதிவில் சேமிக்கப்பட்டது.", "Enter the place, material or quantity.": "இடம், சரக்கு அல்லது அளவை உள்ளிடவும்.", "Note (optional)": "குறிப்பு (விருப்பம்)",
+  "Team Sign In": "குழு உள்நுழைவு", "Mobile number": "மொபைல் எண்", "(drivers) — supervisors can use email": "(ஓட்டுநர்கள்) — மேற்பார்வையாளர்கள் மின்னஞ்சல் பயன்படுத்தலாம்", "Password": "கடவுச்சொல்", "Log In": "உள்நுழை",
+  "Drivers: your mobile number is your username, and your password is also your mobile number until you change it.": "ஓட்டுநர்கள்: உங்கள் மொபைல் எண்ணே பயனர்பெயர்; மாற்றும் வரை கடவுச்சொல்லும் அதே எண்தான்.",
+  "10-digit mobile number": "10 இலக்க மொபைல் எண்", "Send Reset Link": "மீட்டமைப்பு இணைப்பை அனுப்பு", "Back to Sign In": "உள்நுழைவுக்குத் திரும்பு", "Reset your password": "கடவுச்சொல்லை மீட்டமை", "Email": "மின்னஞ்சல்",
+  "Can update": "மாற்றலாம்", "View only": "பார்க்க மட்டும்", "Document": "ஆவணம்", "— goes to the owner for approval": "— உரிமையாளர் அனுமதிக்கு செல்லும்", "— recorded against your khata": "— உங்கள் கணக்கில் பதியப்படும்",
+  "— pre-trip / post-trip / weekly check": "— பயணத்திற்கு முன் / பின் / வாராந்திர பரிசோதனை", "Faults found or notes (optional)": "கண்ட குறைகள் அல்லது குறிப்புகள் (விருப்பம்)", "Police, RTO, Parking…": "போலீஸ், RTO, பார்க்கிங்…",
+  "Fuel": "எரிபொருள்", "Expired": "காலாவதியானது",
   "Change password": "கடவுச்சொல் மாற்று", "New password": "புதிய கடவுச்சொல்", "Confirm new password": "புதிய கடவுச்சொல்லை உறுதிசெய்", "Save password": "கடவுச்சொல்லைச் சேமி",
   "Password changed. Use it next time you sign in.": "கடவுச்சொல் மாற்றப்பட்டது. அடுத்த முறை இதைப் பயன்படுத்தவும்."
 };
@@ -61,6 +67,10 @@ function dcTranslate(root) {
   for (let n = w.nextNode(); n; n = w.nextNode()) {
     const raw = n.nodeValue, key = raw.trim();
     if (key && DC_TA[key]) n.nodeValue = raw.replace(key, DC_TA[key]);
+    else if (key) {
+      const m = key.match(/^(\d+) \/ (\d+) (trips|documents|entries) shown(.*)$/);
+      if (m) n.nodeValue = raw.replace(key, `${m[1]} / ${m[2]} ${{ trips: "பயணங்கள்", documents: "ஆவணங்கள்", entries: "பதிவுகள்" }[m[3]]} காட்டப்படுகின்றன${m[4].replace("km", "கி.மீ")}`);
+    }
   }
   root.querySelectorAll("[placeholder]").forEach(el => { const p = el.getAttribute("placeholder"); if (DC_TA[p]) el.setAttribute("placeholder", DC_TA[p]); });
 }
@@ -83,6 +93,18 @@ function dcMountLangToggle() {
   dcTranslate(document.querySelector(".drv-head"));
   dcTranslate(document.getElementById("teamPwCard"));
 }
+
+// The language button is on the sign-in card as well, so a driver can switch before logging in.
+(function () {
+  const card = document.querySelector("#teamGate .auth-gate-card");
+  if (!card || document.getElementById("teamLangBtnGate")) return;
+  const b = document.createElement("button");
+  b.type = "button"; b.id = "teamLangBtnGate"; b.className = "btn btn-primary btn-block";
+  b.textContent = dcLang() === "ta" ? "English" : "தமிழ்";
+  b.addEventListener("click", () => { try { localStorage.setItem(DC_LANG_KEY, dcLang() === "ta" ? "en" : "ta"); } catch {} location.reload(); });
+  card.prepend(b);
+  dcTranslate(document.getElementById("teamGate"));
+})();
 
 // ---------- who am I ----------
 let _dcDriverId = null;
