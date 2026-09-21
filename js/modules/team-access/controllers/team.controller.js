@@ -23,6 +23,7 @@ const daysUntil = d => d ? Math.round((new Date(d) - new Date()) / 86400000) : n
 
 let ORG = null, ASSIGN = {}, ROLE = null; // ASSIGN[extId] = 'view' | 'update'
 let _opStatuses = {}; // vehicleId → { op_status, current_driver_name }
+let _vehRows = {};    // vehicles.id → row, kept so the detail view can show its full details
 
 function complianceBadge(label, till) {
   if (!till) return "";
@@ -45,6 +46,8 @@ async function loadVehicles(portalVehicles) {
   const vehicles = window.FWTeamAccessDomain
     ? FWTeamAccessDomain.assignedVehicles(returnedVehicles, ASSIGN)
     : returnedVehicles.filter(v => Object.prototype.hasOwnProperty.call(ASSIGN, v.ext_id));
+
+  _vehRows = Object.fromEntries(vehicles.map(v => [v.id, v]));
 
   // Load op statuses for all visible vehicles
   const opRows = await fwCloud.authGet("vehicle_op_statuses", "select=*").catch(() => null) || [];
@@ -88,9 +91,31 @@ window.openVehicle = async function (vehId, extId, name, access) {
       fwCloud.authGet("expense_change_requests", `select=*&vehicle_id=eq.${vehId}&status=eq.pending&order=created_at.desc&limit=8`),
     ]);
 
+  const [workOrders, reminders] = await Promise.all([
+    fwCloud.authGet("work_orders", `select=*&vehicle_id=eq.${vehId}&order=opened_at.desc.nullslast&limit=10`).catch(() => null),
+    fwCloud.authGet("reminders", `select=*&vehicle_id=eq.${vehId}&order=due_date.asc.nullslast&limit=10`).catch(() => null),
+  ]);
+  const veh = _vehRows[vehId] || {};
+
   const listHTML = (rows, empty, fmt) => (rows && rows.length ? rows.map(fmt).join("") : `<p class="muted" style="font-size:0.85rem">${empty}</p>`);
 
   let html = `<h2 class="head-ic"><span class="ic-tile brand"><i data-icon="truck" data-icon-size="20"></i></span> ${esc(name)}</h2>`;
+
+  // Vehicle details: this vehicle only. Purchase price, resale value and other
+  // financial fields are deliberately not shown to drivers and supervisors.
+  const detail = [
+    ["Type", veh.type], ["Make", veh.make], ["Model", veh.model], ["Year", veh.year],
+    ["Fuel", veh.fuel_type], ["Tank (L)", veh.tank_capacity], ["GVW (kg)", veh.gvw], ["Payload (kg)", veh.payload],
+    ["Axle", veh.axle_config], ["Tyre size", veh.tyre_size], ["Depot", veh.depot], ["Colour", veh.color],
+  ].filter(([, v]) => v != null && v !== "");
+  html += `<h3 style="font-size:0.85rem;color:var(--navy);margin:14px 0 6px">Vehicle details</h3>` +
+    (detail.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px 14px;font-size:0.85rem">${detail.map(([k, v]) => `<div><small class="muted">${esc(k)}</small><div style="font-weight:600">${esc(v)}</div></div>`).join("")}</div>` : `<p class="muted" style="font-size:0.85rem">No extra details recorded for this vehicle.</p>`) +
+    `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${complianceBadge("Insurance", veh.insurance_till)}${complianceBadge("PUC", veh.puc_till)}${complianceBadge("Fitness", veh.fitness_till)}${complianceBadge("Permit", veh.permit_till)}${complianceBadge("Road Tax", veh.roadtax_till)}</div>`;
+
+  // Maintenance & service: this vehicle's repair jobs and upcoming service.
+  html += `<h3 style="font-size:0.85rem;color:var(--navy);margin:16px 0 6px">Maintenance &amp; service</h3>` +
+    listHTML(reminders, "No service reminders.", r => `<div class="pred-row" style="padding:8px 4px"><div class="pred-detail" style="font-size:0.85rem"><span class="fw-badge ${r.due_date && daysUntil(r.due_date) < 0 ? "overdue" : r.due_date && daysUntil(r.due_date) <= 30 ? "soon" : "upcoming"}">Service due</span> ${esc(r.task || "")}${r.due_date ? " · " + fmtDate(r.due_date) : ""}</div></div>`) +
+    listHTML(workOrders, "No repair jobs on record.", w => `<div class="pred-row" style="padding:8px 4px"><div class="pred-detail" style="font-size:0.85rem"><span class="fw-badge ${w.status === "Completed" ? "ok" : "soon"}">${esc(w.status || "Open")}</span> ${esc(w.title || "")}${w.vendor ? " · " + esc(w.vendor) : ""} · ${fmtDate(w.completed_at || w.opened_at)}</div></div>`);
 
   if (access === "update") {
     html += `
@@ -267,6 +292,49 @@ window.tvSaveTrip = async function (vehId) {
   else tvErr("Could not save — check your access for this vehicle.");
 };
 
+// ---------- My Khata (drivers only) ----------
+// A driver sees their own khata and nobody else's: the database returns only
+// rows linked to their login, and this also filters to the driver record linked
+// to this login. No linked record means nothing is shown.
+const KHATA_LABEL = { advance: "Advance received", expense: "Expense", settlement: "Returned / settled" };
+let _myDriverId = null;
+
+async function loadMyKhata() {
+  const box = document.getElementById("teamKhata");
+  if (!box) return;
+  if (ROLE !== "driver") { box.hidden = true; box.innerHTML = ""; return; }
+  box.hidden = false;
+  const me = await fwCloud.authGet("drivers", `select=id,name&org_id=eq.${ORG}&user_id=eq.${fwCloud.uid()}&limit=1`).catch(() => null);
+  _myDriverId = me && me[0] ? me[0].id : null;
+  if (!_myDriverId) {
+    box.innerHTML = `<div class="chart-card"><h2 class="head-ic"><span class="ic-tile success"><i data-icon="rupee" data-icon-size="20"></i></span> My Khata</h2>
+      <p class="muted">Your login isn't linked to a driver record yet, so there is no khata to show. Ask your fleet owner to link it in Team &amp; Access.</p></div>`;
+    if (window.FWIcons) FWIcons.hydrate(box);
+    return;
+  }
+  const all = await fwCloud.authGet("driver_ledger", `select=*&org_id=eq.${ORG}&driver_id=eq.${_myDriverId}&order=entry_date.desc.nullslast&limit=200`) || [];
+  const rows = all.filter(r => r.driver_id === _myDriverId);
+  const sum = t => rows.filter(r => r.type === t).reduce((s, r) => s + (+r.amount || 0), 0);
+  const adv = sum("advance"), exp = sum("expense"), set = sum("settlement"), bal = adv - exp - set;
+  box.innerHTML = `<div class="chart-card">
+    <div class="chart-head"><div>
+      <h2 class="head-ic"><span class="ic-tile success"><i data-icon="rupee" data-icon-size="20"></i></span> My Khata</h2>
+      <p class="muted">Only your own entries. Cash with you = advances − expenses − amounts returned.</p>
+    </div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px">
+      <div><small class="muted">Advances</small><div style="font-weight:700;font-size:1.1rem">${fmtINR(adv)}</div></div>
+      <div><small class="muted">Expenses</small><div style="font-weight:700;font-size:1.1rem">${fmtINR(exp)}</div></div>
+      <div><small class="muted">Returned</small><div style="font-weight:700;font-size:1.1rem">${fmtINR(set)}</div></div>
+      <div><small class="muted">With me</small><div style="font-weight:700;font-size:1.1rem;color:${bal >= 0 ? "#166534" : "#dc2626"}">${fmtINR(bal)}</div></div>
+    </div>
+    <div style="overflow-x:auto"><table class="chart-table-el" style="width:100%">
+      <thead><tr><th>Date</th><th>Type</th><th style="text-align:right">Amount</th><th>Note</th></tr></thead>
+      <tbody>${rows.length ? rows.map(r => `<tr><td>${fmtDate(r.entry_date)}</td><td>${esc(KHATA_LABEL[r.type] || r.type || "")}</td><td style="text-align:right">${fmtINR(r.amount)}</td><td>${esc(r.note || "—")}</td></tr>`).join("") : `<tr><td colspan="4" class="muted" style="text-align:center;padding:16px">No entries yet.</td></tr>`}</tbody>
+    </table></div>
+  </div>`;
+  if (window.FWIcons) FWIcons.hydrate(box);
+}
+
 // An advance is money the driver received, recorded against their own khata.
 // It needs the driver row linked to this login; without that link there is no
 // khata to write to, and saying so is better than failing silently.
@@ -281,7 +349,7 @@ window.tvSaveAdvance = async function () {
     org_id: ORG, driver_id: me[0].id, entry_date: today(),
     type: "advance", amount, note: note || null,
   });
-  if (ok) { toast("Advance recorded in your khata."); document.getElementById("teamVehModal").style.display = "none"; }
+  if (ok) { toast("Advance recorded in your khata."); document.getElementById("teamVehModal").style.display = "none"; loadMyKhata(); }
   else tvErr("Could not save the advance.");
 };
 
@@ -367,6 +435,7 @@ async function unlock() {
     document.getElementById("teamWhoName").textContent = view.name;
     document.getElementById("teamAccessNote").textContent = view.accessNote;
     await loadVehicles(view.vehicles);
+    loadMyKhata();
     return;
   }
 
@@ -398,6 +467,7 @@ async function unlock() {
       ? (hasUpdateAccess ? "Tap a vehicle to log diesel, trips, expenses or a problem, and see its recent history." : "Tap a vehicle to see its recent fuel, expenses, issues and inspections.")
       : (hasUpdateAccess ? "Vehicles marked 'Can update' let you log fuel, expenses, inspections and report problems. View-only vehicles show history." : "Tap a vehicle to see its recent fuel, expenses, issues and inspections.");
   await loadVehicles();
+  loadMyKhata();
 }
 
 document.getElementById("teamLoginForm").addEventListener("submit", async e => {
