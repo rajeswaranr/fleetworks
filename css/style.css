@@ -1009,6 +1009,7 @@ i[data-icon] { display: inline-flex; align-items: center; justify-content: cente
   color: #c3d2e8; font-family: inherit; font-size: 0.87rem; font-weight: 500;
   padding: 9px 12px; border-radius: 9px;
 }
+.side-item[hidden] { display: none; }   /* nav-only buttons (event detail, coaching session) must stay out of the sidebar */
 .side-item .fw-ic { width: 18px; height: 18px; flex: none; color: #8aa0c4; }
 .side-item:hover { background-color: rgba(255,255,255,0.07); color: #fff; }
 .side-item:hover .fw-ic { color: #cbd5e6; }
@@ -1861,7 +1862,7 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
 .fv-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .fv-filters input[type="search"] { flex: 1; min-width: 200px; height: 36px; padding: 0 12px;
   border: 1px solid var(--border); border-radius: 9px; font: inherit; font-size: 0.88rem; }
-.fv-filters select { height: 36px; padding: 0 10px; border: 1px solid var(--border);
+.fv-filters select { width: auto; height: 36px; padding: 0 10px; border: 1px solid var(--border);
   border-radius: 9px; font: inherit; font-size: 0.85rem; background: #fff; color: var(--ink); }
 .fv-count { font-size: 0.8rem; color: var(--muted); margin-left: auto; }
 
@@ -1897,7 +1898,15 @@ body.auth-locked #cpWrap, body.auth-locked #fwSyncPill { display: none !importan
   display: flex; align-items: center; gap: 5px; }
 .fv-card-place { font-size: 0.73rem; color: var(--muted); margin-top: 2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fv-card-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.fv-card-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+.fv-fuel { display: inline-flex; align-items: center; gap: 3px; font-size: 0.7rem; font-weight: 700; color: #0891b2; }
+.fv-chips { display: flex; gap: 6px; flex-wrap: wrap; flex-basis: 100%; }
+.fv-chip { border: 1px solid var(--border); background: var(--card, #fff); color: var(--text, #0f1e33); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 0.78rem; cursor: pointer; }
+.fv-chip b { margin-left: 4px; font-variant-numeric: tabular-nums; }
+.fv-chip[aria-pressed="true"] { background: #0f1e33; color: #fff; border-color: #0f1e33; }
+.fv-chip.transit[aria-pressed="true"] { background: #16a34a; border-color: #16a34a; }
+.fv-chip.warning[aria-pressed="true"] { background: #d97706; border-color: #d97706; }
+.fv-chip.critical[aria-pressed="true"] { background: #dc2626; border-color: #dc2626; }
 .fv-ago { font-size: 0.7rem; color: var(--muted); margin-left: auto; }
 
 /* Leaflet divIcon has no styling of its own; the pin is drawn here. */

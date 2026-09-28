@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css/design-system.css" />
   <link rel="stylesheet" href="css/themes.css" />
   <link rel="stylesheet" href="css/safe-command.css" />
+  <link rel="stylesheet" href="css/ops-console.css" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" href="icons/icon-96.png" />
   <meta name="theme-color" content="#0f1e33" />
@@ -242,6 +243,7 @@
           <button type="button" class="side-parent"><i data-icon="fuel"></i><span>Fuel &amp; Energy</span><i data-icon="chevronDown" data-icon-size="14" class="chev"></i></button>
           <div class="side-children">
             <button class="side-item tab-btn" data-tab="fueldash"><span>Fuel Dashboard</span></button>
+            <button class="side-item tab-btn" data-tab="fuelsensor"><span>Fuel Sensor &amp; Theft</span></button>
             <button class="side-item tab-btn" data-tab="fuel"><span>Diesel &amp; Mileage</span></button>
             <button class="side-item tab-btn" data-tab="charging"><span>EV Charging</span></button>
           </div>
@@ -271,6 +273,8 @@
         <div data-ws="safe" hidden>
         <div class="side-pillar safe"><span class="pp"></span>Fleet<em>Safe</em></div>
         <button class="side-item tab-btn" data-tab="safehome"><i data-icon="gauge"></i><span>Command Centre</span></button>
+        <button class="side-item tab-btn" data-tab="triage"><i data-icon="shieldAlert"></i><span>Incident Triage</span></button>
+        <button class="side-item tab-btn" data-tab="vision"><i data-icon="eye"></i><span>AI Vision</span></button>
         <a class="side-item" href="live.html"><i data-icon="camera"></i><span>Live Dashcam Feeds</span></a>
         <button class="side-item tab-btn" data-tab="fleetview"><i data-icon="mapPin"></i><span>Fleet View</span></button>
         <button class="side-item tab-btn" data-tab="safety"><i data-icon="shieldCheck"></i><span>Safety &amp; Coaching</span></button>
@@ -667,8 +671,10 @@
               <option value="name">Sort: Name</option>
               <option value="speed">Sort: Speed</option>
               <option value="updated">Sort: Last update</option>
+              <option value="alert">Sort: Open incidents first</option>
             </select>
             <span class="fv-count" id="fvCount"></span>
+            <div class="fv-chips" id="fvAlertChips" role="group" aria-label="Filter by incident"></div>
           </div>
 
           <div class="fv-body">
@@ -885,6 +891,9 @@
 
       <!-- ======= DRIVER SAFETY — scores, event review, coaching ======= -->
       <section class="tab-panel" id="tab-safehome"><div id="safeCmdRoot"></div></section>
+      <section class="tab-panel" id="tab-triage"><div id="triageRoot"></div></section>
+      <section class="tab-panel" id="tab-vision"><div id="visionRoot"></div></section>
+      <section class="tab-panel" id="tab-fuelsensor"><div id="fuelSensorRoot"></div></section>
 
       <section class="tab-panel" id="tab-safety">
 
@@ -2871,6 +2880,10 @@
   <!-- Section-Specific Dashboards -->
   <script src="js/modules/fleet-safe/fleet-safe-dashboard.controller.js"></script>
   <script src="js/modules/fleet-safe/safety-command.js"></script>
+  <script src="js/modules/iot-telemetry/vision-scenes.js"></script>
+  <script src="js/modules/iot-telemetry/vision-console.js"></script>
+  <script src="js/modules/fleet-safe/incident-triage.js"></script>
+  <script src="js/modules/iot-telemetry/fuel-sensor.js"></script>
   <script src="js/modules/fleet-safe/tpms-safety.controller.js"></script>
   <script src="js/modules/fleet-safe/cold-chain-safety.controller.js"></script>
   <script src="js/utils/export-utility.js"></script>

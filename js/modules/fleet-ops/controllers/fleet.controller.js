@@ -5115,6 +5115,9 @@ function activateTab(tabName, options = {}) {
   if (tabName === "opscentre") loadOpsCentre(); else stopOpsCentre();
   if (tabName === "safety") loadSafety();
   if (tabName === "safehome" && window.SafeCommand) SafeCommand.open();
+  if (tabName === "triage" && window.IncidentTriage) IncidentTriage.open();
+  if (tabName === "vision" && window.VisionConsole) VisionConsole.open();
+  if (tabName === "fuelsensor" && window.FuelSensor) FuelSensor.open();
   if (tabName === "fleetview") loadFleetView();
   if (tabName === "fueldash") loadFuelDash();
   if (tabName === "insuredash" || tabName === "policies" || tabName === "claims") loadInsure();
@@ -6727,16 +6730,33 @@ window.completeCoaching = async function(id) {
 var _fvTab = "live", _fvMap = null, _fvLayer = null, _fvGeoLayer = null;
 var _fvAssets = [], _fvGeofences = [], _fvPositions = [], _fvSelected = null;
 var _fvDrawing = false;
+// Open incidents and tank level per vehicle uuid, for the alert chips, cards and pins.
+var _fvAlerts = {}, _fvFuel = {}, _fvAlert = "";
 
 async function loadFleetView() {
+  // A #fleetview deep link runs this before the var initialisers below it have executed.
+  _fvAlerts = {}; _fvFuel = {}; if (_fvAlert === undefined) _fvAlert = "";
   const signedIn = !!(window.fwCloud && fwCloud.user && fwCloud.user());
   if (signedIn) {
-    const [assets, fences, pos] = await Promise.all([
+    const since = new Date(Date.now() - 864e5).toISOString();
+    const [assets, fences, pos, twin, aiOpen, camOpen] = await Promise.all([
       fwCloud.authGet("assets", "select=*&order=name").catch(() => []),
       fwCloud.authGet("geofences", "select=*&is_active=eq.true").catch(() => []),
       fwCloud.authGet("driver_locations",
         "select=vehicle_id,latitude,longitude,speed_kmph,recorded_at&order=recorded_at.desc&limit=400").catch(() => []),
+      fwCloud.authGet("vehicle_twin", "select=vehicle_id,state").catch(() => []),
+      fwCloud.authGet("ai_events", "select=vehicle_id,severity&acknowledged_at=is.null&limit=500").catch(() => []),
+      fwCloud.authGet("v_safety_events", `select=vehicle_id,severity&acknowledged_at=is.null&occurred_at=gte.${since}&limit=500`).catch(() => []),
     ]);
+    _fvAlerts = {}; _fvFuel = {};
+    [...(aiOpen || []), ...(camOpen || [])].forEach(e => {
+      if (!e.vehicle_id || e.severity === "info") return;
+      if (_fvAlerts[e.vehicle_id] !== "critical") _fvAlerts[e.vehicle_id] = e.severity;
+    });
+    (twin || []).forEach(t => {
+      const f = t.state && t.state["Vehicle.Powertrain.FuelSystem.RelativeLevel"];
+      if (t.vehicle_id && f && f.v != null) _fvFuel[t.vehicle_id] = Number(f.v);
+    });
     _fvAssets = assets || [];
     _fvGeofences = fences || [];
     const seen = new Set();
@@ -6762,6 +6782,8 @@ function fvEntities() {
       sub: v.type || "Vehicle",
       driver: driver ? driver.name : null,
       status: vehicleOpStatus(v),
+      alert: _fvAlerts[v.dbId || v.id] || null,
+      fuel: _fvFuel[v.dbId || v.id] != null ? _fvFuel[v.dbId || v.id] : null,
       speed: pos ? pos.speed_kmph : null,
       lat: pos ? Number(pos.latitude) : null,
       lng: pos ? Number(pos.longitude) : null,
@@ -6802,10 +6824,13 @@ function fvFiltered() {
   if (_fvTab === "assets")   rows = rows.filter(r => r.kind === "asset");
   if (kind) rows = rows.filter(r => r.kind === kind);
   if (st)   rows = rows.filter(r => r.status === st);
+  if (_fvAlert === "transit") rows = rows.filter(r => !r.alert && (r.status === "moving" || (r.speed || 0) > 3));
+  else if (_fvAlert) rows = rows.filter(r => r.alert === _fvAlert);
   if (q) rows = rows.filter(r =>
     (r.name + " " + (r.sub || "") + " " + (r.driver || "") + " " + (r.place || "")).toLowerCase().includes(q));
 
   rows.sort((a, b) => {
+    if (sort === "alert")   return ({ critical: 0, warning: 1 }[a.alert] ?? 2) - ({ critical: 0, warning: 1 }[b.alert] ?? 2) || a.name.localeCompare(b.name);
     if (sort === "speed")   return (b.speed || 0) - (a.speed || 0);
     if (sort === "updated") return new Date(b.at || 0) - new Date(a.at || 0);
     return a.name.localeCompare(b.name);
@@ -6823,6 +6848,7 @@ function renderFleetView() {
   const rows = fvFiltered();
   const cnt = document.getElementById("fvCount");
   if (cnt) cnt.textContent = rows.length + (rows.length === 1 ? " entity" : " entities");
+  renderFvAlertChips();
 
   if (!rows.length) {
     list.innerHTML = `<p class="muted" style="padding:16px">Nothing matches these filters.</p>`;
@@ -6845,6 +6871,8 @@ function renderFleetView() {
         ${r.place ? `<div class="fv-card-place">${esc(r.place)}</div>` : ""}
         <div class="fv-card-foot">
           <span class="fw-badge ${m.cls}" style="font-size:.68rem">${m.label}</span>
+          ${r.alert ? `<span class="fw-badge ${r.alert === "critical" ? "critical" : "medium"}" style="font-size:.68rem">${FWIcon("alert", { size: 11 })} ${r.alert === "critical" ? "Critical" : "Warning"}</span>` : ""}
+          ${r.fuel != null ? `<span class="fv-fuel" title="Fuel in tank">${FWIcon("fuel", { size: 11 })} ${Math.round(r.fuel)}%</span>` : ""}
           <span class="fv-ago">${r.at ? fmtAgoShort(r.at) + " ago" : "no fix"}</span>
         </div>
       </div>
@@ -6852,6 +6880,16 @@ function renderFleetView() {
   }).join("");
 
   drawFvMarkers(rows);
+}
+
+/* All / In transit / Warning / Critical: the dispatcher's first question is
+   "which trucks need me", so open incidents get their own one-click filter. */
+function renderFvAlertChips() {
+  const el = document.getElementById("fvAlertChips"); if (!el) return;
+  const all = fvEntities().filter(r => r.kind === "vehicle");
+  const n = k => k === "transit" ? all.filter(r => !r.alert && (r.status === "moving" || (r.speed || 0) > 3)).length : all.filter(r => r.alert === k).length;
+  el.innerHTML = [["", "All", all.length], ["transit", "In transit", n("transit")], ["warning", "Warning", n("warning")], ["critical", "Critical", n("critical")]]
+    .map(([k, l, c]) => `<button type="button" class="fv-chip ${k}" aria-pressed="${_fvAlert === k}" onclick="_fvAlert='${k}';renderFleetView()">${l} <b>${c}</b></button>`).join("");
 }
 
 function renderFvDrivers(list) {
@@ -6939,7 +6977,8 @@ function drawFvMarkers(rows) {
   const pts = [];
   rows.filter(r => r.lat != null && !isNaN(r.lat)).forEach(r => {
     const m = OP_STATUS[r.status] || OP_STATUS.active;
-    const col = { ok: "#16a34a", soon: "#f59e0b", overdue: "#dc2626", upcoming: "#2563eb" }[m.cls] || "#64748b";
+    const col = r.alert === "critical" ? "#dc2626" : r.alert === "warning" ? "#f59e0b"
+      : ({ ok: "#16a34a", soon: "#f59e0b", overdue: "#dc2626", upcoming: "#2563eb" }[m.cls] || "#64748b");
     const icon = L.divIcon({
       className: "fv-pin-wrap",
       html: `<span class="fv-pin ${r.kind}" style="--pc:${col}">${r.kind === "asset" ? "▪" : "▲"}</span>`,
@@ -6948,7 +6987,9 @@ function drawFvMarkers(rows) {
     const mk = L.marker([r.lat, r.lng], { icon }).addTo(_fvLayer);
     mk.bindPopup(`<strong>${esc(r.name)}</strong><br>${esc(r.sub || "")}` +
       (r.driver ? `<br>${esc(r.driver)}` : "") +
-      (r.speed != null ? `<br>${Math.round(r.speed)} km/h` : ""));
+      (r.speed != null ? `<br>${Math.round(r.speed)} km/h` : "") +
+      (r.fuel != null ? ` · fuel ${Math.round(r.fuel)}%` : "") +
+      (r.alert ? `<br><b style="color:${col}">${r.alert === "critical" ? "Critical" : "Warning"} incident open</b>` : ""));
     pts.push([r.lat, r.lng]);
   });
   if (pts.length && _fvMap && !_fvSelected) {
