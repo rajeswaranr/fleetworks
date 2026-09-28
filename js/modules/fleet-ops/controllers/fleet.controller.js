@@ -5118,6 +5118,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "triage" && window.IncidentTriage) IncidentTriage.open();
   if (tabName === "vision" && window.VisionConsole) VisionConsole.open();
   if (tabName === "fuelsensor" && window.FuelSensor) FuelSensor.open();
+  if (tabName === "devicehub" && window.DeviceHub) DeviceHub.open();
   if (tabName === "fleetview") loadFleetView();
   if (tabName === "fueldash") loadFuelDash();
   if (tabName === "insuredash" || tabName === "policies" || tabName === "claims") loadInsure();

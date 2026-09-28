@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Executable validation for the FleetWorks SQL migrations, run against Postgres 16 in-process via PGlite (WASM). No database server needed.",
   "scripts": {
-    "test": "node schema-normalized.test.mjs"
+    "test": "node schema-normalized.test.mjs && node fleetsafe-backend.test.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.0"

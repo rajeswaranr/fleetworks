@@ -281,6 +281,7 @@
         <button class="side-item tab-btn" data-tab="opscentre"><i data-icon="network"></i><span>Operation Centre</span></button>
         <button class="side-item tab-btn" data-tab="geofences"><i data-icon="map"></i><span>Geofences</span></button>
         <button class="side-item tab-btn" data-tab="assets"><i data-icon="boxes"></i><span>Assets &amp; Trailers</span></button>
+        <button class="side-item tab-btn" data-tab="devicehub"><i data-icon="link"></i><span>Device Hub</span></button>
         <button class="side-item tab-btn" data-tab="devices"><i data-icon="zap"></i><span>Devices &amp; Telemetry</span></button>
         <!-- Reached from an event row, not the sidebar, but activateTab() resolves
              a panel through its nav button — so it needs one, hidden. -->
@@ -894,6 +895,7 @@
       <section class="tab-panel" id="tab-triage"><div id="triageRoot"></div></section>
       <section class="tab-panel" id="tab-vision"><div id="visionRoot"></div></section>
       <section class="tab-panel" id="tab-fuelsensor"><div id="fuelSensorRoot"></div></section>
+      <section class="tab-panel" id="tab-devicehub"><div id="deviceHubRoot"></div></section>
 
       <section class="tab-panel" id="tab-safety">
 
@@ -2884,6 +2886,7 @@
   <script src="js/modules/iot-telemetry/vision-console.js"></script>
   <script src="js/modules/fleet-safe/incident-triage.js"></script>
   <script src="js/modules/iot-telemetry/fuel-sensor.js"></script>
+  <script src="js/modules/iot-telemetry/device-hub.js"></script>
   <script src="js/modules/fleet-safe/tpms-safety.controller.js"></script>
   <script src="js/modules/fleet-safe/cold-chain-safety.controller.js"></script>
   <script src="js/utils/export-utility.js"></script>

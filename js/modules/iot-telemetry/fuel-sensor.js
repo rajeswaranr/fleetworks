@@ -78,8 +78,8 @@
     if (!signedIn()) { r.innerHTML = `<div class="oc"><div class="oc-empty">${icon("fuel", 22)}<br><b>Sign in to see your tank sensors.</b></div></div>`; return; }
     if (!F.loaded) { r.innerHTML = `<div class="oc"><div class="oc-skel"></div><div class="oc-skel"></div><div class="oc-skel" style="height:280px"></div></div>`; return; }
     if (!F.devices.length) {
-      r.innerHTML = `<div class="oc"><div class="oc-empty"><span class="ic-tile info">${icon("fuel", 22)}</span><b>No fuel sensor linked yet.</b><br>Link a tracker with a fuel-level sensor to a vehicle, or start the simulator, and the tank curve, idling and theft alerts appear here.<br><button type="button" class="btn btn-primary btn-sm" data-go="devices" style="margin-top:12px">Open Devices &amp; Telemetry</button></div></div>`;
-      r.querySelector("[data-go]").onclick = () => activateTab("devices");
+      r.innerHTML = `<div class="oc"><div class="oc-empty"><span class="ic-tile info">${icon("fuel", 22)}</span><b>No fuel sensor linked yet.</b><br>Link a tracker with a fuel-level sensor to a vehicle, or start the simulator, and the tank curve, idling and theft alerts appear here.<br><button type="button" class="btn btn-primary btn-sm" data-go="devicehub" style="margin-top:12px">Connect a sensor in Device Hub</button></div></div>`;
+      r.querySelector("[data-go]").onclick = () => activateTab("devicehub");
       return;
     }
     const tv = todayByVehicle();

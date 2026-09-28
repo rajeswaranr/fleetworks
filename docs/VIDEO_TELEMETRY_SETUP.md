@@ -1,3 +1,5 @@
+> **Superseded (2026-09-28).** The dashcam-webhook / S3 / TimescaleDB design described here was replaced by the generic device layer: see [device-integration.md](device-integration.md).
+
 # Video Telemetry Integration Setup
 
 Complete guide to integrating dashcam video streaming and telemetry with FleetWorks.

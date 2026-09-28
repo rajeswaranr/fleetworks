@@ -197,7 +197,7 @@ function scRenderFeed() {
   if (!rows.length) {
     feed.innerHTML = _sc.events.length
       ? `<li class="sc-empty"><span class="ic-tile success">${scIcon("checkCircle", 22)}</span><b>Nothing matches.</b><br>Try a wider time window or clear a filter.</li>`
-      : `<li class="sc-empty"><span class="ic-tile info">${scIcon("camera", 22)}</span><b>No safety events yet.</b><br>They appear once a dashcam or AIS-140 device is linked to a vehicle.<br><button type="button" class="btn btn-primary btn-sm" onclick="activateTab('devices')">Open Devices &amp; Telemetry</button></li>`;
+      : `<li class="sc-empty"><span class="ic-tile info">${scIcon("camera", 22)}</span><b>No safety events yet.</b><br>They appear once a dashcam or AIS-140 device is linked to a vehicle.<br><button type="button" class="btn btn-primary btn-sm" onclick="activateTab('devicehub')">Connect a device</button></li>`;
     return;
   }
   feed.innerHTML = rows.slice(0, 60).map((e, i) => {
@@ -247,7 +247,9 @@ function scOpenDrawer(id) {
   _sc.sel = id; _scReturnFocus = document.activeElement;
   const sev = SC_SEV[e.severity] || SC_SEV.info, d = _sc.scores.find(s => s.driver_id === e.driver_id);
   const session = _sc.coaching.find(c => c.event_id === e.id);
-  const clip = e.video_url && /^https:\/\//i.test(e.video_url)
+  const stored = e.video_url && /^storage:device-media\//.test(e.video_url) ? e.video_url.slice("storage:device-media/".length) : null;
+  const clip = stored ? `<video controls playsinline preload="metadata" id="scClip"></video>`
+    : e.video_url && /^https:\/\//i.test(e.video_url)
     ? `<video controls playsinline preload="metadata" src="${scEsc(e.video_url)}"></video>`
     : e.video_url ? `<span>Simulated clip<br>(no real footage exists for this event)</span>` : `<span>No clip was recorded for this event.<br>Cameras upload a clip when they detect an incident.</span>`;
   const dr = document.getElementById("scDrawer"), sc = document.getElementById("scScrim");
@@ -276,6 +278,7 @@ function scOpenDrawer(id) {
       ${e.driver_id && !session ? `<button type="button" class="btn btn-primary btn-sm" id="scCoach">Coach driver</button>` : ""}
       <button type="button" class="btn btn-outline btn-sm" id="scFull">Full review</button>
     </div>`;
+  if (stored && fwCloud.signUrl) fwCloud.signUrl("device-media", stored, 3600).then(u => { const v = document.getElementById("scClip"); if (u && v) v.src = u; });
   dr.hidden = false; sc.hidden = false;
   requestAnimationFrame(() => { dr.classList.add("on"); sc.classList.add("on"); document.getElementById("scClose").focus(); });
   document.getElementById("scClose").onclick = scCloseDrawer; sc.onclick = scCloseDrawer;
@@ -308,7 +311,7 @@ function scWire() {
   root.querySelectorAll("[data-kpi]").forEach(b => b.onclick = () => {
     const k = b.dataset.kpi;
     if (k === "critical") _sc.filter = "critical"; else if (k === "unreviewed") _sc.filter = "unreviewed";
-    else if (k === "devices") { activateTab("devices"); return; }
+    else if (k === "devices") { activateTab("devicehub"); return; }
     else if (k === "drivers") { const w = _sc.scores.filter(s => s.band === "at_risk")[0]; if (w) _sc.driver = w.driver_id; }
     scRender();
   });

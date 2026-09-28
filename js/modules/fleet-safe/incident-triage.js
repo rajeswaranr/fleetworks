@@ -160,6 +160,10 @@
     if (scen && window.FWVision && FWVision.SCENARIOS[scen]) {
       return `<figure class="tr-frame"><canvas id="trFrame" data-scen="${esc(scen)}" data-cam="${esc(FWVision.SCENARIOS[scen].cam)}" aria-label="Freeze frame, simulated"></canvas><figcaption>Freeze frame · simulated · ${Math.round((it.confidence || 0.9) * 100)}% confidence</figcaption></figure>`;
     }
+    if (it.video_url && /^storage:device-media\//.test(it.video_url)) {
+      // private clip: the signed link is filled in after render (see loadMedia)
+      return `<figure class="tr-frame"><video controls playsinline preload="metadata" id="trClip" data-path="${esc(it.video_url.slice("storage:device-media/".length))}"></video><figcaption>Camera clip</figcaption></figure>`;
+    }
     if (it.video_url && /^https:\/\//i.test(it.video_url)) {
       return `<figure class="tr-frame"><video controls playsinline preload="metadata" src="${esc(it.video_url)}"></video></figure>`;
     }
@@ -242,6 +246,7 @@
         ${evidenceFrame(it)}
         <div class="oc-card is-inset"><h3>Evidence</h3>${evidenceKv(it)}</div>
       </div>
+      <div id="trMedia"></div>
       ${aiPanel(it)}
       <div style="margin-top:14px"><h4 style="font-size:.78rem;letter-spacing:.06em;text-transform:uppercase;color:var(--oc-muted);margin:0 0 10px">Timeline</h4>
         <ul class="tr-timeline">
@@ -255,12 +260,36 @@
     const rs = $("trResolveSave"); if (rs) rs.onclick = () => resolve(it);
     const vb = $("trVision"); if (vb) vb.onclick = () => activateTab("vision");
     const fb = $("trFull"); if (fb) fb.onclick = () => openEventDetail(it.id);
+    loadMedia(it);
     const cv = $("trFrame");
     if (cv && window.FWVision) {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       cv.width = Math.round((cv.clientWidth || 480) * dpr); cv.height = Math.round((cv.clientHeight || 270) * dpr);
       FWVision.draw(cv.getContext("2d"), cv.width, cv.height, cv.dataset.cam, cv.dataset.scen, 1.2, { heatmap: true, minConf: 0.5 });
     }
+  }
+
+  // Every file the cameras sent for this incident (front, cabin, 360°, cargo...), via
+  // short-lived signed links: the bucket is private and RLS decides who may read.
+  async function loadMedia(it) {
+    const key = it.src + ":" + it.id;
+    const sign = p => fwCloud.signUrl ? fwCloud.signUrl("device-media", p, 3600) : Promise.resolve(null);
+    const clip = $("trClip");
+    if (clip && clip.dataset.path) sign(clip.dataset.path).then(u => { if (u && $("trClip") === clip) clip.src = u; });
+    if (it.src !== "device" || !signedIn()) return;
+    const rows = await fwCloud.authGet("device_media", `select=id,kind,role,channel_no,storage_path,source_url,captured_at&event_id=eq.${it.id}&order=channel_no`).catch(() => null);
+    const el = $("trMedia");
+    if (!el || T.sel !== key || !rows || !rows.length) return;
+    const urls = await Promise.all(rows.map(m => m.storage_path ? sign(m.storage_path) : Promise.resolve(/^https:\/\//i.test(m.source_url || "") ? m.source_url : null)));
+    if ($("trMedia") !== el || T.sel !== key) return;
+    const ROLE = { front_road: "Front road", cabin_dms: "Cabin", left: "Left", right: "Right", rear: "Rear", cargo: "Cargo", surround_avm: "360°", tank: "Fuel tank" };
+    el.innerHTML = `<h4 class="tr-media-h">Camera files (${rows.length})</h4><div class="tr-media">${rows.map((m, i) => {
+      const label = ROLE[m.role] || (m.channel_no ? "Channel " + m.channel_no : "Camera");
+      if (!urls[i]) return `<figure class="tr-frame is-empty"><span class="muted">${esc(label)}: file not available</span></figure>`;
+      return m.kind === "snapshot"
+        ? `<figure class="tr-frame"><img src="${esc(urls[i])}" alt="${esc(label)} snapshot" loading="lazy"><figcaption>${esc(label)} · snapshot</figcaption></figure>`
+        : `<figure class="tr-frame"><video controls playsinline preload="metadata" src="${esc(urls[i])}"></video><figcaption>${esc(label)} · clip</figcaption></figure>`;
+    }).join("")}</div>`;
   }
 
   // ── actions ─────────────────────────────────────────────────────────

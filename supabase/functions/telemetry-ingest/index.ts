@@ -1,226 +1,51 @@
 // FleetWorks — telemetry ingest (Supabase Edge Function, Deno).
 //
-// The endpoint a device vendor's webhook posts to. Built now, against the
-// simulator, so the contract is settled and proven before any hardware exists —
-// when a supplier integration lands, only the field mapping changes.
+// The original FleetWorks-JSON endpoint, kept so existing integrations and the
+// simulator keep working. It now runs the same pipeline as device-ingest
+// (supabase/functions/_shared/devices/pipeline.ts), so both behave identically; new
+// integrations should use device-ingest, which also takes flespi and Traccar formats.
 //
-// Auth is a shared ingest key rather than a user JWT: the caller is a machine,
-// often a vendor's server, and it has no session. The key is checked in constant
-// time and the function then writes under the service role, so RLS never has to
-// admit an anonymous writer.
+// Auth: x-ingest-key — a fleet's own key (fwk_...) or the legacy TELEMETRY_INGEST_KEY.
 //
 // Deploy:
 //   npx supabase functions deploy telemetry-ingest --no-verify-jwt
-//   npx supabase secrets set TELEMETRY_INGEST_KEY=<long random string>
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.4";
-import { detect, healthScores, toSignals, type AiEvent } from "./intelligence.ts";
+import { fromFleetworks } from "../_shared/devices/adapters.ts";
+import { ingestDevice, resolveKey } from "../_shared/devices/pipeline.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const INGEST_KEY = Deno.env.get("TELEMETRY_INGEST_KEY") || "";
+const LEGACY_KEY = Deno.env.get("TELEMETRY_INGEST_KEY") || "";
 
 const CORS = {
-  "Access-Control-Allow-Origin": "*",           // machine-to-machine; auth is the key, not the origin
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "content-type, x-ingest-key",
   "Content-Type": "application/json",
 };
-const err = (status: number, message: string) =>
-  new Response(JSON.stringify({ error: message }), { status, headers: CORS });
-
-// Constant-time compare so a wrong key cannot be discovered by timing the
-// response. Cheap, and this endpoint is public by design.
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
-const num = (v: unknown): number | null => {
-  if (v === null || v === undefined || v === "") return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-};
-
-const inRange = (value: number | null, min: number, max: number) =>
-  value === null || (value >= min && value <= max);
-
-function validateReading(r: Record<string, unknown>): string | null {
-  const latitude = num(r.latitude), longitude = num(r.longitude);
-  const speed = num(r.speed_kmph), fuel = num(r.fuel_level_pct);
-  if (!inRange(latitude, -90, 90)) return "latitude must be between -90 and 90";
-  if (!inRange(longitude, -180, 180)) return "longitude must be between -180 and 180";
-  if (!inRange(speed, 0, 250)) return "speed_kmph must be between 0 and 250";
-  if (!inRange(fuel, 0, 100)) return "fuel_level_pct must be between 0 and 100";
-  if (r.recorded_at && Number.isNaN(Date.parse(String(r.recorded_at)))) return "recorded_at must be ISO-8601";
-  return null;
-}
-
-const EVENT_TYPES = new Set([
-  "lane_departure", "forward_collision", "headway_warning", "pedestrian_warning",
-  "fatigue", "distraction", "phone_use", "no_seatbelt", "smoking",
-  "harsh_brake", "harsh_accel", "harsh_corner", "overspeed",
-  "fuel_drop", "tamper", "power_cut", "sos", "panic",
-]);
+const err = (status: number, message: string) => new Response(JSON.stringify({ error: message }), { status, headers: CORS });
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return err(405, "POST only");
-  if (!INGEST_KEY) return err(503, "Ingest is not configured — set TELEMETRY_INGEST_KEY.");
 
-  const key = req.headers.get("x-ingest-key") || "";
-  if (!safeEqual(key, INGEST_KEY)) return err(401, "Bad ingest key.");
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
+  const key = await resolveKey(admin, req.headers.get("x-ingest-key") || "", LEGACY_KEY);
+  if (!key) return err(401, "Bad ingest key.");
 
-  let body: {
-    imei?: string;
-    readings?: Record<string, unknown>[];
-    events?: Record<string, unknown>[];
-  };
+  let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return err(400, "bad_json"); }
-
   const imei = String(body.imei || "").trim();
   if (!imei) return err(400, "imei is required — it identifies the device.");
+  if ((Array.isArray(body.readings) ? body.readings.length : 0) > 500) return err(413, "At most 500 readings per POST.");
 
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  // The device must already be registered. Auto-creating one on first sight
-  // would let anyone holding the ingest key invent devices in an org they have
-  // nothing to do with — and would quietly attach telemetry to no vehicle.
-  const { data: device, error: devErr } = await admin
-    .from("devices").select("id, org_id, vehicle_id, simulated").eq("imei", imei).maybeSingle();
-  if (devErr) return err(500, "Device lookup failed: " + devErr.message);
-  if (!device) return err(404, `No device registered with IMEI ${imei}. Add it first.`);
-
-  const readings = Array.isArray(body.readings) ? body.readings.slice(0, 500) : [];
-  const events = Array.isArray(body.events) ? body.events.slice(0, 200) : [];
-
-  for (let i = 0; i < readings.length; i++) {
-    const validationError = validateReading(readings[i]);
-    if (validationError) return err(422, `readings[${i}]: ${validationError}`);
-  }
-
-  let wroteReadings = 0, wroteEvents = 0, wroteAi = 0;
-  let latest: string | null = null;
-
-  // Load the previous accepted state before inserting this batch. Rules below
-  // compare consecutive readings, including the boundary between requests.
-  const { data: previous } = await admin.from("telemetry")
-    .select("recorded_at,fuel_level_pct,ignition,speed_kmph,latitude,longitude")
-    .eq("device_id", device.id).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
-
-  const derivedEvents: Record<string, unknown>[] = [];
-  if (readings.length) {
-    const ordered = [...readings].sort((a, b) =>
-      String(a.recorded_at || "").localeCompare(String(b.recorded_at || "")));
-    let prior = previous as Record<string, unknown> | null;
-    for (const reading of ordered) {
-      const speed = num(reading.speed_kmph) || 0;
-      const fuel = num(reading.fuel_level_pct);
-      const priorFuel = prior ? num(prior.fuel_level_pct) : null;
-      if (speed > 70) derivedEvents.push({ ...reading, event_type: "overspeed", severity: "warning" });
-      if (fuel !== null && priorFuel !== null && reading.ignition === false && priorFuel - fuel >= 8) {
-        derivedEvents.push({ ...reading, event_type: "fuel_drop", severity: "critical",
-          fuel_drop_pct: +(priorFuel - fuel).toFixed(1) });
-      }
-      prior = reading;
-    }
-
-    const rows = readings.map((r) => {
-      const ts = r.recorded_at ? String(r.recorded_at) : new Date().toISOString();
-      if (!latest || ts > latest) latest = ts;
-      return {
-        device_id: device.id, org_id: device.org_id, recorded_at: ts,
-        latitude: num(r.latitude), longitude: num(r.longitude),
-        speed_kmph: num(r.speed_kmph), heading: num(r.heading),
-        ignition: typeof r.ignition === "boolean" ? r.ignition : null,
-        odometer_km: num(r.odometer_km), engine_hours: num(r.engine_hours),
-        engine_rpm: num(r.engine_rpm), coolant_temp_c: num(r.coolant_temp_c),
-        battery_voltage: num(r.battery_voltage),
-        fuel_level_pct: num(r.fuel_level_pct), fuel_rate_lph: num(r.fuel_rate_lph),
-        tyre_pressure_min_psi: num(r.tyre_pressure_min_psi),
-        ambient_temp_c: num(r.ambient_temp_c), cargo_temp_c: num(r.cargo_temp_c),
-        raw: r, simulated: device.simulated,
-      };
-    });
-    const { error, count } = await admin.from("telemetry").insert(rows, { count: "exact" });
-    if (error) return err(500, "Telemetry insert failed: " + error.message);
-    wroteReadings = count ?? rows.length;
-
-    // ── vehicle intelligence: AI events + the digital twin ──────────────────
-    // Failures here must never lose the readings that were just stored.
-    try {
-      const since = new Date(Date.now() - 15 * 60000).toISOString();
-      const { data: lastEvents } = await admin.from("ai_events")
-        .select("event_type, occurred_at").eq("device_id", device.id).gte("occurred_at", since);
-      const recent: Record<string, number> = {};
-      for (const e of lastEvents || []) recent[e.event_type] = Math.max(recent[e.event_type] || 0, Date.parse(e.occurred_at));
-
-      const aiEvents: AiEvent[] = [];
-      let priorReading = previous as Record<string, unknown> | null;
-      for (const reading of ordered) {
-        aiEvents.push(...detect(priorReading, reading, recent));
-        priorReading = reading;
-      }
-      if (aiEvents.length) {
-        await admin.from("ai_events").insert(aiEvents.map((e) => ({
-          org_id: device.org_id, device_id: device.id, vehicle_id: device.vehicle_id || null,
-          occurred_at: e.occurred_at, event_type: e.event_type, signal_path: e.signal_path,
-          severity: e.severity, confidence: e.confidence, summary: e.summary, evidence: e.evidence,
-          simulated: device.simulated,
-        })));
-      }
-
-      const { data: twin } = await admin.from("vehicle_twin").select("state").eq("device_id", device.id).maybeSingle();
-      const state: Record<string, { v: unknown; ts: string }> = { ...((twin?.state as Record<string, { v: unknown; ts: string }>) || {}) };
-      for (const reading of ordered) Object.assign(state, toSignals(reading));
-      for (const e of aiEvents) state[e.signal_path] = { v: Math.max(Number((state[e.signal_path]?.v as number) || 0), e.confidence), ts: e.occurred_at };
-      await admin.from("vehicle_twin").upsert({
-        device_id: device.id, org_id: device.org_id, vehicle_id: device.vehicle_id || null,
-        state, health: healthScores(state, aiEvents), last_reading_at: latest, simulated: device.simulated,
-        updated_at: new Date().toISOString(),
-      });
-      wroteAi = aiEvents.length;
-    } catch (e) {
-      console.error("intelligence step failed", (e as Error).message);
-    }
-  }
-
-  const allEvents = [...events, ...derivedEvents];
-  if (allEvents.length) {
-    // Drop unknown event types rather than failing the whole batch — a vendor
-    // adding a new alert should never stop the readings in the same POST.
-    const rows = allEvents
-      .filter((e) => EVENT_TYPES.has(String(e.event_type)))
-      .map((e) => ({
-        device_id: device.id, org_id: device.org_id,
-        occurred_at: e.occurred_at ? String(e.occurred_at) : new Date().toISOString(),
-        event_type: String(e.event_type),
-        severity: ["info", "warning", "critical"].includes(String(e.severity)) ? String(e.severity) : "warning",
-        latitude: num(e.latitude), longitude: num(e.longitude), speed_kmph: num(e.speed_kmph),
-        video_url: e.video_url ? String(e.video_url) : null,
-        raw: e, simulated: device.simulated,
-      }));
-    if (rows.length) {
-      const { error, count } = await admin.from("device_events").insert(rows, { count: "exact" });
-      if (error) return err(500, "Event insert failed: " + error.message);
-      wroteEvents = count ?? rows.length;
-    }
-  }
-
-  // last_seen_at is what the dashboard's online/offline badge reads, so it is
-  // stamped on every accepted post even when the batch carried only events.
-  await admin.from("devices")
-    .update({ last_seen_at: latest || new Date().toISOString() })
-    .eq("id", device.id);
-
+  const r = await ingestDevice(admin, key, "telemetry-ingest", "fleetworks", imei, fromFleetworks(body));
+  if (r.status === "unknown_device") return err(404, `No device registered with IMEI ${imei}. Add it first.`);
+  if (r.status === "rejected") return err(422, r.detail || "Rejected.");
+  if (r.status === "error") return err(500, r.detail || "Ingest failed.");
   return new Response(JSON.stringify({
-    ok: true, imei, readings: wroteReadings, events: wroteEvents,
-    derivedEvents: derivedEvents.length, aiEvents: wroteAi,
-    skippedEvents: allEvents.length - wroteEvents,
-    vehicleId: device.vehicle_id || null,
+    ok: true, imei, readings: r.readings, events: r.events, aiEvents: r.aiEvents, media: r.media,
+    skippedEvents: r.skipped, vehicleId: r.vehicleId ?? null, detail: r.detail,
   }), { headers: CORS });
 });

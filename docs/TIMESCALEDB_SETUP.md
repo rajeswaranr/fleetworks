@@ -1,3 +1,5 @@
+> **Superseded (2026-09-28).** The dashcam-webhook / S3 / TimescaleDB design described here was replaced by the generic device layer: see [device-integration.md](device-integration.md).
+
 # TimescaleDB Configuration for Video Telemetry
 
 Complete guide to setting up and using TimescaleDB for high-volume vehicle telemetry and dashcam event storage.
