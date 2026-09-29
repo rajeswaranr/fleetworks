@@ -254,3 +254,7 @@
 .fg-query summary{cursor:pointer;font-size:.8rem;font-weight:600;color:var(--oc-muted);text-transform:uppercase;letter-spacing:.05em}
 .fg-query pre{margin-top:10px;max-height:280px}
 @media (max-width:900px){ .fg-l{font-size:9px} .fg-canvas{min-height:340px} }
+.tr-review{display:block;font-size:.72rem;margin-top:6px}
+.tr-review.pending{color:#f59e0b}
+.tr-review.kept{color:#34d399;display:inline-flex;align-items:center;gap:4px}
+.tr-review-btns{display:flex;gap:8px;align-items:center;margin-top:6px}

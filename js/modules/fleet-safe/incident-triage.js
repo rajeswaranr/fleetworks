@@ -277,19 +277,35 @@
     const clip = $("trClip");
     if (clip && clip.dataset.path) sign(clip.dataset.path).then(u => { if (u && $("trClip") === clip) clip.src = u; });
     if (it.src !== "device" || !signedIn()) return;
-    const rows = await FSData.get("device_media", `select=id,kind,role,channel_no,storage_path,source_url,captured_at&event_id=eq.${it.id}&order=channel_no`).catch(() => null);
+    const rows = await FSData.get("device_media", `select=id,kind,role,channel_no,storage_path,source_url,captured_at,review_status,reviewed_at&event_id=eq.${it.id}&order=channel_no`).catch(() => null);
     const el = $("trMedia");
     if (!el || T.sel !== key || !rows || !rows.length) return;
     const urls = await Promise.all(rows.map(m => m.storage_path ? sign(m.storage_path) : Promise.resolve(/^https:\/\//i.test(m.source_url || "") ? m.source_url : null)));
     if ($("trMedia") !== el || T.sel !== key) return;
     const ROLE = { front_road: "Front road", cabin_dms: "Cabin", left: "Left", right: "Right", rear: "Rear", cargo: "Cargo", surround_avm: "360°", tank: "Fuel tank" };
+    const daysLeft = m => { const d = 3 - Math.floor((Date.now() - new Date(m.captured_at)) / 864e5); return Math.max(0, d); };
     el.innerHTML = `<h4 class="tr-media-h">Camera files (${rows.length})</h4><div class="tr-media">${rows.map((m, i) => {
       const label = ROLE[m.role] || (m.channel_no ? "Channel " + m.channel_no : "Camera");
-      if (!urls[i]) return `<figure class="tr-frame is-empty"><span class="muted">${esc(label)}: file not available</span></figure>`;
-      return m.kind === "snapshot"
-        ? `<figure class="tr-frame"><img src="${esc(urls[i])}" alt="${esc(label)} snapshot" loading="lazy"><figcaption>${esc(label)} · snapshot</figcaption></figure>`
-        : `<figure class="tr-frame"><video controls playsinline preload="metadata" src="${esc(urls[i])}"></video><figcaption>${esc(label)} · clip</figcaption></figure>`;
+      if (!urls[i]) return `<figure class="tr-frame is-empty" data-media="${esc(m.id)}"><span class="muted">${esc(label)}: file not available</span></figure>`;
+      const media = m.kind === "snapshot"
+        ? `<img src="${esc(urls[i])}" alt="${esc(label)} snapshot" loading="lazy">`
+        : `<video controls playsinline preload="metadata" src="${esc(urls[i])}"></video>`;
+      const review = m.review_status === "archived"
+        ? `<span class="tr-review kept">${icon("checkCircle", 12)} Archived (kept)</span>`
+        : `<span class="tr-review pending">Deletes in ${daysLeft(m)} day${daysLeft(m) === 1 ? "" : "s"} unless verified</span>
+           <span class="tr-review-btns"><button type="button" class="btn btn-primary btn-sm" data-keep="${esc(m.id)}">Verify &amp; keep</button><button type="button" class="link-btn danger" data-del="${esc(m.id)}">Delete</button></span>`;
+      return `<figure class="tr-frame" data-media="${esc(m.id)}">${media}<figcaption>${esc(label)} · ${esc(m.kind)}${m.captured_at ? " · " + new Date(m.captured_at).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</figcaption>${review}</figure>`;
     }).join("")}</div>`;
+    el.querySelectorAll("[data-keep]").forEach(b => b.onclick = () => reviewClip(it, b.dataset.keep, "archive"));
+    el.querySelectorAll("[data-del]").forEach(b => b.onclick = () => reviewClip(it, b.dataset.del, "delete"));
+  }
+  async function reviewClip(it, mediaId, action) {
+    if (action === "delete") { const ok = window.FWDialog ? await FWDialog.confirm("Delete this recording? This cannot be undone.", { title: "Delete recording", confirmText: "Delete", danger: true }) : true; if (!ok) return; }
+    try {
+      await FSData.fn("device-media-retention", { mediaId, action });
+      if (window.toast) toast(action === "archive" ? "Recording archived — it will be kept." : "Recording deleted.");
+      loadMedia(it);
+    } catch (e) { if (window.toast) toast(e.message || "Could not update the recording.", "err"); }
   }
 
   // ── actions ─────────────────────────────────────────────────────────

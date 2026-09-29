@@ -89,12 +89,46 @@
   const trim = (arr, ms) => { const t = now(); while (arr.length && t - (arr[0].t ?? arr[0]) > ms) arr.shift(); };
   const stddev = a => { if (a.length < 2) return 0; const m = a.reduce((s, x) => s + x, 0) / a.length; return Math.sqrt(a.reduce((s, x) => s + (x - m) ** 2, 0) / a.length); };
 
+  // ── ML features from the face-mesh landmarks ──
+  // The MediaPipe FaceLandmarker neural net gives 478 3D landmarks. From them we compute
+  // the Eye Aspect Ratio (EAR) and Mouth Aspect Ratio (MAR) — the standard, robust
+  // drowsiness features — rather than the noisy eyeBlink blendshape, which did not cross
+  // threshold on sustained eye closure. EAR ~0.30 open, ~0.10 shut; MAR high on a yawn.
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  // MediaPipe eye landmark rings: [outerCorner, top1, top2, innerCorner, bottom2, bottom1]
+  const L_EYE = [33, 160, 158, 133, 153, 144], R_EYE = [362, 385, 387, 263, 373, 380];
+  function ear(lm, e) { const p = e.map(i => lm[i]); if (p.some(x => !x)) return null; const h = dist(p[0], p[3]); if (h < 1e-6) return null; return (dist(p[1], p[5]) + dist(p[2], p[4])) / (2 * h); }
+  // mouth: verticals (upper/lower lip) over horizontal (corners)
+  function mar(lm) { const t1 = lm[13], b1 = lm[14], l = lm[78], r = lm[308]; if (!t1 || !b1 || !l || !r) return 0; const h = dist(l, r); return h < 1e-6 ? 0 : dist(t1, b1) / h; }
+  // Eye-closure threshold. The literature uses a fixed EAR ~0.25 (tyrerodr / imprvhub /
+  // Soukupová-Čech), but a fixed cut misses drivers with naturally narrow eyes and false-fires
+  // on wide ones — so we auto-calibrate to each driver's own open-eye baseline and fall back to
+  // 0.25 until the baseline settles. earThreshold(E, earAvg) updates the baseline and returns
+  // the live cut for this frame.
+  const EAR_FIXED = 0.25, EAR_MIN = 0.16, EAR_MAX = 0.28;
+  function earThreshold(E, earAvg) {
+    if (earAvg != null) {
+      // baseline tracks the open eye: jump up fast toward higher readings, decay very slowly
+      if (E.earOpen == null) E.earOpen = earAvg;
+      else if (earAvg > E.earOpen) E.earOpen = E.earOpen * 0.9 + earAvg * 0.1;
+      else E.earOpen = E.earOpen * 0.999 + earAvg * 0.001;
+    }
+    if (E.earOpen == null || E.earOpen < 0.20) return EAR_FIXED;  // not enough signal yet
+    return Math.min(EAR_MAX, Math.max(EAR_MIN, E.earOpen * 0.6)); // ~60% of open = eyes shut
+  }
+
   // ── the analyser: run every frame, rate each condition 0..3, emit on rise ──
   function analyse(face, pose) {
-    const T = E.T, t = now();
-    const leftOpen = 1 - blend(face, "eyeBlinkLeft"), rightOpen = 1 - blend(face, "eyeBlinkRight");
-    const closed = leftOpen < T.OPEN_EYE && rightOpen < T.OPEN_EYE;
-    const jaw = blend(face, "jawOpen");
+    const T = E.T, t = now(), lm = E._lm;
+    // primary signal: EAR from landmarks; fall back to the blendshape only if no mesh
+    const earL = lm ? ear(lm, L_EYE) : null, earR = lm ? ear(lm, R_EYE) : null;
+    const earAvg = (earL != null && earR != null) ? (earL + earR) / 2 : null;
+    const earCut = earThreshold(E, earAvg);
+    E.earCut = earCut; E.earAvg = earAvg;   // surfaced for the debug readout
+    const blinkOpen = Math.min(1 - blend(face, "eyeBlinkLeft"), 1 - blend(face, "eyeBlinkRight"));
+    const closed = earAvg != null ? earAvg < earCut : blinkOpen < T.OPEN_EYE;
+    const leftOpen = earL != null ? earL : blinkOpen, rightOpen = earR != null ? earR : blinkOpen;
+    const marVal = lm ? mar(lm) : 0, jaw = Math.max(blend(face, "jawOpen"), marVal > 0.6 ? 0.6 : 0);
     const gaze = Math.max(blend(face, "eyeLookOutLeft"), blend(face, "eyeLookOutRight"), blend(face, "eyeLookInLeft"), blend(face, "eyeLookInRight"));
     E.closedNow = closed;
 
@@ -107,9 +141,14 @@
     else { if (E.startClosed !== null && t - E.startClosed >= 120) { E.blinks.push({ t }); trim(E.blinks, 60000); } E.startClosed = null; }
     const closedFor = E.startClosed ? t - E.startClosed : 0;
 
-    // yawn: mouth wide open, sustained
-    if (jaw > 0.55) { if (!E.yawing) { E.yawing = true; E.yawStart = t; } else if (t - E.yawStart >= 1100) { E.yawns.push({ t }); trim(E.yawns, 600000); E.yawing = false; } }
+    // yawn: mouth aspect ratio high (mouth wide open), sustained
+    if (marVal > 0.6 || jaw > 0.55) { if (!E.yawing) { E.yawing = true; E.yawStart = t; } else if (t - E.yawStart >= 1100) { E.yawns.push({ t }); trim(E.yawns, 600000); E.yawing = false; } }
     else E.yawing = false;
+
+    // head nod (chin dropping) — a classic micro-sleep sign
+    const nodding = pose.pitch < -12;
+    if (nodding) { if (E.nodSince == null) E.nodSince = t; } else E.nodSince = null;
+    const noddingFor = E.nodSince ? t - E.nodSince : 0;
 
     const T_away = Math.abs(pose.pitch) > 12 || Math.abs(pose.yaw) > 20 || gaze > 0.6;
     if (T_away) { if (E.awaySince == null) E.awaySince = t; } else E.awaySince = null;
@@ -119,9 +158,15 @@
     const lvl = {};
     // drowsiness: how long the eyes have been shut right now (scaled by sensitivity)
     lvl.drowsiness = closedFor >= T.LONG * 2 ? 3 : closedFor >= T.LONG ? 2 : closedFor >= T.MID ? 1 : 0;
-    // sleepiness: PERCLOS = fraction of the last 60 s with eyes closed
+    // sleepiness / micro-sleep: the worst of a long closure, a head nod, and PERCLOS (the
+    // % of the last 60 s with eyes closed). Fires within a few seconds — eyes shut ~2 s, or
+    // eyes drooping while the head nods, is a micro-sleep, not just a blink.
     const perc = E.perclos.length > 20 ? E.perclos.reduce((s, x) => s + x.c, 0) / E.perclos.length : 0;
-    lvl.sleepiness = perc >= 0.50 ? 3 : perc >= 0.30 ? 2 : perc >= 0.15 ? 1 : 0;
+    const byClosure = closedFor >= 3000 ? 3 : closedFor >= 2000 ? 2 : 0;
+    const drooping = closed || (earAvg != null && earAvg < earCut * 1.15);  // lids low, not fully shut
+    const byNod = noddingFor >= 1500 && drooping ? (noddingFor >= 2500 ? 3 : 2) : (noddingFor >= 1500 ? 1 : 0);
+    const byPerc = perc >= 0.50 ? 3 : perc >= 0.30 ? 2 : perc >= 0.15 ? 1 : 0;
+    lvl.sleepiness = Math.max(byClosure, byNod, byPerc);
     // fatigue: blink rate per minute (scaled to window) + yawns in 10 min
     const blinkRate = E.blinks.length * (60000 / Math.min(60000, Math.max(10000, t - E.startedAt)));
     const yawns10 = E.yawns.length;
@@ -149,7 +194,7 @@
     }
     E.live = lvl;
     draw(face, closed, lvl);
-    return { leftOpen, rightOpen, pose, closed, lvl, perclos: perc, blinkRate: Math.round(blinkRate), yawns: yawns10 };
+    return { leftOpen, rightOpen, pose, closed, lvl, perclos: perc, blinkRate: Math.round(blinkRate), yawns: yawns10, ear: earAvg, earCut };
   }
 
   let _audio = null;
@@ -187,7 +232,7 @@
         E._lm = res.faceLandmarks && res.faceLandmarks[0];
         const tick = analyse(face, pose);
         if (E.onTick) E.onTick(tick);
-      } else { if (E.faceSeen) emitStatus("No face — point the camera at yourself."); E.faceSeen = false; E.startClosed = null; E.awaySince = null; if (E.ctx) E.ctx.clearRect(0, 0, E.canvas.width, E.canvas.height); }
+      } else { if (E.faceSeen) emitStatus("No face — point the camera at yourself."); E.faceSeen = false; E.startClosed = null; E.awaySince = null; E.nodSince = null; if (E.ctx) E.ctx.clearRect(0, 0, E.canvas.width, E.canvas.height); }
     }
     E.raf = requestAnimationFrame(loop);
   }
@@ -204,7 +249,7 @@
   async function startEngine(video, canvas, opts) {
     E.video = video; E.canvas = canvas; E.ctx = canvas.getContext("2d"); E.T = thresholds();
     E.onEvent = opts.onEvent; E.onStatus = opts.onStatus; E.onTick = opts.onTick;
-    Object.assign(E, { startClosed: null, closedNow: false, perclos: [], blinks: [], yawns: [], yawing: false, yawStart: null, awaySince: null, poses: [], cond: {}, live: {}, alerting: false, startedAt: now(), faceSeen: false, counts: { alerts: 0, minor: 0, major: 0, critical: 0, byCond: {} } });
+    Object.assign(E, { startClosed: null, closedNow: false, earOpen: null, earCut: EAR_FIXED, earAvg: null, perclos: [], blinks: [], yawns: [], yawing: false, yawStart: null, awaySince: null, nodSince: null, poses: [], cond: {}, live: {}, alerting: false, startedAt: now(), faceSeen: false, counts: { alerts: 0, minor: 0, major: 0, critical: 0, byCond: {} } });
     await ensureLandmarker();
     emitStatus("Starting the camera…");
     E.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 480 }, height: { ideal: 640 } }, audio: false });
@@ -338,7 +383,11 @@
         onEvent: async ev => { flash(ev.message, ev.severity); P.log.unshift(ev); renderLog(); const id = await logToFleet(ev); if (id && (ev.severity === "major" || ev.severity === "critical")) P.segEvent = id; },
         onTick: tick => {
           const t = Date.now();
-          if (t - lastPaint > 300) { lastPaint = t; paintState(tick.lvl); }
+          if (t - lastPaint > 300) {
+            lastPaint = t; paintState(tick.lvl);
+            const s = document.getElementById("sdStatus");
+            if (s && tick.ear != null) s.textContent = `${tick.closed ? "Eyes closed" : "Watching"} · eye ${tick.ear.toFixed(2)} (shut<${tick.earCut.toFixed(2)})`;
+          }
           if (t - lastHrCheck > 30000) { lastHrCheck = t; checkDrivingHours(); }
         },
       });
