@@ -184,7 +184,17 @@
   const KIND = { long_blink: "Eyes closing", blink_rate: "Heavy eyelids", head_tilt: "Head tilting", fatigue: "Drowsiness", distraction: "Distraction" };
   const P = { tab: "monitor", running: false, log: [], vehicles: [], vehId: null, session: null, map: null, stops: [], geo: null };
 
-  function driverVehicles() { return [...document.querySelectorAll("#teamVehicleList .dc-veh")].map(c => ({ id: c.dataset.veh, name: c.dataset.name || c.dataset.ext || "Vehicle" })).filter(v => v.id); }
+  // Each surface supplies its own driver context so Safe Drive runs in both the team
+  // portal (team.html, signed in) and the no-login link page (driver.html):
+  //   window.SafeDriveVehicles       [{id,name}]  (else read from the team portal DOM)
+  //   window.SafeDriveMarkAttendance (status)      mark today's attendance; returns truthy on success
+  //   window.SafeDriveDrivingSince   ()            ISO time the current drive began (trip start), or null
+  const HOURS_BEFORE_ATTENDANCE = 6;
+  function driverVehicles() {
+    if (Array.isArray(window.SafeDriveVehicles)) return window.SafeDriveVehicles.filter(v => v && v.id);
+    return [...document.querySelectorAll("#teamVehicleList .dc-veh")].map(c => ({ id: c.dataset.veh, name: c.dataset.name || c.dataset.ext || "Vehicle" })).filter(v => v.id);
+  }
+  const canAttend = () => typeof window.SafeDriveMarkAttendance === "function";
 
   function mount(slot) {
     P.vehicles = driverVehicles(); P.vehId = P.vehId || (P.vehicles[0] && P.vehicles[0].id) || null; P.slot = slot;
@@ -209,7 +219,7 @@
     const b = document.getElementById("sdBody"); const V = P.vehicles;
     if (P.running) { b.innerHTML = liveHtml(); wireLive(); return; }
     if (P.session) { b.innerHTML = summaryHtml(P.session); document.getElementById("sdAgain").onclick = () => { P.session = null; render(); }; return; }
-    b.innerHTML = `<div class="sd-intro">
+    b.innerHTML = `${attendanceStrip()}<div class="sd-intro">
       <div class="sd-hero">${icon("eye", 40)}</div>
       <h3>Stay awake at the wheel</h3>
       <p>Mount your phone facing you. The front camera watches your eyes and head and sounds an alert the moment you start to nod off. Everything runs on your phone — no video is sent anywhere.</p>
@@ -218,6 +228,51 @@
       <p class="sd-note">Keep the app open and the screen on while driving. Alerts also reach your owner's safety dashboard.</p></div>`;
     const veh = document.getElementById("sdVeh"); if (veh) veh.onchange = () => { P.vehId = veh.value; };
     document.getElementById("sdStart").onclick = beginMonitor;
+    wireAttendance();
+  }
+
+  // ── attendance: mark on duty, and a 6-hour driving rule ──
+  function attendanceStrip() {
+    if (!canAttend()) return "";
+    const done = P.attendanceMarked;
+    return `<div class="sd-att ${done ? "is-done" : ""}" id="sdAtt">
+      <span class="sd-att-ic">${icon(done ? "checkCircle" : "user", 18)}</span>
+      <div class="sd-att-txt"><b>${done ? "Attendance marked for today" : "Mark your attendance"}</b>
+        <span class="muted">${done ? "You're on duty." : "Tap when you start your duty."}</span></div>
+      ${done ? "" : `<button type="button" class="btn btn-primary btn-sm" id="sdAttBtn">I'm on duty</button>`}</div>`;
+  }
+  function wireAttendance() {
+    const btn = document.getElementById("sdAttBtn");
+    if (btn) btn.onclick = () => markAttendance("present", "Attendance marked. Have a safe drive.");
+  }
+  async function markAttendance(status, okMsg) {
+    if (!canAttend()) return false;
+    try {
+      const ok = await window.SafeDriveMarkAttendance(status);
+      if (ok !== false) { P.attendanceMarked = true; if (window.toast) toast(okMsg || "Attendance marked."); if (P.tab === "monitor" && !P.running) render(); return true; }
+    } catch {}
+    if (window.toast) toast("Could not mark attendance. Try again.", "err");
+    return false;
+  }
+  // called each session tick; fires once when driving crosses the 6-hour rest rule
+  function checkDrivingHours() {
+    if (P.restPrompted || !canAttend()) return;
+    let sinceMs = P.session0;
+    try { const s = window.SafeDriveDrivingSince && window.SafeDriveDrivingSince(); if (s && !Number.isNaN(Date.parse(s))) sinceMs = Date.parse(s); } catch {}
+    if (sinceMs && Date.now() - sinceMs >= HOURS_BEFORE_ATTENDANCE * 3600e3) {
+      P.restPrompted = true;
+      restBanner();
+      try { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance("You have driven over six hours. Please pull over, take a rest, and mark your attendance.")); } catch {}
+    }
+  }
+  function restBanner() {
+    const cam = document.querySelector(".sd-cam"); if (!cam) return;
+    const el = document.createElement("div"); el.className = "sd-rest"; el.id = "sdRest";
+    el.innerHTML = `<div>${icon("shieldAlert", 34)}<b>Over 6 hours driving</b><span>Pull over, rest, and mark your attendance.</span>
+      <button type="button" class="btn btn-primary btn-sm" id="sdRestBtn">Rest &amp; mark attendance</button></div>`;
+    cam.appendChild(el);
+    const rb = document.getElementById("sdRestBtn");
+    if (rb) rb.onclick = async () => { const ok = await markAttendance("rest", "Rest logged. Please take a proper break."); if (ok) el.remove(); };
   }
   const liveHtml = () => `<div class="sd-live">
       <div class="sd-cam"><video id="sdVideo" playsinline muted></video><canvas id="sdCanvas"></canvas>
@@ -232,12 +287,14 @@
       <button type="button" class="btn btn-outline btn-block" id="sdStop">End drive &amp; see summary</button></div>`;
   function wireLive() { const s = document.getElementById("sdStop"); if (s) s.onclick = stopMonitor; }
   async function beginMonitor() {
-    P.running = true; P.log = []; render();
+    P.running = true; P.log = []; P.restPrompted = false; P.session0 = Date.now(); render();
     const setStat = () => { const c = SafeDriveEngine.counts; const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; }; set("sdCount", c.alerts); set("sdLong", c.longBlink); set("sdRate", c.blinkRate); set("sdHead", c.headTilt); };
+    let lastHrCheck = 0;
     try {
       await SafeDriveEngine.start(document.getElementById("sdVideo"), document.getElementById("sdCanvas"), {
         onStatus: m => { const s = document.getElementById("sdStatus"); if (s) s.textContent = m; },
         onEvent: ev => { setStat(); flash(ev.message); P.log.unshift(ev); renderLog(); logToFleet(ev); },
+        onTick: () => { const t = Date.now(); if (t - lastHrCheck > 30000) { lastHrCheck = t; checkDrivingHours(); } },
       });
     } catch (e) {
       P.running = false; render();
@@ -264,7 +321,13 @@
       <button type="button" class="btn btn-primary btn-block" id="sdAgain">Done</button></div>`;
   function flash(message) { const f = document.getElementById("sdFlash"), m = document.getElementById("sdFlashMsg"); if (!f) return; m.textContent = message; f.hidden = false; clearTimeout(f._t); f._t = setTimeout(() => { f.hidden = true; }, 2600); }
   function renderLog() { const el = document.getElementById("sdLog"); if (!el) return; el.innerHTML = P.log.slice(0, 12).map(e => `<li><span class="sd-dot"></span><b>${esc(KIND[e.kind] || e.kind)}</b><span class="muted">${new Date(e.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span></li>`).join(""); }
-  async function logToFleet(ev) { if (!P.vehId || !(window.fwCloud && fwCloud.callFunction)) return; try { await fwCloud.callFunction("driver-safety-event", { vehicleId: P.vehId, kind: ev.kind, occurredAt: ev.at }); } catch {} }
+  // log an alert to FleetSafe. Each surface can supply its own logger (driver.html posts
+  // through its anon link); the team portal falls back to the signed-in edge function.
+  async function logToFleet(ev) {
+    if (typeof window.SafeDriveLog === "function") { try { await window.SafeDriveLog({ vehicleId: P.vehId, kind: ev.kind, occurredAt: ev.at }); } catch {} return; }
+    if (!P.vehId || !(window.fwCloud && fwCloud.callFunction)) return;
+    try { await fwCloud.callFunction("driver-safety-event", { vehicleId: P.vehId, kind: ev.kind, occurredAt: ev.at }); } catch {}
+  }
 
   // ── Rest stops (OpenStreetMap Overpass, keyless) ──
   const OVERPASS = "https://overpass-api.de/api/interpreter";

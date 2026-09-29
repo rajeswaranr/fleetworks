@@ -34,11 +34,34 @@ function dcShowPanel(id) {
     if (id === "trip") dcRenderCardActions();
   }
   // Safe Drive holds the camera: build it when opened, stop it when left.
-  if (id === "safe" && window.SafeDrive) SafeDrive.mount(dcPanel("safe").querySelector(".dc-slot"));
+  if (id === "safe" && window.SafeDrive) { dcSafeDriveHooks(); SafeDrive.mount(dcPanel("safe").querySelector(".dc-slot")); }
   else if (window.SafeDrive && SafeDrive.isRunning()) SafeDrive.stop();
   window.scrollTo(0, 0);
 }
 window.dcShowPanel = dcShowPanel;
+
+// Safe Drive context for the signed-in driver: their vehicles, an attendance marker,
+// the FleetSafe logger, and when their current trip began (for the 6-hour rest rule).
+function dcSafeDriveHooks() {
+  window.SafeDriveVehicles = [...document.querySelectorAll("#teamVehicleList .dc-veh")]
+    .map(c => ({ id: c.dataset.veh, name: c.dataset.name || c.dataset.ext || "Vehicle" })).filter(v => v.id);
+  window.SafeDriveMarkAttendance = async function (status) {
+    const drv = await dcDriverId();
+    if (!drv) return false;
+    const veh = (window.SafeDriveVehicles[0] || {}).id || null;
+    return !!(await fwCloud.authInsertRet("driver_attendance", {
+      org_id: ORG, driver_id: drv, vehicle_id: veh, attendance_date: new Date().toISOString().slice(0, 10),
+      status: status || "present", source: "driver", marked_by: fwCloud.uid(),
+    }));
+  };
+  window.SafeDriveLog = null;   // signed in: Safe Drive uses the driver-safety-event edge function
+  window.SafeDriveDrivingSince = function () {
+    const veh = (window.SafeDriveVehicles[0] || {}).id;
+    const t = veh && _dcActiveTrips && _dcActiveTrips[veh];
+    return t && t.actual_start ? t.actual_start : null;
+  };
+}
+let _dcActiveTrips = {};
 
 // Trip management: each vehicle card shows the action that fits its trip: Start trip,
 // or Update trip and Close trip once a trip is running.
@@ -46,7 +69,9 @@ async function dcRenderCardActions() {
   if (ROLE !== "driver" || _dcMode !== "trip") return;
   const cards = [...document.querySelectorAll("#teamVehicleList .dc-veh")];
   if (!cards.length) return;
-  const rows = await fwCloud.authGet("trips", `select=id,vehicle_id,status,from_loc,to_loc&org_id=eq.${ORG}&status=in.(planned,assigned,acknowledged,started)&odo_end=is.null&order=created_at.desc`).catch(() => null) || [];
+  const rows = await fwCloud.authGet("trips", `select=id,vehicle_id,status,from_loc,to_loc,actual_start&org_id=eq.${ORG}&status=in.(planned,assigned,acknowledged,started)&odo_end=is.null&order=created_at.desc`).catch(() => null) || [];
+  _dcActiveTrips = {};
+  rows.forEach(t => { if (t.status === "started" && !_dcActiveTrips[t.vehicle_id]) _dcActiveTrips[t.vehicle_id] = t; });
   const byVeh = {};
   rows.forEach(t => { if (!byVeh[t.vehicle_id]) byVeh[t.vehicle_id] = t; });
   cards.forEach(c => {

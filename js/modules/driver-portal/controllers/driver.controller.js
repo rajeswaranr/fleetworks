@@ -27,7 +27,34 @@ document.getElementById("drvTabs").addEventListener("click", e => {
   if (!btn || !btn.dataset.tab) return;
   document.querySelectorAll("#drvTabs .tab-btn").forEach(b => b.classList.toggle("active", b === btn));
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "dtab-" + btn.dataset.tab));
+  if (btn.dataset.tab === "safe") openSafeDrive();
+  else if (window.SafeDrive && SafeDrive.isRunning()) SafeDrive.stop();   // camera off when leaving
 });
+
+// ---------- Safe Drive (shared module; this page supplies the driver context) ----------
+let _safeDriveMounted = false;
+function openSafeDrive() {
+  if (!window.SafeDrive) return;
+  // the driver's one vehicle, an attendance marker, a logger, and when the drive began
+  window.SafeDriveVehicles = DVID ? [{ id: DVID, name: DVEH || "வாகனம்" }] : [];
+  window.SafeDriveMarkAttendance = async function (status) {
+    try {
+      const r = await fetch(FW_BACKEND.url + "/rest/v1/driver_attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey, "Prefer": "return=minimal,resolution=merge-duplicates" },
+        body: JSON.stringify({ driver_id: DDID || null, org_id: _activeTrip?.org_id || null, attendance_date: new Date().toISOString().slice(0, 10), status: status || "present", source: "driver", vehicle_id: DVID || null }),
+      });
+      if (typeof loadMyAttendance === "function") loadMyAttendance();
+      return r.ok;
+    } catch { return false; }
+  };
+  window.SafeDriveLog = function (payload) {
+    // no-login page: record the drowsiness alert through the driver link, like every other entry
+    return send("safety_alert", { kind: payload.kind, occurredAt: payload.occurredAt, vehicle: DVEH, vehicle_id: DVID });
+  };
+  window.SafeDriveDrivingSince = function () { return _activeTrip && _activeTrip.actual_start ? _activeTrip.actual_start : null; };
+  if (!_safeDriveMounted) { SafeDrive.mount(document.getElementById("dSafeDriveSlot")); _safeDriveMounted = true; }
+}
 
 // ---------- Inspection checklist ----------
 const CHECK_ITEMS = [
@@ -313,7 +340,7 @@ async function loadActiveTrip() {
   if (!DVID) return;
   try {
     const res = await fetch(
-      FW_BACKEND.url + "/rest/v1/trips?select=id,org_id,from_loc,to_loc,cargo_description,status,driver_name,planned_start,planned_end,fastag_balance,fastag_balance_at" +
+      FW_BACKEND.url + "/rest/v1/trips?select=id,org_id,from_loc,to_loc,cargo_description,status,driver_name,planned_start,planned_end,actual_start,fastag_balance,fastag_balance_at" +
       "&vehicle_id=eq." + DVID +
       "&status=in.(assigned,acknowledged,started)" +
       "&order=planned_start.asc&limit=1",

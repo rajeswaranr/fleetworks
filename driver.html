@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="css/design-system.css" />
   <link rel="stylesheet" href="css/themes.css" />
+  <link rel="stylesheet" href="css/safe-drive.css" />
   <link rel="icon" type="image/png" href="icons/icon-96.png" />
   <meta name="theme-color" content="#0f1e33" />
   <script src="js/theme-switcher.js"></script>
@@ -42,6 +43,7 @@
         <button class="tab-btn" data-tab="issue" style="white-space:nowrap"><i data-icon="alert" data-icon-size="16"></i> பிரச்சனை</button>
         <button class="tab-btn" data-tab="check" style="white-space:nowrap"><i data-icon="clipboardCheck" data-icon-size="16"></i> ஆய்வு</button>
         <button class="tab-btn" data-tab="trip" style="white-space:nowrap"><i data-icon="mapPin" data-icon-size="16"></i> பயண நிலை</button>
+        <button class="tab-btn" data-tab="safe" style="white-space:nowrap"><i data-icon="eye" data-icon-size="16"></i> Safe Drive</button>
         <button class="tab-btn" data-tab="telemetry" style="white-space:nowrap"><i data-icon="zap" data-icon-size="16"></i> Live Vehicle</button>
         <button class="tab-btn" data-tab="docs" style="white-space:nowrap"><i data-icon="document" data-icon-size="16"></i> ஆவணங்கள்</button>
         <button class="tab-btn" data-tab="spend" style="white-space:nowrap"><i data-icon="rupee" data-icon-size="16"></i> செலவு</button>
@@ -128,6 +130,11 @@
       </section>
 
       <!-- Documents -->
+      <section class="tab-panel" id="dtab-safe">
+        <div class="chart-card"><div class="chart-head"><div><h2>Safe Drive — கண் கண்காணிப்பு</h2><p class="muted">தூக்கம் வந்தால் எச்சரிக்கை · ஓய்வு இடங்கள் · வருகை பதிவு</p></div></div>
+          <div id="dSafeDriveSlot" class="dc-slot"></div></div>
+      </section>
+
       <section class="tab-panel" id="dtab-docs">
         <div class="chart-card">
           <div class="chart-head"><div><h2>வாகன ஆவணங்கள்</h2><p class="muted">போக்குவரத்து போலீசிடம் காட்ட</p></div></div>
@@ -218,6 +225,7 @@
   <script src="js/modules/driver-portal/view-models/driver-portal.viewmodel.js"></script>
   <script src="js/modules/driver-portal/driver-portal.module.js"></script>
   <script src="js/modules/driver-portal/controllers/driver.controller.js"></script>
+  <script src="js/modules/team-access/controllers/driver-safe-drive.js?v=20260929c"></script>
   <script src="js/modules/iot-telemetry/adapters/fmc125.adapter.js"></script>
   <script src="js/modules/iot-telemetry/adapters/fmc650.adapter.js"></script>
   <script src="js/modules/iot-telemetry/telemetry-demo.controller.js"></script>
