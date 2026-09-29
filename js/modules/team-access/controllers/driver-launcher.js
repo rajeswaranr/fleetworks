@@ -9,6 +9,7 @@ const DC_TILES = [
   { id: "trip",  icon: "truck",  title: "Trip management", text: "Start and end trips, log loading and unloading, ask for diesel, advance or toll." },
   { id: "khata", icon: "rupee",  title: "Khata book",      text: "Your advances, expenses and payroll, with filters." },
   { id: "maint", icon: "wrench", title: "Maintenance",     text: "Vehicle details, service, problems, inspections and documents." },
+  { id: "safe",  icon: "eye",    title: "Safe Drive",       text: "Drowsiness alert — the phone camera watches your eyes and warns you if you nod off." },
 ];
 Object.assign(DC_TA, {
   "Trip management": "பயண மேலாண்மை", "Khata book": "கணக்கு புத்தகம்", "Maintenance": "பராமரிப்பு", "← Back": "← பின்", "Open →": "திற →", "Start trip": "பயணம் தொடங்கு", "Update trip": "பயணத்தைப் புதுப்பி", "Close trip": "பயணம் முடி", "In progress": "நடக்கிறது",
@@ -32,6 +33,9 @@ function dcShowPanel(id) {
     dcPanel(id).querySelector(".dc-slot").prepend(document.getElementById("teamVehicleList"));
     if (id === "trip") dcRenderCardActions();
   }
+  // Safe Drive holds the camera: build it when opened, stop it when left.
+  if (id === "safe" && window.SafeDrive) SafeDrive.mount(dcPanel("safe").querySelector(".dc-slot"));
+  else if (window.SafeDrive && SafeDrive.isRunning()) SafeDrive.stop();
   window.scrollTo(0, 0);
 }
 window.dcShowPanel = dcShowPanel;
@@ -86,7 +90,7 @@ function dcStartLauncher() {
     </a>`).join("");
   main.prepend(launch);
 
-  const parts = { trip: ["teamTrips"], khata: ["teamKhata"], maint: ["teamVault"] };
+  const parts = { trip: ["teamTrips"], khata: ["teamKhata"], maint: ["teamVault"], safe: [] };
   DC_TILES.forEach(t => {
     const panel = document.createElement("div");
     panel.id = "dcPanel-" + t.id; panel.hidden = true;

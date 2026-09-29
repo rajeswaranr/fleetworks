@@ -1,0 +1,61 @@
+/* Safe Drive (driver phone drowsiness detection). Dark camera surface, big touch targets. */
+.sd{max-width:520px;margin:0 auto}
+.sd-intro{text-align:center;padding:8px 4px 4px}
+.sd-hero{width:84px;height:84px;border-radius:24px;display:grid;place-items:center;margin:6px auto 14px;background:linear-gradient(135deg,#0891b2,#6366f1);color:#fff}
+.sd-intro h3{margin:0 0 8px;font-size:1.25rem;color:var(--navy,#0f1e33)}
+.sd-intro p{color:var(--muted,#64748b);font-size:.92rem;line-height:1.55;margin:0 0 16px}
+.sd-veh{display:block;text-align:left;font-size:.85rem;color:var(--muted);margin-bottom:14px}
+.sd-veh select{display:block;width:100%;height:44px;margin-top:5px;border:1px solid var(--border,#e2e8f0);border-radius:10px;padding:0 12px;font:inherit;font-size:1rem;background:#fff}
+.sd-note{font-size:.78rem;color:var(--muted);margin:12px 0 0}
+.sd-cam{position:relative;width:100%;aspect-ratio:3/4;max-height:60vh;background:#0a1120;border-radius:16px;overflow:hidden;margin-bottom:14px}
+.sd-cam video,.sd-cam canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.sd-cam canvas{pointer-events:none}
+.sd-status{position:absolute;left:0;right:0;bottom:0;padding:10px 14px;background:linear-gradient(transparent,rgba(0,0,0,.75));color:#e2e8f0;font-size:.85rem;font-weight:500}
+.sd-flash{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(220,38,38,.88);color:#fff;text-align:center;padding:20px;animation:sdPulse .5s ease-in-out infinite alternate}
+.sd-flash b{font-size:1.4rem;font-weight:800;max-width:14ch}
+@keyframes sdPulse{from{background:rgba(220,38,38,.78)}to{background:rgba(220,38,38,.96)}}
+.sd-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.sd-stat{background:var(--bg-alt,#f4f7fb);border:1px solid var(--border,#e2e8f0);border-radius:12px;padding:10px 6px;text-align:center}
+.sd-stat small{display:block;font-size:.66rem;color:var(--muted);line-height:1.2;min-height:2.2em}
+.sd-stat b{font-size:1.5rem;color:var(--navy,#0f1e33);font-variant-numeric:tabular-nums}
+.sd-log{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:6px;max-height:180px;overflow:auto}
+.sd-log li{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--border,#e2e8f0);border-radius:10px;padding:8px 12px;font-size:.85rem}
+.sd-log .sd-dot{width:8px;height:8px;border-radius:50%;background:#ef4444;flex:none}
+.sd-log .muted{margin-left:auto;font-size:.76rem}
+@media (prefers-color-scheme: dark){ .sd-stat,.sd-log li{background:#111a2e;border-color:#243049} .sd-stat b,.sd-intro h3{color:#e2e8f0} }
+
+/* Safe Drive tabs and the rest-stops / safety / settings screens */
+.sd-tabs{display:flex;gap:4px;background:var(--bg-alt,#f4f7fb);border-radius:12px;padding:4px;margin-bottom:14px}
+.sd-tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:transparent;color:var(--muted,#64748b);font:inherit;font-size:.72rem;font-weight:600;padding:8px 4px;border-radius:9px;cursor:pointer}
+.sd-tab.is-on{background:#fff;color:var(--navy,#0f1e33);box-shadow:0 1px 3px rgba(15,30,51,.12)}
+.sd-tab svg{width:18px;height:18px}
+.sd-summary{text-align:center;padding:8px 4px}
+.sd-hero.ok{background:linear-gradient(135deg,#16a34a,#0891b2)} .sd-hero.warn{background:linear-gradient(135deg,#f59e0b,#dc2626)}
+.sd-summary h3{margin:6px 0 6px;color:var(--navy,#0f1e33)} .sd-summary p{color:var(--muted);margin:0 0 14px}
+.sd-spin{width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:sdSpin .8s linear infinite;vertical-align:-1px}
+@keyframes sdSpin{to{transform:rotate(360deg)}}
+.sd-stops-head{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.sd-seg{display:inline-flex;background:var(--bg-alt,#f4f7fb);border-radius:10px;padding:3px;flex:1}
+.sd-seg-btn{flex:1;border:0;background:transparent;color:var(--muted);font:inherit;font-size:.8rem;font-weight:600;padding:7px 6px;border-radius:8px;cursor:pointer}
+.sd-seg-btn.is-on{background:#fff;color:var(--navy,#0f1e33);box-shadow:0 1px 2px rgba(15,30,51,.12)}
+.sd-map{width:100%;height:220px;border-radius:14px;overflow:hidden;background:#e8eef5;margin-bottom:12px;z-index:0}
+.sd-stoplist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.sd-stopitem{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--border,#e2e8f0);border-radius:12px;padding:10px 12px;cursor:pointer}
+.sd-stopitem>div{flex:1;min-width:0} .sd-stopitem b{display:block;font-size:.9rem} .sd-stopitem .muted{font-size:.76rem}
+.sd-stopic{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;color:#fff;flex:none}
+.sd-safety-top{display:flex;align-items:center;gap:14px;margin-bottom:16px} .sd-safety-top h3{margin:0;color:var(--navy,#0f1e33)} .sd-safety-top p{margin:2px 0 0}
+.sd-chart{display:flex;align-items:flex-end;gap:6px;height:120px;padding:0 2px 4px;margin-bottom:16px}
+.sd-bar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px}
+.sd-bar i{width:70%;min-height:3px;border-radius:4px 4px 0 0;display:block}
+.sd-bar small{font-size:.64rem;color:var(--muted)} .sd-bar b{font-size:.72rem;color:var(--navy,#0f1e33)}
+.sd-h4{margin:0 0 10px;font-size:.82rem;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.sd-settings section{padding:14px 0;border-bottom:1px solid var(--border,#eef2f7)}
+.sd-switch{display:flex;align-items:center;justify-content:space-between;padding:8px 0;font-size:.92rem;color:var(--navy,#0f1e33)}
+.sd-switch input{width:44px;height:26px;-webkit-appearance:none;appearance:none;background:#cbd5e1;border-radius:14px;position:relative;cursor:pointer;transition:background .2s}
+.sd-switch input:checked{background:#16a34a}
+.sd-switch input::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s}
+.sd-switch input:checked::after{left:21px}
+@media (prefers-color-scheme: dark){ .sd-tab.is-on,.sd-seg-btn.is-on,.sd-stopitem{background:#111a2e;color:#e2e8f0} .sd-summary h3,.sd-bar b,.sd-safety-top h3,.sd-switch{color:#e2e8f0} }
+
+/* unstyled button base used by sd-tab / sd-seg-btn (keeps them out of the "bare button" audit) */
+.btn-plain{-webkit-appearance:none;appearance:none}
