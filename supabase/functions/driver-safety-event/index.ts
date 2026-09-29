@@ -26,13 +26,19 @@ const cors = (o: string | null) => ({
   "Content-Type": "application/json",
 });
 
-// phone-DMS alert → FleetSafe event type
-const MAP: Record<string, string> = { long_blink: "fatigue", blink_rate: "fatigue", head_tilt: "distraction" };
-const SUMMARY: Record<string, string> = {
-  long_blink: "Driver's eyes closed for over 1.5 s (phone Safe Drive camera).",
-  blink_rate: "Heavy eyelids: an unnatural blink pattern in the last 10 s (phone Safe Drive camera).",
-  head_tilt: "Driver's head tilted away from the road for over 5 s (phone Safe Drive camera).",
+// phone-DMS alert → FleetSafe event type. The Safe Drive camera rates several conditions;
+// they map onto the two DMS event types the fleet backend already knows.
+const MAP: Record<string, string> = {
+  drowsiness: "fatigue", sleepiness: "fatigue", fatigue: "fatigue", yawning: "fatigue", impairment: "fatigue",
+  distraction: "distraction",
+  long_blink: "fatigue", blink_rate: "fatigue", head_tilt: "distraction",   // legacy kinds
 };
+const LABEL: Record<string, string> = {
+  drowsiness: "drowsiness", sleepiness: "sleepiness / micro-sleep", fatigue: "tiredness", yawning: "yawning",
+  impairment: "impairment signs (unfit to drive)", distraction: "distraction",
+};
+// minor stays in-app (info); major → warning; critical → critical (may SMS per fleet settings)
+const SEV: Record<string, string> = { minor: "info", major: "warning", critical: "critical" };
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
@@ -42,10 +48,11 @@ Deno.serve(async (req) => {
 
   const jwt = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   if (!jwt) return reply(401, { error: "Sign in first." });
-  let body: { vehicleId?: string; kind?: string; occurredAt?: string };
+  let body: { vehicleId?: string; kind?: string; severity?: string; occurredAt?: string };
   try { body = await req.json(); } catch { return reply(400, { error: "bad_json" }); }
   const vehicleId = String(body.vehicleId || "");
   const kind = String(body.kind || "");
+  const severity = SEV[String(body.severity || "")] || "warning";   // in-app-only minor, else surfaced
   if (!/^[0-9a-f-]{36}$/i.test(vehicleId)) return reply(400, { error: "vehicleId is required." });
   if (!MAP[kind]) return reply(400, { error: "Unknown alert kind." });
   const at = body.occurredAt && !Number.isNaN(Date.parse(body.occurredAt)) ? new Date(body.occurredAt).toISOString() : new Date().toISOString();
@@ -75,17 +82,18 @@ Deno.serve(async (req) => {
     await admin.from("device_channels").insert({ org_id: veh.org_id, device_id: deviceId, vehicle_id: vehicleId, channel_no: 1, role: "cabin_dms", label: "Driver phone" });
   }
 
-  // collapse repeats: skip if the same kind fired for this device in the last minute
+  // collapse repeats: skip the same condition+severity for this device within a minute
   const mapped = MAP[kind];
-  const { data: recent } = await admin.from("device_events").select("id")
-    .eq("device_id", deviceId).eq("event_type", mapped).gte("occurred_at", new Date(Date.parse(at) - 60000).toISOString()).limit(1);
-  if (recent?.length) return reply(200, { ok: true, deduped: true });
+  const { data: recent } = await admin.from("device_events").select("id, raw")
+    .eq("device_id", deviceId).eq("event_type", mapped).eq("severity", severity)
+    .gte("occurred_at", new Date(Date.parse(at) - 60000).toISOString()).limit(5);
+  if ((recent || []).some((r) => (r.raw as { alert?: string } | null)?.alert === kind)) return reply(200, { ok: true, deduped: true });
 
-  const { error: evErr } = await admin.from("device_events").insert({
-    device_id: deviceId, org_id: veh.org_id, occurred_at: at, event_type: mapped, severity: mapped === "fatigue" ? "critical" : "warning",
-    raw: { source: "phone_safe_drive", alert: kind, driver_user: caller.user.id }, simulated: false,
-  });
+  const { data: evRow, error: evErr } = await admin.from("device_events").insert({
+    device_id: deviceId, org_id: veh.org_id, occurred_at: at, event_type: mapped, severity,
+    raw: { source: "phone_safe_drive", alert: kind, condition: LABEL[kind] || kind, severity_reported: body.severity || null, driver_user: caller.user.id }, simulated: false,
+  }).select("id").single();
   if (evErr) return reply(500, { error: "Could not log the alert: " + evErr.message });
   await admin.from("devices").update({ last_seen_at: new Date().toISOString() }).eq("id", deviceId);
-  return reply(200, { ok: true, event_type: mapped });
+  return reply(200, { ok: true, event_type: mapped, severity, eventId: evRow.id });
 });

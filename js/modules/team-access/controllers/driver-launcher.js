@@ -55,6 +55,17 @@ function dcSafeDriveHooks() {
     }));
   };
   window.SafeDriveLog = null;   // signed in: Safe Drive uses the driver-safety-event edge function
+  // upload a recorded 2-minute clip to the owner's dashboard (driver's own session)
+  window.SafeDriveClipUpload = async function (blob, meta) {
+    const token = await fwCloud.accessToken();
+    if (!token) return;
+    const fd = new FormData();
+    fd.append("file", blob, "safedrive.webm");
+    fd.append("vehicleId", meta.vehicleId);
+    if (meta.eventId) fd.append("eventId", meta.eventId);
+    if (meta.capturedAt) fd.append("capturedAt", meta.capturedAt);
+    await fetch(FW_BACKEND.url + "/functions/v1/driver-safety-clip", { method: "POST", headers: { Authorization: "Bearer " + token, apikey: FW_BACKEND.anonKey }, body: fd });
+  };
   window.SafeDriveDrivingSince = function () {
     const veh = (window.SafeDriveVehicles[0] || {}).id;
     const t = veh && _dcActiveTrips && _dcActiveTrips[veh];
