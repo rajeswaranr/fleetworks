@@ -111,7 +111,7 @@
     const st = $("vzStatus"); st.textContent = alarm ? "ANOMALY" : "CLEAR"; st.classList.toggle("alarm", alarm);
     $("vzDiagCard").classList.toggle("vz-card-alarm", alarm);
     const live = $("vzLive"); live.classList.toggle("warn", alarm); live.textContent = alarm ? "Simulated feed · anomaly" : "Simulated feed";
-    const signedIn = !!(window.fwCloud && fwCloud.user && fwCloud.user());
+    const signedIn = !!(window.FSData && FSData.enabled());
     $("vzAct").innerHTML = alarm
       ? (signedIn
         ? `<button type="button" class="btn btn-danger btn-sm" id="vzLog" style="width:100%">${icon("shieldAlert", 14)} Log as test incident &amp; analyse</button>
@@ -176,17 +176,17 @@
     if (S.busy) return;
     const s = SC()[S.scen]; if (!s || !s.event) return;
     const v = vehicles().find(x => x.id === S.veh);
-    const vehUuid = v ? (v.dbId || (window.dbVehicleUuid && dbVehicleUuid(v.id))) : null;
+    const vehUuid = v ? (v.dbId || (window.dbVehicleUuid && dbVehicleUuid(v.id)) || (FSData.demo() ? v.id : null)) : null;
     const btn = $("vzLog");
     if (!vehUuid) { if (window.toast) toast("Save this vehicle to your account first, then try again.", "err"); return; }
     S.busy = true; btn.disabled = true; btn.innerHTML = `<span class="tr-spin"></span> Logging…`;
     try {
-      const org = window.dbOrgId ? await dbOrgId() : null;
+      const org = await FSData.orgId();
       if (!org) throw new Error("Could not find your fleet account.");
-      let dev = await fwCloud.authGet("devices", `select=id&vehicle_id=eq.${vehUuid}&order=simulated.asc&limit=1`);
+      let dev = await FSData.get("devices", `select=id&vehicle_id=eq.${vehUuid}&order=simulated.asc&limit=1`);
       let deviceId = dev && dev[0] && dev[0].id;
       if (!deviceId) {
-        const made = await fwCloud.authInsertRet("devices", {
+        const made = await FSData.insertRet("devices", {
           org_id: org, vehicle_id: vehUuid, imei: "SIM-CAM-" + String(vehUuid).slice(0, 8), vendor: "FleetWorks simulator",
           model: "AI camera (simulated)", protocol: "proprietary", capabilities: ["gps", "adas", "dms", "fuel_level"],
           status: "active", simulated: true, notes: "Created by AI Vision to log test incidents.",
@@ -194,7 +194,7 @@
         deviceId = made && made.id;
       }
       if (!deviceId) throw new Error("Could not set up a simulated camera for this vehicle.");
-      const ev = await fwCloud.authInsertRet("device_events", {
+      const ev = await FSData.insertRet("device_events", {
         device_id: deviceId, org_id: org, event_type: s.event,
         severity: s.sev === "critical" ? "critical" : "warning",
         speed_kmph: s.speed, video_url: "simulated:" + S.scen,

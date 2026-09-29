@@ -28,7 +28,7 @@
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const icon = (n, s = 16) => (window.FWIcon ? FWIcon(n || "alert", { size: s }) : "");
-  const signedIn = () => !!(window.fwCloud && fwCloud.user && fwCloud.user());
+  const signedIn = () => !!(window.FSData && FSData.enabled());
   const vehName = id => { const v = ((window.db && db.vehicles) || []).find(x => x.dbId === id || x.id === id); return v ? v.name : null; };
   const drvName = id => { const d = ((window.db && db.drivers) || []).find(x => x.dbId === id || x.id === id); return d ? d.name : null; };
   const drvForVeh = vid => { const v = ((window.db && db.vehicles) || []).find(x => x.dbId === vid); const d = v && ((window.db && db.drivers) || []).find(x => x.vehicleId === v.id); return d ? d.name : null; };
@@ -51,7 +51,7 @@
 
   async function load() {
     if (!signedIn()) { T.items = []; T.loaded = true; return; }
-    const get = (t, q) => fwCloud.authGet(t, q).catch(() => null);
+    const get = (t, q) => FSData.get(t, q).catch(() => null);
     const [ai, cam, raw, an] = await Promise.all([
       get("ai_events", "select=*&order=occurred_at.desc&limit=200"),
       get("v_safety_events", "select=id,device_id,vehicle_id,driver_id,occurred_at,event_type,severity,latitude,longitude,speed_kmph,video_url,acknowledged_at,simulated&order=occurred_at.desc&limit=300"),
@@ -273,11 +273,11 @@
   // short-lived signed links: the bucket is private and RLS decides who may read.
   async function loadMedia(it) {
     const key = it.src + ":" + it.id;
-    const sign = p => fwCloud.signUrl ? fwCloud.signUrl("device-media", p, 3600) : Promise.resolve(null);
+    const sign = p => FSData.signUrl("device-media", p, 3600);
     const clip = $("trClip");
     if (clip && clip.dataset.path) sign(clip.dataset.path).then(u => { if (u && $("trClip") === clip) clip.src = u; });
     if (it.src !== "device" || !signedIn()) return;
-    const rows = await fwCloud.authGet("device_media", `select=id,kind,role,channel_no,storage_path,source_url,captured_at&event_id=eq.${it.id}&order=channel_no`).catch(() => null);
+    const rows = await FSData.get("device_media", `select=id,kind,role,channel_no,storage_path,source_url,captured_at&event_id=eq.${it.id}&order=channel_no`).catch(() => null);
     const el = $("trMedia");
     if (!el || T.sel !== key || !rows || !rows.length) return;
     const urls = await Promise.all(rows.map(m => m.storage_path ? sign(m.storage_path) : Promise.resolve(/^https:\/\//i.test(m.source_url || "") ? m.source_url : null)));
@@ -297,7 +297,7 @@
     if (T.busy) return;
     T.busy = true; renderDetail();
     try {
-      const r = await fwCloud.callFunction("incident-analysis", { source: it.src, eventId: it.id });
+      const r = await FSData.fn("incident-analysis", { source: it.src, eventId: it.id });
       if (r && r.analysis) T.analyses[it.src + ":" + it.id] = r.analysis;
       if (window.toast) toast("AI analysis ready.");
     } catch (e) {
@@ -310,7 +310,7 @@
     const btn = $("trResolveSave"); btn.disabled = true;
     const table = it.src === "ai" ? "ai_events" : "device_events";
     const at = new Date().toISOString();
-    const ok = await fwCloud.authPatchChecked(`${table}?id=eq.${it.id}`, { acknowledged_at: at, acknowledged_by: fwCloud.uid(), resolution_note: note || null });
+    const ok = await FSData.patch(`${table}?id=eq.${it.id}`, { acknowledged_at: at, acknowledged_by: FSData.uid(), resolution_note: note || null });
     if (ok) {
       it.ack_at = at; it.note = note;
       if (window.toast) toast("Incident closed.");

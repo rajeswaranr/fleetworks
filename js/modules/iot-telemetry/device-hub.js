@@ -28,16 +28,16 @@
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const icon = (n, s = 16) => (window.FWIcon ? FWIcon(n, { size: s }) : "");
-  const signedIn = () => !!(window.fwCloud && fwCloud.user && fwCloud.user());
+  const signedIn = () => !!(window.FSData && FSData.enabled());
   const ago = ts => { if (!ts) return "never"; const s = Math.max(0, Math.round((Date.now() - new Date(ts)) / 1000)); return s < 60 ? s + "s ago" : s < 3600 ? Math.round(s / 60) + "m ago" : s < 86400 ? Math.round(s / 3600) + "h ago" : Math.round(s / 86400) + "d ago"; };
-  const vehicles = () => ((window.db && db.vehicles) || []).filter(v => v.dbId);
+  const vehicles = () => ((window.db && db.vehicles) || []).filter(v => v.dbId || FSData.demo()).map(v => v.dbId ? v : { ...v, dbId: v.id });
   const vehName = id => { const v = vehicles().find(x => x.dbId === id); return v ? v.name : "—"; };
   const toast = (m, k) => window.toast && window.toast(m, k);
   const copyBtn = (text, label = "Copy") => `<button type="button" class="btn btn-outline btn-sm" data-copy="${esc(text)}">${icon("document", 13)} ${label}</button>`;
 
   // ── data ────────────────────────────────────────────────────────────
   async function load() {
-    const get = (t, q) => fwCloud.authGet(t, q).catch(() => null);
+    const get = (t, q) => FSData.get(t, q).catch(() => null);
     const [keys, devices, channels, sensors, signals, log, settings, alerts] = await Promise.all([
       get("integration_keys", "select=id,name,key_prefix,created_at,last_used_at,revoked_at&order=created_at.desc"),
       get("devices", "select=*&order=created_at.desc&limit=500"),
@@ -48,11 +48,12 @@
       get("fleetsafe_settings", "select=*&limit=1"),
       get("fleet_alerts", "select=*&order=created_at.desc&limit=50"),
     ]);
+    H.simCount = (devices || []).filter(d => d.simulated).length;
     Object.assign(H, { keys: keys || [], devices: devices || [], channels: channels || [], sensors: sensors || [], signals: signals || [],
       log: log || [], settings: (settings || [])[0] || null, alerts: alerts || [], loaded: true });
   }
   async function loadLastParams(deviceId) {
-    const rows = await fwCloud.authGet("telemetry", `select=raw,recorded_at&device_id=eq.${deviceId}&order=recorded_at.desc&limit=1`).catch(() => null);
+    const rows = await FSData.get("telemetry", `select=raw,recorded_at&device_id=eq.${deviceId}&order=recorded_at.desc&limit=1`).catch(() => null);
     H.lastParams[deviceId] = rows && rows[0] ? { raw: rows[0].raw || {}, at: rows[0].recorded_at } : { raw: {}, at: null };
   }
 
@@ -128,6 +129,12 @@
           </div>
         </div>
         <div class="oc-stack">
+          <div class="oc-card"><h3>${icon("sparkle", 14)} Simulated data</h3>
+            ${FSData.demo() ? `<p class="muted dh-note">This demo already runs on a simulated fleet day. Sign in to load one into your own account.</p>`
+              : `<p class="muted dh-note">Fit simulated cameras and sensors to your vehicles and play one realistic day through the live system: fuel theft, a restricted zone, a tyre leak, overheating, a warm reefer and a week of camera alarms. Everything is marked as a test, never sends SMS, and can be removed in one click.</p>
+            <div class="dh-actions dh-sim"><button type="button" class="btn btn-primary btn-sm" id="dhSimSeed">${H.simCount ? "Reload the simulated day" : "Load a simulated day"}</button>
+              ${H.simCount ? `<button type="button" class="btn btn-outline btn-sm" id="dhSimClear">Remove simulated data</button>` : ""}</div>`}
+          </div>
           <div class="oc-card"><h3>${icon("shieldCheck", 14)} Ingest keys</h3>
             ${H.newKey ? `<div class="dh-newkey"><b>Copy this key now. It will not be shown again.</b><code class="dh-code">${esc(H.newKey.key)}</code>${copyBtn(H.newKey.key, "Copy key")}</div>` : ""}
             <div class="dh-row"><input type="text" id="dhKeyName" placeholder="Name, e.g. flespi stream" maxlength="60" aria-label="Key name"><button type="button" class="btn btn-primary btn-sm" id="dhKeyNew">Create key</button></div>
@@ -150,6 +157,8 @@
         </div>
       </div>`;
     $("dhKeyNew").onclick = createKey;
+    if ($("dhSimSeed")) $("dhSimSeed").onclick = () => simulate("seed");
+    if ($("dhSimClear")) $("dhSimClear").onclick = () => simulate("clear");
     $("dhBody").querySelectorAll("[data-revoke]").forEach(b => b.onclick = () => revokeKey(b.dataset.revoke));
   }
 
@@ -249,12 +258,12 @@
     body.querySelectorAll("[data-pick]").forEach(b => b.onclick = () => { const i = $("snKey-" + b.dataset.dev); if (i) { i.value = b.dataset.pick; i.focus(); } });
     body.querySelectorAll("[data-save-veh]").forEach(b => b.onclick = async () => {
       const id = b.dataset.saveVeh, v = $("devVeh-" + id).value || null;
-      if (await fwCloud.authPatchChecked(`devices?id=eq.${id}`, { vehicle_id: v })) { H.devices.find(d => d.id === id).vehicle_id = v; toast("Saved."); renderDevices(); }
+      if (await FSData.patch(`devices?id=eq.${id}`, { vehicle_id: v })) { H.devices.find(d => d.id === id).vehicle_id = v; toast("Saved."); renderDevices(); }
       else toast("Could not save.", "err");
     });
     body.querySelectorAll("[data-status]").forEach(b => b.onclick = async () => {
       const d = H.devices.find(x => x.id === b.dataset.status), next = d.status === "active" ? "inactive" : "active";
-      if (await fwCloud.authPatchChecked(`devices?id=eq.${d.id}`, { status: next })) { d.status = next; renderDevices(); }
+      if (await FSData.patch(`devices?id=eq.${d.id}`, { status: next })) { d.status = next; renderDevices(); }
     });
     body.querySelectorAll("[id^='snTr-']").forEach(sel => { const upd = () => { const wrap = sel.closest(".dh-sensor"); wrap.dataset.tr = sel.value; }; sel.onchange = upd; upd(); });
   }
@@ -292,32 +301,47 @@
       </div></div>`;
     $("asSave").onclick = saveSettings;
     $("dhBody").querySelectorAll("[data-read]").forEach(b => b.onclick = async () => {
-      if (await fwCloud.authPatchChecked(`fleet_alerts?id=eq.${b.dataset.read}`, { read_at: new Date().toISOString(), read_by: fwCloud.uid() })) {
+      if (await FSData.patch(`fleet_alerts?id=eq.${b.dataset.read}`, { read_at: new Date().toISOString(), read_by: FSData.uid() })) {
         H.alerts.find(a => a.id === b.dataset.read).read_at = new Date().toISOString(); renderAlerts();
       }
     });
   }
 
   // ── actions ─────────────────────────────────────────────────────────
+  async function simulate(action) {
+    if (action === "clear") {
+      const ok = window.FWDialog ? await FWDialog.confirm("Remove all simulated devices, readings, incidents, alerts, fences and equipment? Your real data is not touched.", { title: "Remove simulated data", confirmText: "Remove", danger: true }) : true;
+      if (!ok) return;
+    }
+    const btn = $(action === "seed" ? "dhSimSeed" : "dhSimClear"); if (btn) { btn.disabled = true; btn.innerHTML = `<span class="tr-spin"></span> ${action === "seed" ? "Playing a day through the system…" : "Removing…"}`; }
+    try {
+      const r = await FSData.fn("fleetsafe-simulate", { action });
+      if (action === "seed") {
+        const x = r.seeded;
+        toast(`Simulated day loaded: ${x.devices} devices, ${x.readings} readings, ${x.camera_events} camera alarms, ${x.ai_detections} AI detections, ${x.alerts} alerts.`);
+      } else toast("Simulated data removed.");
+      await load(); render();
+    } catch (e) { toast(e.message || "Could not do that.", "err"); if (btn) { btn.disabled = false; btn.textContent = action === "seed" ? "Load a simulated day" : "Remove simulated data"; } }
+  }
   async function createKey() {
     const name = ($("dhKeyName").value || "").trim() || "Integration";
-    const r = await fwCloud.authRpc("create_integration_key", { p_name: name });
+    const r = await FSData.rpc("create_integration_key", { p_name: name });
     if (!r || !r.key) { toast("Could not create a key. Only the fleet owner or a manager can.", "err"); return; }
     H.newKey = r; await load(); render();
   }
   async function revokeKey(id) {
     const ok = window.FWDialog ? await FWDialog.confirm("Revoke this key? Anything using it stops sending data immediately.", { title: "Revoke key", confirmText: "Revoke", danger: true }) : true;
     if (!ok) return;
-    if (await fwCloud.authPatchChecked(`integration_keys?id=eq.${id}`, { revoked_at: new Date().toISOString() })) { await load(); render(); toast("Key revoked."); }
+    if (await FSData.patch(`integration_keys?id=eq.${id}`, { revoked_at: new Date().toISOString() })) { await load(); render(); toast("Key revoked."); }
     else toast("Could not revoke.", "err");
   }
   async function addDevice() {
     const imei = ($("dhImei").value || "").trim();
     if (!/^[A-Za-z0-9._:-]{3,64}$/.test(imei)) { toast("Enter the device IMEI or serial (letters, digits, . _ : -).", "err"); return; }
-    const org = window.dbOrgId ? await dbOrgId() : null;
+    const org = await FSData.orgId();
     if (!org) { toast("Could not find your fleet account.", "err"); return; }
     const kind = $("dhKind").value;
-    const row = await fwCloud.authInsertRet("devices", {
+    const row = await FSData.insertRet("devices", {
       org_id: org, imei, kind, protocol: $("dhProto").value, integration: $("dhInteg").value,
       vehicle_id: $("dhVeh").value || null, parent_device_id: $("dhParent").value || null, external_id: ($("dhExt").value || "").trim() || null,
       capabilities: { tracker: ["gps"], dashcam: ["gps", "adas", "dms"], mdvr: ["gps", "adas", "dms"], avm_360: ["video"], cargo_camera: ["video"],
@@ -331,7 +355,7 @@
     const d = H.devices.find(x => x.id === devId), url = ($("chUrl-" + devId).value || "").trim();
     if (url && !/^https:\/\//i.test(url)) { toast("Live links must start with https://", "err"); return; }
     const kind = /\.m3u8(\?|$)/i.test(url) ? "hls" : /\.mp4(\?|$)/i.test(url) ? "mp4" : /whep|webrtc/i.test(url) ? "webrtc" : url ? "hls" : null;
-    const row = await fwCloud.authInsertRet("device_channels", {
+    const row = await FSData.insertRet("device_channels", {
       org_id: d.org_id, device_id: d.id, vehicle_id: d.vehicle_id, channel_no: Number($("chNo-" + devId).value) || 1,
       role: $("chRole-" + devId).value, label: ($("chLabel-" + devId).value || "").trim() || null, live_url: url || null, live_kind: kind,
     });
@@ -347,23 +371,23 @@
       if (pts.length < 2) { toast("A calibration table needs at least two raw, value lines.", "err"); return; }
       row.calibration = pts.sort((a, b) => a[0] - b[0]);
     }
-    const saved = await fwCloud.authInsertRet("device_sensors", row);
+    const saved = await FSData.insertRet("device_sensors", row);
     if (saved) { H.sensors.push(saved); toast("Mapping added. It applies from the next reading."); renderDevices(); }
     else toast("Could not add. That parameter may already be mapped on this device.", "err");
   }
   async function removeRow(table, id, list) {
-    if (await fwCloud.authDelete(table, `id=eq.${id}`)) { H[list] = H[list].filter(x => x.id !== id); renderDevices(); }
+    if (await FSData.remove(table, `id=eq.${id}`)) { H[list] = H[list].filter(x => x.id !== id); renderDevices(); }
     else toast("Could not remove.", "err");
   }
   async function saveSettings() {
     const phones = ($("asPhones").value || "").split(/[,;\n]+/).map(s => s.replace(/[^\d+]/g, "")).filter(s => s.replace(/\D/g, "").length >= 10).slice(0, 5);
-    const org = window.dbOrgId ? await dbOrgId() : null;
+    const org = await FSData.orgId();
     if (!org) { toast("Could not find your fleet account.", "err"); return; }
     const row = { org_id: org, notify_sms: $("asSms").checked, alert_phones: phones, sms_min_severity: $("asMin").value,
       offline_after_min: Math.min(1440, Math.max(5, Number($("asOff").value) || 30)),
       telemetry_retention_days: Math.min(730, Math.max(30, Number($("asRet").value) || 180)), updated_at: new Date().toISOString() };
     if (row.notify_sms && !phones.length) { toast("Add at least one phone number for SMS.", "err"); return; }
-    const ok = H.settings ? await fwCloud.authPatchChecked(`fleetsafe_settings?org_id=eq.${org}`, row) : !!(await fwCloud.authInsertRet("fleetsafe_settings", row));
+    const ok = H.settings ? await FSData.patch(`fleetsafe_settings?org_id=eq.${org}`, row) : !!(await FSData.insertRet("fleetsafe_settings", row));
     if (ok) { H.settings = row; toast("Alert settings saved."); renderAlerts(); } else toast("Could not save.", "err");
   }
 

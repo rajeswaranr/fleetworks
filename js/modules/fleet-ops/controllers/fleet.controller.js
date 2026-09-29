@@ -5119,6 +5119,9 @@ function activateTab(tabName, options = {}) {
   if (tabName === "vision" && window.VisionConsole) VisionConsole.open();
   if (tabName === "fuelsensor" && window.FuelSensor) FuelSensor.open();
   if (tabName === "devicehub" && window.DeviceHub) DeviceHub.open();
+  if (tabName === "geofences" && window.FleetSafePlaces) FleetSafePlaces.geofences();
+  if (tabName === "assets" && window.FleetSafePlaces) FleetSafePlaces.assets();
+  if (tabName === "fleetgraph" && window.FleetGraph) FleetGraph.open();
   if (tabName === "fleetview") loadFleetView();
   if (tabName === "fueldash") loadFuelDash();
   if (tabName === "insuredash" || tabName === "policies" || tabName === "claims") loadInsure();
@@ -6196,9 +6199,9 @@ async function loadOpsCentre() {
    fleets simply have none — the panel says so rather than inventing pins. */
 async function loadOccPositions() {
   _occPositions = [];
-  if (!(window.fwCloud && fwCloud.user && fwCloud.user())) return;
+  if (!(window.FSData && FSData.enabled())) return;
   try {
-    const rows = await fwCloud.authGet(
+    const rows = await FSData.get(
       "driver_locations",
       "select=vehicle_id,latitude,longitude,speed_kmph,recorded_at&order=recorded_at.desc&limit=300"
     );
@@ -6439,7 +6442,7 @@ const SF_EVENT_LABEL = {
 };
 
 async function loadSafety() {
-  if (!(window.fwCloud && fwCloud.user && fwCloud.user())) {
+  if (!(window.FSData && FSData.enabled())) {
     ["safetyEvents", "safetyScores", "safetyCoaching"].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.innerHTML = `<p class="muted" style="padding:14px">Sign in to see safety data for your fleet.</p>`;
@@ -6448,10 +6451,10 @@ async function loadSafety() {
     return;
   }
   const [ev, sc, co] = await Promise.all([
-    fwCloud.authGet("v_safety_events",
+    FSData.get("v_safety_events",
       "select=*&order=acknowledged_at.nullsfirst,occurred_at.desc&limit=200").catch(() => []),
-    fwCloud.authGet("v_driver_safety_score", "select=*").catch(() => []),
-    fwCloud.authGet("coaching_sessions",
+    FSData.get("v_driver_safety_score", "select=*").catch(() => []),
+    FSData.get("coaching_sessions",
       "select=*&order=assigned_at.desc&limit=100").catch(() => []),
   ]);
   _sfEvents = ev || []; _sfScores = sc || []; _sfCoaching = co || [];
@@ -6737,17 +6740,17 @@ var _fvAlerts = {}, _fvFuel = {}, _fvAlert = "";
 async function loadFleetView() {
   // A #fleetview deep link runs this before the var initialisers below it have executed.
   _fvAlerts = {}; _fvFuel = {}; if (_fvAlert === undefined) _fvAlert = "";
-  const signedIn = !!(window.fwCloud && fwCloud.user && fwCloud.user());
+  const signedIn = !!(window.FSData && FSData.enabled());
   if (signedIn) {
     const since = new Date(Date.now() - 864e5).toISOString();
     const [assets, fences, pos, twin, aiOpen, camOpen] = await Promise.all([
-      fwCloud.authGet("assets", "select=*&order=name").catch(() => []),
-      fwCloud.authGet("geofences", "select=*&is_active=eq.true").catch(() => []),
-      fwCloud.authGet("driver_locations",
+      FSData.get("assets", "select=*&order=name").catch(() => []),
+      FSData.get("geofences", "select=*&is_active=eq.true").catch(() => []),
+      FSData.get("driver_locations",
         "select=vehicle_id,latitude,longitude,speed_kmph,recorded_at&order=recorded_at.desc&limit=400").catch(() => []),
-      fwCloud.authGet("vehicle_twin", "select=vehicle_id,state").catch(() => []),
-      fwCloud.authGet("ai_events", "select=vehicle_id,severity&acknowledged_at=is.null&limit=500").catch(() => []),
-      fwCloud.authGet("v_safety_events", `select=vehicle_id,severity&acknowledged_at=is.null&occurred_at=gte.${since}&limit=500`).catch(() => []),
+      FSData.get("vehicle_twin", "select=vehicle_id,state").catch(() => []),
+      FSData.get("ai_events", "select=vehicle_id,severity&acknowledged_at=is.null&limit=500").catch(() => []),
+      FSData.get("v_safety_events", `select=vehicle_id,severity&acknowledged_at=is.null&occurred_at=gte.${since}&limit=500`).catch(() => []),
     ]);
     _fvAlerts = {}; _fvFuel = {};
     [...(aiOpen || []), ...(camOpen || [])].forEach(e => {

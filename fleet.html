@@ -310,6 +310,7 @@
         <div data-ws="ai" hidden>
         <div class="side-pillar ai"><span class="pp"></span>Fleet<em>AI</em></div>
         <button class="side-item tab-btn" data-tab="analytics"><i data-icon="brain"></i><span>FleetAI Dashboard</span></button>
+        <button class="side-item tab-btn" data-tab="fleetgraph"><i data-icon="network"></i><span>Fleet Graph</span></button>
         <button class="side-item tab-btn" data-tab="recurrent"><i data-icon="wrench"></i><span>Recurrent Issues</span></button>
         <button class="side-item tab-btn" data-tab="deviation"><i data-icon="chartBar"></i><span>Deviation Analysis</span></button>
         <button class="side-item tab-btn" data-tab="benchmark"><i data-icon="network"></i><span>Peer Benchmarking</span></button>
@@ -896,6 +897,9 @@
       <section class="tab-panel" id="tab-vision"><div id="visionRoot"></div></section>
       <section class="tab-panel" id="tab-fuelsensor"><div id="fuelSensorRoot"></div></section>
       <section class="tab-panel" id="tab-devicehub"><div id="deviceHubRoot"></div></section>
+      <section class="tab-panel" id="tab-geofences"><div id="geofencesRoot"></div></section>
+      <section class="tab-panel" id="tab-assets"><div id="assetsRoot"></div></section>
+      <section class="tab-panel" id="tab-fleetgraph"><div id="fleetGraphRoot"></div></section>
 
       <section class="tab-panel" id="tab-safety">
 
@@ -2873,7 +2877,6 @@
   </script>
 
   <!-- Fleet Operations Controllers -->
-  <script src="js/modules/fleet-ops/controllers/safety-events.controller.js"></script>
   <script src="js/modules/fleet-ops/controllers/insurance-dashboard.controller.js"></script>
   <script src="js/modules/fleet-ops/controllers/whatsapp.controller.js"></script>
   <script src="js/modules/fleet-ops/controllers/live-video-dashboard.controller.js"></script>
@@ -2881,12 +2884,16 @@
 
   <!-- Section-Specific Dashboards -->
   <script src="js/modules/fleet-safe/fleet-safe-dashboard.controller.js"></script>
+  <script src="supabase/functions/_shared/sim/fleetsafe-sim.js"></script>
+  <script src="js/modules/fleet-safe/fs-data.js"></script>
   <script src="js/modules/fleet-safe/safety-command.js"></script>
   <script src="js/modules/iot-telemetry/vision-scenes.js"></script>
   <script src="js/modules/iot-telemetry/vision-console.js"></script>
   <script src="js/modules/fleet-safe/incident-triage.js"></script>
   <script src="js/modules/iot-telemetry/fuel-sensor.js"></script>
   <script src="js/modules/iot-telemetry/device-hub.js"></script>
+  <script src="js/modules/fleet-safe/fleetsafe-places.js"></script>
+  <script src="js/modules/fleet-iq/fleet-graph.js"></script>
   <script src="js/modules/fleet-safe/tpms-safety.controller.js"></script>
   <script src="js/modules/fleet-safe/cold-chain-safety.controller.js"></script>
   <script src="js/utils/export-utility.js"></script>

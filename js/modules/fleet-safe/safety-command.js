@@ -39,8 +39,8 @@ const scIcon = (name, size = 18) => (window.FWIcon ? FWIcon(name || "alert", { s
 
 // ── data ─────────────────────────────────────────────────────────────────
 async function scLoad() {
-  if (!(window.fwCloud && fwCloud.user && fwCloud.user())) { _sc.loaded = true; return false; }
-  const get = (t, q) => fwCloud.authGet(t, q).catch(() => []);
+  if (!(window.FSData && FSData.enabled())) { _sc.loaded = true; return false; }
+  const get = (t, q) => FSData.get(t, q).catch(() => []);
   const [ev, sc, co, ai, dv] = await Promise.all([
     get("v_safety_events", "select=*&order=occurred_at.desc&limit=500"),
     get("v_driver_safety_score", "select=*"),
@@ -192,7 +192,7 @@ function scRenderFeed() {
   document.getElementById("scPills").innerHTML = pills.map(([k, t]) => `<span class="sc-pill">${scEsc(t)}<button type="button" class="sc-x" data-clear="${k}" aria-label="Remove filter">×</button></span>`).join("");
 
   if (!_sc.loaded) { feed.innerHTML = `<li class="sc-skel"></li><li class="sc-skel"></li><li class="sc-skel"></li>`; return; }
-  if (!(window.fwCloud && fwCloud.user && fwCloud.user())) { feed.innerHTML = `<li class="sc-empty">Sign in to see the safety picture for your fleet.</li>`; return; }
+  if (!(window.FSData && FSData.enabled())) { feed.innerHTML = `<li class="sc-empty">Sign in to see the safety picture for your fleet.</li>`; return; }
   const rows = scFilteredEvents();
   if (!rows.length) {
     feed.innerHTML = _sc.events.length
@@ -278,14 +278,14 @@ function scOpenDrawer(id) {
       ${e.driver_id && !session ? `<button type="button" class="btn btn-primary btn-sm" id="scCoach">Coach driver</button>` : ""}
       <button type="button" class="btn btn-outline btn-sm" id="scFull">Full review</button>
     </div>`;
-  if (stored && fwCloud.signUrl) fwCloud.signUrl("device-media", stored, 3600).then(u => { const v = document.getElementById("scClip"); if (u && v) v.src = u; });
+  if (stored) FSData.signUrl("device-media", stored, 3600).then(u => { const v = document.getElementById("scClip"); if (u && v) v.src = u; });
   dr.hidden = false; sc.hidden = false;
   requestAnimationFrame(() => { dr.classList.add("on"); sc.classList.add("on"); document.getElementById("scClose").focus(); });
   document.getElementById("scClose").onclick = scCloseDrawer; sc.onclick = scCloseDrawer;
   const ack = document.getElementById("scAck");
   if (ack) ack.onclick = async () => {
     ack.disabled = true;
-    const ok = await fwCloud.authPatchChecked(`device_events?id=eq.${e.id}`, { acknowledged_at: new Date().toISOString(), acknowledged_by: fwCloud.uid() });
+    const ok = await FSData.patch(`device_events?id=eq.${e.id}`, { acknowledged_at: new Date().toISOString(), acknowledged_by: FSData.uid() });
     if (ok) { e.acknowledged_at = new Date().toISOString(); if (window.toast) toast("Marked as reviewed."); scCloseDrawer(); scRender(); }
     else { ack.disabled = false; if (window.toast) toast("Could not save. Try again.", "err"); }
   };

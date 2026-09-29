@@ -16,15 +16,15 @@
   const $ = id => document.getElementById(id);
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const icon = (n, s = 16) => (window.FWIcon ? FWIcon(n, { size: s }) : "");
-  const signedIn = () => !!(window.fwCloud && fwCloud.user && fwCloud.user());
-  const vehByUuid = id => ((window.db && db.vehicles) || []).find(v => v.dbId === id);
-  const tankOf = vid => { const v = vehByUuid(vid); return (v && Number(v.tankCapacity)) || DEFAULT_TANK; };
+  const signedIn = () => !!(window.FSData && FSData.enabled());
+  const vehByUuid = id => ((window.db && db.vehicles) || []).find(v => v.dbId === id || v.id === id);
+  const tankOf = vid => { const v = vehByUuid(vid); return (v && Number(v.tankCapacity)) || (FSData.demo() ? 400 : DEFAULT_TANK); };
   const num = v => (v === null || v === undefined || v === "" ? null : Number(v));
   const fmt = (n, d = 1) => n == null || !isFinite(n) ? "—" : n.toLocaleString("en-IN", { maximumFractionDigits: d, minimumFractionDigits: d });
 
   // ── data ────────────────────────────────────────────────────────────
   async function loadFleet() {
-    const get = (t, q) => fwCloud.authGet(t, q).catch(() => null);
+    const get = (t, q) => FSData.get(t, q).catch(() => null);
     const since = new Date(); since.setHours(0, 0, 0, 0);
     const [dev, today, ev] = await Promise.all([
       get("devices", "select=id,vehicle_id,simulated,capabilities&vehicle_id=not.is.null&limit=500"),
@@ -43,7 +43,7 @@
     const devIds = F.devices.filter(d => d.vehicle_id === F.veh).map(d => d.id);
     if (!devIds.length) return;
     const from = new Date(Date.now() - WIN[F.win].ms).toISOString();
-    F.series = (await fwCloud.authGet("telemetry", `select=recorded_at,fuel_level_pct,speed_kmph,ignition&device_id=in.(${devIds.join(",")})&fuel_level_pct=not.is.null&recorded_at=gte.${from}&order=recorded_at.asc&limit=5000`).catch(() => null)) || [];
+    F.series = (await FSData.get("telemetry", `select=recorded_at,fuel_level_pct,speed_kmph,ignition&device_id=in.(${devIds.join(",")})&fuel_level_pct=not.is.null&recorded_at=gte.${from}&order=recorded_at.asc&limit=5000`).catch(() => null)) || [];
   }
 
   // ── numbers ─────────────────────────────────────────────────────────
