@@ -79,22 +79,33 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return reply(400, { error: "bad_json" }); }
   const vehicleId = String(body.vehicleId || "");
   const role = String(body.role || "");
-  if (!/^[0-9a-f-]{36}$/i.test(vehicleId)) return reply(400, { error: "vehicleId is required." });
+  if (!vehicleId) return reply(400, { error: "vehicleId is required." });
   if (role !== "publish" && role !== "view") return reply(400, { error: "role must be publish or view." });
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { autoRefreshToken: false, persistSession: false } });
   const { data: caller } = await admin.auth.getUser(jwt);
   if (!caller?.user) return reply(401, { error: "Session expired - sign in again." });
-  const { data: veh } = await admin.from("vehicles").select("id, org_id, name").eq("id", vehicleId).maybeSingle();
-  if (!veh) return reply(404, { error: "Vehicle not found." });
-  const { data: mem } = await admin.from("memberships").select("org_id, role").eq("user_id", caller.user.id).eq("org_id", veh.org_id).maybeSingle();
+
+  // The caller's fleets — needed to resolve a vehicle by its human number (ext_id), which is
+  // only unique within an org. The driver app sends the DB UUID; the owner app's db.vehicles
+  // keys by ext_id (see js/dbcore.js). Accept either and key the LiveKit room by the canonical
+  // UUID, so both sides always meet in the same room.
+  const { data: mems } = await admin.from("memberships").select("org_id, role").eq("user_id", caller.user.id);
+  const orgIds = (mems || []).map((m) => m.org_id);
+  if (!orgIds.length) return reply(403, { error: "You are not on any fleet." });
+
+  const isUuid = /^[0-9a-f-]{36}$/i.test(vehicleId);
+  const q = admin.from("vehicles").select("id, org_id, name").in("org_id", orgIds);
+  const { data: veh } = await (isUuid ? q.eq("id", vehicleId) : q.eq("ext_id", vehicleId)).maybeSingle();
+  if (!veh) return reply(404, { error: "Vehicle not found on your fleet." });
+  const mem = (mems || []).find((m) => m.org_id === veh.org_id);
   if (!mem) return reply(403, { error: "You are not on this vehicle's fleet." });
   // only the owner / manager / supervisor may watch a driver's cabin
   if (role === "view" && !["owner", "manager", "supervisor"].includes(String(mem.role))) {
     return reply(403, { error: "Only the owner or a supervisor can watch live." });
   }
 
-  const room = "veh_" + vehicleId.replace(/-/g, "");
+  const room = "veh_" + String(veh.id).replace(/-/g, "");
   const identity = (role === "publish" ? "drv_" : "view_") + caller.user.id.replace(/-/g, "");
   const name = role === "publish" ? "Driver phone" : "Watching";
   const token = await mintLiveKitToken(identity, name, room, role === "publish");

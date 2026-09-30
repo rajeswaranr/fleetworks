@@ -33,8 +33,11 @@
     if (!(window.MediaService && MediaService.available())) { if (window.toast) toast("Live view needs a signed-in fleet account.", "err"); return; }
     wrap.hidden = false; st.textContent = "Connecting…"; st.className = "vz-live-state";
     const label = { connecting: "Connecting…", live: "● LIVE from the driver's phone", offline: "The driver isn't sharing live right now — it appears when they start Safe Drive.", stopped: "Live view ended." };
+    // db.vehicles keys by ext_id; send the DB UUID when we have it (the token fn accepts either).
+    const vv = vehicles().find(x => x.id === S.veh);
+    const vehKey = (vv && vv.dbId) || S.veh;
     try {
-      liveView = await MediaService.view(S.veh, video, { onState: s => { st.textContent = label[s] || s; st.className = "vz-live-state" + (s === "live" ? " on" : s === "offline" ? " off" : ""); } });
+      liveView = await MediaService.view(vehKey, video, { onState: s => { st.textContent = label[s] || s; st.className = "vz-live-state" + (s === "live" ? " on" : s === "offline" ? " off" : ""); } });
     } catch (e) { st.textContent = (e && e.message) || "Could not start live view."; }
   }
   function hideLive() { stopLive(); const w = $("vzLiveWrap"); if (w) w.hidden = true; }
