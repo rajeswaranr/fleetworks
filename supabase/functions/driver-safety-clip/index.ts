@@ -45,6 +45,9 @@ Deno.serve(async (req) => {
   const vehicleId = String(form.get("vehicleId") || "");
   const eventId = String(form.get("eventId") || "");
   const capturedAt = String(form.get("capturedAt") || "");
+  const manual = String(form.get("manual") || "") === "true";
+  const latNum = Number(form.get("latitude")); const lat = Number.isFinite(latNum) && latNum >= -90 && latNum <= 90 ? latNum : null;
+  const lngNum = Number(form.get("longitude")); const lng = Number.isFinite(lngNum) && lngNum >= -180 && lngNum <= 180 ? lngNum : null;
   if (!(file instanceof File)) return reply(400, { error: "The clip 'file' is required." });
   if (!/^[0-9a-f-]{36}$/i.test(vehicleId)) return reply(400, { error: "vehicleId is required." });
   let mime = (file.type || "").toLowerCase().split(";")[0]; if (!EXT[mime]) mime = "video/webm";
@@ -80,6 +83,16 @@ Deno.serve(async (req) => {
     const { data: ev } = await admin.from("device_events").select("id").eq("id", eventId).eq("device_id", deviceId).maybeSingle();
     linkEvent = ev?.id ?? null;
   }
+  // a manual recording has no alert of its own — give it a benign, located event so the
+  // owner/supervisor sees it on the map and in Incident Triage with the clip
+  if (!linkEvent && manual) {
+    const { data: mev } = await admin.from("device_events").insert({
+      device_id: deviceId, org_id: veh.org_id, event_type: "manual_record", severity: "info",
+      latitude: lat, longitude: lng, occurred_at: new Date().toISOString(), simulated: false,
+      raw: { source: "driver_manual", vehicle_id: vehicleId },
+    }).select("id").single();
+    linkEvent = mev?.id ?? null;
+  }
 
   const at = capturedAt && !Number.isNaN(Date.parse(capturedAt)) ? new Date(capturedAt) : new Date();
   const path = `${veh.org_id}/${vehicleId}/${at.getUTCFullYear()}/${String(at.getUTCMonth() + 1).padStart(2, "0")}/${String(at.getUTCDate()).padStart(2, "0")}/${crypto.randomUUID()}.${EXT[mime]}`;
@@ -87,7 +100,8 @@ Deno.serve(async (req) => {
   if (upErr) return reply(500, { error: "Could not store the clip: " + upErr.message });
   const { data: row, error: rowErr } = await admin.from("device_media").insert({
     org_id: veh.org_id, device_id: deviceId, vehicle_id: vehicleId, event_id: linkEvent, channel_no: 1, role: "cabin_dms",
-    kind: "clip", storage_path: path, mime, bytes: bytes.length, captured_at: at.toISOString(), simulated: false,
+    kind: "clip", storage_path: path, mime, bytes: bytes.length, captured_at: at.toISOString(),
+    latitude: lat, longitude: lng, simulated: false,
   }).select("id").single();
   if (rowErr) return reply(500, { error: rowErr.message });
   if (linkEvent) await admin.from("device_events").update({ video_url: "storage:device-media/" + path }).eq("id", linkEvent).is("video_url", null);

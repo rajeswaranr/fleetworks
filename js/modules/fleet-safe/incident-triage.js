@@ -17,11 +17,12 @@
     pedestrian_warning: "Pedestrian warning", lane_departure: "Lane departure", fatigue: "Drowsiness", distraction: "Distraction",
     phone_use: "Phone use", no_seatbelt: "No seatbelt", smoking: "Smoking", harsh_brake: "Harsh braking", harsh_accel: "Harsh acceleration",
     harsh_corner: "Harsh cornering", overspeed: "Overspeeding", fuel_drop: "Sudden fuel drop", tamper: "Tamper", power_cut: "Power cut", sos: "SOS", panic: "Panic button",
+    manual_record: "Driver recording",
   };
   const ICON = {
     fuel_theft: "fuel", fuel_leak: "droplet", fuel_drop: "fuel", tyre_pressure_loss: "tire", tyre_low_pressure: "tire", engine_overheat: "engine",
     low_battery: "battery", forward_collision: "shieldAlert", headway_warning: "carFront", pedestrian_warning: "shieldAlert", lane_departure: "map",
-    fatigue: "eye", distraction: "eye", phone_use: "phone", tamper: "alert", overspeed: "gauge", harsh_brake: "gauge", sos: "sos", panic: "sos",
+    fatigue: "eye", distraction: "eye", phone_use: "phone", tamper: "alert", overspeed: "gauge", harsh_brake: "gauge", sos: "sos", panic: "sos", manual_record: "camera",
   };
   const T = { items: [], analyses: {}, sev: "all", status: "open", q: "", sel: null, loaded: false, busy: false, pending: null, timer: 0, at: 0 };
 

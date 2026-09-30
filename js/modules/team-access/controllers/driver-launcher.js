@@ -64,6 +64,9 @@ function dcSafeDriveHooks() {
     fd.append("vehicleId", meta.vehicleId);
     if (meta.eventId) fd.append("eventId", meta.eventId);
     if (meta.capturedAt) fd.append("capturedAt", meta.capturedAt);
+    if (meta.manual) fd.append("manual", "true");
+    if (meta.latitude != null) fd.append("latitude", String(meta.latitude));
+    if (meta.longitude != null) fd.append("longitude", String(meta.longitude));
     await fetch(FW_BACKEND.url + "/functions/v1/driver-safety-clip", { method: "POST", headers: { Authorization: "Bearer " + token, apikey: FW_BACKEND.anonKey }, body: fd });
   };
   window.SafeDriveDrivingSince = function () {

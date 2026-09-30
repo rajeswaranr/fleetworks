@@ -369,8 +369,13 @@
         <div class="sd-flash" id="sdFlash" hidden><span>${icon("alert", 40)}</span><b id="sdFlashMsg"></b></div></div>
       <div class="sd-state" id="sdState">${Object.keys(CONDS).map(k => `<div class="sd-cond lvl0" data-cond="${k}"><span class="sd-cond-dot"></span><small>${esc(CONDS[k].label)}</small><b>OK</b></div>`).join("")}</div>
       <ul class="sd-log" id="sdLog"></ul>
+      ${typeof window.SafeDriveClipUpload === "function" ? `<button type="button" class="btn btn-primary btn-block" id="sdRecNow">${icon("camera", 16)} Record 2-min clip</button>
+      <p class="sd-note" id="sdRecNote">Saves a 2-minute clip with your location to your owner's dashboard.</p>` : ""}
       <button type="button" class="btn btn-outline btn-block" id="sdStop">End drive &amp; see summary</button></div>`;
-  function wireLive() { const s = document.getElementById("sdStop"); if (s) s.onclick = stopMonitor; }
+  function wireLive() {
+    const s = document.getElementById("sdStop"); if (s) s.onclick = stopMonitor;
+    const r = document.getElementById("sdRecNow"); if (r) r.onclick = () => P.manualRec ? stopManualRecording() : startManualRecording();
+  }
   function paintState(lvl) {
     const wrap = document.getElementById("sdState"); if (!wrap || !lvl) return;
     wrap.querySelectorAll("[data-cond]").forEach(el => { const l = lvl[el.dataset.cond] || 0; el.className = "sd-cond lvl" + l; el.querySelector("b").textContent = SEV_LABEL[l]; });
@@ -403,6 +408,7 @@
   function stopMonitor() {
     P.running = false;   // set first so the recorder's onstop does not start a new segment
     stopRecording();
+    stopManualRecording();
     stopLive();          // disconnect LiveKit before the engine stops the camera track
     const res = SafeDriveEngine.stop();
     const mins = Math.max(1, Math.round((res.endedAt - res.startedAt) / 60000));
@@ -485,6 +491,61 @@
   }
   async function uploadClip(blob, eventId, startedAt) {
     try { await window.SafeDriveClipUpload(blob, { vehicleId: P.vehId, eventId: eventId || null, capturedAt: startedAt }); } catch {}
+  }
+
+  // ── manual "Record 2-min clip": capture the GPS location, then record for 2 minutes ──
+  // Driver-initiated (not event-triggered): grabs latitude/longitude, records the camera for
+  // two minutes (or until tapped again), and uploads the clip with the location so the owner
+  // sees it on the map and in Incident Triage.
+  function currentGeo() {
+    return new Promise(res => {
+      if (!navigator.geolocation) return res(P.geo ? { lat: P.geo[0], lng: P.geo[1] } : null);
+      navigator.geolocation.getCurrentPosition(
+        p => { P.geo = [p.coords.latitude, p.coords.longitude]; res({ lat: p.coords.latitude, lng: p.coords.longitude }); },
+        () => res(P.geo ? { lat: P.geo[0], lng: P.geo[1] } : null),
+        { timeout: 8000, enableHighAccuracy: true });
+    });
+  }
+  function manualBtn(recording, secs) {
+    const btn = document.getElementById("sdRecNow"); if (!btn) return;
+    if (recording) { const m = Math.floor(secs / 60), s = String(secs % 60).padStart(2, "0"); btn.innerHTML = `● Recording ${m}:${s} — tap to stop`; btn.classList.add("btn-danger"); btn.classList.remove("btn-primary"); }
+    else { btn.innerHTML = `${icon("camera", 16)} Record 2-min clip`; btn.classList.add("btn-primary"); btn.classList.remove("btn-danger"); }
+  }
+  async function startManualRecording() {
+    if (P.manualRec) return;
+    if (typeof window.SafeDriveClipUpload !== "function") { if (window.toast) toast("Recording needs the team driver login.", "err"); return; }
+    if (!("MediaRecorder" in window)) { if (window.toast) toast("This phone can't record video.", "err"); return; }
+    const stream = document.getElementById("sdVideo") && document.getElementById("sdVideo").srcObject;
+    if (!stream) { if (window.toast) toast("Start monitoring first so the camera is on.", "err"); return; }
+    if (!P.vehId) { if (window.toast) toast("Pick a vehicle first.", "err"); return; }
+    const note = document.getElementById("sdRecNote"); if (note) note.textContent = "Getting your location…";
+    const geo = await currentGeo();
+    if (note) note.textContent = geo ? `Location captured (${geo.lat.toFixed(4)}, ${geo.lng.toFixed(4)}). Recording 2 minutes…` : "Location unavailable — recording anyway.";
+    const mime = pickMime();
+    let chunks = [], startedAt = new Date().toISOString();
+    let rec; try { rec = new MediaRecorder(stream, mime ? { mimeType: mime, videoBitsPerSecond: 800000 } : undefined); } catch { if (window.toast) toast("Could not start recording.", "err"); return; }
+    P.manualRec = rec;
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstop = async () => {
+      clearInterval(P.manualCd); clearTimeout(P.manualTimer); P.manualRec = null; manualBtn(false, 0);
+      const n = document.getElementById("sdRecNote"); if (n) n.textContent = "Uploading…";
+      const blob = new Blob(chunks, { type: mime || "video/webm" });
+      if (blob.size > 1000 && P.vehId) {
+        try {
+          await window.SafeDriveClipUpload(blob, { vehicleId: P.vehId, capturedAt: startedAt, manual: true, latitude: geo && geo.lat, longitude: geo && geo.lng });
+          if (window.toast) toast("2-minute clip saved to your owner.", "ok");
+          if (n) n.textContent = "Clip saved to your owner's dashboard.";
+        } catch { if (window.toast) toast("Could not upload the clip.", "err"); if (n) n.textContent = "Upload failed — check your connection."; }
+      }
+    };
+    rec.start();
+    let left = 120; manualBtn(true, left);
+    P.manualCd = setInterval(() => { left--; manualBtn(true, Math.max(0, left)); if (left <= 0) clearInterval(P.manualCd); }, 1000);
+    P.manualTimer = setTimeout(() => { try { rec.state !== "inactive" && rec.stop(); } catch {} }, SEGMENT_MS);
+  }
+  function stopManualRecording() {
+    clearTimeout(P.manualTimer); clearInterval(P.manualCd);
+    if (P.manualRec && P.manualRec.state !== "inactive") { try { P.manualRec.stop(); } catch {} }
   }
   function setRecBadge(on) {
     const cam = document.querySelector(".sd-cam"); if (!cam) return;
