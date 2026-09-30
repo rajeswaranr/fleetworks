@@ -43,8 +43,8 @@ export interface CanonicalMessage {
   media: MediaRef[];              // media not tied to an event (e.g. periodic snapshots)
 }
 
-export type Format = "fleetworks" | "flespi" | "traccar";
-export const FORMATS: Format[] = ["fleetworks", "flespi", "traccar"];
+export type Format = "fleetworks" | "flespi" | "traccar" | "mqtt";
+export const FORMATS: Format[] = ["fleetworks", "flespi", "traccar", "mqtt"];
 
 // ── canonical signal paths (COVESA VSS, FleetWorks extensions where VSS has none) ──
 export const SIG = {
@@ -277,9 +277,60 @@ export function fromTraccar(body: Record<string, unknown>): CanonicalMessage[] {
   return [{ ident, ts, signals, params, events, media: [] }];
 }
 
+// ── MQTT ──────────────────────────────────────────────────────────────────
+// MQTT is a transport, not a payload format: a managed broker (HiveMQ Cloud, EMQX Cloud,
+// flespi, AWS IoT Core...) receives what the vehicle publishes and forwards it here over
+// HTTPS through its own rule/data-integration engine, so FleetWorks never runs a broker.
+// The forwarded body is one message, or a batch under `messages` / a JSON array. Each item
+// is either the FleetWorks device envelope directly, or a { topic, payload } pair the broker
+// wraps it in. The device identity and the kind (telemetry vs event) come from explicit
+// fields when present, otherwise from the topic:
+//
+//   topic    fleetworks/v1/<ident>/telemetry     payload = a reading  (latitude, speed_kmph, ...)
+//            fleetworks/v1/<ident>/event         payload = an event   (event_type, severity, ...)
+//   or       { vehicleId|deviceId|ident, type, timestamp, payload: { ... } }
+//
+// Reusing fromFleetworks keeps one mapping table: known keys become canonical signals, and
+// anything unknown stays in params for per-device sensor mappings (device_sensors) to pick up.
+export function fromMqtt(body: unknown): CanonicalMessage[] {
+  const list = Array.isArray(body) ? body
+    : body && typeof body === "object" && Array.isArray((body as { messages?: unknown[] }).messages) ? (body as { messages: unknown[] }).messages
+    : body ? [body] : [];
+  const ID_FIELDS = ["ident", "imei", "deviceId", "device_id", "vehicleId", "vehicle_id", "event_type", "readings", "events"];
+  const out: CanonicalMessage[] = [];
+  for (const raw of list as Record<string, unknown>[]) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const topic = typeof raw.topic === "string" ? raw.topic : "";
+    // A pure broker wrapper is { topic, payload } with no identity of its own — the real
+    // message is inside `payload`. A device envelope ({ deviceId, type, payload }) keeps its
+    // identity as siblings of payload, so it is NOT unwrapped here.
+    let msg: unknown = raw;
+    if (topic && raw.payload !== undefined && !ID_FIELDS.some((k) => k in raw)) msg = raw.payload;
+    if (typeof msg === "string") { try { msg = JSON.parse(msg); } catch { msg = { value: msg }; } }
+    if (!msg || typeof msg !== "object" || Array.isArray(msg)) continue;
+    const d = msg as Record<string, unknown>;
+    const seg = topic.split("/").filter(Boolean);
+    const ident = String(d.ident ?? d.imei ?? d.deviceId ?? d.device_id ?? d.vehicleId ?? d.vehicle_id ?? seg[2] ?? "").trim();
+    if (!ident) continue;
+    const ts = d.ts ?? d.timestamp ?? d.time ?? d.recorded_at ?? d.occurred_at;
+    // the device envelope nests the sensor values under `payload`; a flat message is its own core
+    const core = (d.payload && typeof d.payload === "object" && !Array.isArray(d.payload)) ? d.payload as Record<string, unknown> : d;
+    const kind = String(d.type ?? seg[3] ?? "").toLowerCase();
+    const isEvent = /event|alarm|alert|incident/.test(kind) || "event_type" in core || "event" in core;
+    if (isEvent) {
+      const ev = { ...core, event_type: core.event_type ?? core.event ?? d.type, occurred_at: ts ?? core.occurred_at };
+      out.push(...fromFleetworks({ imei: ident, events: [ev] }));
+    } else {
+      out.push(...fromFleetworks({ imei: ident, readings: [{ ...core, recorded_at: ts ?? core.recorded_at }] }));
+    }
+  }
+  return out;
+}
+
 export function adapt(format: Format, body: unknown): CanonicalMessage[] {
   if (format === "flespi") return fromFlespi(body);
   if (format === "traccar") return fromTraccar(body as Record<string, unknown>);
+  if (format === "mqtt") return fromMqtt(body);
   return fromFleetworks(body as Record<string, unknown>);
 }
 

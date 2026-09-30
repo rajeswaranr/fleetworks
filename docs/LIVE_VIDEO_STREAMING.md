@@ -1,3 +1,5 @@
+> **Deprecated (2026-09-30).** This RTMP/Nginx design is self-hosted and superseded by managed **LiveKit Cloud** — see [livekit-and-mqtt.md](livekit-and-mqtt.md). Kept for historical reference only.
+
 # Live Video Streaming for FleetWorks Dashboard
 
 Complete guide to stream real dashcam and 360° camera feeds to your FleetSafe dashboard.

@@ -7,6 +7,8 @@
 //   POST /functions/v1/device-ingest?format=flespi       flespi HTTP stream (Teltonika, GT06, JT/T 808,
 //                                                        AIS-140 and 700+ protocols via flespi)
 //   POST /functions/v1/device-ingest?format=traccar      Traccar position / event forwarding
+//   POST /functions/v1/device-ingest?format=mqtt         MQTT broker rule/webhook forward
+//                                                        (HiveMQ, EMQX, flespi, AWS IoT Core...)
 //
 //   header  x-ingest-key: fwk_...   (a fleet's own key, from Devices & Telemetry → Integrations)
 //           Gateways that cannot set headers may pass ?key=... instead.

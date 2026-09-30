@@ -24,12 +24,29 @@
 
   function root() { return $("visionRoot"); }
 
+  // ── live driver-phone view (LiveKit, via the portable MediaService seam) ──
+  let liveView = null;
+  function stopLive() { if (liveView) { try { liveView.stop(); } catch {} liveView = null; } }
+  async function showLive() {
+    const wrap = $("vzLiveWrap"), video = $("vzLiveVideo"), st = $("vzLiveState");
+    if (!wrap || !video) return;
+    if (!(window.MediaService && MediaService.available())) { if (window.toast) toast("Live view needs a signed-in fleet account.", "err"); return; }
+    wrap.hidden = false; st.textContent = "Connecting…"; st.className = "vz-live-state";
+    const label = { connecting: "Connecting…", live: "● LIVE from the driver's phone", offline: "The driver isn't sharing live right now — it appears when they start Safe Drive.", stopped: "Live view ended." };
+    try {
+      liveView = await MediaService.view(S.veh, video, { onState: s => { st.textContent = label[s] || s; st.className = "vz-live-state" + (s === "live" ? " on" : s === "offline" ? " off" : ""); } });
+    } catch (e) { st.textContent = (e && e.message) || "Could not start live view."; }
+  }
+  function hideLive() { stopLive(); const w = $("vzLiveWrap"); if (w) w.hidden = true; }
+
   function render() {
     const r = root(); if (!r || !window.FWVision) return;
+    stopLive();   // a re-render (vehicle change, layout switch) drops any open LiveKit room
     const vs = vehicles();
     if (!S.veh && vs[0]) S.veh = vs[0].id;
     const v = vs.find(x => x.id === S.veh);
     const d = v && driverOf(v);
+    const canLive = !!(window.MediaService && MediaService.available() && v);
     r.innerHTML = `
     <div class="oc" id="vzOc">
       <div class="oc-head">
@@ -41,6 +58,7 @@
           <button type="button" class="oc-seg-btn" data-view="single" aria-pressed="${S.view === "single"}">${icon("camera", 14)} Single camera</button>
           <button type="button" class="oc-seg-btn" data-view="quad" aria-pressed="${S.view === "quad"}">${icon("boxes", 14)} All four</button>
         </div>
+        ${canLive ? `<button type="button" class="btn btn-primary btn-sm" id="vzWatchLive">${icon("camera", 14)} Watch driver phone live</button>` : ""}
         <p class="oc-sub">Front road, cabin driver monitor, 360° surround and fuel tank cameras, with the AI detection layer drawn live. No camera is linked, so these are simulated scenes; linked cameras play in <button type="button" class="link-btn" data-go="livewall">Live dashcam feeds</button>.</p>
       </div>
 
@@ -53,6 +71,11 @@
 
       <div class="oc-cols">
         <div>
+          <div class="vz-live" id="vzLiveWrap" hidden>
+            <div class="vz-live-top"><span class="vz-live-state" id="vzLiveState">Connecting…</span><span class="oc-spacer"></span><button type="button" class="btn btn-outline btn-sm" id="vzLiveStop">${icon("close", 14)} Stop</button></div>
+            <video id="vzLiveVideo" playsinline autoplay muted></video>
+            <p class="oc-sub" style="margin:6px 0 14px">Real cabin video, streamed live from the driver's phone via LiveKit. The simulated cameras below stay for the AI-layer demo.</p>
+          </div>
           ${S.view === "single" ? `<div class="oc-seg" role="group" aria-label="Camera" style="margin-bottom:10px">${CAM_ORDER.map(c => `<button type="button" class="oc-seg-btn" data-cam="${c}" aria-pressed="${S.cam === c}">${esc(FWVision.CAMS[c].split(" (")[0])}</button>`).join("")}</div>` : ""}
           <div class="vz-wall ${S.view}" id="vzWall">
             ${(S.view === "single" ? [S.cam] : CAM_ORDER).map(c => `
@@ -135,6 +158,8 @@
     r.querySelectorAll("[data-layer]").forEach(b => b.onclick = () => { S[b.dataset.layer] = !S[b.dataset.layer]; b.setAttribute("aria-pressed", S[b.dataset.layer]); if (S.frozen) paint(); });
     $("vzFreeze").onclick = () => { S.frozen = !S.frozen; if (S.frozen) S.tFrozen = now(); render(); };
     $("vzVeh").onchange = e => { S.veh = e.target.value; render(); };
+    const wl = $("vzWatchLive"); if (wl) wl.onclick = showLive;
+    const ls = $("vzLiveStop"); if (ls) ls.onclick = hideLive;
     $("vzConf").oninput = e => { S.minConf = +e.target.value; $("vzConfV").textContent = Math.round(S.minConf * 100) + "%"; if (S.frozen) paint(); };
     r.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { if (window.activateTab) activateTab(b.dataset.go); });
   }

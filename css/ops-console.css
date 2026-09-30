@@ -128,6 +128,12 @@
 
 /* ─────────────────────────── AI Vision console ─────────────────────────── */
 .vz-scen{display:flex;flex-wrap:wrap;gap:8px}
+.vz-live{margin-bottom:14px}
+.vz-live-top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.vz-live video{display:block;width:100%;border-radius:12px;background:#000;aspect-ratio:3/4;max-height:60vh;object-fit:cover}
+.vz-live-state{font-family:var(--oc-mono);font-size:.74rem;font-weight:700;color:var(--oc-text,#cbd5e1)}
+.vz-live-state.on{color:#fff;background:var(--oc-red,#dc2626);padding:3px 10px;border-radius:999px}
+.vz-live-state.off{color:var(--oc-amber,#f59e0b)}
 .vz-wall{display:grid;gap:10px}
 .vz-wall.single{grid-template-columns:1fr}
 .vz-wall.quad{grid-template-columns:1fr 1fr}
