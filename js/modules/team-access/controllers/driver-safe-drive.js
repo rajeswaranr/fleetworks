@@ -423,11 +423,23 @@
     else b.hidden = true;
   }
   async function startLive() {
-    if (!liveOn()) return;
+    // Say plainly why live is off, instead of failing silently, so problems are diagnosable.
+    if (settings().live === false) return;                       // driver turned it off
+    if (!(window.MediaService && MediaService.available())) {     // no-login page / no session
+      console.warn("[SafeDrive] live view unavailable: needs the team driver login."); return;
+    }
+    if (!P.vehId) { console.warn("[SafeDrive] live view: no vehicle selected."); return; }
     const stream = document.getElementById("sdVideo") && document.getElementById("sdVideo").srcObject;
-    if (!stream) return;
-    try { liveHandle = await MediaService.publish(P.vehId, stream, { onState: setLiveBadge }); }
-    catch (e) { setLiveBadge("stopped"); /* live is best-effort; detection and recording continue */ }
+    if (!stream) { console.warn("[SafeDrive] live view: camera stream not ready."); return; }
+    setLiveBadge("connecting");
+    try {
+      liveHandle = await MediaService.publish(P.vehId, stream, { onState: setLiveBadge });
+      console.info("[SafeDrive] publishing live to the owner dashboard.");
+    } catch (e) {
+      setLiveBadge("stopped");
+      console.error("[SafeDrive] could not go live:", e);
+      if (window.toast) toast("Live view could not start: " + (e && e.message || e), "err");
+    }
   }
   function stopLive() { if (liveHandle) { try { liveHandle.stop(); } catch {} liveHandle = null; } setLiveBadge("stopped"); }
 

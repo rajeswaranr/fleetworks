@@ -46,10 +46,12 @@
     state("connecting");
     const LK = await loadSDK();
     const t = await mintToken(vehicleId, "publish");
+    console.info("[MediaService] publish token ok, room", t.room, "→", t.url);
     const room = new LK.Room({ adaptiveStream: true, dynacast: true });
     room.on(LK.RoomEvent.Disconnected, () => state("stopped"));
     await room.connect(t.url, t.token);
     await room.localParticipant.publishTrack(track, { name: "cabin", source: LK.Track.Source.Camera, simulcast: true });
+    console.info("[MediaService] cabin track published to", t.room);
     state("live");
     return { stop() { try { room.disconnect(); } catch {} } };
   }
@@ -59,17 +61,20 @@
     state("connecting");
     const LK = await loadSDK();
     const t = await mintToken(vehicleId, "view");
+    console.info("[MediaService] view token ok, room", t.room, "→", t.url);
     const room = new LK.Room({ adaptiveStream: true });
     let gotVideo = false;
-    const attach = (tr) => { if (tr.kind === "video") { tr.attach(videoEl); gotVideo = true; state("live"); } };
+    const attach = (tr) => { if (tr.kind === "video") { tr.attach(videoEl); gotVideo = true; console.info("[MediaService] driver video attached"); state("live"); } };
     room.on(LK.RoomEvent.TrackSubscribed, attach);
     room.on(LK.RoomEvent.TrackUnsubscribed, (tr) => { try { tr.detach(videoEl); } catch {} });
+    room.on(LK.RoomEvent.ParticipantConnected, () => console.info("[MediaService] driver joined the room"));
     room.on(LK.RoomEvent.Disconnected, () => state("stopped"));
     await room.connect(t.url, t.token);
-    // already-published tracks
+    // any already-published tracks (driver was live before we opened)
     room.remoteParticipants.forEach((p) => p.trackPublications.forEach((pub) => { if (pub.track) attach(pub.track); }));
-    // if nobody is publishing yet, say so but keep listening for the driver to go live
-    setTimeout(() => { if (!gotVideo) state("offline"); }, 4000);
+    // nobody publishing yet: keep the room open and keep listening — the moment the driver
+    // starts Safe Drive, TrackSubscribed fires and the video appears without re-clicking.
+    setTimeout(() => { if (!gotVideo) { console.info("[MediaService] no publisher yet in", t.room); state("offline"); } }, 4000);
     return { stop() { try { room.disconnect(); } catch {} }, get gotVideo() { return gotVideo; } };
   }
 
