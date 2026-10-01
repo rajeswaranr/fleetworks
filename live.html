@@ -68,6 +68,7 @@
       <div>
         <div class="lw-src" id="lwSrc" role="group" aria-label="Video source">
           <button type="button" class="lw-btn" data-src="sim" aria-pressed="true">Simulated</button>
+          <button type="button" class="lw-btn" data-src="phone" aria-pressed="false">Driver phone (live)</button>
           <button type="button" class="lw-btn" data-src="url" aria-pressed="false">Link (.mp4 / .m3u8)</button>
           <button type="button" class="lw-btn" data-src="file" aria-pressed="false">Open a file</button>
         </div>
@@ -86,7 +87,8 @@
 
   <script src="js/icons.js"></script>
   <script src="js/backend.js"></script>
-  <script src="js/modules/iot-telemetry/live-wall.js"></script>
+  <script src="js/core/media-service.js?v=20261001a"></script>
+  <script src="js/modules/iot-telemetry/live-wall.js?v=20261001a"></script>
   <script>
     if (window.FWIcons && FWIcons.hydrate) FWIcons.hydrate(document.body);
     FWLiveWall.boot();

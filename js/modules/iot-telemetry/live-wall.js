@@ -116,7 +116,7 @@
 
   // ── state ──────────────────────────────────────────────────────────────
   const state = { layout: [2, 2], tiles: [], vehicles: [], twin: {} };
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ layout: state.layout, tiles: state.tiles.map(t => t && { vehicleId: t.vehicleId, cam: t.cam, src: t.src && t.src.type === "url" ? t.src : null }) })); } catch { /* private mode */ } };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify({ layout: state.layout, tiles: state.tiles.map(t => t && { vehicleId: t.vehicleId, cam: t.cam, src: t.src && (t.src.type === "url" || t.src.type === "phone") ? t.src : null }) })); } catch { /* private mode */ } };
   const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch { return null; } };
   const vehName = id => (state.vehicles.find(v => v.id === id) || {}).name || "Unassigned";
   const speedOf = id => { const t = state.twin[id]; const v = t && t.state && t.state[TWIN_SPEED]; return v && Number.isFinite(+v.v) ? +v.v : null; };
@@ -135,7 +135,15 @@
     cell.querySelector(".lw-cam").textContent = a ? CAMS[a.cam] : "";
     if (!a) { empty.hidden = false; badge.hidden = true; sim.hidden = true; return; }
     empty.hidden = true; badge.hidden = false;
-    if (a.src && a.src.url) {
+    if (a.src && a.src.type === "phone") {
+      badge.textContent = "PHONE"; badge.className = "lw-badge"; sim.hidden = true;
+      if (!(window.MediaService && MediaService.available())) { media.innerHTML = `<div class="lw-msg">Sign in to watch the driver's phone live.</div>`; return; }
+      const video = document.createElement("video"); video.autoplay = true; video.muted = true; video.playsInline = true; media.appendChild(video);
+      try {
+        const h = await MediaService.view(a.vehicleId, video, { onState: s => { badge.textContent = s === "live" ? "LIVE" : s === "offline" ? "OFFLINE" : "PHONE"; badge.className = "lw-badge " + (s === "live" ? "" : s === "offline" ? "sim" : ""); } });
+        live[i] = { stop: h.stop, video };
+      } catch (e) { media.innerHTML = `<div class="lw-msg">${esc((e && e.message) || "Live unavailable.")}</div>`; }
+    } else if (a.src && a.src.url) {
       badge.textContent = a.src.type === "file" ? "FILE" : "LIVE"; badge.className = "lw-badge " + (a.src.type === "file" ? "file" : ""); sim.hidden = true;
       const r = await startVideo(media, a.src, msg => { if (window.toast) toast(msg); a.src = null; paintTile(i); });
       live[i] = { stop: r.stop, video: r.video };
@@ -195,7 +203,7 @@
   let dlgFor = -1, dlgSrc = "sim", dlgFile = null;
   function openDialog(i) {
     dlgFor = i; const a = state.tiles[i] || { vehicleId: (state.vehicles[0] || {}).id, cam: "front", src: null };
-    dlgSrc = a.src && a.src.url ? "url" : "sim"; dlgFile = null;
+    dlgSrc = a.src && a.src.type === "phone" ? "phone" : a.src && a.src.url ? "url" : "sim"; dlgFile = null;
     $("lwVeh").innerHTML = state.vehicles.map(v => `<option value="${esc(v.id)}" ${v.id === a.vehicleId ? "selected" : ""}>${esc(v.name)}</option>`).join("") || "<option value=''>No vehicles yet</option>";
     $("lwCam").innerHTML = Object.entries(CAMS).map(([k, l]) => `<option value="${k}" ${k === a.cam ? "selected" : ""}>${l}</option>`).join("");
     $("lwUrl").value = a.src && a.src.type === "url" ? a.src.url : "";
@@ -214,6 +222,8 @@
     } else if (dlgSrc === "file") {
       if (!dlgFile) { alert("Choose a video file first."); return; }
       src = { type: "file", url: URL.createObjectURL(dlgFile), name: dlgFile.name };
+    } else if (dlgSrc === "phone") {
+      src = { type: "phone" };
     }
     if (!vehicleId) { alert("Add a vehicle first."); return; }
     state.tiles[dlgFor] = { vehicleId, cam, src }; save(); $("lwDlg").hidden = true; paintTile(dlgFor); updateSpeeds();

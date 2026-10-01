@@ -28,15 +28,32 @@
     });
   }
 
+  // read the stored Supabase session this page keeps (used by pages without fwCloud, e.g. live.html)
+  function sessionToken() {
+    try {
+      const k = localStorage.getItem("fw_session:active");
+      const raw = k ? localStorage.getItem(k) : localStorage.getItem("fw_session");
+      const s = raw ? JSON.parse(raw) : null;
+      return (s && s.access_token) || null;
+    } catch { return null; }
+  }
   // Call the livekit-token edge function with whatever signed-in session this page has.
   async function mintToken(vehicleId, role) {
     const body = { vehicleId, role };
     if (window.FSData && FSData.enabled && FSData.enabled()) return FSData.fn("livekit-token", body);
     if (window.fwCloud && fwCloud.callFunction) return fwCloud.callFunction("livekit-token", body);
+    const tok = sessionToken();
+    if (tok && window.FW_BACKEND) {
+      const r = await fetch(FW_BACKEND.url + "/functions/v1/livekit-token", {
+        method: "POST", headers: { "content-type": "application/json", Authorization: "Bearer " + tok, apikey: FW_BACKEND.anonKey }, body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error("Live token error (" + r.status + ").");
+      return r.json();
+    }
     throw new Error("Live video needs a signed-in session.");
   }
   function available() {
-    return !!((window.FSData && FSData.enabled && FSData.enabled()) || (window.fwCloud && fwCloud.callFunction));
+    return !!((window.FSData && FSData.enabled && FSData.enabled()) || (window.fwCloud && fwCloud.callFunction) || (sessionToken() && window.FW_BACKEND));
   }
 
   async function publish(vehicleId, stream, opts = {}) {
