@@ -41,6 +41,24 @@
     } catch (e) { st.textContent = (e && e.message) || "Could not start live view."; }
   }
   function hideLive() { stopLive(); const w = $("vzLiveWrap"); if (w) w.hidden = true; }
+  // owner on-demand: send the current live frame to the vision-analyze edge fn (Claude vision)
+  async function analyzeLiveFrame() {
+    const video = $("vzLiveVideo"), st = $("vzLiveState");
+    if (!video || !video.videoWidth) { if (window.toast) toast("No live video to analyse yet.", "err"); return; }
+    const prev = st ? st.textContent : "";
+    if (st) st.textContent = "Analysing frame…";
+    const blob = await new Promise(r => { const w = video.videoWidth, h = video.videoHeight, s = Math.min(1, 640 / w); const c = document.createElement("canvas"); c.width = Math.round(w * s); c.height = Math.round(h * s); c.getContext("2d").drawImage(video, 0, 0, c.width, c.height); c.toBlob(b => r(b), "image/jpeg", 0.7); });
+    if (!blob) { if (st) st.textContent = prev; return; }
+    try {
+      const token = await fwCloud.accessToken();
+      const vv = vehicles().find(x => x.id === S.veh); const vehKey = (vv && vv.dbId) || S.veh;
+      const fd = new FormData(); fd.append("file", blob, "frame.jpg"); fd.append("vehicleId", vehKey); fd.append("view", "cabin");
+      const r = await fetch(FW_BACKEND.url + "/functions/v1/vision-analyze", { method: "POST", headers: { Authorization: "Bearer " + token, apikey: FW_BACKEND.anonKey }, body: fd });
+      const j = await r.json();
+      if (j && j.detections && j.detections.length) { if (st) st.textContent = "AI: " + j.detections.map(d => d.type + " " + Math.round(d.confidence * 100) + "%").join(", "); if (window.toast && j.logged && j.logged.length) toast("AI logged: " + j.logged.join(", "), "ok"); }
+      else if (st) st.textContent = "AI: nothing of concern in this frame.";
+    } catch (e) { if (st) st.textContent = "Analysis failed."; }
+  }
 
   function render() {
     const r = root(); if (!r || !window.FWVision) return;
@@ -75,7 +93,7 @@
       <div class="oc-cols">
         <div>
           <div class="vz-live" id="vzLiveWrap" hidden>
-            <div class="vz-live-top"><span class="vz-live-state" id="vzLiveState">Connecting…</span><span class="oc-spacer"></span><button type="button" class="btn btn-outline btn-sm" id="vzLiveStop">${icon("close", 14)} Stop</button></div>
+            <div class="vz-live-top"><span class="vz-live-state" id="vzLiveState">Connecting…</span><span class="oc-spacer"></span><button type="button" class="btn btn-outline btn-sm" id="vzLiveAi">${icon("brain", 14)} AI analyse frame</button><button type="button" class="btn btn-outline btn-sm" id="vzLiveStop">${icon("close", 14)} Stop</button></div>
             <video id="vzLiveVideo" playsinline autoplay muted></video>
             <p class="oc-sub" style="margin:6px 0 14px">Real cabin video, streamed live from the driver's phone via LiveKit. The simulated cameras below stay for the AI-layer demo.</p>
           </div>
@@ -163,6 +181,7 @@
     $("vzVeh").onchange = e => { S.veh = e.target.value; render(); };
     const wl = $("vzWatchLive"); if (wl) wl.onclick = showLive;
     const ls = $("vzLiveStop"); if (ls) ls.onclick = hideLive;
+    const ai = $("vzLiveAi"); if (ai) ai.onclick = analyzeLiveFrame;
     $("vzConf").oninput = e => { S.minConf = +e.target.value; $("vzConfV").textContent = Math.round(S.minConf * 100) + "%"; if (S.frozen) paint(); };
     r.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { if (window.activateTab) activateTab(b.dataset.go); });
   }

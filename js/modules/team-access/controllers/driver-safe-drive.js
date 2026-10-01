@@ -27,7 +27,7 @@
   const MODEL_WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@" + MP_VERSION + "/wasm";
   const FACE_MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
   const SET_KEY = "fw_safedrive_settings_v1";
-  const defaults = { sensitivity: "normal", sound: true, voice: true, record: true, live: true, restType: "fuel", radiusKm: 5 };
+  const defaults = { sensitivity: "normal", sound: true, voice: true, record: true, live: true, aiScene: false, restType: "fuel", radiusKm: 5 };
   function settings() { try { return { ...defaults, ...JSON.parse(localStorage.getItem(SET_KEY) || "{}") }; } catch { return { ...defaults }; } }
   function saveSettings(s) { try { localStorage.setItem(SET_KEY, JSON.stringify(s)); } catch {} }
   function thresholds() { const k = (SENS[settings().sensitivity] || SENS.normal).k; return { ...BASE, LONG: Math.round(BASE.LONG * k), MID: Math.round(BASE.MID * k), HEADTILT: Math.round(BASE.HEADTILT * k), k }; }
@@ -267,7 +267,7 @@
   // ══════════════════════════ panel UI ══════════════════════════
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const icon = (n, s = 16) => (window.FWIcon ? FWIcon(n, { size: s }) : "");
-  const KIND = { long_blink: "Eyes closing", blink_rate: "Heavy eyelids", head_tilt: "Head tilting", fatigue: "Drowsiness", distraction: "Distraction" };
+  const KIND = { long_blink: "Eyes closing", blink_rate: "Heavy eyelids", head_tilt: "Head tilting", fatigue: "Drowsiness", distraction: "Distraction", no_seatbelt: "No seatbelt", phone_use: "Phone use", smoking: "Smoking" };
   const P = { tab: "monitor", running: false, log: [], vehicles: [], vehId: null, session: null, map: null, stops: [], geo: null };
 
   // Each surface supplies its own driver context so Safe Drive runs in both the team
@@ -399,6 +399,7 @@
       });
       startRecording();
       startLive();
+      startAiScene();
     } catch (e) {
       P.running = false; render();
       const msg = /denied|NotAllowed/i.test(String(e)) ? "Camera permission was declined. Allow the camera to use Safe Drive." : "Could not start the camera: " + (e.message || e);
@@ -409,6 +410,7 @@
     P.running = false;   // set first so the recorder's onstop does not start a new segment
     stopRecording();
     stopManualRecording();
+    stopAiScene();
     stopLive();          // disconnect LiveKit before the engine stops the camera track
     const res = SafeDriveEngine.stop();
     const mins = Math.max(1, Math.round((res.endedAt - res.startedAt) / 60000));
@@ -448,6 +450,35 @@
     }
   }
   function stopLive() { if (liveHandle) { try { liveHandle.stop(); } catch {} liveHandle = null; } setLiveBadge("stopped"); }
+
+  // ── AI scene check (hosted vision on sampled frames — the infra-free "intelligence on the
+  // stream"). Every ~20s a frame goes to the vision-analyze edge fn → Claude vision → events
+  // for seatbelt/phone/smoking/distraction the on-device engine doesn't cover. Off by default.
+  function captureFrame(video, maxW) {
+    return new Promise(res => {
+      try {
+        const w = video.videoWidth || 480, h = video.videoHeight || 640, scale = Math.min(1, (maxW || 480) / w);
+        const c = document.createElement("canvas"); c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+        c.getContext("2d").drawImage(video, 0, 0, c.width, c.height);
+        c.toBlob(b => res(b), "image/jpeg", 0.6);
+      } catch { res(null); }
+    });
+  }
+  function aiSceneOn() { return settings().aiScene === true && typeof window.SafeDriveVisionAnalyze === "function" && P.vehId; }
+  async function aiTick() {
+    if (!P.running || !aiSceneOn() || P.aiBusy) return;
+    const v = document.getElementById("sdVideo"); if (!v) return;
+    P.aiBusy = true;
+    try {
+      const blob = await captureFrame(v, 480); if (!blob) return;
+      const geo = P.geo ? { latitude: P.geo[0], longitude: P.geo[1] } : {};
+      const res = await window.SafeDriveVisionAnalyze(blob, { vehicleId: P.vehId, view: "cabin", ...geo });
+      if (res && res.logged && res.logged.length) { flash("AI noticed: " + res.logged.map(k => KIND[k] || k).join(", "), "major"); }
+    } catch (e) { console.warn("[SafeDrive] AI scene check failed:", e); }
+    finally { P.aiBusy = false; }
+  }
+  function startAiScene() { if (!aiSceneOn()) return; clearInterval(P.aiTimer); P.aiTimer = setInterval(aiTick, 20000); setTimeout(aiTick, 5000); }
+  function stopAiScene() { clearInterval(P.aiTimer); P.aiBusy = false; }
 
   // ── 2-minute clip recording (uploaded so the owner/supervisor can review) ──
   // Records the front camera in 2-minute segments and uploads each one; if a major or
@@ -697,13 +728,16 @@
       <section><h4 class="sd-h4">Live view</h4>
         <label class="sd-switch"><span>Stream the cabin live to my owner</span><input type="checkbox" id="sdLive" ${s.live !== false ? "checked" : ""}></label>
         <p class="sd-note" style="margin-top:2px">${window.MediaService && MediaService.available() ? "While monitoring, your owner and supervisor can watch the cabin live from their dashboard." : "Live view needs a signed-in driver account (team login)."}</p></section>
+      <section><h4 class="sd-h4">AI scene check</h4>
+        <label class="sd-switch"><span>Watch for seatbelt, phone &amp; smoking (AI)</span><input type="checkbox" id="sdAiScene" ${s.aiScene === true ? "checked" : ""}></label>
+        <p class="sd-note" style="margin-top:2px">${typeof window.SafeDriveVisionAnalyze === "function" ? "Every ~20s the camera frame is checked by AI; anything it spots reaches your owner's dashboard." : "AI scene check needs the team driver login."}</p></section>
       <section><h4 class="sd-h4">Rest stops</h4>
         <label class="sd-veh">Show by default<select id="sdRestType">${Object.entries(STOP_KINDS).map(([k, v]) => `<option value="${k}" ${s.restType === k ? "selected" : ""}>${v.label}</option>`).join("")}</select></label>
         <label class="sd-veh">Search radius<select id="sdRadius">${[2, 5, 10, 20].map(r => `<option value="${r}" ${s.radiusKm === r ? "selected" : ""}>${r} km</option>`).join("")}</select></label></section>
       <p class="sd-note">Settings are kept on this phone. Detection thresholds follow DriveBuddy's tested defaults.</p></div>`;
     b.querySelectorAll("[data-sens]").forEach(btn => btn.onclick = () => { const st = settings(); st.sensitivity = btn.dataset.sens; saveSettings(st); renderSettings(); });
     const set = (id, key, val) => { const el = document.getElementById(id); if (el) el.onchange = () => { const st = settings(); st[key] = val(el); saveSettings(st); }; };
-    set("sdSound", "sound", el => el.checked); set("sdVoice", "voice", el => el.checked); set("sdRecord", "record", el => el.checked); set("sdLive", "live", el => el.checked);
+    set("sdSound", "sound", el => el.checked); set("sdVoice", "voice", el => el.checked); set("sdRecord", "record", el => el.checked); set("sdLive", "live", el => el.checked); set("sdAiScene", "aiScene", el => el.checked);
     set("sdRestType", "restType", el => el.value); set("sdRadius", "radiusKm", el => +el.value);
   }
 

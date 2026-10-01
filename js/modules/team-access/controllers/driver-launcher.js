@@ -69,6 +69,18 @@ function dcSafeDriveHooks() {
     if (meta.longitude != null) fd.append("longitude", String(meta.longitude));
     await fetch(FW_BACKEND.url + "/functions/v1/driver-safety-clip", { method: "POST", headers: { Authorization: "Bearer " + token, apikey: FW_BACKEND.anonKey }, body: fd });
   };
+  window.SafeDriveVisionAnalyze = async function (blob, meta) {
+    const token = await fwCloud.accessToken();
+    if (!token) return null;
+    const fd = new FormData();
+    fd.append("file", blob, "frame.jpg");
+    fd.append("vehicleId", meta.vehicleId);
+    fd.append("view", meta.view || "cabin");
+    if (meta.latitude != null) fd.append("latitude", String(meta.latitude));
+    if (meta.longitude != null) fd.append("longitude", String(meta.longitude));
+    const r = await fetch(FW_BACKEND.url + "/functions/v1/vision-analyze", { method: "POST", headers: { Authorization: "Bearer " + token, apikey: FW_BACKEND.anonKey }, body: fd });
+    return r.ok ? r.json() : null;
+  };
   window.SafeDriveDrivingSince = function () {
     const veh = (window.SafeDriveVehicles[0] || {}).id;
     const t = veh && _dcActiveTrips && _dcActiveTrips[veh];
