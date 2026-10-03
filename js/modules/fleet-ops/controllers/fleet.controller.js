@@ -5108,6 +5108,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "sites")           { loadSites().then(() => { renderSites(); renderHubSites(); }); }
   if (tabName === "projects")        { loadSites().then(renderActiveProjects); }
   if (tabName === "plreport" && window.renderPlReport) renderPlReport();
+  if (tabName === "budgets") renderBudgets();
   if (tabName === "sitehistory")     { loadSites().then(renderSiteHistory); }
   if (tabName === "purchaseinvoices") renderPurchaseInvoices();
   if (tabName === "trips") { renderTrips(); loadActiveTripWorkflow(); }
@@ -5297,6 +5298,7 @@ function buildDynamicPanels() {
   mk("vendors", panelCard("Vendors", "Workshops and suppliers your fleet works with", "vendorTable"));
   mk("integrations", `<div class="chart-card"><div class="chart-head"><div><h2>Integrations</h2><p class="muted">Connect FleetWorks to the tools your business already runs on</p></div></div><div class="integ-grid" id="integGrid"></div></div>`);
   mk("reports", `<div class="chart-card"><div class="chart-head"><div><h2>Standard Reports</h2><p class="muted">One-click exports, ready for Excel and your accountant</p></div></div><div class="integ-grid" id="reportGrid"></div></div>`);
+  mk("budgets", `<div class="chart-card"><div class="chart-head"><div><h2>Budgets</h2><p class="muted">Set a monthly budget per category and track it against actual spend</p></div><label style="margin-left:auto;font-size:.85rem">Month <input type="month" id="budgetMonth" style="margin-left:6px"></label></div><div id="budgetBody"></div><div style="padding:12px 0 2px"><button type="button" class="btn btn-primary btn-sm" id="budgetSave">${""}Save budgets</button></div></div>`);
   // FleetAI study panels (rendered by analytics.js)
   mk("recurrent", panelCard("Recurrent Issues & Repeat Repairs", "The same part failing twice is a pattern, not bad luck — FleetAI surfaces every repeat", "recurTable"));
   mk("deviation", panelCard("Deviation Analysis", "Vehicles running meaningfully above or below your fleet's cost per km", "devTable"));
@@ -6575,7 +6577,15 @@ function renderSafetyScores() {
     return;
   }
 
-  el.innerHTML = `
+  // leaderboard: top performers by score (best first) — gamified recognition, Samsara/Motive-style
+  const top = [...scored].sort((a, b) => Number(b.safety_score) - Number(a.safety_score)).slice(0, 3);
+  const medal = ["🥇", "🥈", "🥉"];
+  const board = top.length >= 2 ? `<div class="sf-leaderboard" style="display:flex;gap:10px;flex-wrap:wrap;padding:12px 14px">
+    ${top.map((s, i) => `<div class="fw-chip ok" style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:1.1rem">${medal[i]}</span><strong>${esc(s.driver_name)}</strong><b>${Number(s.safety_score)}</b></div>`).join("")}
+    <span class="muted" style="align-self:center;font-size:.78rem">Safest drivers, last 30 days</span></div>` : "";
+
+  el.innerHTML = board + `
     ${scored.length ? `<table class="chart-table-el" style="width:100%">
       <thead><tr><th>Driver</th><th>Score</th><th>Band</th><th>Events</th><th>Critical</th><th>km (30d)</th><th>Per 1,000 km</th><th></th></tr></thead>
       <tbody>${scored.map(s => {
@@ -6975,6 +6985,62 @@ async function initFleetViewMap() {
   renderFleetView();
 }
 
+// FleetFin Budgets: monthly budget per category vs actual (fuel_logs for diesel, expenses else).
+async function renderBudgets() {
+  const mi = document.getElementById("budgetMonth"); if (!mi) return;
+  if (!mi.value) mi.value = new Date().toISOString().slice(0, 7);
+  mi.onchange = renderBudgets;
+  const month = mi.value;
+  const inMonth = d => String(d || "").slice(0, 7) === month;
+  const diesel = (db.fuelLogs || []).filter(f => inMonth(f.date)).reduce((t, f) => t + (+f.amount || 0), 0);
+  const actuals = { Diesel: diesel };
+  (db.expenses || []).filter(e => inMonth(e.date)).forEach(e => { const c = e.category || "Other"; actuals[c] = (actuals[c] || 0) + (+e.amount || 0); });
+  let budgets = {};
+  try { const rows = await fwCloud.authGet("fleet_budgets", `select=category,amount&month=eq.${month}`); (rows || []).forEach(r => { budgets[r.category] = +r.amount || 0; }); } catch { /* none yet */ }
+  const cats = Array.from(new Set([...Object.keys(actuals), ...Object.keys(budgets)])).filter(Boolean).sort((a, b) => a === "Diesel" ? -1 : b === "Diesel" ? 1 : a.localeCompare(b));
+  const fmt = n => "₹" + Math.round(n).toLocaleString("en-IN");
+  const totB = cats.reduce((t, c) => t + (budgets[c] || 0), 0), totA = cats.reduce((t, c) => t + (actuals[c] || 0), 0);
+  const row = (c, b, a) => { const pct = b > 0 ? Math.round(a / b * 100) : null; const col = pct == null ? "#64748b" : pct > 100 ? "#dc2626" : pct > 85 ? "#f59e0b" : "#16a34a"; return `<tr>
+      <td><strong>${esc(c)}</strong></td>
+      <td><input type="number" min="0" step="100" data-cat="${esc(c)}" value="${b || ""}" class="budget-in" style="width:120px"></td>
+      <td>${fmt(a)}</td><td>${pct == null ? "—" : pct + "%"}</td>
+      <td style="min-width:140px"><div style="background:var(--surface-2);border-radius:6px;height:8px;overflow:hidden"><i style="display:block;height:100%;width:${pct == null ? 0 : Math.min(100, pct)}%;background:${col}"></i></div></td></tr>`; };
+  document.getElementById("budgetBody").innerHTML = `<table class="chart-table-el" style="width:100%">
+    <thead><tr><th>Category</th><th>Budget (₹)</th><th>Actual</th><th>Used</th><th></th></tr></thead>
+    <tbody>${cats.map(c => row(c, budgets[c] || 0, actuals[c] || 0)).join("")}</tbody>
+    <tfoot><tr style="font-weight:700;border-top:2px solid var(--border)"><td>Total</td><td>${fmt(totB)}</td><td>${fmt(totA)}</td><td>${totB > 0 ? Math.round(totA / totB * 100) + "%" : "—"}</td><td></td></tr></tfoot></table>
+    <p class="muted" style="margin-top:8px;font-size:.8rem">Diesel actual is from fuel logs; other categories from expenses, for ${month}. Set a figure and Save.</p>`;
+  const save = document.getElementById("budgetSave"); if (save) save.onclick = () => saveBudgets(month);
+}
+async function saveBudgets(month) {
+  const org = typeof dbOrgId === "function" ? await dbOrgId() : null;
+  if (!org) { if (window.toast) toast("Sign in to save budgets.", "err"); return; }
+  const rows = [...document.querySelectorAll(".budget-in")].map(el => ({ org_id: org, month, category: el.dataset.cat, amount: +el.value || 0 }));
+  if (!rows.length) return;
+  try {
+    const token = await fwCloud.accessToken();
+    const r = await fetch(FW_BACKEND.url + "/rest/v1/fleet_budgets", {
+      method: "POST", headers: { "Content-Type": "application/json", apikey: FW_BACKEND.anonKey, Authorization: "Bearer " + token, Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(rows),
+    });
+    if (window.toast) toast(r.ok ? "Budgets saved." : "Could not save budgets.", r.ok ? "ok" : "err");
+  } catch (e) { if (window.toast) toast("Could not save budgets.", "err"); }
+  renderBudgets();
+}
+
+// Live Share: mint a 24-hour public tracking link for a vehicle and copy it.
+async function fwShareVehicle(vehId) {
+  try {
+    const r = await fwCloud.callFunction("trip-share", { action: "create", vehicleId: vehId, hours: 24 });
+    if (r && r.url) {
+      try { await navigator.clipboard.writeText(r.url); } catch { /* clipboard blocked */ }
+      if (window.FWDialog && FWDialog.alert) FWDialog.alert("Live-location link (valid 24 hours, copied to clipboard):\n\n" + r.url, "Share live location");
+      else if (window.toast) toast("Live-location link copied — valid 24 hours.", "ok");
+      console.log("Live Share link:", r.url);
+    } else if (window.toast) toast((r && r.error) || "Could not create the link.", "err");
+  } catch (e) { if (window.toast) toast("Could not create the link.", "err"); }
+}
+
 function drawFvMarkers(rows) {
   if (!_fvLayer || !window.L) return;
   _fvLayer.clearLayers();
@@ -6993,7 +7059,8 @@ function drawFvMarkers(rows) {
       (r.driver ? `<br>${esc(r.driver)}` : "") +
       (r.speed != null ? `<br>${Math.round(r.speed)} km/h` : "") +
       (r.fuel != null ? ` · fuel ${Math.round(r.fuel)}%` : "") +
-      (r.alert ? `<br><b style="color:${col}">${r.alert === "critical" ? "Critical" : "Warning"} incident open</b>` : ""));
+      (r.alert ? `<br><b style="color:${col}">${r.alert === "critical" ? "Critical" : "Warning"} incident open</b>` : "") +
+      (r.kind === "vehicle" && r.dbId ? `<br><a href="#" onclick="fwShareVehicle('${r.dbId}');return false">📍 Share live location</a>` : ""));
     pts.push([r.lat, r.lng]);
   });
   if (pts.length && _fvMap && !_fvSelected) {

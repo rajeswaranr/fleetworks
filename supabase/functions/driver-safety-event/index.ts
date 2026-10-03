@@ -32,10 +32,13 @@ const MAP: Record<string, string> = {
   drowsiness: "fatigue", sleepiness: "fatigue", fatigue: "fatigue", yawning: "fatigue", impairment: "fatigue",
   distraction: "distraction",
   long_blink: "fatigue", blink_rate: "fatigue", head_tilt: "distraction",   // legacy kinds
+  // phone motion telematics (accelerometer + GPS): harsh driving + overspeed, pass-through
+  harsh_brake: "harsh_brake", harsh_accel: "harsh_accel", harsh_corner: "harsh_corner", overspeed: "overspeed",
 };
 const LABEL: Record<string, string> = {
   drowsiness: "drowsiness", sleepiness: "sleepiness / micro-sleep", fatigue: "tiredness", yawning: "yawning",
   impairment: "impairment signs (unfit to drive)", distraction: "distraction",
+  harsh_brake: "harsh braking", harsh_accel: "harsh acceleration", harsh_corner: "harsh cornering", overspeed: "overspeeding",
 };
 // minor stays in-app (info); major → warning; critical → critical (may SMS per fleet settings)
 const SEV: Record<string, string> = { minor: "info", major: "warning", critical: "critical" };
@@ -48,11 +51,14 @@ Deno.serve(async (req) => {
 
   const jwt = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   if (!jwt) return reply(401, { error: "Sign in first." });
-  let body: { vehicleId?: string; kind?: string; severity?: string; occurredAt?: string };
+  let body: { vehicleId?: string; kind?: string; severity?: string; occurredAt?: string; latitude?: number; longitude?: number; speedKmph?: number };
   try { body = await req.json(); } catch { return reply(400, { error: "bad_json" }); }
   const vehicleId = String(body.vehicleId || "");
   const kind = String(body.kind || "");
   const severity = SEV[String(body.severity || "")] || "warning";   // in-app-only minor, else surfaced
+  const lat = Number.isFinite(Number(body.latitude)) && Math.abs(Number(body.latitude)) <= 90 ? Number(body.latitude) : null;
+  const lng = Number.isFinite(Number(body.longitude)) && Math.abs(Number(body.longitude)) <= 180 ? Number(body.longitude) : null;
+  const speed = Number.isFinite(Number(body.speedKmph)) ? Number(body.speedKmph) : null;
   if (!/^[0-9a-f-]{36}$/i.test(vehicleId)) return reply(400, { error: "vehicleId is required." });
   if (!MAP[kind]) return reply(400, { error: "Unknown alert kind." });
   const at = body.occurredAt && !Number.isNaN(Date.parse(body.occurredAt)) ? new Date(body.occurredAt).toISOString() : new Date().toISOString();
@@ -91,6 +97,7 @@ Deno.serve(async (req) => {
 
   const { data: evRow, error: evErr } = await admin.from("device_events").insert({
     device_id: deviceId, org_id: veh.org_id, occurred_at: at, event_type: mapped, severity,
+    latitude: lat, longitude: lng, speed_kmph: speed,
     raw: { source: "phone_safe_drive", alert: kind, condition: LABEL[kind] || kind, severity_reported: body.severity || null, driver_user: caller.user.id }, simulated: false,
   }).select("id").single();
   if (evErr) return reply(500, { error: "Could not log the alert: " + evErr.message });

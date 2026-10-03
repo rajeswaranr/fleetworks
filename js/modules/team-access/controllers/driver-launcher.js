@@ -81,6 +81,11 @@ function dcSafeDriveHooks() {
     const r = await fetch(FW_BACKEND.url + "/functions/v1/vision-analyze", { method: "POST", headers: { Authorization: "Bearer " + token, apikey: FW_BACKEND.anonKey }, body: fd });
     return r.ok ? r.json() : null;
   };
+  window.SafeDrivePosition = async function (meta) {
+    const token = await fwCloud.accessToken();
+    if (!token) return;
+    try { await fetch(FW_BACKEND.url + "/functions/v1/driver-position", { method: "POST", headers: { "Content-Type": "application/json", apikey: FW_BACKEND.anonKey, Authorization: "Bearer " + token }, body: JSON.stringify(meta) }); } catch {}
+  };
   window.SafeDriveDrivingSince = function () {
     const veh = (window.SafeDriveVehicles[0] || {}).id;
     const t = veh && _dcActiveTrips && _dcActiveTrips[veh];

@@ -27,7 +27,7 @@
   const MODEL_WASM = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@" + MP_VERSION + "/wasm";
   const FACE_MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
   const SET_KEY = "fw_safedrive_settings_v1";
-  const defaults = { sensitivity: "normal", sound: true, voice: true, record: true, live: true, aiScene: false, restType: "fuel", radiusKm: 5 };
+  const defaults = { sensitivity: "normal", sound: true, voice: true, record: true, live: true, aiScene: false, motion: true, speedLimit: 80, restType: "fuel", radiusKm: 5 };
   function settings() { try { return { ...defaults, ...JSON.parse(localStorage.getItem(SET_KEY) || "{}") }; } catch { return { ...defaults }; } }
   function saveSettings(s) { try { localStorage.setItem(SET_KEY, JSON.stringify(s)); } catch {} }
   function thresholds() { const k = (SENS[settings().sensitivity] || SENS.normal).k; return { ...BASE, LONG: Math.round(BASE.LONG * k), MID: Math.round(BASE.MID * k), HEADTILT: Math.round(BASE.HEADTILT * k), k }; }
@@ -267,7 +267,7 @@
   // ══════════════════════════ panel UI ══════════════════════════
   const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const icon = (n, s = 16) => (window.FWIcon ? FWIcon(n, { size: s }) : "");
-  const KIND = { long_blink: "Eyes closing", blink_rate: "Heavy eyelids", head_tilt: "Head tilting", fatigue: "Drowsiness", distraction: "Distraction", no_seatbelt: "No seatbelt", phone_use: "Phone use", smoking: "Smoking" };
+  const KIND = { long_blink: "Eyes closing", blink_rate: "Heavy eyelids", head_tilt: "Head tilting", fatigue: "Drowsiness", distraction: "Distraction", no_seatbelt: "No seatbelt", phone_use: "Phone use", smoking: "Smoking", harsh_brake: "Harsh braking", harsh_accel: "Harsh acceleration", harsh_corner: "Harsh cornering", overspeed: "Overspeeding" };
   const P = { tab: "monitor", running: false, log: [], vehicles: [], vehId: null, session: null, map: null, stops: [], geo: null };
 
   // Each surface supplies its own driver context so Safe Drive runs in both the team
@@ -400,6 +400,7 @@
       startRecording();
       startLive();
       startAiScene();
+      startMotion();
     } catch (e) {
       P.running = false; render();
       const msg = /denied|NotAllowed/i.test(String(e)) ? "Camera permission was declined. Allow the camera to use Safe Drive." : "Could not start the camera: " + (e.message || e);
@@ -411,6 +412,7 @@
     stopRecording();
     stopManualRecording();
     stopAiScene();
+    stopMotion();
     stopLive();          // disconnect LiveKit before the engine stops the camera track
     const res = SafeDriveEngine.stop();
     const mins = Math.max(1, Math.round((res.endedAt - res.startedAt) / 60000));
@@ -613,9 +615,79 @@
   // through its anon link); the team portal falls back to the signed-in edge function.
   async function logToFleet(ev) {
     const payload = { vehicleId: P.vehId, kind: ev.condition, severity: ev.severity, occurredAt: ev.at };
+    if (ev.latitude != null) payload.latitude = ev.latitude;
+    if (ev.longitude != null) payload.longitude = ev.longitude;
+    if (ev.speedKmph != null) payload.speedKmph = ev.speedKmph;
     if (typeof window.SafeDriveLog === "function") { try { await window.SafeDriveLog(payload); } catch {} return null; }
     if (!P.vehId || !(window.fwCloud && fwCloud.callFunction)) return null;
     try { const r = await fwCloud.callFunction("driver-safety-event", payload); return r && r.eventId ? r.eventId : null; } catch { return null; }
+  }
+
+  // ── phone motion telematics: harsh braking / acceleration / cornering + overspeed ──
+  // The phone is already mounted and permitted for the camera; its GPS speed and accelerometer
+  // turn it into a tracker too (Samsara/Motive-style) with no hardware. GPS speed drives the
+  // reliable brake/accel/overspeed calls; the accelerometer adds cornering. Events feed the
+  // same device_events pipeline (harsh_brake/harsh_accel/harsh_corner/overspeed).
+  const MOTION = { BRAKE: -3.5, BRAKE_CRIT: -5.5, ACCEL: 3.2, ACCEL_CRIT: 5.0, CORNER: 3.8, CORNER_CRIT: 5.5, MOVING_MS: 5 };
+  function motionOn() { return settings().motion !== false && "geolocation" in navigator && P.vehId; }
+  function speedLimit() { const n = Number(settings().speedLimit); return Number.isFinite(n) && n > 0 ? n : 80; }
+  const MOTION_MSG = { harsh_brake: "Harsh braking — ease off", harsh_accel: "Harsh acceleration — go smooth", harsh_corner: "Sharp turn — slow down", overspeed: "Over the speed limit — slow down" };
+  function fireMotion(kind, severity) {
+    const M = P.motion, now = Date.now(), gap = kind === "overspeed" ? 30000 : 12000;
+    if (M.last[kind] && now - M.last[kind] < gap) return;
+    M.last[kind] = now;
+    const ev = { condition: kind, severity, at: new Date().toISOString(), message: MOTION_MSG[kind] || kind, latitude: P.geo && P.geo[0], longitude: P.geo && P.geo[1], speedKmph: M.lastKmh != null ? Math.round(M.lastKmh) : null };
+    flash(ev.message, severity); if (severity === "critical") beep(3);
+    P.log.unshift(ev); renderLog(); logToFleet(ev);
+  }
+  function onMotionPos(p) {
+    const M = P.motion, c = p.coords;
+    P.geo = [c.latitude, c.longitude];
+    const t = p.timestamp || Date.now();
+    let v = typeof c.speed === "number" && c.speed >= 0 ? c.speed : null;   // m/s from GPS
+    if (v == null && M.lastLatLng) { const d = haversine(M.lastLatLng, [c.latitude, c.longitude]) * 1000, dt = (t - M.lastT) / 1000; if (dt > 0.3) v = d / dt; }
+    M.lastLatLng = [c.latitude, c.longitude];
+    if (v == null) { M.lastT = t; return; }
+    const kmh = v * 3.6; M.lastKmh = kmh;
+    // stream position to the vehicle twin every ~15s so phone-only vehicles show live
+    if (typeof window.SafeDrivePosition === "function" && (!M.lastPos || t - M.lastPos > 15000)) {
+      M.lastPos = t;
+      window.SafeDrivePosition({ vehicleId: P.vehId, lat: c.latitude, lng: c.longitude, speed: Math.round(kmh), heading: typeof c.heading === "number" ? c.heading : undefined });
+    }
+    if (M.lastV != null) {
+      const dt = (t - M.lastT) / 1000;
+      if (dt >= 0.3 && dt <= 5) {
+        const a = (v - M.lastV) / dt;   // m/s²
+        if (kmh > MOTION.MOVING_MS * 3.6) {
+          if (a <= MOTION.BRAKE) fireMotion("harsh_brake", a <= MOTION.BRAKE_CRIT ? "critical" : "major");
+          else if (a >= MOTION.ACCEL) fireMotion("harsh_accel", a >= MOTION.ACCEL_CRIT ? "critical" : "major");
+        }
+      }
+    }
+    const lim = speedLimit();
+    if (kmh > lim) fireMotion("overspeed", kmh > lim + 20 ? "critical" : "major");
+    M.lastV = v; M.lastT = t;
+  }
+  function onMotionAccel(e) {
+    const M = P.motion; if (M.lastKmh == null || M.lastKmh < MOTION.MOVING_MS * 3.6) return;   // only while moving
+    const a = e.acceleration || {};   // gravity-free; may be null on some devices
+    if (a.x == null) return;
+    const lateral = Math.hypot(a.x || 0, a.y || 0);
+    if (lateral >= MOTION.CORNER) fireMotion("harsh_corner", lateral >= MOTION.CORNER_CRIT ? "critical" : "major");
+  }
+  async function startMotion() {
+    if (!motionOn()) return;
+    P.motion = { last: {}, lastV: null, lastT: 0, lastKmh: null, lastLatLng: null, lastPos: 0, watchId: null };
+    try { P.motion.watchId = navigator.geolocation.watchPosition(onMotionPos, () => {}, { enableHighAccuracy: true, maximumAge: 1000, timeout: 10000 }); } catch {}
+    try {
+      if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === "function") { try { await DeviceMotionEvent.requestPermission(); } catch {} }
+      if (window.DeviceMotionEvent) window.addEventListener("devicemotion", onMotionAccel);
+    } catch {}
+  }
+  function stopMotion() {
+    if (P.motion) { if (P.motion.watchId != null) { try { navigator.geolocation.clearWatch(P.motion.watchId); } catch {} } }
+    try { window.removeEventListener("devicemotion", onMotionAccel); } catch {}
+    P.motion = null;
   }
 
   // ── Rest stops (OpenStreetMap Overpass, keyless) ──
@@ -731,13 +803,17 @@
       <section><h4 class="sd-h4">AI scene check</h4>
         <label class="sd-switch"><span>Watch for seatbelt, phone &amp; smoking (AI)</span><input type="checkbox" id="sdAiScene" ${s.aiScene === true ? "checked" : ""}></label>
         <p class="sd-note" style="margin-top:2px">${typeof window.SafeDriveVisionAnalyze === "function" ? "Every ~20s the camera frame is checked by AI; anything it spots reaches your owner's dashboard." : "AI scene check needs the team driver login."}</p></section>
+      <section><h4 class="sd-h4">Driving behaviour</h4>
+        <label class="sd-switch"><span>Detect harsh braking, acceleration &amp; overspeed</span><input type="checkbox" id="sdMotion" ${s.motion !== false ? "checked" : ""}></label>
+        <label class="sd-veh">Speed limit<select id="sdSpeedLimit">${[40, 50, 60, 70, 80, 90, 100].map(v => `<option value="${v}" ${s.speedLimit === v ? "selected" : ""}>${v} km/h</option>`).join("")}</select></label>
+        <p class="sd-note" style="margin-top:2px">Uses the phone's GPS and motion sensors — harsh driving and overspeed reach your owner's safety dashboard.</p></section>
       <section><h4 class="sd-h4">Rest stops</h4>
         <label class="sd-veh">Show by default<select id="sdRestType">${Object.entries(STOP_KINDS).map(([k, v]) => `<option value="${k}" ${s.restType === k ? "selected" : ""}>${v.label}</option>`).join("")}</select></label>
         <label class="sd-veh">Search radius<select id="sdRadius">${[2, 5, 10, 20].map(r => `<option value="${r}" ${s.radiusKm === r ? "selected" : ""}>${r} km</option>`).join("")}</select></label></section>
       <p class="sd-note">Settings are kept on this phone. Detection thresholds follow DriveBuddy's tested defaults.</p></div>`;
     b.querySelectorAll("[data-sens]").forEach(btn => btn.onclick = () => { const st = settings(); st.sensitivity = btn.dataset.sens; saveSettings(st); renderSettings(); });
     const set = (id, key, val) => { const el = document.getElementById(id); if (el) el.onchange = () => { const st = settings(); st[key] = val(el); saveSettings(st); }; };
-    set("sdSound", "sound", el => el.checked); set("sdVoice", "voice", el => el.checked); set("sdRecord", "record", el => el.checked); set("sdLive", "live", el => el.checked); set("sdAiScene", "aiScene", el => el.checked);
+    set("sdSound", "sound", el => el.checked); set("sdVoice", "voice", el => el.checked); set("sdRecord", "record", el => el.checked); set("sdLive", "live", el => el.checked); set("sdAiScene", "aiScene", el => el.checked); set("sdMotion", "motion", el => el.checked); set("sdSpeedLimit", "speedLimit", el => +el.value);
     set("sdRestType", "restType", el => el.value); set("sdRadius", "radiusKm", el => +el.value);
   }
 

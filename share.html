@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Live location · FleetWorks</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    :root { --bg:#f1f5f9; --card:#fff; --ink:#0f172a; --muted:#64748b; --brand:#2563eb; --line:#e2e8f0; }
+    @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --bg:#0b1120; --card:#131c31; --ink:#e2e8f0; --muted:#94a3b8; --line:#243049; } }
+    *{box-sizing:border-box} html,body{margin:0;height:100%}
+    body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);display:flex;flex-direction:column;height:100dvh}
+    header{padding:12px 16px;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+    header .dot{width:10px;height:10px;border-radius:50%;background:#16a34a;box-shadow:0 0 0 4px rgba(22,163,74,.18)}
+    header b{font-size:1rem} header .sub{color:var(--muted);font-size:.8rem}
+    #map{flex:1;min-height:0}
+    .bar{padding:10px 16px;background:var(--card);border-top:1px solid var(--line);display:flex;gap:18px;align-items:center;font-size:.9rem}
+    .bar .k{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.03em} .bar .v{font-weight:700;font-size:1.05rem}
+    .msg{margin:auto;text-align:center;padding:32px;color:var(--muted);max-width:28ch}
+    .brand{margin-left:auto;color:var(--muted);font-size:.72rem}
+  </style>
+</head>
+<body>
+  <header><span class="dot" id="dot"></span><div><b id="veh">Live location</b><div class="sub" id="sub">Connecting…</div></div><span class="brand">FleetWorks</span></header>
+  <div id="map"></div>
+  <div class="bar" id="bar" hidden>
+    <div><div class="k">Speed</div><div class="v" id="spd">—</div></div>
+    <div><div class="k">Updated</div><div class="v" id="upd">—</div></div>
+  </div>
+  <div id="gate" class="msg" hidden></div>
+  <script src="js/backend.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    (function () {
+      "use strict";
+      var token = new URLSearchParams(location.search).get("t") || "";
+      var $ = function (id) { return document.getElementById(id); };
+      var map = null, marker = null, timer = null, firstFix = true;
+      function fail(text) {
+        if (timer) clearInterval(timer);
+        $("map").style.display = "none"; $("bar").hidden = true;
+        var g = $("gate"); g.hidden = false; g.textContent = text;
+        $("dot").style.background = "#94a3b8"; $("dot").style.boxShadow = "none"; $("sub").textContent = "Not live";
+      }
+      function ago(iso) { if (!iso) return "—"; var s = Math.max(0, (Date.now() - Date.parse(iso)) / 1000); return s < 60 ? Math.round(s) + "s ago" : s < 3600 ? Math.round(s / 60) + " min ago" : Math.round(s / 3600) + " h ago"; }
+      function ensureMap(lat, lng) {
+        if (!map) { map = L.map("map", { zoomControl: true }).setView([lat, lng], 14); L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map); }
+        if (!marker) marker = L.circleMarker([lat, lng], { radius: 9, color: "#fff", weight: 2, fillColor: "#2563eb", fillOpacity: 1 }).addTo(map);
+        marker.setLatLng([lat, lng]);
+        if (firstFix) { map.setView([lat, lng], 15); firstFix = false; } else { map.panTo([lat, lng], { animate: true }); }
+      }
+      async function tick() {
+        try {
+          var r = await fetch(FW_BACKEND.url + "/functions/v1/trip-share", {
+            method: "POST", headers: { "content-type": "application/json", apikey: FW_BACKEND.anonKey },
+            body: JSON.stringify({ action: "status", token: token }),
+          });
+          if (r.status === 404) return fail("This tracking link is not valid.");
+          var j = await r.json();
+          if (j.expired) return fail("This tracking link has expired.");
+          $("veh").textContent = j.vehicle || "Vehicle";
+          if (j.lat == null || j.lng == null) { $("sub").textContent = "Waiting for a GPS fix…"; return; }
+          $("sub").textContent = "Live location";
+          $("bar").hidden = false;
+          $("spd").textContent = j.speed != null ? Math.round(j.speed) + " km/h" : "—";
+          $("upd").textContent = ago(j.at);
+          ensureMap(Number(j.lat), Number(j.lng));
+        } catch (e) { $("sub").textContent = "Reconnecting…"; }
+      }
+      if (!token) { fail("This link is missing its tracking code."); return; }
+      if (!window.FW_BACKEND) { fail("Could not load the tracker."); return; }
+      tick(); timer = setInterval(tick, 10000);
+    })();
+  </script>
+</body>
+</html>
