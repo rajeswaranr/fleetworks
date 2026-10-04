@@ -1235,6 +1235,17 @@ function renderMySpend() {
     }).join("")}`;
 }
 
+// Resolve the vehicle's org once, so a bill/expense claim carries org_id even without a trip
+// (trip_expenses.org_id is NOT NULL — a claim with no org would fail to save and never reach FleetFin).
+let _vehOrg = null;
+async function vehOrgId() {
+  if (_vehOrg) return _vehOrg;
+  if (_activeTrip && _activeTrip.org_id) { _vehOrg = _activeTrip.org_id; return _vehOrg; }
+  if (!DVID) return null;
+  try { const r = await fetch(FW_BACKEND.url + "/rest/v1/vehicles?select=org_id&id=eq." + DVID, { headers: { apikey: FW_BACKEND.anonKey, Accept: "application/json" } }); const j = await r.json(); _vehOrg = (j && j[0] && j[0].org_id) || null; } catch {}
+  return _vehOrg;
+}
+
 const _spendForm = document.getElementById("dSpendForm");
 if (_spendForm) _spendForm.addEventListener("submit", async e => {
   e.preventDefault();
@@ -1243,6 +1254,8 @@ if (_spendForm) _spendForm.addEventListener("submit", async e => {
   const fd = Object.fromEntries(new FormData(e.target));
   const amount = +fd.amount;
   if (!amount || amount < 1) { flash(false, "தொகை உள்ளிடவும்."); return; }
+  const org = _activeTrip ? _activeTrip.org_id : await vehOrgId();
+  if (!org) { flash(false, "வாகனம் இணைக்கப்படவில்லை — உரிமையாளரிடம் கேளுங்கள்."); return; }
   btn.disabled = true;
   try {
     // Upload the bill first so the row never points at a file that failed.
@@ -1265,7 +1278,7 @@ if (_spendForm) _spendForm.addEventListener("submit", async e => {
       headers: { "Content-Type": "application/json", "apikey": FW_BACKEND.anonKey, "Prefer": "return=minimal" },
       body: JSON.stringify({
         driver_id: DDID,
-        org_id: _activeTrip ? _activeTrip.org_id : null,
+        org_id: org,
         trip_id: _activeTrip ? _activeTrip.id : null,
         vehicle_id: DVID || null,
         category: fd.category,
@@ -1301,6 +1314,38 @@ const _spendBillInput = document.getElementById("spendBill");
 if (_spendBillInput) _spendBillInput.addEventListener("change", function() {
   const lbl = document.getElementById("spendBillLabel");
   if (lbl) lbl.textContent = this.files && this.files[0] ? "பில் இணைக்கப்பட்டது ✓" : "பில் புகைப்படம் (விரும்பினால்)";
+  const scan = document.getElementById("spendScan");
+  if (scan) scan.hidden = !(this.files && this.files[0] && /^image\//.test(this.files[0].type));
+});
+
+// On-device OCR (optional): read the bill photo and pre-fill the amount. Downloads the free
+// RapidOCR reader (~16 MB) only when the driver taps, then runs fully on the phone.
+let _rapidP = null;
+function loadRapidOcr() {
+  if (!_rapidP) _rapidP = (async () => {
+    const m = await import(new URL("js/vendor/rapidocr.esm.js", location.href).href);
+    const base = "https://cdn.jsdelivr.net/npm/@gutenye/ocr-models@1.4.2/assets/";
+    return m.default.create({ models: { detectionPath: base + "ch_PP-OCRv4_det_infer.onnx", recognitionPath: base + "ch_PP-OCRv4_rec_infer.onnx", dictionaryPath: base + "ppocr_keys_v1.txt" } });
+  })().catch(e => { _rapidP = null; throw e; });
+  return _rapidP;
+}
+const _spendScan = document.getElementById("spendScan");
+if (_spendScan) _spendScan.addEventListener("click", async () => {
+  const file = _spendBillInput && _spendBillInput.files && _spendBillInput.files[0];
+  if (!file || !/^image\//.test(file.type)) { flash(false, "முதலில் பில் புகைப்படம் இணைக்கவும்."); return; }
+  const prev = _spendScan.textContent; _spendScan.disabled = true; _spendScan.textContent = "படிக்கிறது… (முதல் முறை சற்று நேரமாகும்)";
+  try {
+    const ocr = await loadRapidOcr();
+    const dataUrl = await new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = no; fr.readAsDataURL(file); });
+    const res = await Promise.race([ocr.detect(dataUrl), new Promise((_, rej) => setTimeout(() => rej(new Error("slow")), 45000))]);
+    const arr = Array.isArray(res) ? res : (res && res.texts) || [];
+    const text = arr.map(t => t.text).filter(Boolean).join("\n");
+    let best = 0;
+    text.replace(/(?:rs\.?|₹|total|grand\s*total|amount)?\s*([0-9][0-9,]{1,8}(?:\.\d{1,2})?)/gi, (m, n) => { const a = +String(n).replace(/,/g, ""); if (a >= 10 && a <= 2000000 && a > best) best = a; return m; });
+    if (best > 0) { const amt = document.querySelector('#dSpendForm [name="amount"]'); if (amt) amt.value = Math.round(best); flash(true, "தொகை நிரப்பப்பட்டது: ₹" + Math.round(best) + " — சரிபார்க்கவும்."); }
+    else flash(false, "தொகையை படிக்க முடியவில்லை — கைமுறையாக உள்ளிடவும்.");
+  } catch { flash(false, "ஸ்கேன் தோல்வி — கைமுறையாக உள்ளிடவும்."); }
+  _spendScan.disabled = false; _spendScan.textContent = prev;
 });
 
 if (_drvTabsEl) _drvTabsEl.addEventListener("click", e => {

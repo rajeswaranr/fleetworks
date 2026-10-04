@@ -5110,6 +5110,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "plreport" && window.renderPlReport) renderPlReport();
   if (tabName === "budgets") renderBudgets();
   if (tabName === "consignments") renderConsignments();
+  if (tabName === "driverbills") renderDriverBills();
   if (tabName === "sitehistory")     { loadSites().then(renderSiteHistory); }
   if (tabName === "purchaseinvoices") renderPurchaseInvoices();
   if (tabName === "trips") { renderTrips(); loadActiveTripWorkflow(); }
@@ -5300,6 +5301,7 @@ function buildDynamicPanels() {
   mk("integrations", `<div class="chart-card"><div class="chart-head"><div><h2>Integrations</h2><p class="muted">Connect FleetWorks to the tools your business already runs on</p></div></div><div class="integ-grid" id="integGrid"></div></div>`);
   mk("reports", `<div class="chart-card"><div class="chart-head"><div><h2>Standard Reports</h2><p class="muted">One-click exports, ready for Excel and your accountant</p></div></div><div class="integ-grid" id="reportGrid"></div></div>`);
   mk("budgets", `<div class="chart-card"><div class="chart-head"><div><h2>Budgets</h2><p class="muted">Set a monthly budget per category and track it against actual spend</p></div><label style="margin-left:auto;font-size:.85rem">Month <input type="month" id="budgetMonth" style="margin-left:6px"></label></div><div id="budgetBody"></div><div style="padding:12px 0 2px"><button type="button" class="btn btn-primary btn-sm" id="budgetSave">Save budgets</button></div></div>`);
+  mk("driverbills", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="receipt" data-icon-size="20"></i></span> Driver Bills — Pending Payment</h2><p class="muted">Bills &amp; expenses drivers uploaded from the road. Approve to post to your books, then mark paid.</p></div></div><div id="driverBillsList"></div></div>`);
   mk("consignments", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="receipt" data-icon-size="20"></i></span> Consignments &amp; ePOD</h2><p class="muted">Loads carried for customers — freight, advance, balance and delivery proof photographed by the driver</p></div><button type="button" class="btn btn-primary btn-sm" id="consNew" style="margin-left:auto">+ New consignment</button></div><div id="consForm" hidden></div><div id="consList"></div></div>`);
   // FleetAI study panels (rendered by analytics.js)
   mk("recurrent", panelCard("Recurrent Issues & Repeat Repairs", "The same part failing twice is a pattern, not bad luck — FleetAI surfaces every repeat", "recurTable"));
@@ -7072,6 +7074,60 @@ async function saveBudgets(month) {
   } catch (e) { if (window.toast) toast("Could not save budgets.", "err"); }
   renderBudgets();
 }
+
+// FleetFin: driver bills & expenses uploaded from the road → approve (post to books) → mark paid.
+var _driverBills = [];
+async function renderDriverBills() {
+  const el = document.getElementById("driverBillsList"); if (!el) return;
+  el.innerHTML = `<p class="muted" style="padding:14px">Loading…</p>`;
+  let rows = [];
+  try { rows = (await fwCloud.authGet("trip_expenses", "select=*,drivers(name)&status=in.(submitted,approved)&order=created_at.asc&limit=200")) || []; } catch {}
+  _driverBills = rows;
+  if (!rows.length) { el.innerHTML = `<p class="muted" style="padding:14px">Nothing pending. Bills drivers upload from the road appear here to approve and pay.</p>`; return; }
+  const fmt = n => "₹" + Math.round(+n || 0).toLocaleString("en-IN");
+  const vehName = id => { const v = (db.vehicles || []).find(x => x.dbId === id || x.id === id); return v ? v.name : ""; };
+  const pend = rows.filter(r => r.status === "submitted").length, topay = rows.filter(r => r.status === "approved").length;
+  el.innerHTML = `<div style="display:flex;gap:16px;margin-bottom:12px;font-size:.85rem"><span>Pending approval <b>${pend}</b></span><span>Approved — to pay <b>${topay}</b></span></div>` + rows.map(r => {
+    const p = r.status === "submitted", dn = (r.drivers && r.drivers.name) || "";
+    return `<div class="chart-card" style="margin:0 0 10px;padding:12px">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+        <span class="fw-badge ${p ? "soon" : "upcoming"}">${p ? "Pending" : "To pay"}</span>
+        <strong>${fmt(r.amount)}</strong><span class="muted">${esc(r.category || "")}</span>
+        <span class="muted">${esc(dn)}${r.vehicle_id ? " · " + esc(vehName(r.vehicle_id)) : ""}</span>
+        <span class="muted">${esc(r.spent_at || "")}</span>${r.note ? `<span class="muted">· ${esc(r.note)}</span>` : ""}
+        ${r.bill_path ? `<a class="db-bill" data-path="${esc(r.bill_path)}" href="#" style="margin-left:auto">📷 bill</a>` : `<span class="muted" style="margin-left:auto">no bill</span>`}
+      </div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        ${p ? `<button type="button" class="btn btn-primary btn-sm" onclick="approveDriverBill('${r.id}')">Approve</button><button type="button" class="btn btn-outline btn-sm" style="color:#b91c1c" onclick="rejectDriverBill('${r.id}')">Reject</button>`
+            : `<button type="button" class="btn btn-primary btn-sm" onclick="payDriverBill('${r.id}')">Mark paid</button>`}
+      </div></div>`;
+  }).join("");
+  el.querySelectorAll(".db-bill").forEach(async a => { try { const u = window.FSData && FSData.signUrl ? await FSData.signUrl("driver-uploads", a.dataset.path, 3600) : null; if (u) { a.href = u; a.target = "_blank"; a.onclick = null; } else a.onclick = () => false; } catch { a.onclick = () => false; } });
+}
+window.approveDriverBill = async function (id) {
+  const r = _driverBills.find(x => x.id === id); if (!r) return;
+  // post the accepted claim into the books (expenses) so it hits P&L, then mark it approved
+  const row = { org_id: r.org_id, vehicle_id: r.vehicle_id || null, expense_date: r.spent_at || new Date().toISOString().slice(0, 10), category: r.category, amount: r.amount, title: r.note || null };
+  const created = await fwCloud.authInsertRet("expenses", row);
+  if (!created) { toast("Could not approve — check your connection.", "err"); return; }
+  const ok = await fwCloud.authPatch(`trip_expenses?id=eq.${id}`, { status: "approved", reviewed_by: fwCloud.uid ? fwCloud.uid() : null, reviewed_at: new Date().toISOString() });
+  if (!ok) { toast("Posted to books, but could not mark approved — check your connection.", "err"); }
+  try { const v = (db.vehicles || []).find(x => x.dbId === r.vehicle_id); db.expenses.push({ id: created.id, vehicleId: v ? v.id : "", date: created.expense_date, category: created.category, amount: created.amount, title: created.title || undefined }); saveStore(); } catch {}
+  toast("Approved and posted — now due for payment.");
+  renderDriverBills();
+};
+window.payDriverBill = async function (id) {
+  const r = _driverBills.find(x => x.id === id); if (!r) return;
+  const ok = await fwCloud.authPatch(`trip_expenses?id=eq.${id}`, { status: "paid", paid_at: new Date().toISOString(), paid_amount: r.amount });
+  if (!ok) { toast("Could not mark paid — check your connection.", "err"); return; }
+  toast("Marked paid."); renderDriverBills();
+};
+window.rejectDriverBill = async function (id) {
+  if (window.confirmDestructive && !(await confirmDestructive("Reject this bill? The driver is told it was not approved."))) return;
+  const ok = await fwCloud.authPatch(`trip_expenses?id=eq.${id}`, { status: "rejected", reviewed_by: fwCloud.uid ? fwCloud.uid() : null, reviewed_at: new Date().toISOString() });
+  if (!ok) { toast("Could not reject — check your connection.", "err"); return; }
+  renderDriverBills();
+};
 
 // FleetOps Consignments & ePOD: loads carried for customers (freight/advance/balance + status)
 // with delivery-proof photos the driver takes on the phone.
