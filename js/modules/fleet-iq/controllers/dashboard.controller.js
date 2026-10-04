@@ -370,10 +370,25 @@
         legend([{c:B,l:"Total spend"}]), true) +
       panel("Top Spending Categories",
         catRows.length ? hBars(catRows) : '<span class="gf-msub">No entries this period</span>', true) +
+      panel("Pending Driver Payouts",
+        '<div class="gf-m"><div class="gf-mval" style="color:' + B + '" id="gfPendingPay">…</div>' +
+        '<div class="gf-mlbl">Approved, awaiting payment</div><div class="gf-msub" id="gfPendingSub"></div></div>') +
       panel("Fuel vs. Maintenance Trend",
         sparkBar(fuelTrend.map(function (v, i) { return v + expTrend[i]; }), lbls, 320, 72, A) +
         legend([{c:A,l:"Fuel"},{c:B,l:"Maint."}]), true) +
       "</div>";
+    // Pending driver payouts come from trip_expenses (DB, not the local blob) — fill after render.
+    (async function () {
+      try {
+        const org = window.getMyOrgId ? await getMyOrgId() : null;
+        if (!org || !(window.fwCloud && fwCloud.authGet)) return;
+        const rows = (await fwCloud.authGet("trip_expenses", "select=amount,status&org_id=eq." + org + "&status=in.(submitted,approved)&limit=500")) || [];
+        const toPay = rows.filter(function (r) { return r.status === "approved"; }).reduce(function (s, r) { return s + (+r.amount || 0); }, 0);
+        const pend = rows.filter(function (r) { return r.status === "submitted"; }).reduce(function (s, r) { return s + (+r.amount || 0); }, 0);
+        const v = document.getElementById("gfPendingPay"); if (v) v.textContent = fmt(toPay);
+        const sub = document.getElementById("gfPendingSub"); if (sub) sub.textContent = rows.length + " claim" + (rows.length === 1 ? "" : "s") + " · " + fmt(pend) + " awaiting approval";
+      } catch (e) { const v = document.getElementById("gfPendingPay"); if (v) v.textContent = "—"; }
+    })();
   }
 
   /* ============================================================

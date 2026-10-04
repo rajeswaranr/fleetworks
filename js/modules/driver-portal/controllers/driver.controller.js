@@ -1159,7 +1159,8 @@ const SPEND_TA = {
 
 const SPEND_STATUS = {
   submitted: ["காத்திருக்கிறது", "#d97706"],
-  approved:  ["ஒப்புதல் ✓", "#059669"],
+  approved:  ["ஒப்புதல் ✓ — பணம் வர உள்ளது", "#2563eb"],
+  paid:      ["பணம் வழங்கப்பட்டது ✓", "#059669"],
   rejected:  ["நிராகரிக்கப்பட்டது ✗", "#dc2626"],
 };
 
@@ -1202,18 +1203,22 @@ function renderMySpend() {
     el.innerHTML = `<p class="muted" style="margin:0">இதுவரை செலவு பதிவு இல்லை.</p>`;
     return;
   }
-  const approved = _mySpend.filter(s => s.status === "approved").reduce((t, s) => t + Number(s.amount || 0), 0);
-  const pending  = _mySpend.filter(s => s.status === "submitted").reduce((t, s) => t + Number(s.amount || 0), 0);
+  const sum = st => _mySpend.filter(s => s.status === st).reduce((t, s) => t + Number(s.amount || 0), 0);
+  const pending = sum("submitted"), toPay = sum("approved"), paid = sum("paid");
 
   el.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-      <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:12px">
-        <div style="font-size:0.75rem;color:#047857">ஒப்புதல் பெற்றது</div>
-        <div style="font-size:1.2rem;font-weight:700;color:#065f46">${INR(approved)}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px">
+        <div style="font-size:0.72rem;color:#b45309">காத்திருப்பது</div>
+        <div style="font-size:1.1rem;font-weight:700;color:#92400e">${INR(pending)}</div>
       </div>
-      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:12px">
-        <div style="font-size:0.75rem;color:#b45309">காத்திருப்பது</div>
-        <div style="font-size:1.2rem;font-weight:700;color:#92400e">${INR(pending)}</div>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px">
+        <div style="font-size:0.72rem;color:#1d4ed8">பணம் வர உள்ளது</div>
+        <div style="font-size:1.1rem;font-weight:700;color:#1e40af">${INR(toPay)}</div>
+      </div>
+      <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:10px">
+        <div style="font-size:0.72rem;color:#047857">பெற்றது</div>
+        <div style="font-size:1.1rem;font-weight:700;color:#065f46">${INR(paid)}</div>
       </div>
     </div>
     ${_mySpend.map(s => {
