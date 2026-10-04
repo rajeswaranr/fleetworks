@@ -6433,6 +6433,48 @@ const SF_BAND = {
   insufficient_data: { label: "Not enough km", cls: "",         min: 0 },
 };
 
+// Road-Safety Scorecard: the four performance tiers (best → worst), mapped onto the
+// v_driver_safety_score bands. Labels follow the owner's wording: Good / Better / To improve / Poor.
+const RS_BANDS = [
+  { key: "excellent",      label: "Good",       cls: "ok",       col: "#16a34a", desc: "Smooth, safe driving" },
+  { key: "good",           label: "Better",     cls: "upcoming", col: "#2563eb", desc: "Occasional minor lapses" },
+  { key: "needs_coaching", label: "To improve", cls: "soon",     col: "#f59e0b", desc: "Coaching recommended" },
+  { key: "at_risk",        label: "Poor",       cls: "overdue",  col: "#dc2626", desc: "High-risk pattern" },
+];
+const RS_LABEL = {
+  forward_collision: "Forward collision", headway_warning: "Following too close", lane_departure: "Lane departure",
+  pedestrian_warning: "Pedestrian risk", fatigue: "Drowsiness", distraction: "Distraction", phone_use: "Phone use",
+  no_seatbelt: "No seatbelt", smoking: "Smoking", yawning: "Yawning", harsh_brake: "Harsh braking",
+  harsh_accel: "Harsh acceleration", harsh_corner: "Harsh cornering", overspeed: "Overspeeding", collision: "Collision",
+};
+const rsLabel = t => RS_LABEL[t] || String(t || "").replace(/_/g, " ");
+
+// Score every driver from their dashcam / 360° camera road-safety pattern and chart them into
+// the four tiers, with each driver's dominant risky behaviours shown beneath their score.
+function renderRoadSafety() {
+  const el = document.getElementById("roadSafetyBoard"); if (!el) return;
+  const pat = {};   // driver_id -> { event_type: count } from camera/road-safety events
+  (_sfEvents || []).forEach(e => { if (!e.driver_id || !(Number(e.weight) > 0)) return; (pat[e.driver_id] = pat[e.driver_id] || {})[e.event_type] = (pat[e.driver_id][e.event_type] || 0) + 1; });
+  const topBehaviours = id => Object.entries(pat[id] || {}).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([t, n]) => `${rsLabel(t)} ×${n}`).join(" · ");
+  const scored = (_sfScores || []).filter(s => s.band && s.band !== "insufficient_data" && s.safety_score != null);
+  const byBand = Object.fromEntries(RS_BANDS.map(b => [b.key, scored.filter(s => s.band === b.key).sort((a, c) => Number(c.safety_score) - Number(a.safety_score))]));
+  const total = scored.length || 1;
+  const bar = `<div style="display:flex;height:14px;border-radius:7px;overflow:hidden;margin-bottom:6px">${RS_BANDS.map(b => { const n = byBand[b.key].length; return n ? `<div title="${b.label}: ${n}" style="width:${(n / total * 100).toFixed(1)}%;background:${b.col}"></div>` : ""; }).join("")}</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;font-size:.78rem">${RS_BANDS.map(b => `<span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${b.col};margin-right:5px"></i>${b.label} <b>${byBand[b.key].length}</b></span>`).join("")}</div>`;
+  const cols = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">${RS_BANDS.map(b => `
+    <div style="background:var(--surface-2);border-radius:10px;padding:10px;border-top:3px solid ${b.col}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><strong>${b.label}</strong><span class="fw-badge ${b.cls}">${byBand[b.key].length}</span></div>
+      <p class="muted" style="font-size:.7rem;margin:0 0 8px">${b.desc}</p>
+      ${byBand[b.key].map(s => `<div style="background:var(--surface-1);border-radius:8px;padding:8px;margin-bottom:6px;cursor:pointer" onclick="startCoachMeeting('${s.driver_id}')" title="Open coaching">
+        <div style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:.85rem">${esc(s.driver_name)}</strong><b style="color:${b.col}">${s.safety_score}</b></div>
+        <div class="muted" style="font-size:.7rem;margin-top:3px">${topBehaviours(s.driver_id) || "No camera flags"}</div>
+      </div>`).join("") || `<p class="muted" style="font-size:.72rem;margin:0">—</p>`}
+    </div>`).join("")}</div>`;
+  const insuf = (_sfScores || []).filter(s => s.band === "insufficient_data").length;
+  el.innerHTML = (scored.length ? bar + cols : `<p class="muted" style="padding:14px">No scored drivers yet — a driver is scored once they log 250+ km so the rate is meaningful.</p>`)
+    + (insuf ? `<p class="muted" style="margin-top:10px;font-size:.78rem">${insuf} driver${insuf === 1 ? "" : "s"} not yet scored (under 250 km in the last 30 days).</p>` : "");
+}
+
 const SF_EVENT_LABEL = {
   forward_collision: "Forward collision", pedestrian_warning: "Pedestrian warning",
   lane_departure: "Lane departure", headway_warning: "Headway warning",
@@ -6467,6 +6509,7 @@ async function loadSafety() {
 
 function renderSafety() {
   renderSafetyStats();
+  renderRoadSafety();
   renderSafetyEvents();
   renderSafetyScores();
   renderSafetyCoaching();
