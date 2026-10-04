@@ -5111,6 +5111,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "budgets") renderBudgets();
   if (tabName === "consignments") renderConsignments();
   if (tabName === "driverbills") renderDriverBills();
+  if (tabName === "passsafe") renderPassSafe();
   if (tabName === "sitehistory")     { loadSites().then(renderSiteHistory); }
   if (tabName === "purchaseinvoices") renderPurchaseInvoices();
   if (tabName === "trips") { renderTrips(); loadActiveTripWorkflow(); }
@@ -5301,6 +5302,9 @@ function buildDynamicPanels() {
   mk("integrations", `<div class="chart-card"><div class="chart-head"><div><h2>Integrations</h2><p class="muted">Connect FleetWorks to the tools your business already runs on</p></div></div><div class="integ-grid" id="integGrid"></div></div>`);
   mk("reports", `<div class="chart-card"><div class="chart-head"><div><h2>Standard Reports</h2><p class="muted">One-click exports, ready for Excel and your accountant</p></div></div><div class="integ-grid" id="reportGrid"></div></div>`);
   mk("budgets", `<div class="chart-card"><div class="chart-head"><div><h2>Budgets</h2><p class="muted">Set a monthly budget per category and track it against actual spend</p></div><label style="margin-left:auto;font-size:.85rem">Month <input type="month" id="budgetMonth" style="margin-left:6px"></label></div><div id="budgetBody"></div><div style="padding:12px 0 2px"><button type="button" class="btn btn-primary btn-sm" id="budgetSave">Save budgets</button></div></div>`);
+  mk("passsafe", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile" style="background:#fee2e2;color:#b91c1c"><i data-icon="alert" data-icon-size="20"></i></span> Passenger Safety — Anomaly Detection</h2><p class="muted">School / passenger buses &amp; trains. Rules + Gemma AI flag unusual patterns (off-route, unscheduled stop, overspeed, prolonged idle, crowding). Detections also open in Incident Triage.</p></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:12px"><label class="sd-veh" style="margin:0">Vehicle<select id="psVeh"></select></label><label class="sd-veh" style="margin:0">Speed limit<select id="psLimit">${[40, 50, 60, 70, 80].map(v => `<option value="${v}" ${v === 60 ? "selected" : ""}>${v} km/h</option>`).join("")}</select></label><button type="button" class="btn btn-primary btn-sm" id="psRun">Run anomaly check</button></div>
+    <div id="psOut"></div></div>`);
   mk("driverbills", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="receipt" data-icon-size="20"></i></span> Driver Bills — Pending Payment</h2><p class="muted">Bills &amp; expenses drivers uploaded from the road. Approve to post to your books, then mark paid.</p></div></div><div id="driverBillsList"></div></div>`);
   mk("consignments", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="receipt" data-icon-size="20"></i></span> Consignments &amp; ePOD</h2><p class="muted">Loads carried for customers — freight, advance, balance and delivery proof photographed by the driver</p></div><button type="button" class="btn btn-primary btn-sm" id="consNew" style="margin-left:auto">+ New consignment</button></div><div id="consForm" hidden></div><div id="consList"></div></div>`);
   // FleetAI study panels (rendered by analytics.js)
@@ -7073,6 +7077,31 @@ async function saveBudgets(month) {
     if (window.toast) toast(r.ok ? "Budgets saved." : "Could not save budgets.", r.ok ? "ok" : "err");
   } catch (e) { if (window.toast) toast("Could not save budgets.", "err"); }
   renderBudgets();
+}
+
+// Passenger Safety: run the bus-anomaly engine (rules + Gemma) for a bus/train and show findings.
+const PASS_LABEL = { route_deviation: "Off route", unscheduled_stop: "Unscheduled stop", schedule_deviation: "Off schedule", prolonged_idle: "Prolonged idle", speed_zone_violation: "Overspeed in zone", door_open_moving: "Door open while moving", overcrowding: "Overcrowding", child_left_behind: "Child left behind", unusual_pattern: "Unusual pattern" };
+function renderPassSafe() {
+  const sel = document.getElementById("psVeh"); if (!sel) return;
+  const vehs = (db.vehicles || []);
+  sel.innerHTML = vehs.map(v => `<option value="${esc(v.dbId || v.id)}">${esc(v.name)}</option>`).join("") || "<option value=''>Add a vehicle first</option>";
+  const btn = document.getElementById("psRun"), out = document.getElementById("psOut");
+  if (btn) btn.onclick = async () => {
+    if (!sel.value) return;
+    btn.disabled = true; out.innerHTML = `<p class="muted" style="padding:12px">Checking… (AI pass runs when Gemma is configured)</p>`;
+    try {
+      const r = await fwCloud.callFunction("bus-anomaly", { vehicleId: sel.value, speedLimit: +document.getElementById("psLimit").value || 60 });
+      if (!r || r.error) { out.innerHTML = `<p class="muted" style="padding:12px">${esc((r && r.error) || "Could not run the check.")}</p>`; }
+      else if (!r.anomalies || !r.anomalies.length) { out.innerHTML = `<p class="muted" style="padding:12px">✓ No anomalies right now for ${esc(r.vehicle || "")}. ${r.ai ? "" : "(Gemma AI not configured — rules only; set GOOGLE_API_KEY for contextual detection.)"}</p>`; }
+      else {
+        out.innerHTML = `<div style="margin-bottom:6px" class="muted">${esc(r.vehicle || "")} — ${r.ai ? "rules + Gemma AI" : "rules only"}</div>` + r.anomalies.map(a => {
+          const col = a.severity === "critical" ? "#dc2626" : a.severity === "warning" ? "#f59e0b" : "#2563eb";
+          return `<div class="chart-card" style="margin:0 0 8px;padding:10px;border-left:3px solid ${col}"><strong>${esc(PASS_LABEL[a.type] || a.type)}</strong> <span class="fw-badge ${a.severity === "critical" ? "overdue" : a.severity === "warning" ? "soon" : "upcoming"}">${esc(a.severity)}</span><div class="muted" style="font-size:.8rem;margin-top:2px">${esc(a.reason || "")}</div></div>`;
+        }).join("") + `<p class="muted" style="font-size:.78rem;margin-top:6px">Logged to Incident Triage.</p>`;
+      }
+    } catch (e) { out.innerHTML = `<p class="muted" style="padding:12px">Could not run the check.</p>`; }
+    btn.disabled = false;
+  };
 }
 
 // FleetFin: driver bills & expenses uploaded from the road → approve (post to books) → mark paid.
