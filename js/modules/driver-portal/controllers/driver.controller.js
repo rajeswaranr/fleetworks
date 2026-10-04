@@ -745,6 +745,39 @@ document.getElementById("dIssForm").addEventListener("submit", e => {
   handle(e.target, "issue", { title: fd.title.trim(), severity: fd.severity });
 });
 
+// ePOD: photograph the delivery proof and upload it (links to the consignment on the owner side)
+(function () {
+  const form = document.getElementById("dEpodForm"); if (!form) return;
+  const photo = document.getElementById("epodPhoto");
+  if (photo) photo.addEventListener("change", () => { const l = document.getElementById("epodPhotoLabel"); if (l && photo.files[0]) l.textContent = "✓ " + photo.files[0].name.slice(0, 22); });
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    const file = photo && photo.files && photo.files[0];
+    if (!file) { flash(false, "முதலில் புகைப்படம் எடுக்கவும்."); return; }
+    if (file.size > 8 * 1024 * 1024) { flash(false, "புகைப்படம் 8MB-க்கு மேல் உள்ளது."); return; }
+    const btn = form.querySelector("button[type=submit]"); if (btn) btn.disabled = true;
+    flash(true, "அனுப்புகிறது…");
+    const fd = new FormData(e.target), payload = new FormData();
+    payload.append("file", file);
+    payload.append("vehicleId", DVID || "");
+    payload.append("ownerId", OWNER || "");
+    payload.append("token", TOKEN || "");
+    if (fd.get("lr")) payload.append("lrNo", String(fd.get("lr")).trim());
+    if (fd.get("note")) payload.append("note", String(fd.get("note")).trim());
+    try {
+      const pos = await new Promise(r => { if (!navigator.geolocation) return r(null); navigator.geolocation.getCurrentPosition(p => r(p), () => r(null), { timeout: 8000 }); });
+      if (pos) { payload.append("latitude", pos.coords.latitude); payload.append("longitude", pos.coords.longitude); }
+    } catch {}
+    try {
+      const r = await fetch(FW_BACKEND.url + "/functions/v1/epod-upload", { method: "POST", headers: { apikey: FW_BACKEND.anonKey }, body: payload });
+      if (!r.ok) throw new Error();
+      flash(true, "ஒப்புதல் அனுப்பப்பட்டது ✓");
+      e.target.reset(); const l = document.getElementById("epodPhotoLabel"); if (l) l.textContent = "ஒப்புதல் புகைப்படம் எடு";
+    } catch { flash(false, "அனுப்ப முடியவில்லை — மீண்டும் முயற்சிக்கவும்."); }
+    if (btn) btn.disabled = false;
+  });
+})();
+
 document.getElementById("dCheckForm").addEventListener("submit", e => {
   e.preventDefault();
   const results = CHECK_ITEMS.map(item => {

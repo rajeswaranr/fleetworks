@@ -5109,6 +5109,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "projects")        { loadSites().then(renderActiveProjects); }
   if (tabName === "plreport" && window.renderPlReport) renderPlReport();
   if (tabName === "budgets") renderBudgets();
+  if (tabName === "consignments") renderConsignments();
   if (tabName === "sitehistory")     { loadSites().then(renderSiteHistory); }
   if (tabName === "purchaseinvoices") renderPurchaseInvoices();
   if (tabName === "trips") { renderTrips(); loadActiveTripWorkflow(); }
@@ -5298,7 +5299,8 @@ function buildDynamicPanels() {
   mk("vendors", panelCard("Vendors", "Workshops and suppliers your fleet works with", "vendorTable"));
   mk("integrations", `<div class="chart-card"><div class="chart-head"><div><h2>Integrations</h2><p class="muted">Connect FleetWorks to the tools your business already runs on</p></div></div><div class="integ-grid" id="integGrid"></div></div>`);
   mk("reports", `<div class="chart-card"><div class="chart-head"><div><h2>Standard Reports</h2><p class="muted">One-click exports, ready for Excel and your accountant</p></div></div><div class="integ-grid" id="reportGrid"></div></div>`);
-  mk("budgets", `<div class="chart-card"><div class="chart-head"><div><h2>Budgets</h2><p class="muted">Set a monthly budget per category and track it against actual spend</p></div><label style="margin-left:auto;font-size:.85rem">Month <input type="month" id="budgetMonth" style="margin-left:6px"></label></div><div id="budgetBody"></div><div style="padding:12px 0 2px"><button type="button" class="btn btn-primary btn-sm" id="budgetSave">${""}Save budgets</button></div></div>`);
+  mk("budgets", `<div class="chart-card"><div class="chart-head"><div><h2>Budgets</h2><p class="muted">Set a monthly budget per category and track it against actual spend</p></div><label style="margin-left:auto;font-size:.85rem">Month <input type="month" id="budgetMonth" style="margin-left:6px"></label></div><div id="budgetBody"></div><div style="padding:12px 0 2px"><button type="button" class="btn btn-primary btn-sm" id="budgetSave">Save budgets</button></div></div>`);
+  mk("consignments", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="receipt" data-icon-size="20"></i></span> Consignments &amp; ePOD</h2><p class="muted">Loads carried for customers — freight, advance, balance and delivery proof photographed by the driver</p></div><button type="button" class="btn btn-primary btn-sm" id="consNew" style="margin-left:auto">+ New consignment</button></div><div id="consForm" hidden></div><div id="consList"></div></div>`);
   // FleetAI study panels (rendered by analytics.js)
   mk("recurrent", panelCard("Recurrent Issues & Repeat Repairs", "The same part failing twice is a pattern, not bad luck — FleetAI surfaces every repeat", "recurTable"));
   mk("deviation", panelCard("Deviation Analysis", "Vehicles running meaningfully above or below your fleet's cost per km", "devTable"));
@@ -7069,6 +7071,70 @@ async function saveBudgets(month) {
     if (window.toast) toast(r.ok ? "Budgets saved." : "Could not save budgets.", r.ok ? "ok" : "err");
   } catch (e) { if (window.toast) toast("Could not save budgets.", "err"); }
   renderBudgets();
+}
+
+// FleetOps Consignments & ePOD: loads carried for customers (freight/advance/balance + status)
+// with delivery-proof photos the driver takes on the phone.
+var _cons = { list: [], epods: [] };
+const CONS_STAT = { created: { l: "Created", c: "upcoming" }, dispatched: { l: "Dispatched", c: "soon" }, delivered: { l: "Delivered", c: "ok" }, billed: { l: "Billed", c: "" }, cancelled: { l: "Cancelled", c: "overdue" } };
+function consVehName(id) { const v = (db.vehicles || []).find(x => x.dbId === id || x.id === id); return v ? v.name : ""; }
+function toggleConsForm() { const f = document.getElementById("consForm"); if (!f) return; renderConsForm(); f.hidden = !f.hidden; }
+function renderConsForm() {
+  const f = document.getElementById("consForm"); if (!f || f.dataset.built) return; f.dataset.built = "1";
+  const vehs = (db.vehicles || []);
+  f.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:14px;padding:12px;background:var(--surface-2);border-radius:10px">
+    <label class="sd-veh" style="display:block;margin:0">Vehicle<select id="cf_veh">${vehs.map(v => `<option value="${esc(v.dbId || v.id)}">${esc(v.name)}</option>`).join("") || "<option value=''>Add a vehicle first</option>"}</select></label>
+    <input id="cf_lr" placeholder="LR / bilty no"><input id="cf_cust" placeholder="Customer">
+    <input id="cf_from" placeholder="From"><input id="cf_to" placeholder="To">
+    <input id="cf_goods" placeholder="Goods"><input id="cf_wt" type="number" min="0" placeholder="Weight (kg)">
+    <input id="cf_freight" type="number" min="0" placeholder="Freight ₹"><input id="cf_adv" type="number" min="0" placeholder="Advance ₹">
+    <button type="button" class="btn btn-primary btn-sm" id="cf_save">Save consignment</button></div>`;
+  document.getElementById("cf_save").onclick = saveConsignment;
+}
+async function saveConsignment() {
+  const org = typeof dbOrgId === "function" ? await dbOrgId() : null;
+  if (!org) { if (window.toast) toast("Sign in first.", "err"); return; }
+  const g = id => document.getElementById(id);
+  const row = { org_id: org, vehicle_id: g("cf_veh").value || null, lr_no: g("cf_lr").value.trim() || null, customer: g("cf_cust").value.trim() || null, from_loc: g("cf_from").value.trim() || null, to_loc: g("cf_to").value.trim() || null, goods: g("cf_goods").value.trim() || null, weight_kg: +g("cf_wt").value || null, freight_amount: +g("cf_freight").value || 0, advance_amount: +g("cf_adv").value || 0, status: "created" };
+  try { await fwCloud.authInsert("consignments", row); if (window.toast) toast("Consignment created.", "ok"); const f = document.getElementById("consForm"); if (f) f.hidden = true; renderConsignments(); }
+  catch (e) { if (window.toast) toast("Could not save the consignment.", "err"); }
+}
+window.consSetStatus = async function (id, status) {
+  try { await fwCloud.authPatch(`consignments?id=eq.${id}`, { status, updated_at: new Date().toISOString() }); renderConsignments(); }
+  catch { if (window.toast) toast("Could not update.", "err"); }
+};
+async function renderConsignments() {
+  const listEl = document.getElementById("consList"); if (!listEl) return;
+  const nb = document.getElementById("consNew"); if (nb) nb.onclick = toggleConsForm;
+  renderConsForm();
+  listEl.innerHTML = `<p class="muted" style="padding:14px">Loading…</p>`;
+  let cons = [], pods = [];
+  try { cons = (await fwCloud.authGet("consignments", "select=*&order=created_at.desc&limit=200")) || []; } catch {}
+  try { pods = (await fwCloud.authGet("epods", "select=*&order=created_at.desc&limit=500")) || []; } catch {}
+  _cons = { list: cons, epods: pods };
+  if (!cons.length) { listEl.innerHTML = `<p class="muted" style="padding:14px">No consignments yet. Create one with its freight and advance — then the driver photographs the delivery proof from their phone and it appears here.</p>`; return; }
+  const podsBy = {}; pods.forEach(p => { if (p.consignment_id) (podsBy[p.consignment_id] = podsBy[p.consignment_id] || []).push(p); });
+  const fmt = n => "₹" + Math.round(+n || 0).toLocaleString("en-IN");
+  listEl.innerHTML = cons.map(c => {
+    const bal = (+c.freight_amount || 0) - (+c.advance_amount || 0), st = CONS_STAT[c.status] || CONS_STAT.created, ps = podsBy[c.id] || [];
+    return `<div class="chart-card" style="margin:0 0 12px;padding:12px">
+      <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+        <strong>${esc(c.lr_no || "—")}</strong><span class="fw-badge ${st.c}">${st.l}</span>
+        ${c.customer ? `<span class="muted">${esc(c.customer)}</span>` : ""}
+        <span class="muted">${esc(c.from_loc || "?")} → ${esc(c.to_loc || "?")}</span>
+        ${c.vehicle_id ? `<span class="muted">· ${esc(consVehName(c.vehicle_id))}</span>` : ""}
+        <span style="margin-left:auto">Freight <b>${fmt(c.freight_amount)}</b> · Adv ${fmt(c.advance_amount)} · Bal <b style="color:${bal > 0 ? "#dc2626" : "#16a34a"}">${fmt(bal)}</b></span>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">${ps.length ? ps.map(p => `<a class="cons-pod" data-path="${esc(p.storage_path)}" href="#" title="Delivery proof · ${new Date(p.captured_at).toLocaleString("en-IN")}"><span class="muted" style="font-size:.72rem">📷 proof</span></a>`).join("") : `<span class="muted" style="font-size:.75rem">No delivery proof yet</span>`}</div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        ${c.status === "created" ? `<button type="button" class="btn btn-outline btn-sm" onclick="consSetStatus('${c.id}','dispatched')">Mark dispatched</button>` : ""}
+        ${c.status !== "billed" && c.status !== "cancelled" ? `<button type="button" class="btn btn-outline btn-sm" onclick="consSetStatus('${c.id}','billed')">Mark billed</button>` : ""}
+        ${c.status !== "cancelled" && c.status !== "billed" ? `<button type="button" class="btn btn-outline btn-sm" onclick="consSetStatus('${c.id}','cancelled')">Cancel</button>` : ""}
+      </div></div>`;
+  }).join("");
+  listEl.querySelectorAll(".cons-pod").forEach(async a => {
+    try { const u = window.FSData && FSData.signUrl ? await FSData.signUrl("device-media", a.dataset.path, 3600) : null; if (u) { a.innerHTML = `<img src="${u}" style="height:56px;width:56px;object-fit:cover;border-radius:6px" alt="ePOD">`; a.href = u; a.target = "_blank"; a.onclick = null; } else { a.onclick = () => false; } } catch { a.onclick = () => false; }
+  });
 }
 
 // Live Share: mint a 24-hour public tracking link for a vehicle and copy it.

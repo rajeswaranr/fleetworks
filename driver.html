@@ -45,6 +45,7 @@
         <button class="tab-btn" data-tab="trip" style="white-space:nowrap"><i data-icon="mapPin" data-icon-size="16"></i> பயண நிலை</button>
         <button class="tab-btn" data-tab="safe" style="white-space:nowrap"><i data-icon="eye" data-icon-size="16"></i> Safe Drive</button>
         <button class="tab-btn" data-tab="telemetry" style="white-space:nowrap"><i data-icon="zap" data-icon-size="16"></i> Live Vehicle</button>
+        <button class="tab-btn" data-tab="epod" style="white-space:nowrap"><i data-icon="clipboardCheck" data-icon-size="16"></i> டெலிவரி ஒப்புதல்</button>
         <button class="tab-btn" data-tab="docs" style="white-space:nowrap"><i data-icon="document" data-icon-size="16"></i> ஆவணங்கள்</button>
         <button class="tab-btn" data-tab="spend" style="white-space:nowrap"><i data-icon="rupee" data-icon-size="16"></i> செலவு</button>
         <button class="tab-btn" data-tab="me" style="white-space:nowrap"><i data-icon="user" data-icon-size="16"></i> என் கணக்கு</button>
@@ -175,6 +176,26 @@
         </div>
       </section>
 
+      <!-- ePOD: driver photographs delivery proof with the camera -->
+      <section class="tab-panel" id="dtab-epod">
+        <div class="chart-card">
+          <div class="chart-head"><div><h2>டெலிவரி ஒப்புதல் (ePOD)</h2><p class="muted">சரக்கை ஒப்படைத்த ஆதாரத்தை கேமரா மூலம் புகைப்படம் எடுத்து அனுப்பவும்</p></div></div>
+          <form id="dEpodForm" class="entry-form">
+            <label>LR / பில் எண் (விரும்பினால்)
+              <input type="text" name="lr" placeholder="உ.ம். LR-10231" />
+            </label>
+            <label>குறிப்பு — யாரிடம் / எங்கு ஒப்படைத்தது
+              <input type="text" name="note" placeholder="பெறுநர் பெயர் அல்லது இடம்" />
+            </label>
+            <label class="btn btn-outline btn-block" style="cursor:pointer;margin:0 0 10px">
+              <i data-icon="camera" data-icon-size="16"></i> <span id="epodPhotoLabel">ஒப்புதல் புகைப்படம் எடு</span>
+              <input type="file" accept="image/*" capture="environment" hidden id="epodPhoto" required />
+            </label>
+            <button type="submit" class="btn btn-primary btn-block"><i data-icon="clipboardCheck" data-icon-size="16"></i> ஒப்புதல் அனுப்பு</button>
+          </form>
+        </div>
+      </section>
+
       <!-- My Account: attendance, pay, own documents -->
       <section class="tab-panel" id="dtab-me">
 
@@ -224,7 +245,7 @@
   <script src="js/modules/driver-portal/use-cases/driver-portal.usecases.js"></script>
   <script src="js/modules/driver-portal/view-models/driver-portal.viewmodel.js"></script>
   <script src="js/modules/driver-portal/driver-portal.module.js"></script>
-  <script src="js/modules/driver-portal/controllers/driver.controller.js"></script>
+  <script src="js/modules/driver-portal/controllers/driver.controller.js?v=20261004b"></script>
   <script src="js/modules/team-access/controllers/driver-safe-drive.js?v=20261003a"></script>
   <script src="js/modules/iot-telemetry/adapters/fmc125.adapter.js"></script>
   <script src="js/modules/iot-telemetry/adapters/fmc650.adapter.js"></script>
