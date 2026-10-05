@@ -5113,6 +5113,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "driverbills") renderDriverBills();
   if (tabName === "passsafe") renderPassSafe();
   if (tabName === "utilization") renderUtilization();
+  if (tabName === "predictive") renderPredictive();
   if (tabName === "sitehistory")     { loadSites().then(renderSiteHistory); }
   if (tabName === "purchaseinvoices") renderPurchaseInvoices();
   if (tabName === "trips") { renderTrips(); loadActiveTripWorkflow(); }
@@ -5303,6 +5304,7 @@ function buildDynamicPanels() {
   mk("integrations", `<div class="chart-card"><div class="chart-head"><div><h2>Integrations</h2><p class="muted">Connect FleetWorks to the tools your business already runs on</p></div></div><div class="integ-grid" id="integGrid"></div></div>`);
   mk("reports", `<div class="chart-card"><div class="chart-head"><div><h2>Standard Reports</h2><p class="muted">One-click exports, ready for Excel and your accountant</p></div></div><div class="integ-grid" id="reportGrid"></div></div>`);
   mk("budgets", `<div class="chart-card"><div class="chart-head"><div><h2>Budgets</h2><p class="muted">Set a monthly budget per category and track it against actual spend</p></div><label style="margin-left:auto;font-size:.85rem">Month <input type="month" id="budgetMonth" style="margin-left:6px"></label></div><div id="budgetBody"></div><div style="padding:12px 0 2px"><button type="button" class="btn btn-primary btn-sm" id="budgetSave">Save budgets</button></div></div>`);
+  mk("predictive", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="brain" data-icon-size="20"></i></span> Predictive Service &amp; Breakdown Risk</h2><p class="muted">Which trucks are most likely to need attention next — from overdue/upcoming service, open issues, work orders and usage intensity. Service the riskiest first.</p></div></div><div id="predBody"></div></div>`);
   mk("utilization", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="chartBar" data-icon-size="20"></i></span> Vehicle Utilization</h2><p class="muted">How hard each vehicle is working — distance, active days and trips over the last 30 days. Spot idle and under-used trucks.</p></div><label style="margin-left:auto;font-size:.85rem">Window <select id="utilDays"><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></label></div><div id="utilBody"></div></div>`);
   mk("passsafe", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile" style="background:#fee2e2;color:#b91c1c"><i data-icon="alert" data-icon-size="20"></i></span> Passenger Safety — Anomaly Detection</h2><p class="muted">School / passenger buses &amp; trains. Rules + Gemma AI flag unusual patterns (off-route, unscheduled stop, overspeed, prolonged idle, crowding). Detections also open in Incident Triage.</p></div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:12px"><label class="sd-veh" style="margin:0">Vehicle<select id="psVeh"></select></label><label class="sd-veh" style="margin:0">Speed limit<select id="psLimit">${[40, 50, 60, 70, 80].map(v => `<option value="${v}" ${v === 60 ? "selected" : ""}>${v} km/h</option>`).join("")}</select></label><button type="button" class="btn btn-primary btn-sm" id="psRun">Run anomaly check</button></div>
@@ -7079,6 +7081,47 @@ async function saveBudgets(month) {
     if (window.toast) toast(r.ok ? "Budgets saved." : "Could not save budgets.", r.ok ? "ok" : "err");
   } catch (e) { if (window.toast) toast("Could not save budgets.", "err"); }
   renderBudgets();
+}
+
+// FleetOps Predictive Service: a breakdown-risk score per vehicle (Intangles-style) from overdue/
+// upcoming service, open issues (severity-weighted), work orders and usage — so the riskiest trucks
+// are serviced first. Built from existing reminders / issues / work orders / fuel-log run-rate.
+function renderPredictive() {
+  const body = document.getElementById("predBody"); if (!body) return;
+  const rs = (typeof reminderStatus === "function") ? reminderStatus() : [];
+  const rows = (db.vehicles || []).map(v => {
+    const fills = (db.fuelLogs || []).filter(f => f.vehicleId === v.id).sort((a, b) => a.odo - b.odo);
+    let kmDay = null;
+    if (fills.length > 1) { const dKm = fills[fills.length - 1].odo - fills[0].odo; const days = Math.max(1, (new Date(fills[fills.length - 1].date) - new Date(fills[0].date)) / 864e5); if (dKm > 0) kmDay = dKm / days; }
+    if (kmDay == null && v.kmPerMonth) kmDay = v.kmPerMonth / 30;
+    const vrem = rs.filter(r => r.vehicleId === v.id);
+    const overdue = vrem.filter(r => r.overdue), dueSoon = vrem.filter(r => r.dueSoon);
+    const openIss = (db.issues || []).filter(i => i.vehicleId === v.id && i.status !== "Resolved");
+    const highIss = openIss.filter(i => i.severity === "High");
+    const openWO = (db.workOrders || []).filter(w => w.vehicleId === v.id && w.status !== "Completed");
+    let risk = overdue.length * 30 + dueSoon.length * 12 + highIss.length * 18 + (openIss.length - highIss.length) * 6 + openWO.length * 4;
+    if (kmDay != null && kmDay > 300) risk += 10;
+    risk = Math.min(100, risk);
+    const next = vrem.slice().sort((a, b) => a.nextDate.localeCompare(b.nextDate))[0];
+    return { v, risk, kmDay, overdue, dueSoon, highIss, openIss, openWO, next };
+  }).sort((a, b) => b.risk - a.risk);
+  if (!rows.length) { body.innerHTML = `<p class="muted" style="padding:14px">Add vehicles, service reminders and log issues to see predicted risk.</p>`; return; }
+  const band = r => r.risk >= 60 ? { l: "High risk", c: "overdue", col: "#dc2626" } : r.risk >= 30 ? { l: "Watch", c: "soon", col: "#f59e0b" } : { l: "Healthy", c: "ok", col: "#16a34a" };
+  const reco = r => r.overdue.length ? `Overdue: ${r.overdue.map(x => x.task).slice(0, 2).join(", ")} — book now`
+    : r.highIss.length ? `${r.highIss.length} high-severity issue(s) open — inspect`
+      : r.dueSoon.length ? `Service due soon: ${r.dueSoon[0].task}`
+        : r.openWO.length ? `${r.openWO.length} job(s) in progress` : "No action needed";
+  const high = rows.filter(r => r.risk >= 60).length;
+  body.innerHTML = `<div style="display:flex;gap:16px;margin-bottom:12px;font-size:.85rem"><span>High risk <b style="color:#dc2626">${high}</b></span><span>Vehicles <b>${rows.length}</b></span></div>
+    <table class="chart-table-el" style="width:100%"><thead><tr><th>Vehicle</th><th>Risk</th><th>km/day</th><th>Overdue</th><th>Open issues</th><th>Next service</th><th>Recommendation</th></tr></thead><tbody>${rows.map(r => { const b = band(r); return `<tr>
+      <td><strong>${esc(r.v.name)}</strong></td>
+      <td><div style="display:flex;align-items:center;gap:6px"><div style="background:var(--surface-2);border-radius:6px;height:8px;width:60px;overflow:hidden"><i style="display:block;height:100%;width:${r.risk}%;background:${b.col}"></i></div><span class="fw-badge ${b.c}">${b.l}</span></div></td>
+      <td>${r.kmDay != null ? Math.round(r.kmDay) + " km" : "—"}</td>
+      <td>${r.overdue.length ? `<span class="fw-badge overdue">${r.overdue.length}</span>` : "0"}</td>
+      <td>${r.openIss.length}${r.highIss.length ? ` (${r.highIss.length} high)` : ""}</td>
+      <td>${r.next ? esc(r.next.task) + " · " + fmtDate(r.next.nextDate) : "—"}</td>
+      <td class="muted" style="font-size:.8rem">${esc(reco(r))}</td></tr>`; }).join("")}</tbody></table>
+    <p class="muted" style="margin-top:8px;font-size:.78rem">Risk blends overdue/upcoming service, open issues (weighted by severity), active work orders and usage intensity — flagging which trucks are most likely to break down next.</p>`;
 }
 
 // FleetOps Vehicle Utilization: distance, active days and trips per vehicle over a window —
