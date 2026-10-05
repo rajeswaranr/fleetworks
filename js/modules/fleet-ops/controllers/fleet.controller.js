@@ -5112,6 +5112,7 @@ function activateTab(tabName, options = {}) {
   if (tabName === "consignments") renderConsignments();
   if (tabName === "driverbills") renderDriverBills();
   if (tabName === "passsafe") renderPassSafe();
+  if (tabName === "utilization") renderUtilization();
   if (tabName === "sitehistory")     { loadSites().then(renderSiteHistory); }
   if (tabName === "purchaseinvoices") renderPurchaseInvoices();
   if (tabName === "trips") { renderTrips(); loadActiveTripWorkflow(); }
@@ -5302,6 +5303,7 @@ function buildDynamicPanels() {
   mk("integrations", `<div class="chart-card"><div class="chart-head"><div><h2>Integrations</h2><p class="muted">Connect FleetWorks to the tools your business already runs on</p></div></div><div class="integ-grid" id="integGrid"></div></div>`);
   mk("reports", `<div class="chart-card"><div class="chart-head"><div><h2>Standard Reports</h2><p class="muted">One-click exports, ready for Excel and your accountant</p></div></div><div class="integ-grid" id="reportGrid"></div></div>`);
   mk("budgets", `<div class="chart-card"><div class="chart-head"><div><h2>Budgets</h2><p class="muted">Set a monthly budget per category and track it against actual spend</p></div><label style="margin-left:auto;font-size:.85rem">Month <input type="month" id="budgetMonth" style="margin-left:6px"></label></div><div id="budgetBody"></div><div style="padding:12px 0 2px"><button type="button" class="btn btn-primary btn-sm" id="budgetSave">Save budgets</button></div></div>`);
+  mk("utilization", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile brand"><i data-icon="chartBar" data-icon-size="20"></i></span> Vehicle Utilization</h2><p class="muted">How hard each vehicle is working — distance, active days and trips over the last 30 days. Spot idle and under-used trucks.</p></div><label style="margin-left:auto;font-size:.85rem">Window <select id="utilDays"><option value="30">30 days</option><option value="60">60 days</option><option value="90">90 days</option></select></label></div><div id="utilBody"></div></div>`);
   mk("passsafe", `<div class="chart-card"><div class="chart-head"><div><h2 class="head-ic"><span class="ic-tile" style="background:#fee2e2;color:#b91c1c"><i data-icon="alert" data-icon-size="20"></i></span> Passenger Safety — Anomaly Detection</h2><p class="muted">School / passenger buses &amp; trains. Rules + Gemma AI flag unusual patterns (off-route, unscheduled stop, overspeed, prolonged idle, crowding). Detections also open in Incident Triage.</p></div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:12px"><label class="sd-veh" style="margin:0">Vehicle<select id="psVeh"></select></label><label class="sd-veh" style="margin:0">Speed limit<select id="psLimit">${[40, 50, 60, 70, 80].map(v => `<option value="${v}" ${v === 60 ? "selected" : ""}>${v} km/h</option>`).join("")}</select></label><button type="button" class="btn btn-primary btn-sm" id="psRun">Run anomaly check</button></div>
     <div id="psOut"></div></div>`);
@@ -7077,6 +7079,43 @@ async function saveBudgets(month) {
     if (window.toast) toast(r.ok ? "Budgets saved." : "Could not save budgets.", r.ok ? "ok" : "err");
   } catch (e) { if (window.toast) toast("Could not save budgets.", "err"); }
   renderBudgets();
+}
+
+// FleetOps Vehicle Utilization: distance, active days and trips per vehicle over a window —
+// surfaces busy vs idle/under-used trucks. All from existing fuel logs, trips and expenses.
+function renderUtilization() {
+  const body = document.getElementById("utilBody"); if (!body) return;
+  const sel = document.getElementById("utilDays"); if (sel && !sel.dataset.w) { sel.dataset.w = "1"; sel.onchange = renderUtilization; }
+  const days = +(sel && sel.value || 30);
+  const since = new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+  const fmt = n => "₹" + Math.round(+n || 0).toLocaleString("en-IN");
+  const rows = (db.vehicles || []).map(v => {
+    const fills = (db.fuelLogs || []).filter(f => f.vehicleId === v.id && f.date >= since).sort((a, b) => a.odo - b.odo);
+    const km = fills.length > 1 ? Math.max(0, fills[fills.length - 1].odo - fills[0].odo) : 0;
+    const trips = (db.trips || []).filter(t => t.vehicleId === v.id && t.date >= since);
+    const activeDays = new Set([...fills.map(f => f.date), ...trips.map(t => t.date)]).size;
+    const rev = trips.reduce((s, t) => s + (+t.freight || 0), 0);
+    const cost = fills.reduce((s, f) => s + (+f.amount || 0), 0) + (db.expenses || []).filter(e => e.vehicleId === v.id && e.date >= since).reduce((s, e) => s + (+e.amount || 0), 0);
+    const cpk = km > 0 ? cost / km : null;
+    return { v, km, activeDays, trips: trips.length, rev, cost, cpk };
+  });
+  if (!rows.length) { body.innerHTML = `<p class="muted" style="padding:14px">Add vehicles and log fuel/trips to see utilization.</p>`; return; }
+  const maxKm = Math.max(1, ...rows.map(r => r.km));
+  const activeThresh = Math.round(days * 0.2);   // active on under 20% of days = under-used
+  const status = r => r.km === 0 && !r.trips ? { l: "Idle", c: "overdue", col: "#dc2626" } : (r.km < maxKm * 0.25 || r.activeDays < activeThresh) ? { l: "Under-used", c: "soon", col: "#f59e0b" } : { l: "Active", c: "ok", col: "#16a34a" };
+  rows.sort((a, b) => b.km - a.km);
+  const idle = rows.filter(r => r.km === 0 && !r.trips).length, under = rows.filter(r => status(r).l === "Under-used").length;
+  body.innerHTML = `<div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:.85rem">
+      <span>Fleet distance <b>${rows.reduce((s, r) => s + r.km, 0).toLocaleString("en-IN")} km</b></span>
+      <span>Under-used <b style="color:#f59e0b">${under}</b></span><span>Idle <b style="color:#dc2626">${idle}</b></span></div>
+    <table class="chart-table-el" style="width:100%"><thead><tr><th>Vehicle</th><th>Distance</th><th>Utilization</th><th>Active days</th><th>Trips</th><th>₹/km</th><th>Status</th></tr></thead><tbody>${rows.map(r => {
+      const s = status(r), pct = Math.round(r.km / maxKm * 100);
+      return `<tr><td><strong>${esc(r.v.name)}</strong></td><td>${r.km.toLocaleString("en-IN")} km</td>
+        <td style="min-width:120px"><div style="background:var(--surface-2);border-radius:6px;height:8px;overflow:hidden"><i style="display:block;height:100%;width:${pct}%;background:${s.col}"></i></div></td>
+        <td>${r.activeDays} / ${days}</td><td>${r.trips}</td><td>${r.cpk != null ? fmt(r.cpk) : "—"}</td>
+        <td><span class="fw-badge ${s.c}">${s.l}</span></td></tr>`;
+    }).join("")}</tbody></table>
+    <p class="muted" style="margin-top:8px;font-size:.78rem">Distance from fuel-log odometer readings; active days and trips over the window. An under-used or idle truck still costs EMI, insurance and parking — redeploy or review it.</p>`;
 }
 
 // Passenger Safety: run the bus-anomaly engine (rules + Gemma) for a bus/train and show findings.
