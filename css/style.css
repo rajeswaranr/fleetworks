@@ -2140,3 +2140,11 @@ label:has(> input[type="radio"]) {
 /* Home hub tagline */
 .hub-tagline{color:var(--navy);font-size:1.1rem;margin:4px 0 0}
 .hub-tagline strong{font-weight:700}
+
+/* Password show/hide toggle */
+.pw-wrap{position:relative;display:flex;align-items:center}
+.pw-wrap input{flex:1;padding-right:38px}
+.pw-toggle{position:absolute;right:0;top:0;bottom:0;width:36px;background:none;border:none;cursor:pointer;
+  color:var(--muted,#6b7280);padding:0;display:flex;align-items:center;justify-content:center;border-radius:0 8px 8px 0;
+  transition:color .15s}
+.pw-toggle:hover{color:var(--navy)}
