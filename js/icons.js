@@ -86,6 +86,7 @@
     chevronRight: '<path d="m9 6 6 6-6 6"/>',
     chevronDown: '<path d="m6 9 6 6 6-6"/>',
     eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+    "eye-off": '<path d="M17.9 17.9A10 10 0 0 1 12 19c-6.5 0-10-7-10-7a17.9 17.9 0 0 1 4.1-5.9M9.9 4.2A9.6 9.6 0 0 1 12 4c6.5 0 10 7 10 7a18 18 0 0 1-2 3.1M3 3l18 18"/><circle cx="12" cy="12" r="3" opacity=".4"/>',
     camera: '<path d="M3 8a2 2 0 0 1 2-2h2.5l1.3-2h6.4l1.3 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><circle cx="12" cy="12.5" r="3.5"/>',
     pause: '<rect x="7" y="5" width="3.5" height="14" rx="1"/><rect x="13.5" y="5" width="3.5" height="14" rx="1"/>',
     map: '<path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2Z"/><path d="M9 4v14M15 6v14"/>',
@@ -155,10 +156,33 @@
     });
   }
 
+  /* Auto-wrap every password input with a show/hide toggle. */
+  function initPasswordToggles(root) {
+    (root || document).querySelectorAll('input[type="password"]:not([data-pw-init])').forEach(function (input) {
+      input.dataset.pwInit = "1";
+      var wrap = document.createElement("div");
+      wrap.className = "pw-wrap";
+      input.parentNode.insertBefore(wrap, input);
+      wrap.appendChild(input);
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pw-toggle";
+      btn.setAttribute("aria-label", "Show password");
+      btn.innerHTML = FWIcon("eye", { size: 18 });
+      btn.addEventListener("click", function () {
+        var show = input.type === "password";
+        input.type = show ? "text" : "password";
+        btn.setAttribute("aria-label", show ? "Hide password" : "Show password");
+        btn.innerHTML = FWIcon(show ? "eye-off" : "eye", { size: 18 });
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
   window.FWIcon = FWIcon;
-  window.FWIcons = { hydrate: hydrate, names: Object.keys(P), alias: ALIAS };
+  window.FWIcons = { hydrate: hydrate, initPasswordToggles: initPasswordToggles, names: Object.keys(P), alias: ALIAS };
 
   if (document.readyState === "loading")
-    document.addEventListener("DOMContentLoaded", function () { hydrate(); });
-  else hydrate();
+    document.addEventListener("DOMContentLoaded", function () { hydrate(); initPasswordToggles(); });
+  else { hydrate(); initPasswordToggles(); }
 })();
